@@ -1,21 +1,15 @@
-import React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
-// 1. IMPORTAR LOS CONTEXTOS
-import { CartProvider } from "@/lib/context/cart-context";
-import { AuthProvider } from "@/lib/context/auth-context"; 
-
-// 2. IMPORTAR EL WRAPPER (¡IMPORTANTE! NO IMPORTAR NAVBAR NI FOOTER AQUÍ)
-import LayoutWrapper from "@/components/layout/layout-wrapper";
-import IntroLoader from "@/components/ui/intro-loader";
+// IMPORTANTE: Importamos tu componente maestro de proveedores
+import { Providers } from "@/components/providers";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Coyote Textil | Suministro Mayorista",
-  description: "Marketplace transaccional de textiles premium.",
+  title: "Coyote Textil | Infraestructura Nacional",
+  description: "Proveeduría estratégica de tejidos de alto rendimiento.",
 };
 
 export default function RootLayout({
@@ -24,22 +18,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="scroll-smooth">
-      <body className={`${inter.className} antialiased min-h-screen flex flex-col bg-[#fcfcfc]`}>
+    <html lang="es">
+      <body className={`${inter.className} bg-[#050505] text-white antialiased`}>
         
-        {/* Contextos Globales */}
-        <AuthProvider>
-          <CartProvider>
-            
-            <IntroLoader />
-
-            {/* USAMOS EL WRAPPER QUE CONTIENE LA LÓGICA DEL NAVBAR */}
-            <LayoutWrapper>
-                {children}
-            </LayoutWrapper>
-
-          </CartProvider>
-        </AuthProvider>
+        {/* AQUÍ OCURRE LA MAGIA:
+            Envolvemos toda la app con 'Providers'.
+            Esto inyecta SessionProvider -> AuthProvider -> CartProvider
+            a todas las páginas automáticamente.
+        */}
+        <Providers>
+          {children}
+        </Providers>
 
       </body>
     </html>
