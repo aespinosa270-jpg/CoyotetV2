@@ -222,14 +222,16 @@ export default function ProductDetailPage() {
                <div className="flex items-start gap-2">
                   <Truck size={16} className="text-[#FDCB02] mt-0.5"/>
                   <div>
-                     <p className="text-[10px] font-bold uppercase text-white">Envío Nacional</p>
+                     {/* CORRECCIÓN AQUÍ: text-neutral-900 en modo claro, dark:text-white en oscuro */}
+                     <p className="text-[10px] font-bold uppercase text-neutral-900 dark:text-white">Envío Nacional</p>
                      <p className="text-[9px] text-neutral-500">Gratis arriba de 100kg</p>
                   </div>
                </div>
                <div className="flex items-start gap-2">
                   <Shield size={16} className="text-[#FDCB02] mt-0.5"/>
                   <div>
-                     <p className="text-[10px] font-bold uppercase text-white">Garantía Coyote</p>
+                     {/* CORRECCIÓN AQUÍ: text-neutral-900 en modo claro, dark:text-white en oscuro */}
+                     <p className="text-[10px] font-bold uppercase text-neutral-900 dark:text-white">Garantía Coyote</p>
                      <p className="text-[9px] text-neutral-500">Devolución en 30 días</p>
                   </div>
                </div>
@@ -238,6 +240,7 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
+        {/* ... (Resto del código: Pestañas y Productos Relacionados) ... */}
         {/* --- SECCIÓN INFERIOR: PESTAÑAS DETALLADAS --- */}
         <div className="mt-20 border-t border-neutral-800 pt-10">
            {/* Navegación de Pestañas */}
