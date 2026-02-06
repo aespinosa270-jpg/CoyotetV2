@@ -1,0 +1,21 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // AQUÍ NO VA NADA MÁS. La URL la inyecta el archivo de config.
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String    
+  image         String?
+  role          String    @default("silver") // silver, gold, black
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
