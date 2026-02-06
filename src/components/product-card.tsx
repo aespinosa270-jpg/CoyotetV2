@@ -128,7 +128,6 @@ export default function ProductCard({ id, title, price, image, sku, category }: 
                 </div>
             </div>
 
-            {/* BOTÓN PRINCIPAL (Móvil y Desktop) */}
             <button 
               onClick={handleAddToCart}
               disabled={justAdded}
