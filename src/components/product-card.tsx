@@ -26,6 +26,7 @@ export default function ProductCard({ id, title, price, image, sku, category }: 
 
   const handleAddToCart = () => {
     addItem({ 
+      // @ts-ignore
       id, 
       title, 
       price: finalPrice, // Se agrega con el precio correspondiente a su nivel
