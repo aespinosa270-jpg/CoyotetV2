@@ -5,7 +5,6 @@ import Link from "next/link"
 import Image from "next/image"
 import { useCart } from "@/lib/context/cart-context" 
 import { useAuth } from "@/lib/context/auth-context" 
-import { motion, AnimatePresence } from "framer-motion"
 import { 
   ShoppingCart, Search, User, MapPin, Menu, 
   ChevronDown, HelpCircle, FileText, Sparkles, Zap,
@@ -13,7 +12,8 @@ import {
 } from "lucide-react"
 
 export default function Navbar() {
-  const { totalItems, toggleCart } = useCart()
+  // 👇 CORRECCIÓN: Usamos 'openCart' (la función real del contexto)
+  const { totalItems, openCart } = useCart()
   const { user, logout } = useAuth()
   
   const [searchMode, setSearchMode] = useState<'sku' | 'ia'>('sku')
@@ -83,7 +83,10 @@ export default function Navbar() {
         <div className="flex-1 hidden lg:flex max-w-2xl relative z-20">
             <form className="w-full flex h-[52px] bg-[#111] border border-white/10 rounded-sm focus-within:border-[#FDCB02] focus-within:ring-1 focus-within:ring-[#FDCB02] transition-all overflow-hidden">
                 
-                <div className="flex items-center px-5 bg-[#1a1a1a] border-r border-white/10 cursor-pointer hover:bg-[#222] group" onClick={() => setSearchMode(searchMode === 'sku' ? 'ia' : 'sku')}>
+                <div 
+                    className="flex items-center px-5 bg-[#1a1a1a] border-r border-white/10 cursor-pointer hover:bg-[#222] group" 
+                    onClick={() => setSearchMode(searchMode === 'sku' ? 'ia' : 'sku')}
+                >
                     <span className="text-[10px] font-[1000] uppercase text-neutral-400 w-16 text-center group-hover:text-white transition-colors">
                         {searchMode === 'sku' ? 'SKU' : 'IA'}
                     </span>
@@ -158,9 +161,9 @@ export default function Navbar() {
             </Link>
           )}
 
-          {/* CARRITO */}
+          {/* BOTÓN DEL CARRITO */}
           <button 
-            onClick={toggleCart} 
+            onClick={openCart} // 👈 AQUÍ APLICAMOS LA CORRECCIÓN
             className="flex items-center gap-5 bg-white text-black pl-6 pr-8 py-3.5 hover:bg-[#FDCB02] transition-all relative group rounded-sm shadow-xl"
           >
             <div className="relative">
@@ -190,7 +193,6 @@ export default function Navbar() {
 
             <nav className="flex gap-12 text-[11px] font-[1000] uppercase tracking-[0.2em] text-neutral-500 h-full items-center">
                 
-                {/* --- AQUI ESTA LA SECCION NOSOTROS RECUPERADA --- */}
                 <Link href="/nosotros" className="hover:text-white flex items-center gap-2 group transition-all">
                     <Building2 size={16} className="text-[#FDCB02] group-hover:text-white transition-colors"/> NOSOTROS
                 </Link>
