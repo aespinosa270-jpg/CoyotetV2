@@ -2,12 +2,14 @@
 
 generator client {
   provider = "prisma-client-js"
+  // 👇 ESTA LÍNEA ES LA SOLUCIÓN AL ERROR DE "CANNOT FIND MODULE"
+  // Le dice a Prisma: "Prepara los archivos para mi PC (native) y para Vercel (rhel-openssl-1.0.x)"
+  binaryTargets = ["native", "rhel-openssl-1.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
-  // 👇 ESTA LÍNEA ES OBLIGATORIA AHORA
-  url      = env("DATABASE_URL") 
+  url      = env("DATABASE_URL")
 }
 
 model User {
