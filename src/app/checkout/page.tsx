@@ -1,291 +1,268 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Script from 'next/script';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-// 1. IMPORTACIÓN CORREGIDA: AnimatePresence y Variants
-import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { useCart } from '@/lib/context/cart-context';
 import { 
-  CreditCard, ShieldCheck, ChevronLeft, Terminal, Activity, 
-  ShieldAlert, ArrowRight, Loader2, Package, Truck, FileText, Crown, Info, Zap
+  ArrowLeft, CreditCard, MapPin, Shield, Truck, 
+  CheckCircle, Activity, Lock, ShoppingBag, 
+  Trash2, Plus, Minus, AlertCircle
 } from 'lucide-react';
-import { useCart } from "@/lib/context/cart-context";
-
-// 2. CORRECCIÓN DE ERROR DE TIPO EN VARIANTS
-const containerVariants: Variants = {
-  hidden: { opacity: 0, y: 50 },
-  visible: { 
-    opacity: 1, 
-    y: 0, 
-    transition: { 
-      duration: 0.8, 
-      // El "as any" o "as const" soluciona el error de inferencia de tupla
-      ease: [0.16, 1, 0.3, 1] as any 
-    } 
-  }
-};
-
-const formatPrice = (amount: number) => {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN',
-    minimumFractionDigits: 2
-  }).format(amount);
-};
 
 export default function CheckoutPage() {
-  const { cart, subTotal, serviceFee, grandTotal } = useCart();
-  const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState(1);
+  // 1. TRAEMOS LAS FUNCIONES DE CONTROL (updateQuantity, removeItem)
+  const { items, subtotal, updateQuantity, removeItem } = useCart();
   const [mounted, setMounted] = useState(false);
-  const [deviceSessionId, setDeviceSessionId] = useState('');
-  
-  const [shippingData, setShippingData] = useState({ name: '', email: '', phone: '', address: '', zip: '', location: '' });
-  const [cardData, setCardData] = useState({ holder: '', number: '', exp: '', cvv: '' });
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const shippingCost = subTotal > 5000 ? 0 : 250;
-  const finalTotal = grandTotal + shippingCost;
-  const potentialSavings = subTotal * 0.10;
+  // Estados del formulario
+  const [formData, setFormData] = useState({
+    nombre: '', email: '', telefono: '', direccion: '', ciudad: '', cp: ''
+  });
 
-  useEffect(() => { 
-    setMounted(true); 
-    setDeviceSessionId(`k8d9s8d9s8d9s8d-${Date.now()}`);
-  }, []);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>, setFunction: any) => {
-    setFunction((prev: any) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handlePayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      alert("¡Misión Cumplida! Tu orden ha sido autorizada.");
-    }, 3000);
-  };
+  useEffect(() => setMounted(true), []);
 
   if (!mounted) return null;
+
+  // Lógica de Envío
+  const costoEnvio = subtotal > 5000 ? 0 : 250;
+  const totalPagar = subtotal + costoEnvio;
   
-  if (cart.length === 0) {
+  // --- CARRITO VACÍO ---
+  if (items.length === 0) {
     return (
-        <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-white space-y-6">
-            <Activity size={64} className="text-[#FDCB02] animate-pulse" />
-            <h1 className="text-4xl font-black italic uppercase tracking-tighter">Señal Perdida</h1>
-            <Link href="/" className="bg-white text-black px-8 py-3 font-black uppercase hover:bg-[#FDCB02] transition-colors">
-                Reiniciar Sistema
+        <div className="min-h-screen bg-white flex flex-col items-center justify-center text-neutral-900 space-y-6 pt-20">
+            <div className="w-24 h-24 bg-neutral-100 rounded-full flex items-center justify-center text-neutral-400 mb-2">
+                <ShoppingBag size={48} />
+            </div>
+            <h1 className="text-2xl font-black uppercase">Tu pedido está vacío</h1>
+            <p className="text-neutral-500 max-w-md text-center px-4">
+                Regresa al catálogo para agregar productos antes de finalizar.
+            </p>
+            <Link 
+                href="/" 
+                className="bg-[#FDCB02] hover:bg-black hover:text-white text-black px-8 py-3 rounded-lg font-bold uppercase tracking-widest transition-all"
+            >
+                Volver al Catálogo
             </Link>
         </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-[#FDCB02] selection:text-black overflow-x-hidden relative">
+    <div className="min-h-screen bg-neutral-50 font-sans pt-24 pb-20 selection:bg-[#FDCB02] selection:text-black">
       
-      <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] mix-blend-overlay"></div>
-      <div className="fixed inset-0 z-50 pointer-events-none border-[12px] border-white/5 lg:border-[20px]"></div>
-      
-      <Script src="https://js.openpay.mx/openpay.v1.min.js" strategy="lazyOnload" />
-
-      {/* --- CINTA DE PRECAUCIÓN CON GARRAS --- */}
-      <div className="bg-[#FDCB02] border-y-[5px] border-black py-3 overflow-hidden whitespace-nowrap relative z-40 shadow-2xl">
-        <motion.div 
-          animate={{ x: [0, -1000] }} 
-          transition={{ repeat: Infinity, duration: 30, ease: "linear" }}
-          className="flex items-center"
-        >
-          {[...Array(10)].map((_, i) => (
-            <div key={i} className="flex items-center shrink-0">
-              
-              {/* TEXTO 1 */}
-              <span className="px-8 text-black font-black text-xl md:text-2xl italic tracking-tighter uppercase transform -skew-x-12">
-                VISTIENDO LA FUERZA DE MÉXICO
-              </span>
-
-              {/* DIVISOR DE GARRAS 1 */}
-              <div className="w-16 h-10 relative mx-4 transform -skew-x-1">
-                 <Image 
-                    src="/coyotelogo.svg" // Asegúrate de tener esta imagen en public/
-                    alt="Garras Coyote"
-                    fill
-                 />
-              </div>
-
-              {/* TEXTO 2 */}
-              <span className="px-8 text-black font-black text-xl md:text-2xl italic tracking-tighter uppercase transform -skew-x-12">
-                ¡GRACIAS POR ELEGIR COYOTE TEXTIL!
-              </span>
-
-              {/* DIVISOR DE GARRAS 2 */}
-              <div className="w-16 h-10 relative mx-4 transform -skew-x-12">
-                 <Image 
-                    src="/coyotelogo.svg" 
-                    alt="Garras Coyote"
-                    fill
-                 />
-              </div>
-
-            </div>
-          ))}
-        </motion.div>
-      </div>
-
-      {/* --- HEADER --- */}
-      <header className="relative z-30 pt-16 pb-10 px-8 md:px-16 flex flex-col md:flex-row justify-between items-start md:items-end border-b border-white/5">
-        <div className="space-y-4">
-          <Link href="/" className="inline-flex items-center gap-2 text-neutral-500 hover:text-[#FDCB02] transition-colors group mb-4">
-            <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Abortar Misión</span>
-          </Link>
-          <h1 className="text-6xl md:text-8xl lg:text-9xl font-black uppercase tracking-tighter italic leading-[0.8]">
-            FINALIZAR <span className="text-transparent text-stroke-white block md:inline">COMPRA</span>
-          </h1>
-        </div>
+      <div className="container mx-auto px-4 lg:px-8 max-w-[1200px]">
         
-        <div className="mt-8 md:mt-0 text-right space-y-2">
-            <div className="flex items-center justify-end gap-2 text-[10px] font-mono text-[#FDCB02] uppercase tracking-widest">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#22c55e]" />
-                System: Online
-            </div>
-            <div className="text-4xl font-black italic tracking-tighter">
-                {formatPrice(finalTotal)} <span className="text-sm font-bold text-[#FDCB02] not-italic ml-1">MXN</span>
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-8">
+            <Link href="/" className="p-2 hover:bg-white rounded-full transition-colors text-neutral-500">
+                <ArrowLeft size={20} />
+            </Link>
+            <h1 className="text-2xl font-black uppercase text-black tracking-tight">Finalizar Compra</h1>
+            <div className="ml-auto flex items-center gap-2 text-[10px] font-bold text-green-700 bg-green-100 px-3 py-1 rounded-full uppercase">
+                <Lock size={12} /> Sitio Seguro SSL
             </div>
         </div>
-      </header>
 
-      <main className="relative z-20 px-6 md:px-16 py-20 grid lg:grid-cols-12 gap-20">
-        
-        {/* --- FORMULARIOS --- */}
-        <div className="lg:col-span-7 space-y-24">
-          <motion.section 
-            variants={containerVariants} initial="hidden" animate="visible"
-            className={`space-y-12 transition-all duration-700 ${step === 2 ? 'opacity-20 blur-[2px] pointer-events-none grayscale' : ''}`}
-          >
-            <div className="flex items-baseline gap-6 border-b border-white/10 pb-6">
-              <span className="text-6xl font-black italic text-white/10">01</span>
-              <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight italic">Logística de <span className="text-[#FDCB02]">Entrega</span></h2>
-            </div>
-
-            <form className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-12" onSubmit={(e) => { e.preventDefault(); setStep(2); }}>
-              {[
-                { label: 'Identidad (Nombre)', name: 'name', placeholder: 'TITULAR REGISTRADO' },
-                { label: 'Canal (Email)', name: 'email', placeholder: 'CORREO@DOMINIO.COM' },
-                { label: 'Enlace (Teléfono)', name: 'phone', placeholder: '10 DÍGITOS' },
-                { label: 'Coordenadas (CP)', name: 'zip', placeholder: '00000' },
-                { label: 'Dirección Exacta', name: 'address', placeholder: 'CALLE, NÚMERO Y BODEGA', span: true },
-                { label: 'Sector (Ciudad)', name: 'location', placeholder: 'MÉXICO', span: true },
-              ].map((f, i) => (
-                <div key={i} className={`group space-y-4 ${f.span ? 'md:col-span-2' : ''}`}>
-                  <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-neutral-600 group-focus-within:text-[#FDCB02] transition-colors">
-                     <Terminal size={12} /> {f.label}
-                  </label>
-                  <input 
-                    type="text" name={f.name} required placeholder={f.placeholder}
-                    value={(shippingData as any)[f.name]} onChange={(e) => handleInputChange(e, setShippingData)}
-                    className="w-full bg-transparent border-b-2 border-white/10 py-2 text-xl font-bold uppercase text-white focus:border-[#FDCB02] outline-none transition-all placeholder:text-white/10"
-                  />
-                </div>
-              ))}
-              <div className="md:col-span-2 pt-8">
-                <button type="submit" className="w-full md:w-auto bg-white text-black px-10 py-6 font-black uppercase italic tracking-widest text-lg hover:bg-[#FDCB02] transition-all">
-                    Confirmar Datos <ArrowRight size={20} className="inline ml-2"/>
-                </button>
-              </div>
-            </form>
-          </motion.section>
-
-          {/* Pago (Condicional) */}
-          <AnimatePresence>
-            {step === 2 && (
-              <motion.section initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-12">
-                <div className="flex items-baseline gap-6 border-b border-[#FDCB02]/30 pb-6">
-                  <span className="text-6xl font-black italic text-[#FDCB02]/20">02</span>
-                  <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight italic text-[#FDCB02]">Bóveda de <span className="text-white">Pago</span></h2>
-                </div>
-                <div className="bg-[#0F0F0F] border border-[#FDCB02]/30 p-8 md:p-12 relative overflow-hidden">
-                   <div className="absolute top-0 right-0 p-8 opacity-[0.03]"><ShieldCheck size={200}/></div>
-                   <form onSubmit={handlePayment} className="relative z-10 space-y-10">
-                      <div className="space-y-4">
-                         <label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Número de Tarjeta</label>
-                         <input type="text" placeholder="0000 0000 0000 0000" className="w-full bg-transparent border-b-2 border-white/20 py-4 text-2xl md:text-4xl font-black tracking-widest focus:border-[#FDCB02] outline-none font-mono" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-10">
-                        <input type="text" placeholder="MM/AA" className="w-full bg-transparent border-b-2 border-white/20 py-4 text-xl font-black text-center focus:border-[#FDCB02] outline-none" />
-                        <input type="password" placeholder="CVC" className="w-full bg-transparent border-b-2 border-white/20 py-4 text-xl font-black text-center focus:border-[#FDCB02] outline-none" />
-                      </div>
-                      <button className="w-full bg-[#FDCB02] text-black font-black uppercase py-6 text-xl italic tracking-widest hover:bg-white transition-all">
-                        {loading ? 'Procesando Misión...' : 'Inicializar Pago Final'}
-                      </button>
-                   </form>
-                </div>
-              </motion.section>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* --- LADO DERECHO: MANIFIESTO --- */}
-        <div className="lg:col-span-5 hidden lg:block">
-          <div className="sticky top-32 border-2 border-white/5 bg-[#0a0a0a] p-8 space-y-8 shadow-2xl relative">
-            <h3 className="text-lg font-black uppercase tracking-[0.3em] border-b border-white/10 pb-6">
-              Manifiesto de Carga <span className="text-[#FDCB02]">[{cart.length}]</span>
-            </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            <div className="space-y-6 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-              {cart.map((item) => (
-                <div key={item.id} className="flex gap-4 group">
-                  <div className="w-16 h-16 bg-neutral-900 relative shrink-0 overflow-hidden border border-white/5">
-                    {item.thumbnail && <Image src={item.thumbnail} alt={item.title} fill className="object-cover grayscale group-hover:grayscale-0 transition-all" />}
-                  </div>
-                  <div className="flex flex-col justify-between py-1 flex-1">
-                    <h4 className="font-black uppercase text-[10px] tracking-tight group-hover:text-[#FDCB02] transition-colors leading-none">{item.title}</h4>
-                    <div className="flex justify-between items-end">
-                      <span className="text-[10px] font-bold bg-white/5 px-2 py-0.5 rounded-sm uppercase">{item.quantity} {item.unit}</span>
-                      <span className="text-sm font-black italic">{formatPrice(item.price * item.quantity)}</span>
+            {/* --- COLUMNA IZQUIERDA: DATOS --- */}
+            <div className="lg:col-span-7 space-y-6">
+                
+                {/* 1. Dirección */}
+                <div className="bg-white p-6 md:p-8 rounded-lg border border-neutral-200 shadow-sm">
+                    <div className="flex items-center gap-3 mb-6 border-b border-neutral-100 pb-4">
+                        <div className="w-8 h-8 bg-[#FDCB02] rounded-full flex items-center justify-center font-bold text-sm text-black">1</div>
+                        <h2 className="text-lg font-bold uppercase text-black">Dirección de Envío</h2>
                     </div>
-                  </div>
+                    <form className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                            <label className="text-[11px] font-bold text-neutral-500 uppercase mb-1 block">Nombre Completo</label>
+                            <input type="text" className="w-full bg-neutral-50 border border-neutral-200 rounded p-3 text-sm font-medium focus:outline-none focus:border-[#FDCB02] transition-all" placeholder="Nombre y Apellido" />
+                        </div>
+                        <div>
+                            <label className="text-[11px] font-bold text-neutral-500 uppercase mb-1 block">Teléfono</label>
+                            <input type="tel" className="w-full bg-neutral-50 border border-neutral-200 rounded p-3 text-sm font-medium focus:outline-none focus:border-[#FDCB02] transition-all" placeholder="10 dígitos" />
+                        </div>
+                        <div>
+                            <label className="text-[11px] font-bold text-neutral-500 uppercase mb-1 block">Email</label>
+                            <input type="email" className="w-full bg-neutral-50 border border-neutral-200 rounded p-3 text-sm font-medium focus:outline-none focus:border-[#FDCB02] transition-all" placeholder="contacto@ejemplo.com" />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="text-[11px] font-bold text-neutral-500 uppercase mb-1 block">Dirección</label>
+                            <input type="text" className="w-full bg-neutral-50 border border-neutral-200 rounded p-3 text-sm font-medium focus:outline-none focus:border-[#FDCB02] transition-all" placeholder="Calle y Número" />
+                        </div>
+                        <div>
+                            <label className="text-[11px] font-bold text-neutral-500 uppercase mb-1 block">Ciudad</label>
+                            <input type="text" className="w-full bg-neutral-50 border border-neutral-200 rounded p-3 text-sm font-medium focus:outline-none focus:border-[#FDCB02] transition-all" />
+                        </div>
+                        <div>
+                            <label className="text-[11px] font-bold text-neutral-500 uppercase mb-1 block">CP</label>
+                            <input type="text" className="w-full bg-neutral-50 border border-neutral-200 rounded p-3 text-sm font-medium focus:outline-none focus:border-[#FDCB02] transition-all" />
+                        </div>
+                    </form>
                 </div>
-              ))}
+
+                {/* 2. Pago */}
+                <div className="bg-white p-6 md:p-8 rounded-lg border border-neutral-200 shadow-sm">
+                    <div className="flex items-center gap-3 mb-6 border-b border-neutral-100 pb-4">
+                        <div className="w-8 h-8 bg-neutral-200 text-neutral-600 rounded-full flex items-center justify-center font-bold text-sm">2</div>
+                        <h2 className="text-lg font-bold uppercase text-black">Forma de Pago</h2>
+                    </div>
+                    <div className="space-y-3">
+                        <label className="flex items-center justify-between p-4 border border-[#FDCB02] bg-[#FDCB02]/5 rounded-lg cursor-pointer transition-all">
+                            <div className="flex items-center gap-3">
+                                <input type="radio" name="payment" defaultChecked className="accent-black w-4 h-4" />
+                                <span className="font-bold text-sm text-black">Tarjeta de Crédito / Débito</span>
+                            </div>
+                            <CreditCard size={20} className="text-neutral-400"/>
+                        </label>
+                        <label className="flex items-center justify-between p-4 border border-neutral-200 hover:border-neutral-300 rounded-lg cursor-pointer transition-all">
+                            <div className="flex items-center gap-3">
+                                <input type="radio" name="payment" className="accent-black w-4 h-4" />
+                                <div>
+                                    <span className="font-bold text-sm text-black block">Transferencia SPEI</span>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
             </div>
 
-            {/* UPSELL MEMBRESÍA */}
-            <div className="bg-[#111] border border-[#FDCB02]/20 p-4 relative overflow-hidden group">
-               <div className="absolute -right-2 -top-2 opacity-10 group-hover:opacity-20 transition-opacity"><Crown size={48}/></div>
-               <div className="relative z-10 flex items-start gap-3">
-                  <Zap size={16} className="text-[#FDCB02] mt-1 shrink-0 animate-pulse" />
-                  <div>
-                     <h4 className="text-[10px] font-black uppercase tracking-widest text-white mb-1">Oportunidad Detectada</h4>
-                     <p className="text-[9px] text-neutral-400 leading-relaxed">Ahorra <span className="text-[#FDCB02] font-bold">{formatPrice(potentialSavings)} MXN</span> activando Gold.</p>
-                     <Link href="/membresia" className="text-[9px] font-black uppercase bg-[#FDCB02] text-black px-2 py-1 inline-block mt-2">Activar Membresía</Link>
-                  </div>
-               </div>
+            {/* --- COLUMNA DERECHA: RESUMEN INTERACTIVO --- */}
+            <div className="lg:col-span-5">
+                <div className="bg-white p-6 md:p-8 rounded-lg border border-neutral-200 shadow-lg sticky top-28">
+                    <h3 className="text-lg font-black uppercase text-black mb-6 border-b border-neutral-100 pb-4 flex justify-between items-center">
+                        Tu Pedido 
+                        <span className="text-xs font-normal text-neutral-500 bg-neutral-100 px-2 py-1 rounded-full">{items.length} Artículos</span>
+                    </h3>
+                    
+                    {/* LISTA DE PRODUCTOS EDITABLE */}
+                    <div className="space-y-6 mb-6 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-neutral-200">
+                        {items.map((item) => (
+                            <div key={item.id} className="flex gap-4 items-start border-b border-neutral-50 pb-6 last:border-0 last:pb-0 group">
+                                
+                                {/* Imagen */}
+                                <div className="relative w-20 h-20 bg-neutral-100 rounded-md overflow-hidden shrink-0 border border-neutral-200">
+                                    <Image src={item.image} alt={item.title} fill className="object-cover" />
+                                </div>
+                                
+                                {/* Controles e Info */}
+                                <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h4 className="font-bold text-sm text-black leading-tight truncate max-w-[150px]">{item.title}</h4>
+                                            <p className="text-[10px] text-neutral-500 font-bold uppercase mt-0.5">
+                                                {item.unit} • ${item.price.toLocaleString()} c/u
+                                            </p>
+                                        </div>
+                                        {/* Botón Eliminar */}
+                                        <button 
+                                            onClick={() => removeItem(item.id)}
+                                            className="text-neutral-300 hover:text-red-500 transition-colors p-1"
+                                            title="Eliminar producto"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex justify-between items-end mt-3">
+                                        {/* Controlador de Cantidad */}
+                                        <div className="flex items-center border border-neutral-300 rounded bg-white h-8">
+                                            <button 
+                                                onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
+                                                className="px-2 h-full hover:bg-neutral-100 text-neutral-600 transition-colors"
+                                                disabled={item.quantity <= 1}
+                                            >
+                                                <Minus size={12} />
+                                            </button>
+                                            <span className="w-8 text-center text-xs font-bold text-black">{item.quantity}</span>
+                                            <button 
+                                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                                className="px-2 h-full hover:bg-neutral-100 text-neutral-600 transition-colors"
+                                            >
+                                                <Plus size={12} />
+                                            </button>
+                                        </div>
+
+                                        {/* Subtotal Línea */}
+                                        <span className="font-bold text-sm text-black">
+                                            ${(item.price * item.quantity).toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* TOTALES */}
+                    <div className="space-y-3 pt-6 border-t border-neutral-200 bg-neutral-50 p-4 rounded-md">
+                        <div className="flex justify-between text-sm">
+                            <span className="text-neutral-600 font-medium">Subtotal</span>
+                            <span className="font-bold text-black">${subtotal.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span className="text-neutral-600 font-medium">Costo de Envío</span>
+                            <span className={`font-bold ${costoEnvio === 0 ? 'text-green-600' : 'text-black'}`}>
+                                {costoEnvio === 0 ? 'GRATIS' : `$${costoEnvio.toLocaleString()}`}
+                            </span>
+                        </div>
+                        
+                        {costoEnvio > 0 && (
+                            <div className="flex items-center gap-2 text-[10px] text-neutral-500 bg-blue-50 p-2 rounded border border-blue-100">
+                                <AlertCircle size={12} className="text-blue-500"/>
+                                Te faltan <span className="font-bold">${(5000 - subtotal).toLocaleString()}</span> para envío gratis.
+                            </div>
+                        )}
+
+                        <div className="flex justify-between items-end pt-4 border-t border-neutral-200 mt-2">
+                            <span className="font-black uppercase text-base">Total a Pagar</span>
+                            <span className="font-black text-2xl text-black">
+                                ${totalPagar.toLocaleString()} <span className="text-xs font-normal text-neutral-400">MXN</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* BOTÓN PAGAR */}
+                    <button 
+                        onClick={() => {
+                            setIsProcessing(true);
+                            setTimeout(() => {
+                                setIsProcessing(false);
+                                alert("¡Pedido realizado con éxito!");
+                            }, 2000);
+                        }}
+                        disabled={isProcessing}
+                        className="w-full mt-6 bg-[#FDCB02] hover:bg-black hover:text-white text-black py-4 rounded-lg font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                        {isProcessing ? (
+                            <>
+                                <Activity className="animate-spin" size={20} /> Procesando...
+                            </>
+                        ) : (
+                            <>
+                                Pagar Ahora <CheckCircle size={20} />
+                            </>
+                        )}
+                    </button>
+
+                    <div className="mt-6 flex items-center justify-center gap-6 text-neutral-400">
+                        <div className="flex flex-col items-center gap-1">
+                            <Shield size={18} />
+                            <span className="text-[9px] uppercase font-bold">Compra Protegida</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                            <Truck size={18} />
+                            <span className="text-[9px] uppercase font-bold">Envío Seguro</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div className="space-y-4 pt-4 border-t border-white/10 font-bold uppercase tracking-widest text-[10px]">
-              <div className="flex justify-between text-neutral-500"><span>Subtotal Cargo</span><span>{formatPrice(subTotal)}</span></div>
-              <div className="flex justify-between text-neutral-500"><span>Tarifa Logística</span><span>{shippingCost === 0 ? "SIN CARGO" : formatPrice(shippingCost)}</span></div>
-              <div className="flex justify-between text-3xl pt-4 text-white italic font-black tracking-tighter border-t border-white/10">
-                <span>Total</span>
-                <span className="text-[#FDCB02]">{formatPrice(finalTotal)} <span className="text-xs text-white/50 not-italic ml-1">MXN</span></span>
-              </div>
-              <div className="flex items-start gap-2 py-2">
-                  <Info size={10} className="text-neutral-600 mt-0.5"/>
-                  <p className="text-[9px] text-neutral-600 font-mono leading-tight uppercase">Los precios aquí mostrados son en moneda nacional mexicana (MXN).</p>
-              </div>
-            </div>
-
-            <a href="https://wa.me/525512345678" target="_blank" className="w-full flex items-center justify-center gap-2 border border-white/20 py-3 text-[10px] font-black uppercase text-neutral-400 hover:bg-white hover:text-black transition-all">
-               <FileText size={12}/> ¿Requieres Factura? (WhatsApp)
-            </a>
-          </div>
         </div>
-      </main>
-
-      <style jsx global>{`
-        .text-stroke-white { -webkit-text-stroke: 1px rgba(255,255,255,0.3); color: transparent; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #FDCB02; }
-      `}</style>
+      </div>
     </div>
   );
 }

@@ -1,99 +1,106 @@
-"use client"
+'use client';
 
-import React, { createContext, useContext, useState, useEffect } from "react"
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type CartItem = {
-  id: string
-  title: string
-  price: number
-  quantity: number
-  variantId: string // 'corte' | 'rollo'
-  unit: string      // 'Kilo' | 'Metro'
-  thumbnail?: string
+// Tipos
+export interface CartItem {
+  id: string;
+  productId: string;
+  title: string;
+  price: number;
+  image: string;
+  quantity: number;
+  unit: string;
+  meta?: any;
 }
 
 interface CartContextType {
-  cart: CartItem[]
-  addItem: (item: Omit<CartItem, "id">) => void
-  removeItem: (id: string) => void
-  toggleCart: () => void
-  isCartOpen: boolean
-  
-  // FINANZAS
-  subTotal: number
-  serviceFee: number
-  grandTotal: number
-  totalItems: number
+  items: CartItem[];
+  addItem: (item: CartItem) => void;
+  removeItem: (id: string) => void;
+  updateQuantity: (id: string, quantity: number) => void;
+  clearCart: () => void;
+  totalItems: number;
+  subtotal: number;
+  // 👇 NUEVO: Control del Sidebar
+  isCartOpen: boolean;
+  openCart: () => void;
+  closeCart: () => void;
 }
 
-const CartContext = createContext<CartContextType | null>(null)
+const CartContext = createContext<CartContextType | undefined>(undefined);
 
-export const CartProvider = ({ children }: { children: React.ReactNode }) => {
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [isCartOpen, setIsCartOpen] = useState(false)
-  const [isClient, setIsClient] = useState(false)
+export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false); // Estado del sidebar
 
-  // Cargar
+  // Cargar carrito de localStorage al iniciar
   useEffect(() => {
-    setIsClient(true)
-    const saved = localStorage.getItem("coyote_marketplace_cart_v2")
-    if (saved) {
-      try { setCart(JSON.parse(saved)) } catch (e) { console.error(e) }
-    }
-  }, [])
-
-  // Guardar
-  useEffect(() => {
-    if (isClient) {
-      localStorage.setItem("coyote_marketplace_cart_v2", JSON.stringify(cart))
-    }
-  }, [cart, isClient])
-
-  const addItem = (newItem: Omit<CartItem, "id">) => {
-    setCart((prev) => {
-      // ID único combinando producto y variante
-      const uniqueId = `${newItem.title}-${newItem.variantId}`
-      const existing = prev.find((i) => i.id === uniqueId)
-      if (existing) {
-        return prev.map((i) => 
-          i.id === uniqueId ? { ...i, quantity: i.quantity + newItem.quantity } : i
-        )
+    const savedCart = localStorage.getItem('coyote-cart');
+    if (savedCart) {
+      try {
+        setItems(JSON.parse(savedCart));
+      } catch (e) {
+        console.error("Error cargando carrito", e);
       }
-      return [...prev, { ...newItem, id: uniqueId }]
-    })
-    setIsCartOpen(true)
-  }
+    }
+  }, []);
+
+  // Guardar en localStorage cada vez que cambia
+  useEffect(() => {
+    localStorage.setItem('coyote-cart', JSON.stringify(items));
+  }, [items]);
+
+  const addItem = (newItem: CartItem) => {
+    setItems((prev) => {
+      const existing = prev.find((i) => i.id === newItem.id);
+      if (existing) {
+        // Si ya existe (mismo ID de variante), sumamos cantidad
+        return prev.map((i) =>
+          i.id === newItem.id
+            ? { ...i, quantity: i.quantity + newItem.quantity }
+            : i
+        );
+      }
+      return [...prev, newItem];
+    });
+    // Opcional: Abrir el carrito automáticamente al agregar
+    setIsCartOpen(true);
+  };
 
   const removeItem = (id: string) => {
-    setCart((prev) => prev.filter((item) => item.id !== id))
-  }
+    setItems((prev) => prev.filter((i) => i.id !== id));
+  };
 
-  const toggleCart = () => setIsCartOpen(!isCartOpen)
+  const updateQuantity = (id: string, quantity: number) => {
+    setItems((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, quantity: Math.max(0, quantity) } : i))
+    );
+  };
 
-  // --- MATEMÁTICA FINANCIERA ---
-  const totalItems = cart.reduce((acc, item) => acc + 1, 0) // Contamos líneas de pedido, no unidades totales
-  
-  // 1. Subtotal (Precio * Cantidad real, ejemplo: $160 * 26kg)
-  const subTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
-  
-  // 2. Cargo por servicio (4.99%)
-  const serviceFee = subTotal * 0.0499
-  
-  // 3. Gran Total
-  const grandTotal = subTotal + serviceFee
+  const clearCart = () => setItems([]);
+
+  // Cálculos
+  const totalItems = items.reduce((acc, item) => acc + (item.unit.includes('Rollo') ? item.quantity / 25 : item.quantity), 0); // Ajuste visual aproximado o simple count
+  const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+
+  const openCart = () => setIsCartOpen(true);
+  const closeCart = () => setIsCartOpen(false);
 
   return (
     <CartContext.Provider value={{ 
-      cart, addItem, removeItem, toggleCart, isCartOpen, 
-      subTotal, serviceFee, grandTotal, totalItems 
+      items, addItem, removeItem, updateQuantity, clearCart, 
+      totalItems: items.length, // Contamos líneas de pedido, no kilos totales
+      subtotal,
+      isCartOpen, openCart, closeCart 
     }}>
       {children}
     </CartContext.Provider>
-  )
+  );
 }
 
 export const useCart = () => {
-  const context = useContext(CartContext)
-  if (!context) throw new Error("useCart debe usarse dentro de CartProvider")
-  return context
-}
+  const context = useContext(CartContext);
+  if (!context) throw new Error('useCart debe usarse dentro de CartProvider');
+  return context;
+};
