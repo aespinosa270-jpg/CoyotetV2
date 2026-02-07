@@ -6,7 +6,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // AQUÍ NO VA NADA MÁS. La URL la inyecta el archivo de config.
+  // 👇 ESTA LÍNEA ES OBLIGATORIA AHORA
+  url      = env("DATABASE_URL") 
 }
 
 model User {
