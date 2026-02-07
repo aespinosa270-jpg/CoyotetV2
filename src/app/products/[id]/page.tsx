@@ -27,7 +27,7 @@ export default function ProductDetailPage() {
   const [activeTab, setActiveTab] = useState<'details' | 'specs' | 'reviews'>('details');
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  // 1. Obtener Producto
+  // 1. Obtener Producto de forma segura
   const productId = Array.isArray(params.id) ? params.id[0] : params.id;
   const product = products.find(p => p.id === productId);
 
@@ -60,14 +60,14 @@ export default function ProductDetailPage() {
   // Galería (Simulada con la misma imagen si no hay más)
   const galleryImages = [product.thumbnail, product.thumbnail, product.thumbnail];
 
-  // --- FUNCIÓN CORREGIDA ---
+  // --- FUNCIÓN AGREGAR AL CARRITO ---
   const handleAddToCart = () => {
     // Generamos un ID único para distinguir Kilos de Rollos en el carrito
     const cartVariantId = `${product.id}-${buyingMode}`;
 
     addItem({
       id: cartVariantId,      // ID único para el carrito (ej. prod_123-rollo)
-      productId: product.id,  // 👈 AQUÍ ESTABA EL ERROR: Faltaba esta propiedad
+      productId: product.id,  // ID real del producto
       title: product.title,
       price: finalPrice,
       image: product.thumbnail,
@@ -199,7 +199,7 @@ export default function ProductDetailPage() {
                         </div>
                     </div>
 
-                    {/* Ahorro */}
+                    {/* Ahorro (Si aplica por membresía, no por volumen genérico) */}
                     <div className="text-right">
                         {savingsAmount > 0 && (
                             <div className="animate-in fade-in slide-in-from-bottom-2">
@@ -299,8 +299,8 @@ export default function ProductDetailPage() {
                      <Truck size={18}/>
                   </div>
                   <div>
-                     <p className="text-[11px] font-bold text-black uppercase leading-none mb-1">Envíos Seguros</p>
-                     <p className="text-[10px] text-neutral-500 leading-none">A todo México</p>
+                     <p className="text-[11px] font-bold text-black uppercase leading-none mb-1">Envío Estándar</p>
+                     <p className="text-[10px] text-neutral-500 leading-none">Tarifa calculada al pagar</p>
                   </div>
                </div>
                <div className="flex items-center gap-3">

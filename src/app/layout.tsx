@@ -2,13 +2,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
-// 1. IMPORTAMOS TUS COMPONENTES DE ESTRUCTURA
-// Ajustado a la ruta correcta que me mostraste: "components/layout"
+// Imports de tus componentes
 import Navbar from "@/components/layout/navbar";
 import Footer from "@/components/layout/footer";
-import CartSidebar from "@/components/layout/cart-sidebar"; // 👈 ¡ESTE ES EL QUE FALTABA!
-
-// 2. IMPORTAMOS LOS PROVEEDORES
+import CartSidebar from "@/components/layout/cart-sidebar";
 import { Providers } from "@/components/providers";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -28,25 +25,37 @@ export default function RootLayout({
       <body className={`${inter.className} bg-white text-neutral-900 antialiased selection:bg-[#FDCB02] selection:text-black`}>
         
         <Providers>
-          
-          {/* Header Fijo */}
-          <header className="fixed top-0 left-0 w-full z-50 bg-white/90 backdrop-blur-md border-b border-neutral-200 shadow-sm">
-             <Navbar />
-          </header>
+          {/* Contenedor Principal: 
+            flex-col + min-h-screen asegura que el footer siempre esté abajo 
+          */}
+          <div className="flex flex-col min-h-screen">
+            
+            {/* NAVBAR: 
+              Cambiamos 'fixed' por 'sticky'. 
+              Esto hace que el Navbar ocupe su espacio real y NO tape el contenido, 
+              pero se sigue quedando pegado arriba al hacer scroll.
+            */}
+            <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-neutral-200 shadow-sm">
+               <Navbar />
+            </header>
 
-          {/* Contenido Principal */}
-          <main className="min-h-screen pt-20 lg:pt-24">
-            {children}
-          </main>
-          
-          {/* 👇 AQUÍ ESTÁ LA MAGIA: El Sidebar vive globalmente en la app */}
-          <CartSidebar />
+            {/* CONTENIDO: 
+              'flex-grow' hace que esta sección use todo el espacio disponible,
+              empujando el footer hacia abajo. 
+            */}
+            <main className="flex-grow">
+              {children}
+            </main>
 
-          {/* Footer */}
-          <footer className="border-t border-neutral-200 bg-neutral-50">
+            {/* FOOTER: 
+              Simplemente lo dejamos en el flujo normal al final de la página.
+            */}
             <Footer />
-          </footer>
 
+            {/* Componente global del Carrito (flota por encima del layout) */}
+            <CartSidebar />
+            
+          </div>
         </Providers>
 
       </body>
