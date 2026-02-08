@@ -51,9 +51,14 @@ export default function CartSidebar() {
                 items.map((item) => (
                     <div key={item.id} className="flex gap-4 animate-in fade-in slide-in-from-right-4 border-b border-neutral-50 pb-4 last:border-0">
                         {/* Imagen Miniatura */}
-                        <div className="relative w-20 h-20 bg-neutral-100 rounded-md overflow-hidden shrink-0 border border-neutral-200">
-                            <Image src={item.image} alt={item.title} fill className="object-cover" />
-                        </div>
+                        <div className="relative w-20 h-20 bg-neutral-100 rounded-md overflow-hidden shrink-0 border border-neutral-200 flex items-center justify-center">
+    {item.image ? (
+        <Image src={item.image} alt={item.title} fill className="object-cover" />
+    ) : (
+        // Si no hay imagen, mostramos un ícono seguro
+        <span className="text-2xl">📦</span> 
+    )}
+</div>
                         
                         {/* Info del Producto */}
                         <div className="flex-1 flex flex-col justify-between">

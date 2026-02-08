@@ -2,8 +2,7 @@
 
 generator client {
   provider = "prisma-client-js"
-  // 👇 ESTA LÍNEA ES LA SOLUCIÓN AL ERROR DE "CANNOT FIND MODULE"
-  // Le dice a Prisma: "Prepara los archivos para mi PC (native) y para Vercel (rhel-openssl-1.0.x)"
+  // Esta línea es vital para Vercel
   binaryTargets = ["native", "rhel-openssl-1.0.x"]
 }
 
@@ -12,6 +11,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// --- MODELO DE USUARIO ---
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -21,4 +21,36 @@ model User {
   role          String    @default("silver") // silver, gold, black
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+// --- MODELOS DE E-COMMERCE (NUEVOS) ---
+
+model Order {
+  id            String      @id @default(cuid())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  total         Float
+  status        String      @default("paid") // paid, shipped, delivered, cancelled
+  paymentId     String?     // ID de transacción de OpenPay
+  
+  // Datos del Cliente (Snapshot por si borra su cuenta)
+  customerName  String
+  customerEmail String
+  customerPhone String?
+  address       String?
+
+  // Relación con los items
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  
+  productId String
+  title     String
+  price     Float
+  quantity  Float
+  unit      String?
 }
