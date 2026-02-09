@@ -5,7 +5,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useCart } from "@/lib/context/cart-context" 
 import { useAuth } from "@/lib/context/auth-context" 
-import { products } from "@/lib/products" // 👈 Importamos tus productos
+import { products } from "@/lib/products"
 import { 
   ShoppingCart, Search, User, MapPin, Menu, 
   ChevronDown, HelpCircle, FileText, Sparkles, Zap,
@@ -18,9 +18,9 @@ export default function Navbar() {
   
   const [searchMode, setSearchMode] = useState<'sku' | 'ia'>('sku')
   const [isDeepSearch, setIsDeepSearch] = useState(false)
-  const [isMenuOpen, setIsMenuOpen] = useState(false) // Estado para el menú desplegable
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
-  // Obtenemos categorías únicas de tus productos
+  // Obtenemos categorías únicas
   const categories = Array.from(new Set(products.map(p => p.category)));
 
   return (
@@ -42,9 +42,16 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-6">
-            <Link href="/ayuda" className="hover:text-white transition-colors flex items-center gap-2">
+            {/* 👇 CAMBIO: Enlace directo a WhatsApp de Soporte */}
+            <a 
+              href="https://wa.me/5215555421527?text=Hola%20Coyote%20Textil,%20necesito%20soporte%20t%C3%A9cnico."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white transition-colors flex items-center gap-2 cursor-pointer"
+            >
               <HelpCircle size={11} /> Soporte Técnico
-            </Link>
+            </a>
+
             <Link href="/facturacion" className="hover:text-white transition-colors flex items-center gap-2 text-white">
               <FileText size={11} /> Facturación 4.0
             </Link>
@@ -113,7 +120,7 @@ export default function Navbar() {
             </form>
         </div>
 
-        {/* ACCIONES DE USUARIO (User / Cart) */}
+        {/* ACCIONES DE USUARIO */}
         <div className="flex items-center gap-8 text-white ml-auto">
           
           {user ? (
@@ -230,10 +237,6 @@ export default function Navbar() {
                 <Link href="/lo-nuevo" className="hover:text-white flex items-center gap-2 group transition-all">
                     <Sparkles size={14} className="text-[#FDCB02] group-hover:scale-125 transition-transform"/> LO NUEVO
                 </Link>
-                
-                {/* Eliminados: Liquidaciones y Telas Técnicas 
-                   (Ahora todo está centralizado en el Catálogo Global)
-                */}
 
                 <Link href="/membresia" className="text-white hover:text-orange-400 flex items-center gap-3 transition-all ml-auto lg:ml-0">
                     <Crown size={16} className="text-orange-400" /> MEMBRESÍA SOCIOS
