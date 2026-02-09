@@ -6,7 +6,8 @@ import {
   Copyright,
   Box,
   FileText,
-  ArrowUpRight 
+  ArrowUpRight,
+  Lock
 } from "lucide-react"
 
 export default function Footer() {
@@ -19,7 +20,7 @@ export default function Footer() {
         style={{ backgroundImage: `url("https://grainy-gradients.vercel.app/noise.svg")` }} 
       />
 
-      {/* 1. BARRA DE GARANTÍAS (Técnica) */}
+      {/* 1. BARRA DE GARANTÍAS */}
       <div className="relative z-10 border-b border-white/10">
         <div className="container mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-white/10">
@@ -32,7 +33,7 @@ export default function Footer() {
                  <h4 className="font-[900] text-xs uppercase tracking-widest text-white">Calidad ISO-9001</h4>
                </div>
                <p className="text-[10px] font-mono text-neutral-500 leading-relaxed uppercase pl-[3.5rem]">
-                 Inspección técnica de gramaje. Garantía de devolución inmediata.
+                 Inspección técnica de gramaje. Garantía de devolución de 15 días.
                </p>
             </div>
 
@@ -74,10 +75,43 @@ export default function Footer() {
               <h2 className="text-[12vw] lg:text-[5vw] leading-[0.8] font-[1000] tracking-tighter uppercase text-white mb-8">
                 COYOTE<span className="text-[#FDCB02]">.</span>
               </h2>
-              <div className="pl-6 border-l-2 border-[#FDCB02]">
+              <div className="pl-6 border-l-2 border-[#FDCB02] space-y-6">
                   <p className="text-sm font-bold text-neutral-300 max-w-sm uppercase tracking-wide leading-relaxed">
                     Infraestructura digital para la cadena de suministro textil.
                   </p>
+                  
+                  {/* --- AQUÍ AGREGAMOS LOS LOGOS QUE FALTABAN --- */}
+                  <div className="pt-4">
+                    <p className="text-[9px] font-black text-neutral-500 uppercase tracking-widest mb-3">
+                        Pagos Procesados vía
+                    </p>
+                    {/* Contenedor con efecto Grayscale -> Color al Hover */}
+                    <div className="flex flex-wrap items-center gap-5 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
+                        
+                        {/* Logo OpenPay */}
+                        <img 
+                            src="https://raw.githubusercontent.com/open-pay/openpay-js/master/src/assets/openpay.png" 
+                            alt="OpenPay" 
+                            className="h-6 w-auto brightness-0 invert" 
+                        />
+                        
+                        <div className="h-5 w-px bg-white/20"></div>
+
+                        {/* Logos Tarjetas (Añadidos) */}
+                        <div className="flex items-center gap-3">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-4 w-auto brightness-0 invert" />
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" className="h-4 w-auto brightness-0 invert" />
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg" alt="Amex" className="h-4 w-auto brightness-0 invert" />
+                        </div>
+
+                        <div className="h-5 w-px bg-white/20"></div>
+
+                        <div className="flex gap-1.5 text-white items-center">
+                            <Lock size={12} />
+                            <span className="text-[9px] font-bold uppercase">SSL 256-bit</span>
+                        </div>
+                    </div>
+                  </div>
               </div>
             </div>
           </div>
@@ -91,7 +125,7 @@ export default function Footer() {
               <ul className="space-y-4">
                 {["Dry-Fit Tech", "Piqué", "Gabardina", "Telas Técnicas", "Liquidación"].map((item) => (
                   <li key={item}>
-                    <Link href="#" className="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-white hover:pl-2 transition-all flex items-center gap-2 group">
+                    <Link href="/catalogo" className="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-white hover:pl-2 transition-all flex items-center gap-2 group">
                       <ArrowUpRight size={10} className="text-[#FDCB02] opacity-0 group-hover:opacity-100 transition-opacity" />
                       {item}
                     </Link>
@@ -102,17 +136,27 @@ export default function Footer() {
 
             <div className="space-y-8">
               <h4 className="font-[1000] text-[10px] text-[#FDCB02] uppercase tracking-[0.2em] border-b border-white/10 pb-4">
-                Corporativo
+                Legal
               </h4>
               <ul className="space-y-4">
-                {["Nosotros", "Mayoreo", "Socios", "Empleo", "Privacidad"].map((item) => (
-                  <li key={item}>
-                    <Link href="#" className="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-white hover:pl-2 transition-all flex items-center gap-2 group">
+                <li>
+                    <Link href="/terms" className="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-white hover:pl-2 transition-all flex items-center gap-2 group">
                       <ArrowUpRight size={10} className="text-[#FDCB02] opacity-0 group-hover:opacity-100 transition-opacity" />
-                      {item}
+                      Términos y Condiciones
                     </Link>
-                  </li>
-                ))}
+                </li>
+                <li>
+                    <Link href="/privacy" className="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-white hover:pl-2 transition-all flex items-center gap-2 group">
+                      <ArrowUpRight size={10} className="text-[#FDCB02] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      Aviso de Privacidad
+                    </Link>
+                </li>
+                <li>
+                    <Link href="/cookies" className="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-white hover:pl-2 transition-all flex items-center gap-2 group">
+                      <ArrowUpRight size={10} className="text-[#FDCB02] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      Política de Cookies
+                    </Link>
+                </li>
               </ul>
             </div>
 
@@ -145,26 +189,23 @@ export default function Footer() {
         <div className="container mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-6">
           
           <div className="flex flex-col md:flex-row items-center gap-8 w-full justify-between">
-            
-            {/* Copyright */}
             <div className="flex items-center gap-2 text-[9px] font-mono text-neutral-600 uppercase font-bold tracking-widest">
               <Copyright size={10} />
               <span>2026 Coyote Textil S.A. de C.V.</span>
             </div>
             
-            {/* ENLACES LEGALES (Sustituyen a "Powered By") */}
             <div className="flex flex-wrap justify-center gap-6 md:gap-8">
-                <Link href="/terminos" className="text-[9px] font-black uppercase tracking-widest text-neutral-500 hover:text-[#FDCB02] transition-colors">
-                    Términos y Condiciones
+                <Link href="/terms" className="text-[9px] font-black uppercase tracking-widest text-neutral-500 hover:text-[#FDCB02] transition-colors">
+                    Términos
                 </Link>
-                <Link href="/privacidad" className="text-[9px] font-black uppercase tracking-widest text-neutral-500 hover:text-[#FDCB02] transition-colors">
-                    Política de Privacidad
+                <Link href="/privacy" className="text-[9px] font-black uppercase tracking-widest text-neutral-500 hover:text-[#FDCB02] transition-colors">
+                    Privacidad
                 </Link>
-                <Link href="/cookies" className="text-[9px] font-black uppercase tracking-widest text-neutral-500 hover:text-[#FDCB02] transition-colors">
-                    Uso de Cookies
-                </Link>
+                <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-green-800">
+                    <Lock size={8} />
+                    <span>Pagos Seguros</span>
+                </div>
             </div>
-
           </div>
         </div>
       </div>

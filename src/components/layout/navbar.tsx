@@ -5,19 +5,23 @@ import Link from "next/link"
 import Image from "next/image"
 import { useCart } from "@/lib/context/cart-context" 
 import { useAuth } from "@/lib/context/auth-context" 
+import { products } from "@/lib/products" // 👈 Importamos tus productos
 import { 
   ShoppingCart, Search, User, MapPin, Menu, 
   ChevronDown, HelpCircle, FileText, Sparkles, Zap,
-  Crown, Ship, LogOut, History, Settings, Building2
+  Crown, Ship, LogOut, History, Settings, Building2, Package
 } from "lucide-react"
 
 export default function Navbar() {
-  // 👇 CORRECCIÓN: Usamos 'openCart' (la función real del contexto)
   const { totalItems, openCart } = useCart()
   const { user, logout } = useAuth()
   
   const [searchMode, setSearchMode] = useState<'sku' | 'ia'>('sku')
   const [isDeepSearch, setIsDeepSearch] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false) // Estado para el menú desplegable
+
+  // Obtenemos categorías únicas de tus productos
+  const categories = Array.from(new Set(products.map(p => p.category)));
 
   return (
     <nav className="sticky top-0 z-[100] w-full flex flex-col bg-[#050505] border-b border-white/10 font-sans selection:bg-[#FDCB02] selection:text-black">
@@ -49,15 +53,13 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* 2. HEADER PRINCIPAL: COMANDO CENTRAL */}
+      {/* 2. HEADER PRINCIPAL */}
       <div className="max-w-[1920px] mx-auto w-full px-6 py-5 flex items-center gap-8 lg:gap-12 relative bg-[#050505]">
         
         {/* BRANDING */}
         <Link href="/" className="shrink-0 relative z-10 group flex items-center gap-5">
-            {/* Resplandor */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] bg-white blur-[80px] rounded-full opacity-5 group-hover:opacity-10 transition-opacity duration-700 pointer-events-none" />
             
-            {/* LOGO ICONO */}
             <div className="relative h-20 w-20 flex items-center justify-center transition-transform duration-500 group-hover:scale-105">
                 <Image 
                   src="/coyotelogo.svg" 
@@ -68,7 +70,6 @@ export default function Navbar() {
                 />
             </div>
 
-            {/* TEXTO DE MARCA */}
             <div className="flex flex-col justify-center border-l-2 border-white/10 pl-5 py-1">
                 <h1 className="text-5xl font-[1000] text-[#FDCB02] uppercase leading-[0.8] tracking-[-0.06em] italic">
                     COYOTE
@@ -79,10 +80,9 @@ export default function Navbar() {
             </div>
         </Link>
 
-        {/* MOTOR DE BÚSQUEDA */}
+        {/* BÚSQUEDA */}
         <div className="flex-1 hidden lg:flex max-w-2xl relative z-20">
             <form className="w-full flex h-[52px] bg-[#111] border border-white/10 rounded-sm focus-within:border-[#FDCB02] focus-within:ring-1 focus-within:ring-[#FDCB02] transition-all overflow-hidden">
-                
                 <div 
                     className="flex items-center px-5 bg-[#1a1a1a] border-r border-white/10 cursor-pointer hover:bg-[#222] group" 
                     onClick={() => setSearchMode(searchMode === 'sku' ? 'ia' : 'sku')}
@@ -113,7 +113,7 @@ export default function Navbar() {
             </form>
         </div>
 
-        {/* ACCIONES DE USUARIO */}
+        {/* ACCIONES DE USUARIO (User / Cart) */}
         <div className="flex items-center gap-8 text-white ml-auto">
           
           {user ? (
@@ -161,9 +161,8 @@ export default function Navbar() {
             </Link>
           )}
 
-          {/* BOTÓN DEL CARRITO */}
           <button 
-            onClick={openCart} // 👈 AQUÍ APLICAMOS LA CORRECCIÓN
+            onClick={openCart}
             className="flex items-center gap-5 bg-white text-black pl-6 pr-8 py-3.5 hover:bg-[#FDCB02] transition-all relative group rounded-sm shadow-xl"
           >
             <div className="relative">
@@ -183,13 +182,44 @@ export default function Navbar() {
       </div>
 
       {/* 3. NAVEGACIÓN TÉCNICA (MEGA MENU) */}
-      <div className="border-t border-white/5 bg-[#080808] h-14">
-        <div className="max-w-[1920px] mx-auto w-full px-6 h-full flex items-center gap-12 overflow-x-auto no-scrollbar">
+      <div className="border-t border-white/5 bg-[#080808] h-14 relative">
+        <div className="max-w-[1920px] mx-auto w-full px-6 h-full flex items-center gap-12">
             
-            <Link href="/categorias" className="flex items-center gap-4 h-full px-6 bg-white/5 hover:bg-[#FDCB02] hover:text-black transition-colors text-[11px] font-[1000] uppercase tracking-[0.25em] text-white border-r border-white/5">
-                <Menu size={18} strokeWidth={3}/> 
-                <span className="mt-0.5">CATÁLOGO GLOBAL</span>
-            </Link>
+            {/* MEGA MENU TRIGGER */}
+            <div 
+                className="relative h-full"
+                onMouseEnter={() => setIsMenuOpen(true)}
+                onMouseLeave={() => setIsMenuOpen(false)}
+            >
+                <button className="flex items-center gap-4 h-full px-6 bg-white/5 hover:bg-[#FDCB02] hover:text-black transition-colors text-[11px] font-[1000] uppercase tracking-[0.25em] text-white border-r border-white/5">
+                    <Menu size={18} strokeWidth={3}/> 
+                    <span className="mt-0.5">CATÁLOGO GLOBAL</span>
+                </button>
+
+                {/* DROPDOWN MENU */}
+                <div 
+                    className={`absolute top-full left-0 w-[300px] bg-[#0a0a0a] border border-white/10 shadow-2xl transition-all duration-200 origin-top-left z-50 ${isMenuOpen ? 'opacity-100 visible scale-100' : 'opacity-0 invisible scale-95'}`}
+                >
+                    <div className="py-2">
+                        {categories.map((category) => (
+                            <Link 
+                                key={category} 
+                                href={`/catalogo?categoria=${category}`}
+                                className="flex items-center gap-3 px-6 py-3 text-[11px] font-bold text-neutral-400 hover:text-white hover:bg-white/5 uppercase tracking-widest border-b border-white/5 last:border-0 transition-colors"
+                            >
+                                <Package size={14} className="text-[#FDCB02]"/>
+                                {category}
+                            </Link>
+                        ))}
+                        <Link 
+                            href="/catalogo"
+                            className="flex items-center gap-3 px-6 py-4 text-[11px] font-[1000] text-[#FDCB02] hover:bg-[#FDCB02] hover:text-black uppercase tracking-widest transition-colors mt-1"
+                        >
+                            Ver Todo el Inventario &rarr;
+                        </Link>
+                    </div>
+                </div>
+            </div>
 
             <nav className="flex gap-12 text-[11px] font-[1000] uppercase tracking-[0.2em] text-neutral-500 h-full items-center">
                 
@@ -200,13 +230,12 @@ export default function Navbar() {
                 <Link href="/lo-nuevo" className="hover:text-white flex items-center gap-2 group transition-all">
                     <Sparkles size={14} className="text-[#FDCB02] group-hover:scale-125 transition-transform"/> LO NUEVO
                 </Link>
-                <Link href="/ofertas" className="hover:text-white transition-colors">
-                    LIQUIDACIONES
-                </Link>
-                <Link href="/tecnicos" className="hover:text-white transition-colors">
-                    TELAS TÉCNICAS
-                </Link>
-                <Link href="/membresia" className="text-white hover:text-orange-400 flex items-center gap-3 transition-all">
+                
+                {/* Eliminados: Liquidaciones y Telas Técnicas 
+                   (Ahora todo está centralizado en el Catálogo Global)
+                */}
+
+                <Link href="/membresia" className="text-white hover:text-orange-400 flex items-center gap-3 transition-all ml-auto lg:ml-0">
                     <Crown size={16} className="text-orange-400" /> MEMBRESÍA SOCIOS
                 </Link>
             </nav>

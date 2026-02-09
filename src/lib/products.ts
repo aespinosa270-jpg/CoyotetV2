@@ -16,7 +16,8 @@ export interface Product {
   };
   hasRollo: boolean;
   singleColor?: boolean;
-  origin?: string; // Propiedad para el origen del producto
+  origin?: string;
+  category: string; // 👈 ¡NUEVO CAMPO OBLIGATORIO!
 }
 
 export const products: Product[] = [
@@ -32,7 +33,8 @@ export const products: Product[] = [
     rendimiento: 4.3,
     prices: { menudeo: 100.00, mayoreo: 85.00 },
     hasRollo: true,
-    origin: "Importado"
+    origin: "Importado",
+    category: "Línea Gold" // 👈 Categoría asignada
   },
   {
     id: "prod_pique_vera",
@@ -46,7 +48,8 @@ export const products: Product[] = [
     rendimiento: 4.3,
     prices: { menudeo: 110.00, mayoreo: 95.00 },
     hasRollo: true,
-    origin: "Importado"
+    origin: "Importado",
+    category: "Línea Gold"
   },
   {
     id: "prod_micro_panal",
@@ -60,7 +63,8 @@ export const products: Product[] = [
     rendimiento: 4.3,
     prices: { menudeo: 110.00, mayoreo: 95.00 },
     hasRollo: true,
-    origin: "Importado"
+    origin: "Importado",
+    category: "Línea Gold"
   },
   {
     id: "prod_torneo",
@@ -74,7 +78,8 @@ export const products: Product[] = [
     rendimiento: 4.3,
     prices: { menudeo: 125.00, mayoreo: 110.00 },
     hasRollo: true,
-    origin: "Importado"
+    origin: "Importado",
+    category: "Línea Gold"
   },
   {
     id: "prod_kyoto",
@@ -89,7 +94,8 @@ export const products: Product[] = [
     singleColor: true,
     prices: { menudeo: 155.00, mayoreo: 140.00 },
     hasRollo: true,
-    origin: "Importado"
+    origin: "Importado",
+    category: "Telas Técnicas"
   },
   {
     id: "prod_panal_nitro",
@@ -104,7 +110,8 @@ export const products: Product[] = [
     singleColor: true,
     prices: { menudeo: 185.00, mayoreo: 170.00 },
     hasRollo: true,
-    origin: "Importado"
+    origin: "Importado",
+    category: "Telas Técnicas"
   },
   {
     id: "prod_panal_plus",
@@ -119,7 +126,8 @@ export const products: Product[] = [
     singleColor: true,
     prices: { menudeo: 155.00, mayoreo: 140.00 },
     hasRollo: true,
-    origin: "Importado"
+    origin: "Importado",
+    category: "Telas Técnicas"
   },
   {
     id: "prod_apolo",
@@ -134,7 +142,8 @@ export const products: Product[] = [
     singleColor: true,
     prices: { menudeo: 160.00, mayoreo: 145.00 },
     hasRollo: true,
-    origin: "Importado"
+    origin: "Importado",
+    category: "Telas Técnicas"
   },
   {
     id: "prod_horous",
@@ -149,7 +158,8 @@ export const products: Product[] = [
     singleColor: true,
     prices: { menudeo: 160.00, mayoreo: 155.00 },
     hasRollo: true,
-    origin: "Importado"
+    origin: "Importado",
+    category: "Telas Técnicas"
   },
   {
     id: "prod_athlos",
@@ -164,6 +174,7 @@ export const products: Product[] = [
     singleColor: true,
     prices: { menudeo: 125.00, mayoreo: 120.00 },
     hasRollo: true,
-    origin: "Importado"
+    origin: "Importado",
+    category: "Telas Técnicas"
   }
 ];

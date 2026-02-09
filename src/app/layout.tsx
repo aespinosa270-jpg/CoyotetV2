@@ -4,8 +4,9 @@ import "./globals.css";
 
 // Imports de tus componentes
 import Navbar from "@/components/layout/navbar";
-import Footer from "@/components/layout/footer";
+import Footer from "@/components/layout/footer"; // Asegúrate de que la ruta sea correcta (a veces es @/components/footer)
 import CartSidebar from "@/components/layout/cart-sidebar";
+import CookieBanner from "@/components/cookie-banner"; // 👈 IMPORTANTE: Importamos el banner
 import { Providers } from "@/components/providers";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -28,31 +29,27 @@ export default function RootLayout({
           {/* Contenedor Principal: 
             flex-col + min-h-screen asegura que el footer siempre esté abajo 
           */}
-          <div className="flex flex-col min-h-screen">
+          <div className="flex flex-col min-h-screen relative">
             
-            {/* NAVBAR: 
-              Cambiamos 'fixed' por 'sticky'. 
-              Esto hace que el Navbar ocupe su espacio real y NO tape el contenido, 
-              pero se sigue quedando pegado arriba al hacer scroll.
-            */}
+            {/* NAVBAR: Sticky */}
             <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-neutral-200 shadow-sm">
                <Navbar />
             </header>
 
-            {/* CONTENIDO: 
-              'flex-grow' hace que esta sección use todo el espacio disponible,
-              empujando el footer hacia abajo. 
-            */}
+            {/* CONTENIDO PRINCIPAL */}
             <main className="flex-grow">
               {children}
             </main>
 
-            {/* FOOTER: 
-              Simplemente lo dejamos en el flujo normal al final de la página.
-            */}
+            {/* FOOTER */}
             <Footer />
 
-            {/* Componente global del Carrito (flota por encima del layout) */}
+            {/* --- COMPONENTES FLOTANTES GLOBALES --- */}
+            
+            {/* 1. Banner de Cookies (Aparece abajo) */}
+            <CookieBanner />
+
+            {/* 2. Sidebar del Carrito (Aparece a la derecha) */}
             <CartSidebar />
             
           </div>
