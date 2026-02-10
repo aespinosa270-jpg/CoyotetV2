@@ -42,8 +42,8 @@ const ProductCard = ({ product }: { product: any }) => {
     const priceRollo = product.prices?.mayoreo || 0; 
     const rollWeight = 25; 
     
-    const gsm = product.gramaje || "180"; // Ajustado a tu base de datos
-    const width = product.ancho || "1.60m"; // Ajustado a tu base de datos
+    const gsm = product.gramaje || "180"; 
+    const width = product.ancho || "1.60m"; 
     
     const totalRolloWeight = qtyRollo * rollWeight;
     const savings = priceKilo > 0 ? Math.round(((priceKilo - priceRollo) / priceKilo) * 100) : 0;
@@ -64,12 +64,11 @@ const ProductCard = ({ product }: { product: any }) => {
                         <span className="bg-white text-black px-1.5 py-0.5 text-[9px] font-[900] uppercase rounded-[2px]">MX</span>
                     )}
                 </div>
-                {/* Si tienes lógica de 'new' en tu BD, úsala aquí */}
                 <div className="bg-[#FDCB02] text-black px-2 py-0.5 text-[9px] font-[900] uppercase rounded-[2px]">STOCK</div>
             </div>
 
-            {/* --- ZONA CLICKEABLE (IMAGEN) --- */}
-            {/* AQUÍ ESTABA EL ERROR: Faltaba el Link */}
+            {/* --- ZONA CLICKEABLE (IMAGEN Y TÍTULO) --- */}
+            {/* Solo esto es el enlace */}
             <Link href={`/products/${product.id}`} className="block relative h-64 w-full bg-[#050505] overflow-hidden border-b border-white/5 cursor-pointer">
                 <Image 
                     src={product.thumbnail || "/assets/products/112.jpg"} 
@@ -90,7 +89,7 @@ const ProductCard = ({ product }: { product: any }) => {
                 </div>
             </Link>
 
-            {/* Controles de Compra Rápida (Sin Link para que no navegue al dar clic) */}
+            {/* --- CONTROLES DE COMPRA (FUERA DEL LINK) --- */}
             <div className="flex flex-col mt-auto bg-[#080808]">
                 {/* Opción Muestra / Kilo */}
                 <div className="px-4 py-3 border-b border-white/5 hover:bg-[#111] transition-colors">
@@ -132,9 +131,6 @@ const ProductCard = ({ product }: { product: any }) => {
     );
 };
 
-// ... RESTO DEL CÓDIGO IGUAL (ProductRail, CoyoteMarketplace) ...
-// Asegúrate de copiar el resto del componente ProductRail y el default export CoyoteMarketplace tal cual los tenías.
-
 const ProductRail = ({ title, items, icon: Icon, isNational = false }: { title: string, items: any[], icon?: any, isNational?: boolean }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
     const scroll = (direction: 'left' | 'right') => {
@@ -171,7 +167,6 @@ const ProductRail = ({ title, items, icon: Icon, isNational = false }: { title: 
 };
 
 export default function CoyoteMarketplace() {
-    const [searchTerm, setSearchTerm] = useState("");
     const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
     
     // --- EFECTO DE SCROLL SUAVE (Lenis) ---
@@ -189,7 +184,6 @@ export default function CoyoteMarketplace() {
     // --- LOGICA DE DATOS ---
     const bestSellers = useMemo(() => products.slice(0, 8), []); 
     
-    // Ejemplo de filtrado (ajusta según tus categorías reales en products.ts)
     const sportProducts = useMemo(() => products.filter((p: any) => 
         p.title.includes('Dry') || p.title.includes('Sport') || p.id.includes('micropique')
     ), []);
@@ -238,6 +232,7 @@ export default function CoyoteMarketplace() {
                 
                 {/* SIDEBAR (Filtros) */}
                 <aside className="w-72 sticky top-32 hidden lg:block overflow-y-auto max-h-[80vh] scrollbar-hide">
+                    {/* ... (Contenido del sidebar, igual que antes) ... */}
                     <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/10">
                         <h3 className="font-[900] uppercase text-xs flex items-center gap-2 text-white"><SlidersHorizontal size={14} className="text-[#FDCB02]"/> Especificaciones</h3>
                         {selectedFilters.length > 0 && <button onClick={() => setSelectedFilters([])} className="text-[9px] text-[#FDCB02] font-black uppercase">Limpiar</button>}
