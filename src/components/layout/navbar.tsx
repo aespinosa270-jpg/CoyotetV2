@@ -7,9 +7,9 @@ import { useCart } from "@/lib/context/cart-context"
 import { useAuth } from "@/lib/context/auth-context" 
 import { products } from "@/lib/products"
 import { 
-  ShoppingCart, Search, User, MapPin, Menu, 
+  ShoppingCart, Search, User, Menu, 
   ChevronDown, HelpCircle, FileText, Sparkles, Zap,
-  Crown, Ship, LogOut, History, Settings, Building2, Package
+  Crown, Ship, LogOut, History, Settings, Building2, Package, Truck
 } from "lucide-react"
 
 export default function Navbar() {
@@ -20,7 +20,6 @@ export default function Navbar() {
   const [isDeepSearch, setIsDeepSearch] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
-  // Obtenemos categorías únicas
   const categories = Array.from(new Set(products.map(p => p.category)));
 
   return (
@@ -36,13 +35,14 @@ export default function Navbar() {
                Sistema: En Línea
             </span>
             <span className="w-px h-3 bg-white/10"/>
+            
+            {/* 👇 CAMBIO AQUI: Rastrear Envío (Skydropx) */}
             <Link href="/rastreo" className="hover:text-white transition-colors flex items-center gap-2">
-              <MapPin size={11} /> Rastrear Contenedor
+              <Truck size={11} /> Rastrear Envío
             </Link>
           </div>
 
           <div className="flex items-center gap-6">
-            {/* 👇 CAMBIO: Enlace directo a WhatsApp de Soporte */}
             <a 
               href="https://wa.me/5215555421527?text=Hola%20Coyote%20Textil,%20necesito%20soporte%20t%C3%A9cnico."
               target="_blank"
@@ -122,7 +122,6 @@ export default function Navbar() {
 
         {/* ACCIONES DE USUARIO */}
         <div className="flex items-center gap-8 text-white ml-auto">
-          
           {user ? (
             <div className="hidden lg:flex items-center gap-4 group relative cursor-pointer py-2">
                 <div className="flex flex-col text-right leading-tight">
@@ -134,7 +133,6 @@ export default function Navbar() {
                 <div className="w-11 h-11 rounded-sm bg-[#FDCB02] text-black font-[1000] border border-white/10 flex items-center justify-center text-sm shadow-[0_0_15px_rgba(253,203,2,0.2)]">
                     {user.name.charAt(0)}
                 </div>
-
                 {/* Dropdown Dashboard */}
                 <div className="absolute top-full right-0 pt-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 w-64 z-50">
                     <div className="bg-[#0a0a0a] border border-white/15 shadow-2xl rounded-sm overflow-hidden flex flex-col">
@@ -142,7 +140,6 @@ export default function Navbar() {
                             <p className="text-[9px] text-neutral-600 uppercase font-[1000] tracking-[0.2em] mb-1.5">Identificación</p>
                             <p className="text-[11px] text-white font-mono truncate">{user.email}</p>
                         </div>
-                        
                         <Link href="/pedidos" className="px-6 py-4 hover:bg-white/5 flex items-center gap-4 text-[11px] font-[1000] uppercase text-neutral-300 hover:text-white transition-colors border-b border-white/5 tracking-widest">
                             <History size={16} className="text-[#FDCB02]"/> Mis Pedidos
                         </Link>
@@ -152,7 +149,6 @@ export default function Navbar() {
                          <Link href="/configuracion" className="px-6 py-4 hover:bg-white/5 flex items-center gap-4 text-[11px] font-[1000] uppercase text-neutral-300 hover:text-white transition-colors border-b border-white/5 tracking-widest">
                             <Settings size={16} className="text-[#FDCB02]"/> Ajustes de Perfil
                         </Link>
-
                         <button onClick={logout} className="px-6 py-5 hover:bg-red-900/20 text-red-500 flex items-center gap-4 text-[11px] font-[1000] uppercase transition-colors tracking-widest">
                             <LogOut size={16}/> Cerrar Sesión
                         </button>
@@ -168,10 +164,7 @@ export default function Navbar() {
             </Link>
           )}
 
-          <button 
-            onClick={openCart}
-            className="flex items-center gap-5 bg-white text-black pl-6 pr-8 py-3.5 hover:bg-[#FDCB02] transition-all relative group rounded-sm shadow-xl"
-          >
+          <button onClick={openCart} className="flex items-center gap-5 bg-white text-black pl-6 pr-8 py-3.5 hover:bg-[#FDCB02] transition-all relative group rounded-sm shadow-xl">
             <div className="relative">
               <ShoppingCart size={22} strokeWidth={3}/>
               {totalItems > 0 && (
@@ -188,40 +181,22 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* 3. NAVEGACIÓN TÉCNICA (MEGA MENU) */}
+      {/* 3. NAVEGACIÓN TÉCNICA */}
       <div className="border-t border-white/5 bg-[#080808] h-14 relative">
         <div className="max-w-[1920px] mx-auto w-full px-6 h-full flex items-center gap-12">
-            
-            {/* MEGA MENU TRIGGER */}
-            <div 
-                className="relative h-full"
-                onMouseEnter={() => setIsMenuOpen(true)}
-                onMouseLeave={() => setIsMenuOpen(false)}
-            >
+            <div className="relative h-full" onMouseEnter={() => setIsMenuOpen(true)} onMouseLeave={() => setIsMenuOpen(false)}>
                 <button className="flex items-center gap-4 h-full px-6 bg-white/5 hover:bg-[#FDCB02] hover:text-black transition-colors text-[11px] font-[1000] uppercase tracking-[0.25em] text-white border-r border-white/5">
                     <Menu size={18} strokeWidth={3}/> 
                     <span className="mt-0.5">CATÁLOGO GLOBAL</span>
                 </button>
-
-                {/* DROPDOWN MENU */}
-                <div 
-                    className={`absolute top-full left-0 w-[300px] bg-[#0a0a0a] border border-white/10 shadow-2xl transition-all duration-200 origin-top-left z-50 ${isMenuOpen ? 'opacity-100 visible scale-100' : 'opacity-0 invisible scale-95'}`}
-                >
+                <div className={`absolute top-full left-0 w-[300px] bg-[#0a0a0a] border border-white/10 shadow-2xl transition-all duration-200 origin-top-left z-50 ${isMenuOpen ? 'opacity-100 visible scale-100' : 'opacity-0 invisible scale-95'}`}>
                     <div className="py-2">
                         {categories.map((category) => (
-                            <Link 
-                                key={category} 
-                                href={`/catalogo?categoria=${category}`}
-                                className="flex items-center gap-3 px-6 py-3 text-[11px] font-bold text-neutral-400 hover:text-white hover:bg-white/5 uppercase tracking-widest border-b border-white/5 last:border-0 transition-colors"
-                            >
-                                <Package size={14} className="text-[#FDCB02]"/>
-                                {category}
+                            <Link key={category} href={`/catalogo?categoria=${category}`} className="flex items-center gap-3 px-6 py-3 text-[11px] font-bold text-neutral-400 hover:text-white hover:bg-white/5 uppercase tracking-widest border-b border-white/5 last:border-0 transition-colors">
+                                <Package size={14} className="text-[#FDCB02]"/>{category}
                             </Link>
                         ))}
-                        <Link 
-                            href="/catalogo"
-                            className="flex items-center gap-3 px-6 py-4 text-[11px] font-[1000] text-[#FDCB02] hover:bg-[#FDCB02] hover:text-black uppercase tracking-widest transition-colors mt-1"
-                        >
+                        <Link href="/catalogo" className="flex items-center gap-3 px-6 py-4 text-[11px] font-[1000] text-[#FDCB02] hover:bg-[#FDCB02] hover:text-black uppercase tracking-widest transition-colors mt-1">
                             Ver Todo el Inventario &rarr;
                         </Link>
                     </div>
@@ -229,15 +204,12 @@ export default function Navbar() {
             </div>
 
             <nav className="flex gap-12 text-[11px] font-[1000] uppercase tracking-[0.2em] text-neutral-500 h-full items-center">
-                
                 <Link href="/nosotros" className="hover:text-white flex items-center gap-2 group transition-all">
                     <Building2 size={16} className="text-[#FDCB02] group-hover:text-white transition-colors"/> NOSOTROS
                 </Link>
-
                 <Link href="/lo-nuevo" className="hover:text-white flex items-center gap-2 group transition-all">
                     <Sparkles size={14} className="text-[#FDCB02] group-hover:scale-125 transition-transform"/> LO NUEVO
                 </Link>
-
                 <Link href="/membresia" className="text-white hover:text-orange-400 flex items-center gap-3 transition-all ml-auto lg:ml-0">
                     <Crown size={16} className="text-orange-400" /> MEMBRESÍA SOCIOS
                 </Link>
