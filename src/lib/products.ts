@@ -176,5 +176,37 @@ export const products: Product[] = [
     hasRollo: true,
     origin: "Importado",
     category: "Telas Técnicas"
+      },
+  {
+    id: "prod_brock",
+    title: "Brock",
+    unit: "Kilo",
+    thumbnail: "/assets/products/brock.jpg",
+    description: "Versatilidad total para cualquier disciplina deportiva.",
+    composicion: "100% Poliéster",
+    gramaje: "145",
+    ancho: "1.60m",
+    rendimiento: 4.0,
+    singleColor: true,
+    prices: { menudeo: 125.00, mayoreo: 120.00 },
+    hasRollo: true,
+    origin: "Importado",
+    category: "Telas Técnicas"
+      },
+  {
+    id: "prod_pique-vera-sport",
+    title: "Pique Vera Sport",
+    unit: "Kilo",
+    thumbnail: "/assets/products/sport.jpeg",
+    description: "Versatilidad total para cualquier disciplina deportiva.",
+    composicion: "100% Poliéster",
+    gramaje: "145",
+    ancho: "1.60m",
+    rendimiento: 4.0,
+    singleColor: true,
+    prices: { menudeo: 125.00, mayoreo: 120.00 },
+    hasRollo: true,
+    origin: "Importado",
+    category: "Telas Técnicas"
   }
 ];
