@@ -23,8 +23,13 @@ export default function Navbar() {
   // Estado para el menú MÓVIL (Hamburguesa)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  // Obtenemos categorías únicas
-  const categories = Array.from(new Set(products.map(p => p.category)));
+  // CAMBIO: Definimos las categorías manualmente según tu solicitud
+  const categories = [
+    "Telas Deportivas",
+    "Telas para Sublimar",
+    "Telas Escolares",
+    "Telas Nacionales"
+  ];
 
   // Bloquear scroll en móvil
   useEffect(() => {
@@ -157,13 +162,13 @@ export default function Navbar() {
                       <Menu size={18} strokeWidth={3}/> <span className="mt-0.5">Todos Nuestros Productos</span>
                   </button>
 
-                  {/* EL DROPDOWN (Lo que habías perdido) */}
+                  {/* EL DROPDOWN (Categorías Nuevas) */}
                   <div className={`absolute top-full left-0 w-[300px] bg-[#0a0a0a] border border-white/10 shadow-2xl transition-all duration-200 origin-top-left z-50 ${isMenuOpen ? 'opacity-100 visible scale-100' : 'opacity-0 invisible scale-95'}`}>
                       <div className="py-2">
                           {categories.map((category) => (
                               <Link 
                                 key={category} 
-                                href={`/catalogo?categoria=${category}`} 
+                                href={`/catalogo?categoria=${encodeURIComponent(category)}`} 
                                 className="flex items-center gap-3 px-6 py-3 text-[11px] font-bold text-neutral-400 hover:text-white hover:bg-white/5 uppercase tracking-widest border-b border-white/5 last:border-0 transition-colors"
                               >
                                   <Package size={14} className="text-[#FDCB02]"/>{category}
