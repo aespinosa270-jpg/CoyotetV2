@@ -8,10 +8,9 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  /* ... tus variables de colores ... */
   --radius: 0.625rem;
   
-  /* Mantengo tus variables de colores shadcn tal cual las pasaste */
+  /* Variables shadcn */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,7 +46,6 @@
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
-  /* ... resto de tus variables root ... */
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
   --popover: oklch(1 0 0);
@@ -80,7 +78,6 @@
 }
 
 .dark {
-  /* ... tus variables dark ... */
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);
@@ -114,14 +111,13 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
-/* --- REGLAS CRÍTICAS PARA ELIMINAR EL GAP --- */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   
   html {
-    height: auto; /* IMPORTANTE: Permite que Lenis controle la altura */
+    height: auto;
     min-height: 100%;
   }
 
@@ -130,13 +126,13 @@
     min-height: 100vh;
     margin: 0;
     padding: 0;
-    overflow-x: hidden; /* Evita scroll lateral */
-    display: flex; /* Convierte el body en Flexbox */
-    flex-direction: column; /* Organiza verticalmente */
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
   }
 }
 
-/* CONFIGURACIÓN LENIS PARA TAILWIND 4 */
+/* CONFIGURACIÓN LENIS */
 html.lenis, html.lenis body {
   height: auto !important;
 }
@@ -155,4 +151,18 @@ html.lenis, html.lenis body {
 
 .lenis.lenis-scrolling iframe {
   pointer-events: none;
+}
+
+/* --- ESTILOS PARA OCULTAR SCROLLBARS (Aquí está el arreglo) --- */
+@layer utilities {
+  /* Chrome, Safari y Opera */
+  .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+  }
+
+  /* IE, Edge y Firefox */
+  .scrollbar-hide {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+  }
 }
