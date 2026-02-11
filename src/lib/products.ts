@@ -75,7 +75,7 @@ export const products: Product[] = [
         { name: "Azul Cielo", hex: "#87CEEB", image: "/assets/products/micropique/azul-cielo.jpg" },
         { name: "Aqua", hex: "#00FFFF", image: "/assets/products/micropique/aqua.jpg" },
         { name: "Amarillo Canario", hex: "#FFEF00", image: "/assets/products/micropique/amarillo-canario.jpg" },
-        { name: "Oro", hex: "#FFD700", image: "/assets/products/micropique/oro.jpg" },
+        { name: "Mostaza", hex: "#C99700", image: "/assets/products/micropique/Mostaza.jpg" },
         { name: "Mango", hex: "#FDBE02", image: "/assets/products/micropique/mango.jpg" },
         { name: "Coral", hex: "#FF7F50", image: "/assets/products/micropique/coral.jpg" },
         { name: "Ladrillo", hex: "#B22222", image: "/assets/products/micropique/ladrillo.jpg" },
