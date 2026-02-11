@@ -45,7 +45,7 @@ export const products: Product[] = [
     category: "Línea Gold",
     // 👇 AQUÍ ESTÁN LAS 35 VARIANTES CON SU RUTA DE IMAGEN
     colors: [
-        { name: "Negro", hex: "#000000", image: "/assets/products/micropique/negro.jpg" },
+        { name: "Negro", hex: "#000000", image: "/assets/products/micropique/negro1.jpg" },
         { name: "Blanco", hex: "#FFFFFF", image: "/assets/products/112.jpg"},
         { name: "Marino", hex: "#001B44", image: "/assets/products/micropique/marino.jpg" },
         { name: "Azul Petróleo", "hex": "#2F6A74", "image": "/assets/products/micropique/azul-petroleo.jpg" },
@@ -57,7 +57,7 @@ export const products: Product[] = [
         { name: "Turquesa", hex: "#00CED1", image: "/assets/products/micropique/turquesa.jpg" },
         { name: "Verde Neón", hex: "#39FF14", image: "/assets/products/micropique/verde-neon.jpg" },
         { name: "Amarillo Neón", hex: "#CCFF00", image: "/assets/products/micropique/amarillo-neon.jpg" },
-        { name: "Naranja Neón", hex: "#FF5F1F", image: "/assets/products/micropique/naranja-neon.jpg" },
+        { name: "Naranja Neón", hex: "#FF5F1F", image: "/assets/products/micropique/naranja-neon1.jpg" },
         { name: "Rosa Neón", hex: "#FF1493", image: "/assets/products/micropique/rosa-neon.jpg" },
         { name: "Rosa Mexicano", hex: "#D40078", image: "/assets/products/micropique/rosa-mexicano.jpg" },
         { name: "Fucsia", hex: "#FF00FF", image: "/assets/products/micropique/fucsia.jpg" },
