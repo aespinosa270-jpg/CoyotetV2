@@ -1,5 +1,12 @@
 // src/lib/products.ts
 
+// 1. MODIFICAMOS LA INTERFAZ PARA ACEPTAR IMÁGENES POR COLOR
+export interface ProductColor {
+  name: string;
+  hex: string;
+  image?: string; // 👈 Campo nuevo: Ruta de la foto específica del color
+}
+
 export interface Product {
   id: string;
   title: string;
@@ -17,7 +24,8 @@ export interface Product {
   hasRollo: boolean;
   singleColor?: boolean;
   origin?: string;
-  category: string; // 👈 ¡NUEVO CAMPO OBLIGATORIO!
+  category: string;
+  colors?: ProductColor[];
 }
 
 export const products: Product[] = [
@@ -25,7 +33,7 @@ export const products: Product[] = [
     id: "prod_micropique_gold",
     title: "Micropiqué Gold",
     unit: "Kilo",
-    thumbnail: "/assets/products/112.jpg", 
+    thumbnail: "/assets/products/112.jpg", // Foto por defecto
     description: "Tecnología Dry-Fit Calidad Gold. Ideal para uniformes deportivos de alto rendimiento.",
     composicion: "100% Poliéster",
     gramaje: "145",
@@ -34,7 +42,45 @@ export const products: Product[] = [
     prices: { menudeo: 100.00, mayoreo: 85.00 },
     hasRollo: true,
     origin: "Importado",
-    category: "Línea Gold" // 👈 Categoría asignada
+    category: "Línea Gold",
+    // 👇 AQUÍ ESTÁN LAS 35 VARIANTES CON SU RUTA DE IMAGEN
+    colors: [
+        { name: "Negro", hex: "#000000", image: "/assets/products/micropique/negro.jpg" },
+        { name: "Blanco", hex: "#FFFFFF", image: "/assets/products/112.jpg"},
+        { name: "Marino", hex: "#001B44", image: "/assets/products/micropique/marino.jpg" },
+        { name: "Azul Rey", hex: "#0047AB", image: "/assets/products/micropique/azul-rey.jpg" },
+        { name: "Rojo", hex: "#E3001B", image: "/assets/products/micropique/rojo.jpg" },
+        { name: "Gris Oxford", hex: "#3C3C3C", image: "/assets/products/micropique/gris-oxford.jpg" },
+        { name: "Gris Jaspe", hex: "#A5A5A5", image: "/assets/products/micropique/gris-jaspe.jpg" },
+        { name: "Azul Francia", hex: "#318CE7", image: "/assets/products/micropique/azul-francia.jpg" },
+        { name: "Turquesa", hex: "#00CED1", image: "/assets/products/micropique/turquesa.jpg" },
+        { name: "Verde Neón", hex: "#39FF14", image: "/assets/products/micropique/verde-neon.jpg" },
+        { name: "Amarillo Neón", hex: "#CCFF00", image: "/assets/products/micropique/amarillo-neon.jpg" },
+        { name: "Naranja Neón", hex: "#FF5F1F", image: "/assets/products/micropique/naranja-neon.jpg" },
+        { name: "Rosa Neón", hex: "#FF1493", image: "/assets/products/micropique/rosa-neon.jpg" },
+        { name: "Rosa Mexicano", hex: "#D40078", image: "/assets/products/micropique/rosa-mexicano.jpg" },
+        { name: "Fucsia", hex: "#FF00FF", image: "/assets/products/micropique/fucsia.jpg" },
+        { name: "Uva", hex: "#4B0082", image: "/assets/products/micropique/uva.jpg" },
+        { name: "Morado", hex: "#800080", image: "/assets/products/micropique/morado.jpg" },
+        { name: "Vino", hex: "#5E1914", image: "/assets/products/micropique/vino.jpg" },
+        { name: "Verde Bandera", hex: "#006847", image: "/assets/products/micropique/verde-bandera.jpg" },
+        { name: "Verde Botella", hex: "#004225", image: "/assets/products/micropique/verde-botella.jpg" },
+        { name: "Verde Limón", hex: "#32CD32", image: "/assets/products/micropique/verde-limon.jpg" },
+        { name: "Esmeralda", hex: "#009B77", image: "/assets/products/micropique/esmeralda.jpg" },
+        { name: "Azul Cielo", hex: "#87CEEB", image: "/assets/products/micropique/azul-cielo.jpg" },
+        { name: "Aqua", hex: "#00FFFF", image: "/assets/products/micropique/aqua.jpg" },
+        { name: "Amarillo Canario", hex: "#FFEF00", image: "/assets/products/micropique/amarillo-canario.jpg" },
+        { name: "Oro", hex: "#FFD700", image: "/assets/products/micropique/oro.jpg" },
+        { name: "Mango", hex: "#FF8200", image: "/assets/products/micropique/mango.jpg" },
+        { name: "Coral", hex: "#FF7F50", image: "/assets/products/micropique/coral.jpg" },
+        { name: "Ladrillo", hex: "#B22222", image: "/assets/products/micropique/ladrillo.jpg" },
+        { name: "Beige", hex: "#F5F5DC", image: "/assets/products/micropique/beige.jpg" },
+        { name: "Arena", hex: "#D2B48C", image: "/assets/products/micropique/arena.jpg" },
+        { name: "Miel", hex: "#C68E17", image: "/assets/products/micropique/miel.jpg" },
+        { name: "Lila", hex: "#C8A2C8", image: "/assets/products/micropique/lila.jpg" },
+        { name: "Hueso", hex: "#F9F6EE", image: "/assets/products/micropique/hueso.jpg" },
+        { name: "Plumbago", hex: "#5C9BD1", image: "/assets/products/micropique/plumbago.jpg" }
+    ]
   },
   {
     id: "prod_pique_vera",
@@ -176,7 +222,7 @@ export const products: Product[] = [
     hasRollo: true,
     origin: "Importado",
     category: "Telas Técnicas"
-      },
+  },
   {
     id: "prod_brock",
     title: "Brock",
@@ -192,7 +238,7 @@ export const products: Product[] = [
     hasRollo: true,
     origin: "Importado",
     category: "Telas Técnicas"
-      },
+  },
   {
     id: "prod_pique-vera-sport",
     title: "Pique Vera Sport",
