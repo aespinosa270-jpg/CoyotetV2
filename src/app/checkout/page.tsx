@@ -9,7 +9,7 @@ import { useCart } from '@/lib/context/cart-context';
 import { 
   ShieldCheck, Lock, CreditCard, User, MapPin, 
   Phone, Mail, ArrowLeft, ShoppingBag, Truck, Package, 
-  Landmark, Store, Banknote, Info
+  Landmark, Store, Banknote, Info, FileText // 👈 Agregamos icono de Factura
 } from 'lucide-react';
 
 declare global {
@@ -37,6 +37,9 @@ export default function CheckoutPage() {
   const [deviceSessionId, setDeviceSessionId] = useState('');
   const [mounted, setMounted] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
+  
+  // 👇 NUEVO ESTADO: Controla si el usuario quiere factura
+  const [wantsInvoice, setWantsInvoice] = useState(false);
 
   const [customerData, setCustomerData] = useState({ 
     name: '', lastName: '', email: '', phone: '', 
@@ -52,8 +55,8 @@ export default function CheckoutPage() {
     setMounted(true);
   }, []);
 
-  // --- 1. LÓGICA DE CÁLCULO (Flete Tabla + Envío Peso + Servicio 5%) ---
-  const { freightCost, shippingCost, serviceFee, total, totalWeight, totalRolls } = useMemo(() => {
+  // --- 1. LÓGICA DE CÁLCULO (Flete + Envío + Servicio + IVA) ---
+  const { freightCost, shippingCost, serviceFee, taxIVA, total, totalWeight, totalRolls } = useMemo(() => {
     let rollCount = 0;
     let weight = 0;
 
@@ -95,15 +98,20 @@ export default function CheckoutPage() {
     // Servicio (5%)
     const fee = subtotal * 0.05;
 
+    // 👇 CÁLCULO DE IVA (16%)
+    const baseTotal = subtotal + flete + envio + fee;
+    const iva = wantsInvoice ? baseTotal * 0.16 : 0;
+
     return {
         freightCost: flete,
         shippingCost: envio,
         serviceFee: fee,
-        total: subtotal + flete + envio + fee,
+        taxIVA: iva, // IVA Calculado
+        total: baseTotal + iva, // Total Final
         totalWeight: weight,
         totalRolls: rollCount
     };
-  }, [items, subtotal]);
+  }, [items, subtotal, wantsInvoice]); // Agregamos wantsInvoice a las dependencias
 
   // --- SDK Y PAGOS ---
   const setupOpenPay = () => {
@@ -161,14 +169,16 @@ export default function CheckoutPage() {
           token,
           deviceSessionId: finalDeviceId,
           amount: total, 
-          description: `Pedido Coyote - ${totalWeight}kg`,
+          description: `Pedido Coyote - ${totalWeight}kg ${wantsInvoice ? '(Con Factura)' : ''}`,
           items,
           customer: customerData,
           metadata: {
              weight_kg: totalWeight,
              freight_cost: freightCost,
              shipping_cost: shippingCost,
-             service_fee: serviceFee
+             service_fee: serviceFee,
+             tax_iva: taxIVA, // Enviamos el monto de IVA
+             req_invoice: wantsInvoice ? 'YES' : 'NO' // Bandera para saber si facturar
           }
         })
       });
@@ -260,7 +270,7 @@ export default function CheckoutPage() {
                 </div>
             </div>
 
-            {/* 2. MÉTODO DE PAGO */}
+            {/* 2. MÉTODO DE PAGO (SIN CAMBIOS) */}
             <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
                 <div className="bg-neutral-50 border-b border-neutral-200 p-2 flex gap-2">
                     <button onClick={() => setPaymentMethod('card')} className={`flex-1 py-3 px-4 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${paymentMethod === 'card' ? 'bg-white shadow-sm text-black ring-1 ring-black/5' : 'text-neutral-500 hover:text-black'}`}><CreditCard size={16}/> Tarjeta</button>
@@ -269,38 +279,72 @@ export default function CheckoutPage() {
                 </div>
 
                 <div className="p-6 md:p-8">
+                    
+                    {/* TARJETA */}
                     {paymentMethod === 'card' && (
-                        <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-5">
-                            <div className="flex justify-between items-center mb-2">
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="flex justify-between items-center mb-6">
                                 <h2 className="text-lg font-bold uppercase text-black">Pago con Tarjeta</h2>
-                                <div className="flex gap-2 opacity-70"><img src={LOGOS.visa} alt="Visa" className="h-6"/><img src={LOGOS.mastercard} alt="MC" className="h-6"/><img src={LOGOS.amex} alt="Amex" className="h-6"/></div>
+                                <div className="flex gap-2 opacity-70">
+                                    <img src={LOGOS.visa} alt="Visa" className="h-6"/>
+                                    <img src={LOGOS.mastercard} alt="MC" className="h-6"/>
+                                    <img src={LOGOS.amex} alt="Amex" className="h-6"/>
+                                </div>
                             </div>
-                            <input placeholder="NOMBRE DEL TITULAR" className="checkout-input font-bold uppercase" onChange={e => setCardData({...cardData, holder: e.target.value})}/>
-                            <div className="relative">
-                                <input placeholder="0000 0000 0000 0000" maxLength={16} className="checkout-input font-mono text-lg" onChange={e => setCardData({...cardData, number: e.target.value})}/>
-                                <Lock size={16} className="absolute right-3 top-3.5 text-neutral-400"/>
-                            </div>
-                            <div className="grid grid-cols-3 gap-4">
-                                <input placeholder="MM" maxLength={2} className="checkout-input text-center" onChange={e => setCardData({...cardData, expMonth: e.target.value})}/>
-                                <input placeholder="AA" maxLength={2} className="checkout-input text-center" onChange={e => setCardData({...cardData, expYear: e.target.value})}/>
-                                <input placeholder="CVV" type="password" maxLength={4} className="checkout-input text-center" onChange={e => setCardData({...cardData, cvv: e.target.value})}/>
+                            <div className="space-y-5">
+                                <input placeholder="NOMBRE DEL TITULAR" className="checkout-input font-bold uppercase" onChange={e => setCardData({...cardData, holder: e.target.value})}/>
+                                <div className="relative">
+                                    <input placeholder="0000 0000 0000 0000" maxLength={16} className="checkout-input font-mono text-lg" onChange={e => setCardData({...cardData, number: e.target.value})}/>
+                                    <Lock size={16} className="absolute right-3 top-3.5 text-neutral-400"/>
+                                </div>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <input placeholder="MM" maxLength={2} className="checkout-input text-center" onChange={e => setCardData({...cardData, expMonth: e.target.value})}/>
+                                    <input placeholder="AA" maxLength={2} className="checkout-input text-center" onChange={e => setCardData({...cardData, expYear: e.target.value})}/>
+                                    <input placeholder="CVV" type="password" maxLength={4} className="checkout-input text-center" onChange={e => setCardData({...cardData, cvv: e.target.value})}/>
+                                </div>
                             </div>
                         </div>
                     )}
-                    {/* (Otros métodos de pago simplificados para brevedad...) */}
+
+                    {/* SPEI */}
+                    {paymentMethod === 'bank_account' && (
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-300 text-center">
+                            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"><Landmark size={32}/></div>
+                            <h2 className="text-lg font-bold uppercase mb-2">Transferencia Bancaria (SPEI)</h2>
+                            <p className="text-sm text-neutral-500 mb-6 max-w-sm mx-auto">Al confirmar, generaremos una <strong>CLABE única</strong> para tu transferencia.</p>
+                            <div className="bg-neutral-50 p-4 rounded-lg border border-neutral-200 inline-block">
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Total a Transferir</p>
+                                <p className="text-2xl font-black text-black">${total.toLocaleString()} MXN</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* EFECTIVO */}
+                    {paymentMethod === 'store' && (
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-300 text-center">
+                             <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4"><Banknote size={32}/></div>
+                            <h2 className="text-lg font-bold uppercase mb-4">Pago en Efectivo</h2>
+                            <div className="flex justify-center gap-6 mb-8 opacity-80 grayscale hover:grayscale-0 transition-all">
+                                <img src={LOGOS.oxxo} alt="Oxxo" className="h-8 object-contain"/>
+                                <img src={LOGOS.seven} alt="7-Eleven" className="h-8 object-contain"/>
+                                <div className="h-8 flex items-center text-xs font-bold bg-neutral-100 px-2 rounded text-neutral-500">+15 Tiendas</div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="pt-8 mt-4 border-t border-neutral-100">
                         <button 
                             onClick={handleTransaction}
                             disabled={isProcessing || (paymentMethod === 'card' && !isSdkReady)}
-                            className={`w-full font-black uppercase py-4 rounded-xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-3 
-                                ${isProcessing ? 'bg-neutral-800 text-neutral-400 cursor-wait' : 'bg-[#FDCB02] hover:bg-black hover:text-white text-black'}`}
+                            className={`w-full font-black uppercase py-4 rounded-xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-3 ${isProcessing ? 'bg-neutral-800 text-neutral-400 cursor-wait' : 'bg-[#FDCB02] hover:bg-black hover:text-white text-black'}`}
                         >
                             {isProcessing ? 'Procesando...' : (
-                                <><span>{paymentMethod === 'card' ? 'Pagar Ahora' : 'Generar Ficha'}</span><span className="bg-black/10 px-2 py-0.5 rounded text-sm">${total.toLocaleString()}</span></>
+                                <><span>{paymentMethod === 'card' ? 'Pagar Ahora' : 'Generar Ficha de Pago'}</span><span className="bg-black/10 px-2 py-0.5 rounded text-sm">${total.toLocaleString()}</span></>
                             )}
                         </button>
                         <div className="flex items-center justify-center gap-2 mt-4 text-[10px] text-neutral-400 uppercase font-bold"><ShieldCheck size={12} className="text-green-500"/> Transacción Encriptada 256-bits</div>
                     </div>
+
                 </div>
             </div>
           </div>
@@ -310,29 +354,21 @@ export default function CheckoutPage() {
              <div className="bg-white p-6 md:p-8 rounded-xl border border-neutral-200 shadow-lg sticky top-28">
                 <h3 className="text-lg font-black uppercase text-black mb-6 border-b border-neutral-100 pb-4">Resumen</h3>
                 
-                {/* LISTA DE ITEMS ACTUALIZADA */}
                 <div className="space-y-4 mb-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                     {items.map((item) => (
                         <div key={item.id} className="flex gap-4 items-start border-b border-neutral-50 pb-4 last:border-0">
-                             {/* Imagen limpia sin badge */}
                              <div className="relative w-16 h-16 bg-neutral-100 rounded-md overflow-hidden shrink-0 border border-neutral-100">
                                 <Image src={item.image || "/placeholder.jpg"} alt={item.title} fill className="object-cover" />
                             </div>
-                            
-                            {/* Detalles de Texto */}
                             <div className="flex-1 min-w-0">
                                 <h4 className="font-bold text-sm text-black truncate">{item.title}</h4>
                                 <div className="flex flex-col gap-0.5 mt-1">
                                     <span className="text-[10px] text-neutral-500 font-bold uppercase">{item.unit}</span>
-                                    
-                                    {/* Muestra Color si existe */}
                                     {item.meta?.color && (
                                         <p className="text-[10px] text-neutral-500 uppercase flex gap-1">
                                             Color: <span className="font-bold text-black">{item.meta.color}</span>
                                         </p>
                                     )}
-                                    
-                                    {/* Muestra Peso Total del item */}
                                     <p className="text-[10px] text-neutral-500 uppercase flex gap-1">
                                         Peso: <span className="font-bold text-black">{item.quantity} kg</span>
                                     </p>
@@ -343,7 +379,6 @@ export default function CheckoutPage() {
                     ))}
                 </div>
                 
-                {/* DESGLOSE DE COSTOS ACTUALIZADO */}
                 <div className="space-y-3 pt-4 border-t border-neutral-100 bg-neutral-50 p-4 rounded-lg">
                     <div className="flex justify-between text-sm">
                         <span className="text-neutral-600">Subtotal</span>
@@ -351,34 +386,43 @@ export default function CheckoutPage() {
                     </div>
                     
                     <div className="flex justify-between text-sm text-neutral-600">
-                        <span className="font-medium flex items-center gap-1">
-                            <Package size={14}/> Flete Consolidado
-                            <span className="text-[9px] bg-neutral-200 px-1 rounded uppercase">
-                                {totalRolls > 0 ? `${totalRolls} Bultos` : 'Minimo'}
-                            </span>
-                        </span>
+                        <span className="font-medium flex items-center gap-1"><Package size={14}/> Flete Consolidado <span className="text-[9px] bg-neutral-200 px-1 rounded uppercase">{totalRolls > 0 ? `${totalRolls} Bultos` : 'Minimo'}</span></span>
                         <span className="font-bold">${freightCost.toLocaleString()}</span>
                     </div>
 
                     <div className="flex justify-between text-sm text-blue-600">
-                        <span className="font-medium flex items-center gap-1">
-                            <Truck size={14}/> Envío Skydropx
-                            <span className="text-[9px] bg-blue-100 px-1 rounded uppercase">
-                                {totalWeight} kg
-                            </span>
-                        </span>
+                        <span className="font-medium flex items-center gap-1"><Truck size={14}/> Envío Skydropx <span className="text-[9px] bg-blue-100 px-1 rounded uppercase">{totalWeight} kg</span></span>
                         <span className="font-bold">${shippingCost.toLocaleString()}</span>
                     </div>
 
-                    {/* Tarifa de Servicio (Texto Limpio) */}
                     <div className="flex justify-between text-sm text-neutral-500">
-                        <span className="font-medium flex items-center gap-1">
-                            <Info size={14}/> Tarifa de Servicio
-                        </span>
-                        <span className="font-bold">${serviceFee.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                        <span className="font-medium flex items-center gap-1"><Info size={14}/> Tarifa de Servicio</span>
+                        <span className="font-bold">${serviceFee.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                     </div>
 
-                    <div className="flex justify-between items-end pt-3 border-t border-neutral-200 mt-2">
+                    {/* 👇 SECCIÓN DE FACTURACIÓN (AGREGADA AQUÍ) */}
+                    <div className="border-t border-dashed border-neutral-200 pt-3 mt-1">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-black uppercase flex items-center gap-2">
+                                <FileText size={14} className="text-[#FDCB02]"/> ¿Desea Facturar?
+                            </span>
+                            {/* Toggle Switch */}
+                            <button 
+                                onClick={() => setWantsInvoice(!wantsInvoice)}
+                                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${wantsInvoice ? 'bg-[#FDCB02]' : 'bg-neutral-200'}`}
+                            >
+                                <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ${wantsInvoice ? 'translate-x-4' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+                        
+                        {/* Línea de IVA (Visible solo si activa switch) */}
+                        <div className={`flex justify-between text-sm text-neutral-500 transition-all duration-300 overflow-hidden ${wantsInvoice ? 'max-h-10 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
+                            <span className="font-medium">IVA (16%)</span>
+                            <span className="font-bold text-black">${taxIVA.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-between items-end pt-4 border-t border-neutral-200 mt-2">
                         <span className="font-black uppercase">Total</span>
                         <span className="font-black text-2xl">${total.toLocaleString()}</span>
                     </div>
@@ -389,16 +433,7 @@ export default function CheckoutPage() {
       </div>
 
       <style jsx>{`
-        .checkout-input {
-          width: 100%;
-          background-color: #f9fafb;
-          border: 1px solid #e5e7eb;
-          padding: 0.75rem 1rem;
-          border-radius: 0.5rem;
-          font-size: 0.875rem;
-          outline: none;
-          transition: all 0.2s;
-        }
+        .checkout-input { width: 100%; background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; outline: none; transition: all 0.2s; }
         .checkout-input.with-icon { padding-left: 2.75rem !important; }
         .checkout-input:focus { border-color: #FDCB02; background-color: #fff; box-shadow: 0 0 0 1px #FDCB02; }
       `}</style>
