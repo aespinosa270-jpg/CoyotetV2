@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   ShoppingCart, ChevronLeft, Layers, Minus, Plus, 
   Shield, Zap, Package, Scissors,
-  Star, Share2, Heart, Truck, LayoutGrid, Globe, ArrowRight, Check
+  Star, Share2, Heart, Truck, LayoutGrid, Globe, ArrowRight, Check, Palette
 } from 'lucide-react';
 import { useCart } from '@/lib/context/cart-context';
 import { useB2BPrice } from '@/hooks/use-b2b-price';
@@ -21,15 +21,29 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const { addItem } = useCart();
   
+  // 1. Obtener Producto de forma segura
+  const productId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const product = products.find(p => p.id === productId);
+
   // Estados
   const [quantity, setQuantity] = useState(1);
   const [buyingMode, setBuyingMode] = useState<'kilo' | 'rollo'>('kilo');
   const [activeTab, setActiveTab] = useState<'details' | 'specs' | 'reviews'>('details');
+  
+  // Estado para la imagen principal (Galería)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  
+  // Estado para el color seleccionado (si el producto tiene variantes)
+  const [selectedColor, setSelectedColor] = useState(product?.colors?.[0] || null);
 
-  // 1. Obtener Producto de forma segura
-  const productId = Array.isArray(params.id) ? params.id[0] : params.id;
-  const product = products.find(p => p.id === productId);
+  // Efecto para actualizar la imagen principal cuando cambia el color seleccionado
+  useEffect(() => {
+    if (selectedColor && selectedColor.image) {
+      // Si el color tiene imagen específica, la mostramos (aquí asumimos que reemplaza la thumbnail base visualmente)
+      // Nota: En un sistema real, podrías querer agregarla a la galería en lugar de reemplazar.
+      // Para este demo, usaremos una lógica simple en el renderizado de la imagen principal.
+    }
+  }, [selectedColor]);
 
   // 2. Productos Relacionados
   const relatedProducts = useMemo(() => {
@@ -57,25 +71,41 @@ export default function ProductDetailPage() {
   const totalPrice = finalPrice * totalWeight;
   const savingsAmount = (product.prices.menudeo - finalPrice) * totalWeight;
 
-  // Galería (Simulada con la misma imagen si no hay más)
-  const galleryImages = [product.thumbnail, product.thumbnail, product.thumbnail];
+  // Galería de Imágenes
+  // Construimos la galería: 
+  // 1. Si hay un color seleccionado con imagen específica, esa va primero.
+  // 2. Luego la thumbnail general del producto.
+  // 3. (Opcional) Más imágenes si las tuvieras en el objeto producto.
+  const mainImageSrc = (selectedColor && selectedColor.image) ? selectedColor.image : product.thumbnail;
+  
+  // Para las miniaturas, mostramos la thumbnail base y (si existe) la del color seleccionado
+  const galleryImages = useMemo(() => {
+      const images = [product.thumbnail];
+      if (selectedColor && selectedColor.image && selectedColor.image !== product.thumbnail) {
+          images.unshift(selectedColor.image);
+      }
+      // Rellenamos para demo visual si hay pocas
+      while(images.length < 3) images.push(product.thumbnail);
+      return images;
+  }, [product.thumbnail, selectedColor]);
 
   // --- FUNCIÓN AGREGAR AL CARRITO ---
   const handleAddToCart = () => {
-    // Generamos un ID único para distinguir Kilos de Rollos en el carrito
-    const cartVariantId = `${product.id}-${buyingMode}`;
+    // Generamos un ID único para distinguir Kilos de Rollos y Colores en el carrito
+    const cartVariantId = `${product.id}-${buyingMode}-${selectedColor ? selectedColor.name : 'default'}`;
 
     addItem({
-      id: cartVariantId,      // ID único para el carrito (ej. prod_123-rollo)
-      productId: product.id,  // ID real del producto
-      title: product.title,
+      id: cartVariantId,      
+      productId: product.id,  
+      title: `${product.title} ${selectedColor ? `- ${selectedColor.name}` : ''}`, // Añadimos el color al título en el carrito
       price: finalPrice,
-      image: product.thumbnail,
+      image: selectedColor?.image || product.thumbnail, // Usamos la imagen del color si existe
       quantity: totalWeight,
       unit: buyingMode === 'rollo' ? 'Kg (Rollo)' : 'Kg',
       meta: {
         mode: buyingMode,
-        packages: quantity
+        packages: quantity,
+        color: selectedColor?.name // Guardamos el color en meta
       }
     });
   };
@@ -90,7 +120,7 @@ export default function ProductDetailPage() {
                 <LayoutGrid size={12}/> Catálogo
             </Link> 
             <ChevronLeft size={10} className="rotate-180"/> 
-            <span className="hover:text-black transition-colors cursor-pointer">Telas Deportivas</span>
+            <span className="hover:text-black transition-colors cursor-pointer">{product.category}</span>
             <ChevronLeft size={10} className="rotate-180"/>
             <span className="text-black font-bold truncate max-w-[150px] md:max-w-none">{product.title}</span>
          </div>
@@ -122,7 +152,9 @@ export default function ProductDetailPage() {
              {/* Imagen Principal */}
              <div className="flex-1 relative aspect-square lg:aspect-[4/3] bg-neutral-50 border border-neutral-200 rounded-lg overflow-hidden group shadow-sm">
                 <Image 
-                   src={galleryImages[selectedImageIndex]} 
+                   // Si el usuario seleccionó una miniatura específica, usamos esa (galleryImages[idx]).
+                   // Si no, y hay un color seleccionado con imagen, mostramos esa prioritariamente.
+                   src={galleryImages[selectedImageIndex] || mainImageSrc} 
                    alt={product.title} 
                    fill 
                    className="object-cover transition-transform duration-700 group-hover:scale-105"
@@ -199,7 +231,7 @@ export default function ProductDetailPage() {
                         </div>
                     </div>
 
-                    {/* Ahorro (Si aplica por membresía, no por volumen genérico) */}
+                    {/* Ahorro */}
                     <div className="text-right">
                         {savingsAmount > 0 && (
                             <div className="animate-in fade-in slide-in-from-bottom-2">
@@ -211,6 +243,48 @@ export default function ProductDetailPage() {
                   </div>
                </div>
             </div>
+
+            {/* SELECCIÓN DE COLOR (NUEVO BLOQUE) */}
+            {product.colors && product.colors.length > 0 && (
+                <div className="mb-8">
+                    <div className="flex items-center justify-between mb-3">
+                        <label className="text-xs font-bold uppercase text-neutral-500 flex items-center gap-2">
+                            <Palette size={14}/> Color Seleccionado:
+                        </label>
+                        <span className="text-xs font-black text-black uppercase bg-[#FDCB02]/20 px-2 py-0.5 rounded text-right">
+                            {selectedColor?.name || 'Selecciona uno'}
+                        </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-neutral-300">
+                        {product.colors.map((color, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => {
+                                    setSelectedColor(color);
+                                    setSelectedImageIndex(0); // Reset galería para ver la nueva foto
+                                }}
+                                title={color.name}
+                                className={`group relative w-full aspect-square rounded-md border flex items-center justify-center transition-all ${
+                                    selectedColor?.name === color.name 
+                                    ? 'border-[#FDCB02] ring-2 ring-[#FDCB02] ring-offset-2 scale-105 z-10' 
+                                    : 'border-neutral-200 hover:border-neutral-400 hover:scale-105'
+                                }`}
+                            >
+                                <div 
+                                    className="w-full h-full rounded-[4px]" 
+                                    style={{ backgroundColor: color.hex }}
+                                />
+                                {selectedColor?.name === color.name && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/10 rounded-md">
+                                        <Check size={16} className={color.name === 'Blanco' || color.name === 'Hueso' || color.name === 'Beige' ? 'text-black' : 'text-white'} strokeWidth={3}/>
+                                    </div>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Selector de Presentación */}
             <div className="mb-6">
@@ -317,7 +391,7 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {/* --- TABS DE INFORMACIÓN --- */}
+        {/* --- TABS DE INFORMACIÓN (SIN CAMBIOS) --- */}
         <div className="mt-20 pt-10 border-t border-neutral-200">
            {/* Navegación de Pestañas */}
            <div className="flex border-b border-neutral-200 mb-8 overflow-x-auto scrollbar-hide gap-8">
@@ -341,7 +415,6 @@ export default function ProductDetailPage() {
 
            {/* Contenido de Pestañas */}
            <div className="min-h-[300px]">
-              
               {/* PESTAÑA DETALLES */}
               {activeTab === 'details' && (
                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 animate-in fade-in duration-300">
