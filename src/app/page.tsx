@@ -31,15 +31,11 @@ const TECH_FILTERS = {
 
 // --- COMPONENTES UI ---
 
-// 1. PRODUCT CARD MEJORADO (Soporta cambio de color e imagen)
+// 1. PRODUCT CARD (INTACTO)
 const ProductCard = ({ product, className = "" }: { product: any, className?: string }) => {
     const { addItem } = useCart();
-    
-    // Estado para la imagen activa (empieza con la thumbnail original)
     const [activeImage, setActiveImage] = useState(product.thumbnail);
-    // Estado para saber qué color está seleccionado visualmente
     const [selectedColorName, setSelectedColorName] = useState<string | null>(null);
-
     const [qtyKilo, setQtyKilo] = useState(1);
     const [qtyRollo, setQtyRollo] = useState(1);
     const [hovered, setHovered] = useState(false);
@@ -47,20 +43,15 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
     const priceKilo = product.prices?.menudeo || 0; 
     const priceRollo = product.prices?.mayoreo || 0; 
     const rollWeight = 25; 
-    
     const gsm = product.gramaje || "180"; 
     const width = product.ancho || "1.60m"; 
-    
     const totalRolloWeight = qtyRollo * rollWeight;
     const savings = priceKilo > 0 ? Math.round(((priceKilo - priceRollo) / priceKilo) * 100) : 0;
 
-    // Función para cambiar color (Evita que el Link navegue al hacer click en el color)
     const handleColorClick = (e: any, color: any) => {
-        e.preventDefault(); // IMPORTANTE: Detiene la navegación
+        e.preventDefault();
         e.stopPropagation();
-        if (color.image) {
-            setActiveImage(color.image);
-        }
+        if (color.image) setActiveImage(color.image);
         setSelectedColorName(color.name);
     };
 
@@ -68,9 +59,9 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
         <div 
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
-            className={`min-w-[85vw] w-[85vw] sm:min-w-[300px] sm:w-[300px] md:min-w-[320px] md:w-[320px] bg-[#080808] border border-white/5 hover:border-[#FDCB02] transition-all duration-300 relative flex flex-col snap-center group overflow-hidden rounded-[2px] ${className}`}
+            // Nota: En desktop quitamos el snap-center para que el scroll fluido del mouse no se trabe
+            className={`min-w-[85vw] w-[85vw] sm:min-w-[300px] sm:w-[300px] md:min-w-[320px] md:w-[320px] bg-[#080808] border border-white/5 hover:border-[#FDCB02] transition-all duration-300 relative flex flex-col snap-center md:snap-align-none group overflow-hidden rounded-[2px] ${className}`}
         >
-            {/* Header Técnico */}
             <div className="absolute top-0 left-0 w-full z-20 flex justify-between p-3 pointer-events-none">
                 <div className="flex gap-1">
                     <span className="bg-black/90 backdrop-blur text-white text-[9px] font-mono font-bold px-1.5 py-0.5 border border-white/10 rounded-[2px]">
@@ -83,15 +74,13 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
                 <div className="bg-[#FDCB02] text-black px-2 py-0.5 text-[9px] font-[900] uppercase rounded-[2px]">STOCK</div>
             </div>
 
-            {/* Link clickeable (Imagen Principal) */}
             <Link href={`/products/${product.id}`} className="block relative h-64 w-full bg-[#050505] overflow-hidden border-b border-white/5 cursor-pointer">
                 <Image 
-                    src={activeImage} // Usamos el estado activeImage
+                    src={activeImage} 
                     alt={product.title} 
                     fill 
                     className={`object-cover transition-transform duration-700 ${hovered ? 'scale-110 opacity-80' : 'scale-100 opacity-100'}`}
                 />
-                
                 <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black via-black/90 to-transparent p-4 translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
                     <h3 className="text-lg font-[900] uppercase text-white leading-none tracking-tight mb-2 line-clamp-1 group-hover:text-[#FDCB02] transition-colors">
                         {product.title}
@@ -103,14 +92,11 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
                 </div>
             </Link>
 
-            {/* --- SECCIÓN DE COLORES (NUEVO) --- */}
             {product.colors && product.colors.length > 0 && (
                 <div className="px-4 py-2 bg-[#0c0c0c] border-b border-white/5 overflow-x-auto scrollbar-hide flex items-center gap-2 h-12">
-                     {/* Texto que indica el color seleccionado o 'Colores:' */}
                      <span className="text-[9px] font-bold text-neutral-500 uppercase shrink-0 mr-1">
                         {selectedColorName || "Colores:"}
                      </span>
-                     
                      {product.colors.map((c: any, i: number) => (
                         <button
                             key={i}
@@ -123,9 +109,7 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
                 </div>
             )}
 
-            {/* Controles de Compra */}
             <div className="flex flex-col mt-auto bg-[#080808]">
-                {/* Opción Muestra / Kilo */}
                 <div className="px-4 py-3 border-b border-white/5 hover:bg-[#111] transition-colors">
                     <div className="flex justify-between items-center mb-2">
                         <span className="text-[10px] font-bold uppercase text-neutral-500 flex items-center gap-1"><Scissors size={10}/> Corte / Kilo</span>
@@ -141,7 +125,6 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
                     </div>
                 </div>
 
-                {/* Opción Rollo (Mayoreo) */}
                 <div className="px-4 py-3 bg-[#0a0a0a] relative">
                     <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#FDCB02]"/>
                     <div className="flex justify-between items-center mb-2 pl-2">
@@ -165,19 +148,33 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
     );
 };
 
-// ... RESTO DEL CÓDIGO (ProductRail y CoyoteMarketplace) ...
-// Copia el resto del archivo exactamente como estaba antes. 
-// Aquí te pongo el ProductRail y el Main para que esté completo.
-
+// 2. PRODUCT RAIL (ACTUALIZADO: SCROLL CON MOVIMIENTO DEL MOUSE)
 const ProductRail = ({ title, items, icon: Icon, isNational = false }: { title: string, items: any[], icon?: any, isNational?: boolean }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
-    const scroll = (direction: 'left' | 'right') => {
-        if (scrollRef.current) {
-            const amount = direction === 'left' ? -350 : 350;
-            scrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
-        }
+
+    // Lógica para deslizar con el movimiento del mouse
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!scrollRef.current) return;
+        
+        // Obtenemos dimensiones del contenedor
+        const { left, width } = scrollRef.current.getBoundingClientRect();
+        
+        // Calculamos la posición del mouse relativa al contenedor (0 a 1)
+        const relativeX = e.clientX - left;
+        const scrollPercentage = relativeX / width;
+        
+        // Calculamos cuánto debe scrollear (ancho total del contenido - ancho visible)
+        const maxScroll = scrollRef.current.scrollWidth - scrollRef.current.clientWidth;
+        
+        // Aplicamos el scroll de forma suave
+        scrollRef.current.scrollTo({
+            left: maxScroll * scrollPercentage,
+            behavior: "smooth" // Esto hace que el movimiento sea fluido y no brusco
+        });
     };
+
     if (!items || items.length === 0) return null;
+
     return (
         <section className="mb-16 md:mb-20 border-b border-white/5 pb-10 relative group/section">
             <div className="flex items-end justify-between mb-6 md:mb-8 px-1">
@@ -192,12 +189,15 @@ const ProductRail = ({ title, items, icon: Icon, isNational = false }: { title: 
                         {isNational && <p className="text-[10px] md:text-xs text-green-500/80 font-mono mt-1 md:mt-2 uppercase tracking-widest flex items-center gap-2"><Flag size={10}/> Apoya la industria local • Envío Inmediato</p>}
                     </div>
                 </div>
-                <div className="hidden md:flex gap-1">
-                    <button onClick={() => scroll('left')} className="w-12 h-12 flex items-center justify-center border border-white/10 bg-[#0a0a0a] text-white hover:bg-white hover:text-black transition-colors rounded-[2px]"><ArrowRight className="rotate-180" size={20}/></button>
-                    <button onClick={() => scroll('right')} className="w-12 h-12 flex items-center justify-center border border-white/10 bg-[#0a0a0a] text-white hover:bg-white hover:text-black transition-colors rounded-[2px]"><ArrowRight size={20}/></button>
-                </div>
+                {/* Nota: Eliminamos los botones de flechas porque ahora se controla con el mouse */}
             </div>
-            <div ref={scrollRef} className="flex overflow-x-auto gap-4 pb-8 scrollbar-hide -mx-4 md:-mx-6 px-4 md:px-6 snap-x snap-mandatory">
+            
+            {/* Contenedor del Scroll */}
+            <div 
+                ref={scrollRef} 
+                onMouseMove={handleMouseMove} // Detecta el movimiento del mouse
+                className="flex overflow-x-auto gap-4 pb-8 scrollbar-hide -mx-4 md:-mx-6 px-4 md:px-6 snap-x snap-mandatory cursor-crosshair" // cursor-crosshair indica interactividad
+            >
                 {items.map((product, i) => <ProductCard key={product.id || i} product={product} />)}
                 <div className="min-w-[20px] md:hidden"></div>
             </div>
