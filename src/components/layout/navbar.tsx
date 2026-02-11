@@ -154,7 +154,7 @@ export default function Navbar() {
                 onMouseLeave={() => setIsMenuOpen(false)}
               >
                   <button className="flex items-center gap-4 h-full px-6 bg-white/5 hover:bg-[#FDCB02] hover:text-black transition-colors text-[11px] font-[1000] uppercase tracking-[0.25em] text-white border-r border-white/5 cursor-pointer">
-                      <Menu size={18} strokeWidth={3}/> <span className="mt-0.5">CATÁLOGO GLOBAL</span>
+                      <Menu size={18} strokeWidth={3}/> <span className="mt-0.5">Todos Nuestros Productos</span>
                   </button>
 
                   {/* EL DROPDOWN (Lo que habías perdido) */}
