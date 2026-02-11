@@ -31,7 +31,7 @@ export interface Product {
 export const products: Product[] = [
   {
     id: "prod_micropique_gold",
-    title: "Micropiqué Gold",
+    title: "Micro piqué Gold",
     unit: "Kilo",
     thumbnail: "/assets/products/112.jpg", // Foto por defecto
     description: "Tecnología Dry-Fit Calidad Gold. Ideal para uniformes deportivos de alto rendimiento.",
@@ -47,8 +47,8 @@ export const products: Product[] = [
     colors: [
         { name: "Negro", hex: "#000000", image: "/assets/products/micropique/negro1.jpg" },
         { name: "Blanco", hex: "#FFFFFF", image: "/assets/products/micropique.jpg"},
-        { name: "Marino", hex: "#001B44", image: "/assets/products/micropique/marino1.jpg" },
-        { name: "Azul Petróleo", "hex": "#2F6A74", "image": "/assets/products/micropique/azul-petroleo1.jpg" },
+        { name: "Marino", hex: "#000020", image: "/assets/products/micropique/marino1.jpg" },
+        { name: "Azul Petróleo", "hex": "#003d47", "image": "/assets/products/micropique/azul-petroleo1.jpg" },
         { name: "Azul Rey", hex: "#0047AB", image: "/assets/products/micropique/azul-rey.jpg" },
         { name: "Rojo", hex: "#E3001B", image: "/assets/products/micropique/rojo2.jpg" },
         { name: "Gris Oxford", hex: "#3C3C3C", image: "/assets/products/micropique/gris-oxford.jpg" },
