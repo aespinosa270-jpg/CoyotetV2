@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -8,8 +8,8 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '@/lib/context/cart-context';
 import { 
   ShieldCheck, Lock, CreditCard, User, MapPin, 
-  Phone, Mail, ArrowLeft, ShoppingBag, Truck, Package, Home, 
-  Landmark, Store, Banknote
+  Phone, Mail, ArrowLeft, ShoppingBag, Truck, 
+  Landmark, Store, Banknote, Info, Package
 } from 'lucide-react';
 
 declare global {
@@ -48,12 +48,71 @@ export default function CheckoutPage() {
     holder: '', number: '', expYear: '', expMonth: '', cvv: '' 
   });
 
-  const shippingCost = 250; 
-  const total = subtotal + shippingCost;
-
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // --- 1. LÓGICA DE CÁLCULO REAL (Flete Tabla + Envío Peso + Servicio 5%) ---
+  const { freightCost, shippingCost, serviceFee, total, totalWeight, totalRolls } = useMemo(() => {
+    let rollCount = 0;
+    let weight = 0;
+
+    // A. Calcular Peso Total y Conteo de Bultos
+    items.forEach(item => {
+        // Peso Real
+        const itemWeight = item.quantity; // Asumimos que quantity es KG siempre en tu lógica
+        weight += itemWeight;
+
+        // Conteo de Rollos (para Tabla de Flete)
+        const isRollo = item.unit.toLowerCase().includes('rollo') || item.meta?.mode === 'rollo';
+        if (isRollo) {
+            const packs = item.meta?.packages || Math.ceil(item.quantity / 25) || 1; 
+            rollCount += packs;
+        } else if (itemWeight >= 25) {
+             // Si son kilos sueltos pero muchos, los contamos como bultos equivalentes para el Flete
+             rollCount += Math.ceil(itemWeight / 25);
+        }
+    });
+
+    // B. Costo Flete (Tu Tabla de Imagen - Logística Interna)
+    let flete = 0;
+    if (weight < 10 && rollCount === 0) {
+        flete = 150; // Menor a 10kg
+    } else {
+        // Tarifa por volumen (Rollos/Bultos)
+        const bultos = Math.max(1, rollCount); // Mínimo 1 bulto si pesa > 10kg
+        if (bultos === 1) flete = 200;
+        else if (bultos <= 4) flete = 250;
+        else if (bultos <= 10) flete = 300;
+        else if (bultos <= 15) flete = 400;
+        else if (bultos <= 20) flete = 500;
+        else flete = 1000;
+    }
+
+    // C. Costo Envío Skydropx (Simulado por Peso Real)
+    // Tarifa base $180 (hasta 5kg) + $15 por kg adicional (Ejemplo realista)
+    // En producción, esto vendría de una llamada a la API de Skydropx con el CP destino.
+    const baseShipping = 180;
+    const extraKgPrice = 12; // Precio promedio B2B por kg extra terrestre
+    let envio = baseShipping;
+    
+    if (weight > 5) {
+        envio += (weight - 5) * extraKgPrice;
+    }
+
+    // D. Tarifa de Servicio (5%)
+    const fee = subtotal * 0.05;
+
+    return {
+        freightCost: flete,       // Tabla Imagen
+        shippingCost: envio,      // Skydropx (Peso)
+        serviceFee: fee,          // 5%
+        total: subtotal + flete + envio + fee,
+        totalWeight: weight,
+        totalRolls: rollCount
+    };
+  }, [items, subtotal]);
+  // --- FIN LÓGICA ---
 
   const setupOpenPay = () => {
     if (typeof window !== 'undefined' && window.OpenPay && window.OpenPay.deviceData) {
@@ -65,31 +124,11 @@ export default function CheckoutPage() {
         const deviceId = window.OpenPay.deviceData.setup();
         setDeviceSessionId(deviceId);
         setIsSdkReady(true);
-        console.log("✅ OpenPay Ready. Device:", deviceId);
+        console.log("✅ OpenPay Ready");
       } catch (error) {
         console.error("Error OpenPay:", error);
       }
     }
-  };
-
-  const prepareShipmentData = () => {
-    const weight = items.reduce((acc, item) => acc + (item.quantity * 1), 0);
-    return {
-      weight,
-      height: 15, width: 30, length: 30,
-      address_to: {
-        name: `${customerData.name} ${customerData.lastName}`,
-        email: customerData.email,
-        phone: customerData.phone,
-        street1: `${customerData.street} ${customerData.number}`,
-        street2: customerData.unit,
-        city: customerData.city,
-        province: customerData.state,
-        zip: customerData.zip,
-        country: 'MX',
-        reference: `${customerData.neighborhood}. ${customerData.reference}`
-      }
-    };
   };
 
   const handleTransaction = async (e: React.FormEvent) => {
@@ -98,13 +137,12 @@ export default function CheckoutPage() {
 
     try {
       if (!isSdkReady && paymentMethod === 'card') throw new Error("Cargando seguridad bancaria...");
-
-      const finalDeviceId = deviceSessionId || window.OpenPay?.deviceData?.setup();
       
       if (!customerData.street || !customerData.zip || !customerData.email) {
-        throw new Error("Completa la dirección para generar la guía de envío.");
+        throw new Error("Completa la dirección para cotizar el envío exacto.");
       }
 
+      const finalDeviceId = deviceSessionId || window.OpenPay?.deviceData?.setup();
       let token = null;
 
       if (paymentMethod === 'card') {
@@ -123,6 +161,7 @@ export default function CheckoutPage() {
         });
       }
 
+      // Enviar al Backend
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,11 +169,16 @@ export default function CheckoutPage() {
           method: paymentMethod,
           token,
           deviceSessionId: finalDeviceId,
-          amount: total,
-          description: `Pedido Coyote Textil - ${items.length} items`,
+          amount: total, 
+          description: `Pedido Coyote - ${totalWeight}kg`,
           items,
           customer: customerData,
-          shipping: prepareShipmentData()
+          metadata: {
+             weight_kg: totalWeight,
+             freight_cost: freightCost,
+             shipping_cost: shippingCost,
+             service_fee: serviceFee
+          }
         })
       });
 
@@ -182,14 +226,13 @@ export default function CheckoutPage() {
             </Link>
             <h1 className="text-2xl font-black uppercase text-black tracking-tight">Finalizar Compra</h1>
             <div className="ml-auto flex items-center gap-2 text-[10px] font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-full uppercase">
-                <Truck size={12} /> Logística Skydropx Integrada
+                <Truck size={12} /> Logística Coyote
             </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           <div className="lg:col-span-7 space-y-6">
-            
             {/* 1. DATOS DE ENVÍO */}
             <div className="bg-white p-6 md:p-8 rounded-xl border border-neutral-200 shadow-sm">
                 <h2 className="text-lg font-bold uppercase text-black mb-6 flex items-center gap-2">
@@ -199,29 +242,18 @@ export default function CheckoutPage() {
                     <input placeholder="Nombre(s)" className="checkout-input" onChange={e => setCustomerData({...customerData, name: e.target.value})}/>
                     <input placeholder="Apellidos" className="checkout-input" onChange={e => setCustomerData({...customerData, lastName: e.target.value})}/>
                     
-                    {/* 👇 CORRECCIÓN AQUÍ: Agregamos la clase 'with-icon' */}
                     <div className="relative md:col-span-1">
                         <Mail size={16} className="absolute left-3 top-3.5 text-neutral-400 z-10"/>
-                        <input 
-                            placeholder="Email (Para confirmación)" 
-                            className="checkout-input with-icon" 
-                            onChange={e => setCustomerData({...customerData, email: e.target.value})}
-                        />
+                        <input placeholder="Email" className="checkout-input with-icon" onChange={e => setCustomerData({...customerData, email: e.target.value})}/>
                     </div>
-                    
-                    {/* 👇 CORRECCIÓN AQUÍ: Agregamos la clase 'with-icon' */}
                     <div className="relative md:col-span-1">
                         <Phone size={16} className="absolute left-3 top-3.5 text-neutral-400 z-10"/>
-                        <input 
-                            placeholder="Teléfono Móvil" 
-                            className="checkout-input with-icon" 
-                            onChange={e => setCustomerData({...customerData, phone: e.target.value})}
-                        />
+                        <input placeholder="Teléfono" className="checkout-input with-icon" onChange={e => setCustomerData({...customerData, phone: e.target.value})}/>
                     </div>
                     
                     <div className="md:col-span-2 border-t border-neutral-100 mt-4 pt-4">
                         <p className="text-[10px] font-bold text-neutral-400 uppercase mb-3 flex items-center gap-1">
-                            <MapPin size={10}/> Dirección Exacta (Requerido por Paquetería)
+                            <MapPin size={10}/> Dirección Exacta
                         </p>
                     </div>
 
@@ -379,9 +411,44 @@ export default function CheckoutPage() {
                         </div>
                     ))}
                 </div>
+                
+                {/* --- DESGLOSE DE COSTOS (3 LINEAS EXTRA) --- */}
                 <div className="space-y-3 pt-4 border-t border-neutral-100 bg-neutral-50 p-4 rounded-lg">
-                    <div className="flex justify-between text-sm"><span className="text-neutral-600">Subtotal</span><span className="font-bold">${subtotal.toLocaleString()}</span></div>
-                    <div className="flex justify-between text-sm"><span className="text-neutral-600">Envío Estándar</span><span className="font-bold">${shippingCost.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-sm">
+                        <span className="text-neutral-600">Subtotal</span>
+                        <span className="font-bold">${subtotal.toLocaleString()}</span>
+                    </div>
+                    
+                    {/* 1. FLETE (Tu Tabla) */}
+                    <div className="flex justify-between text-sm text-neutral-600">
+                        <span className="font-medium flex items-center gap-1">
+                            <Package size={14}/> Flete Consolidado
+                            <span className="text-[9px] bg-neutral-200 px-1 rounded uppercase">
+                                {totalRolls > 0 ? `${totalRolls} Bultos` : 'Minimo'}
+                            </span>
+                        </span>
+                        <span className="font-bold">${freightCost.toLocaleString()}</span>
+                    </div>
+
+                    {/* 2. ENVÍO PAQUETERÍA (Skydropx) */}
+                    <div className="flex justify-between text-sm text-blue-600">
+                        <span className="font-medium flex items-center gap-1">
+                            <Truck size={14}/> Envío Skydropx
+                            <span className="text-[9px] bg-blue-100 px-1 rounded uppercase">
+                                {totalWeight} kg
+                            </span>
+                        </span>
+                        <span className="font-bold">${shippingCost.toLocaleString()}</span>
+                    </div>
+
+                    {/* 3. SERVICIO (5%) */}
+                    <div className="flex justify-between text-sm text-neutral-500">
+                        <span className="font-medium flex items-center gap-1">
+                            <Info size={14}/> Tarifa Servicio (5%)
+                        </span>
+                        <span className="font-bold">${serviceFee.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    </div>
+
                     <div className="flex justify-between items-end pt-3 border-t border-neutral-200 mt-2">
                         <span className="font-black uppercase">Total</span>
                         <span className="font-black text-2xl">${total.toLocaleString()}</span>
@@ -392,7 +459,6 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* ESTILOS CSS CORREGIDOS */}
       <style jsx>{`
         .checkout-input {
           width: 100%;
@@ -405,9 +471,8 @@ export default function CheckoutPage() {
           transition: all 0.2s;
         }
         
-        /* 👇 AQUÍ ESTÁ LA MAGIA: Clase específica para inputs con ícono */
         .checkout-input.with-icon {
-            padding-left: 2.75rem !important; /* Fuerza el espacio izquierdo */
+            padding-left: 2.75rem !important;
         }
 
         .checkout-input:focus {

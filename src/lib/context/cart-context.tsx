@@ -4,14 +4,19 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 // Tipos
 export interface CartItem {
-  id: string;
-  productId: string;
+  id: string;        // ID único generado (ej: "prod_123-rollo-rojo")
+  productId: string; // ID base del producto (ej: "prod_123")
   title: string;
   price: number;
   image: string;
   quantity: number;
   unit: string;
-  meta?: any;
+  meta?: {
+    mode?: 'kilo' | 'rollo';
+    packages?: number;
+    color?: string; // 👈 Importante para mostrar el color en el carrito
+    [key: string]: any;
+  };
 }
 
 interface CartContextType {
@@ -22,7 +27,6 @@ interface CartContextType {
   clearCart: () => void;
   totalItems: number;
   subtotal: number;
-  // 👇 NUEVO: Control del Sidebar
   isCartOpen: boolean;
   openCart: () => void;
   closeCart: () => void;
@@ -32,39 +36,48 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
-  const [isCartOpen, setIsCartOpen] = useState(false); // Estado del sidebar
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Cargar carrito de localStorage al iniciar
+  // 1. Cargar carrito de localStorage (Solo en el cliente)
   useEffect(() => {
-    const savedCart = localStorage.getItem('coyote-cart');
-    if (savedCart) {
-      try {
-        setItems(JSON.parse(savedCart));
-      } catch (e) {
-        console.error("Error cargando carrito", e);
+    if (typeof window !== 'undefined') {
+      const savedCart = localStorage.getItem('coyote-cart');
+      if (savedCart) {
+        try {
+          setItems(JSON.parse(savedCart));
+        } catch (e) {
+          console.error("Error cargando carrito:", e);
+          localStorage.removeItem('coyote-cart');
+        }
       }
+      setIsInitialized(true);
     }
   }, []);
 
-  // Guardar en localStorage cada vez que cambia
+  // 2. Guardar en localStorage cada vez que cambia
   useEffect(() => {
-    localStorage.setItem('coyote-cart', JSON.stringify(items));
-  }, [items]);
+    if (isInitialized) {
+      localStorage.setItem('coyote-cart', JSON.stringify(items));
+    }
+  }, [items, isInitialized]);
 
   const addItem = (newItem: CartItem) => {
     setItems((prev) => {
+      // Buscamos por el ID compuesto (producto + variante + color)
       const existing = prev.find((i) => i.id === newItem.id);
       if (existing) {
-        // Si ya existe (mismo ID de variante), sumamos cantidad
+        // Si ya existe la misma variante exacto, sumamos la cantidad
         return prev.map((i) =>
           i.id === newItem.id
             ? { ...i, quantity: i.quantity + newItem.quantity }
             : i
         );
       }
+      // Si no existe, lo agregamos como línea nueva
       return [...prev, newItem];
     });
-    // Opcional: Abrir el carrito automáticamente al agregar
+    // Abrir el sidebar automáticamente al agregar da buena UX
     setIsCartOpen(true);
   };
 
@@ -80,8 +93,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = () => setItems([]);
 
-  // Cálculos
-  const totalItems = items.reduce((acc, item) => acc + (item.unit.includes('Rollo') ? item.quantity / 25 : item.quantity), 0); // Ajuste visual aproximado o simple count
+  // CÁLCULOS
+  // Usamos items.length para el badge (número de líneas distintas), 
+  // ya que sumar kilos (ej. 500) se ve mal en un icono de notificación.
+  const totalItems = items.length;
+  
   const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   const openCart = () => setIsCartOpen(true);
@@ -89,10 +105,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <CartContext.Provider value={{ 
-      items, addItem, removeItem, updateQuantity, clearCart, 
-      totalItems: items.length, // Contamos líneas de pedido, no kilos totales
+      items, 
+      addItem, 
+      removeItem, 
+      updateQuantity, 
+      clearCart, 
+      totalItems, 
       subtotal,
-      isCartOpen, openCart, closeCart 
+      isCartOpen, 
+      openCart, 
+      closeCart 
     }}>
       {children}
     </CartContext.Provider>

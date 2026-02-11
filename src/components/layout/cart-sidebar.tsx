@@ -2,13 +2,14 @@
 
 import { X, Trash2, ShoppingCart, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
-import Link from 'next/link'; // 👈 IMPORTANTE: Importamos Link
+import Link from 'next/link'; // ✅ Importación correcta
 import { useCart } from '@/lib/context/cart-context';
 import { useEffect, useState } from 'react';
 
 export default function CartSidebar() {
   const { isCartOpen, closeCart, items, removeItem, subtotal } = useCart();
   
+  // Evitar errores de hidratación
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -36,7 +37,7 @@ export default function CartSidebar() {
         </div>
 
         {/* Lista de Productos */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-neutral-200">
             {items.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center opacity-50 space-y-4">
                     <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center text-neutral-400">
@@ -52,25 +53,31 @@ export default function CartSidebar() {
                     <div key={item.id} className="flex gap-4 animate-in fade-in slide-in-from-right-4 border-b border-neutral-50 pb-4 last:border-0">
                         {/* Imagen Miniatura */}
                         <div className="relative w-20 h-20 bg-neutral-100 rounded-md overflow-hidden shrink-0 border border-neutral-200 flex items-center justify-center">
-    {item.image ? (
-        <Image src={item.image} alt={item.title} fill className="object-cover" />
-    ) : (
-        // Si no hay imagen, mostramos un ícono seguro
-        <span className="text-2xl">📦</span> 
-    )}
-</div>
+                            {item.image ? (
+                                <Image src={item.image} alt={item.title} fill className="object-cover" />
+                            ) : (
+                                <span className="text-2xl">📦</span> 
+                            )}
+                        </div>
                         
                         {/* Info del Producto */}
                         <div className="flex-1 flex flex-col justify-between">
                             <div>
-                                <h3 className="font-bold text-sm text-black line-clamp-2 leading-tight">{item.title}</h3>
+                                <h3 className="font-bold text-sm text-black line-clamp-2 leading-tight uppercase">{item.title}</h3>
                                 <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[10px] bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-600 font-bold uppercase">
                                         {item.unit}
                                     </span>
-                                    {item.meta?.mode === 'rollo' && (
+                                    {/* Si es rollo, mostramos etiqueta especial */}
+                                    {(item.unit.includes('Rollo') || item.meta?.mode === 'rollo') && (
                                         <span className="text-[10px] bg-[#FDCB02]/20 text-black px-1.5 py-0.5 rounded font-bold uppercase">
                                             Rollo
+                                        </span>
+                                    )}
+                                    {/* Si tiene color seleccionado, lo mostramos */}
+                                    {item.meta?.color && (
+                                        <span className="text-[10px] border border-neutral-200 px-1.5 py-0.5 rounded text-neutral-500 font-bold uppercase">
+                                            {item.meta.color}
                                         </span>
                                     )}
                                 </div>
@@ -88,7 +95,7 @@ export default function CartSidebar() {
                                 <button 
                                     onClick={() => removeItem(item.id)} 
                                     className="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                                    title="Eliminar"
+                                    title="Eliminar del carrito"
                                 >
                                     <Trash2 size={16} />
                                 </button>
@@ -99,7 +106,7 @@ export default function CartSidebar() {
             )}
         </div>
 
-        {/* Footer del Carrito (Subtotal y Checkout) */}
+        {/* Footer del Carrito */}
         {items.length > 0 && (
             <div className="p-6 border-t border-neutral-100 bg-neutral-50 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
                 <div className="flex justify-between items-end mb-4">
@@ -109,10 +116,9 @@ export default function CartSidebar() {
                     </span>
                 </div>
                 
-                {/* 👇 AQUÍ ESTÁ EL CAMBIO: Usamos Link hacia /checkout */}
                 <Link 
                     href="/checkout" 
-                    onClick={closeCart} // Cerramos el sidebar al navegar
+                    onClick={closeCart} 
                     className="w-full bg-[#FDCB02] hover:bg-black hover:text-white text-black py-4 rounded-lg font-[900] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                 >
                     Finalizar Compra <ArrowRight size={18}/>
