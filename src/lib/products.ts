@@ -46,7 +46,7 @@ export const products: Product[] = [
     // 👇 AQUÍ ESTÁN LAS 35 VARIANTES CON SU RUTA DE IMAGEN
     colors: [
         { name: "Negro", hex: "#000000", image: "/assets/products/micropique/negro1.jpg" },
-        { name: "Blanco", hex: "#FFFFFF", image: "/assets/products/112.jpg"},
+        { name: "Blanco", hex: "#FFFFFF", image: "/assets/products/micropique.jpg"},
         { name: "Marino", hex: "#001B44", image: "/assets/products/micropique/marino.jpg" },
         { name: "Azul Petróleo", "hex": "#2F6A74", "image": "/assets/products/micropique/azul-petroleo.jpg" },
         { name: "Azul Rey", hex: "#0047AB", image: "/assets/products/micropique/azul-rey.jpg" },
