@@ -8,8 +8,9 @@ import {
   Search, Plus, Minus, Package, Scissors, 
   Check, Ship, ArrowRight, 
   Flame, Flag, X, SlidersHorizontal,
-  Zap, Trophy, ChevronRight, Star,
-  Scale, Ruler, Layers, Palette, Sun, Filter, Circle
+  Zap, Trophy, ChevronRight, ChevronLeft, Star,
+  Scale, Ruler, Layers, Palette, Sun, Filter, Circle, Info, Weight,
+  BicepsFlexed
 } from "lucide-react";
 import Image from "next/image";
 import Lenis from 'lenis';
@@ -31,22 +32,28 @@ const TECH_FILTERS = {
 
 // --- COMPONENTES UI ---
 
-// 1. PRODUCT CARD (INTACTO)
+// 1. PRODUCT CARD PREMIUM (INTACTO)
 const ProductCard = ({ product, className = "" }: { product: any, className?: string }) => {
     const { addItem } = useCart();
+    
+    // Estado Visual
     const [activeImage, setActiveImage] = useState(product.thumbnail);
     const [selectedColorName, setSelectedColorName] = useState<string | null>(null);
-    const [qtyKilo, setQtyKilo] = useState(1);
-    const [qtyRollo, setQtyRollo] = useState(1);
     const [hovered, setHovered] = useState(false);
 
-    const priceKilo = product.prices?.menudeo || 0; 
-    const priceRollo = product.prices?.mayoreo || 0; 
-    const rollWeight = 25; 
-    const gsm = product.gramaje || "180"; 
-    const width = product.ancho || "1.60m"; 
-    const totalRolloWeight = qtyRollo * rollWeight;
-    const savings = priceKilo > 0 ? Math.round(((priceKilo - priceRollo) / priceKilo) * 100) : 0;
+    // Estado Lógico
+    const [mode, setMode] = useState<'rollo' | 'kilo'>('rollo'); 
+    const [quantity, setQuantity] = useState(1);
+
+    // Datos del Producto
+    const priceUnit = mode === 'rollo' ? product.prices?.mayoreo : product.prices?.menudeo;
+    const unitWeight = mode === 'rollo' ? 25 : 1; 
+    
+    // Cálculos Dinámicos
+    const currentWeight = quantity * unitWeight;
+    const currentPrice = priceUnit;
+    const totalPay = currentWeight * currentPrice;
+    const totalMeters = (currentWeight * (product.rendimiento || 4.3)).toFixed(1);
 
     const handleColorClick = (e: any, color: any) => {
         e.preventDefault();
@@ -59,147 +66,187 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
         <div 
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
-            // Nota: En desktop quitamos el snap-center para que el scroll fluido del mouse no se trabe
-            className={`min-w-[85vw] w-[85vw] sm:min-w-[300px] sm:w-[300px] md:min-w-[320px] md:w-[320px] bg-[#080808] border border-white/5 hover:border-[#FDCB02] transition-all duration-300 relative flex flex-col snap-center md:snap-align-none group overflow-hidden rounded-[2px] ${className}`}
+            className={`min-w-[320px] w-[320px] bg-[#050505] border border-white/10 hover:border-[#FDCB02]/50 transition-all duration-300 relative flex flex-col snap-center md:snap-align-none group overflow-hidden rounded-xl shadow-2xl ${className}`}
         >
-            <div className="absolute top-0 left-0 w-full z-20 flex justify-between p-3 pointer-events-none">
-                <div className="flex gap-1">
-                    <span className="bg-black/90 backdrop-blur text-white text-[9px] font-mono font-bold px-1.5 py-0.5 border border-white/10 rounded-[2px]">
-                        {product.id?.replace('prod_', '').slice(0, 6).toUpperCase() || "SKU"}
-                    </span>
-                    {(product.origin === 'MX') && (
-                        <span className="bg-white text-black px-1.5 py-0.5 text-[9px] font-[900] uppercase rounded-[2px]">MX</span>
-                    )}
-                </div>
-                <div className="bg-[#FDCB02] text-black px-2 py-0.5 text-[9px] font-[900] uppercase rounded-[2px]">STOCK</div>
-            </div>
-
-            <Link href={`/products/${product.id}`} className="block relative h-64 w-full bg-[#050505] overflow-hidden border-b border-white/5 cursor-pointer">
+            {/* --- IMAGEN Y HEADER --- */}
+            <Link href={`/products/${product.id}`} className="block relative aspect-[4/3] w-full overflow-hidden border-b border-white/5 cursor-pointer">
                 <Image 
                     src={activeImage} 
                     alt={product.title} 
                     fill 
-                    className={`object-cover transition-transform duration-700 ${hovered ? 'scale-110 opacity-80' : 'scale-100 opacity-100'}`}
+                    className={`object-cover transition-transform duration-700 ${hovered ? 'scale-110' : 'scale-100'}`}
                 />
-                <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black via-black/90 to-transparent p-4 translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                    <h3 className="text-lg font-[900] uppercase text-white leading-none tracking-tight mb-2 line-clamp-1 group-hover:text-[#FDCB02] transition-colors">
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-90"/>
+                <div className="absolute bottom-0 left-0 w-full p-5">
+                    <h3 className="text-2xl font-[1000] uppercase text-white leading-none tracking-tight mb-1">
                         {product.title}
                     </h3>
-                    <div className="flex items-center gap-3 text-[10px] font-mono text-neutral-400">
-                        <div className="flex items-center gap-1"><Scale size={12} className="text-[#FDCB02]"/><span className="text-white">{gsm}</span> g/m²</div>
-                        <div className="w-px h-3 bg-white/20"/><div className="flex items-center gap-1"><Ruler size={12} className="text-[#FDCB02]"/><span className="text-white">{width}</span></div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-[#FDCB02] tracking-widest uppercase">
+                            {product.composicion || "100% Poliéster"}
+                        </span>
+                        <div className="flex flex-col items-end leading-none">
+                            <span className="text-[9px] text-neutral-400 font-bold uppercase">GSM</span>
+                            <span className="text-lg font-black text-white">{product.gramaje || "145"}</span>
+                        </div>
                     </div>
                 </div>
             </Link>
 
-            {product.colors && product.colors.length > 0 && (
-                <div className="px-4 py-2 bg-[#0c0c0c] border-b border-white/5 overflow-x-auto scrollbar-hide flex items-center gap-2 h-12">
-                     <span className="text-[9px] font-bold text-neutral-500 uppercase shrink-0 mr-1">
-                        {selectedColorName || "Colores:"}
-                     </span>
-                     {product.colors.map((c: any, i: number) => (
-                        <button
-                            key={i}
-                            onClick={(e) => handleColorClick(e, c)}
-                            className={`w-5 h-5 rounded-full border shrink-0 transition-all ${selectedColorName === c.name ? 'border-[#FDCB02] scale-110 ring-1 ring-[#FDCB02]' : 'border-white/20 hover:border-white hover:scale-110'}`}
-                            style={{ backgroundColor: c.hex }}
-                            title={c.name}
-                        />
-                     ))}
-                </div>
-            )}
-
-            <div className="flex flex-col mt-auto bg-[#080808]">
-                <div className="px-4 py-3 border-b border-white/5 hover:bg-[#111] transition-colors">
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-[10px] font-bold uppercase text-neutral-500 flex items-center gap-1"><Scissors size={10}/> Corte / Kilo</span>
-                        <span className="text-xs font-bold text-white font-mono">{formatMoney(priceKilo)}<span className="text-[9px] text-neutral-600">/kg</span></span>
-                    </div>
-                    <div className="flex h-7 gap-2">
-                        <div className="flex w-20 border border-white/10 bg-black rounded-[2px]">
-                            <button onClick={() => setQtyKilo(Math.max(1, qtyKilo - 1))} className="w-6 flex items-center justify-center text-white hover:text-[#FDCB02]"><Minus size={10}/></button>
-                            <span className="flex-1 flex items-center justify-center text-[10px] font-bold text-white border-x border-white/10">{qtyKilo}</span>
-                            <button onClick={() => setQtyKilo(qtyKilo + 1)} className="w-6 flex items-center justify-center text-white hover:text-[#FDCB02]"><Plus size={10}/></button>
-                        </div>
-                        <button onClick={() => addItem({ ...product, price: priceKilo, quantity: qtyKilo, unit: 'Kg', variantId: 'corte', color: selectedColorName })} className="flex-1 bg-white hover:bg-[#FDCB02] text-black text-[9px] font-[900] uppercase rounded-[2px] transition-colors">AGREGAR</button>
-                    </div>
+            {/* --- CUERPO DE LA TARJETA --- */}
+            <div className="p-5 flex flex-col gap-5 bg-[#050505]">
+                
+                {/* 1. Selector de Modo */}
+                <div className="grid grid-cols-2 bg-[#111] p-1 rounded-lg border border-white/10">
+                    <button 
+                        onClick={() => { setMode('rollo'); setQuantity(1); }}
+                        className={`text-[10px] font-[900] uppercase py-2 rounded transition-all ${mode === 'rollo' ? 'bg-[#FDCB02] text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
+                    >
+                        Por Rollo
+                    </button>
+                    <button 
+                        onClick={() => { setMode('kilo'); setQuantity(1); }}
+                        className={`text-[10px] font-[900] uppercase py-2 rounded transition-all ${mode === 'kilo' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
+                    >
+                        Por Kilo
+                    </button>
                 </div>
 
-                <div className="px-4 py-3 bg-[#0a0a0a] relative">
-                    <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#FDCB02]"/>
-                    <div className="flex justify-between items-center mb-2 pl-2">
-                        <span className="text-[10px] font-[900] uppercase text-[#FDCB02] flex items-center gap-1"><Package size={10}/> Rollo <span className="text-[8px] bg-[#FDCB02]/10 px-1 rounded">-{savings}%</span></span>
-                        <span className="text-xs font-bold text-[#FDCB02] font-mono">{formatMoney(priceRollo)}</span>
+                {/* 2. Precio y Métricas */}
+                <div className="flex justify-between items-end border-b border-white/5 pb-4">
+                    <div>
+                        <p className="text-[9px] font-bold text-neutral-500 uppercase mb-0.5">Precio Sin Iva</p>
+                        <p className="text-4xl font-[1000] text-white tracking-tighter">
+                            ${priceUnit.toFixed(0)}<span className="text-sm text-neutral-500 font-bold align-top">.00</span>
+                        </p>
                     </div>
-                    <div className="flex h-8 gap-2 pl-2">
-                        <div className="flex w-20 border border-[#FDCB02]/20 bg-black rounded-[2px]">
-                            <button onClick={() => setQtyRollo(Math.max(1, qtyRollo - 1))} className="w-6 flex items-center justify-center text-white hover:text-[#FDCB02]"><Minus size={10}/></button>
-                            <span className="flex-1 flex items-center justify-center text-[10px] font-bold text-white border-x border-[#FDCB02]/10">{qtyRollo}</span>
-                            <button onClick={() => setQtyRollo(qtyRollo + 1)} className="w-6 flex items-center justify-center text-white hover:text-[#FDCB02]"><Plus size={10}/></button>
+                    <div className="text-right flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-1.5 text-[#FDCB02]">
+                            <Weight size={14} strokeWidth={2.5}/>
+                            <span className="text-sm font-[900]">{currentWeight} KG</span>
                         </div>
-                        <button onClick={() => addItem({ ...product, price: priceRollo, quantity: totalRolloWeight, unit: 'Kg (Rollo)', variantId: 'rollo', color: selectedColorName })} className="flex-1 bg-[#FDCB02] hover:bg-white text-black text-[9px] font-[900] uppercase rounded-[2px] leading-none flex flex-col items-center justify-center transition-colors">
-                            <span>LLEVAR LOTE</span>
-                            <span className="text-[7px] opacity-70 mt-0.5">~{totalRolloWeight}KG</span>
-                        </button>
+                        <div className="flex items-center gap-1.5 text-neutral-400">
+                            <Ruler size={12}/>
+                            <span className="text-[10px] font-mono font-bold">{totalMeters} MT</span>
+                        </div>
                     </div>
                 </div>
+
+                {/* 3. Selector de Color */}
+                <div>
+                    <div className="flex justify-between items-center mb-3">
+                        <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Colorido</span>
+                        <span className="text-[9px] font-bold text-[#FDCB02] uppercase tracking-widest">{selectedColorName || "Seleccionar"}</span>
+                    </div>
+                    {product.colors && (
+                        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                            {product.colors.slice(0, 6).map((c: any, i: number) => (
+                                <button
+                                    key={i}
+                                    onClick={(e) => handleColorClick(e, c)}
+                                    className={`w-8 h-8 rounded-full border shrink-0 transition-all relative group/color ${selectedColorName === c.name ? 'border-white ring-2 ring-[#FDCB02] ring-offset-2 ring-offset-black scale-110' : 'border-white/10 hover:border-white'}`}
+                                    style={{ backgroundColor: c.hex }}
+                                    title={c.name}
+                                >
+                                    {selectedColorName === c.name && <Check size={12} className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name === 'Blanco' || c.name === 'Beige' ? 'text-black' : 'text-white'}`}/>}
+                                </button>
+                            ))}
+                            {product.colors.length > 6 && (
+                                <div className="w-8 h-8 rounded-full bg-[#111] border border-white/10 flex items-center justify-center text-[9px] font-bold text-white">
+                                    +{product.colors.length - 6}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* 4. Controles Finales */}
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between bg-[#111] border border-white/10 h-10 rounded px-1">
+                        <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"><Minus size={14}/></button>
+                        <span className="text-xs font-bold text-white uppercase">{quantity} {mode === 'rollo' ? 'Rollos' : 'Kilos'}</span>
+                        <button onClick={() => setQuantity(quantity + 1)} className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"><Plus size={14}/></button>
+                    </div>
+
+                    <button 
+                        onClick={() => addItem({ 
+                            ...product, 
+                            price: priceUnit, 
+                            quantity: currentWeight, 
+                            unit: mode === 'rollo' ? 'Kg (Rollo)' : 'Kg', 
+                            variantId: mode, 
+                            color: selectedColorName 
+                        })} 
+                        className="w-full h-12 bg-white hover:bg-[#FDCB02] text-black font-[900] uppercase tracking-widest text-xs flex items-center justify-between px-6 rounded transition-all duration-300 group/btn"
+                    >
+                        <span>Agregar • {formatMoney(totalPay)}</span>
+                        <ArrowRight size={16} className="group-hover/btn:-rotate-45 transition-transform duration-300"/>
+                    </button>
+                </div>
+
             </div>
         </div>
     );
 };
 
-// 2. PRODUCT RAIL (ACTUALIZADO: SCROLL CON MOVIMIENTO DEL MOUSE)
+// 2. PRODUCT RAIL (INTACTO)
 const ProductRail = ({ title, items, icon: Icon, isNational = false }: { title: string, items: any[], icon?: any, isNational?: boolean }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Lógica para deslizar con el movimiento del mouse
-    const handleMouseMove = (e: React.MouseEvent) => {
-        if (!scrollRef.current) return;
-        
-        // Obtenemos dimensiones del contenedor
-        const { left, width } = scrollRef.current.getBoundingClientRect();
-        
-        // Calculamos la posición del mouse relativa al contenedor (0 a 1)
-        const relativeX = e.clientX - left;
-        const scrollPercentage = relativeX / width;
-        
-        // Calculamos cuánto debe scrollear (ancho total del contenido - ancho visible)
-        const maxScroll = scrollRef.current.scrollWidth - scrollRef.current.clientWidth;
-        
-        // Aplicamos el scroll de forma suave
-        scrollRef.current.scrollTo({
-            left: maxScroll * scrollPercentage,
-            behavior: "smooth" // Esto hace que el movimiento sea fluido y no brusco
-        });
+    // Función de Scroll Manual
+    const scroll = (direction: 'left' | 'right') => {
+        if (scrollRef.current) {
+            const cardWidth = 320 + 24; // Ancho de tarjeta + Gap
+            const amount = direction === 'left' ? -cardWidth : cardWidth;
+            scrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+        }
     };
 
     if (!items || items.length === 0) return null;
 
     return (
-        <section className="mb-16 md:mb-20 border-b border-white/5 pb-10 relative group/section">
-            <div className="flex items-end justify-between mb-6 md:mb-8 px-1">
-                <div className="flex items-center gap-3 md:gap-4">
+        <section className="mb-20 border-b border-white/5 pb-10 relative group/rail">
+            <div className="flex items-end justify-between mb-8 px-1">
+                <div className="flex items-center gap-4">
                     {Icon && (
-                        <div className={`p-2 md:p-3 rounded-[2px] border ${isNational ? 'bg-green-900/20 border-green-500/30 text-green-500' : 'bg-[#FDCB02]/10 border-[#FDCB02]/30 text-[#FDCB02]'}`}>
-                            <Icon size={20} className="md:w-6 md:h-6" strokeWidth={1.5}/>
+                        <div className={`p-3 rounded border ${isNational ? 'bg-green-900/20 border-green-500/30 text-green-500' : 'bg-[#FDCB02]/10 border-[#FDCB02]/30 text-[#FDCB02]'}`}>
+                            <Icon size={24} strokeWidth={1.5}/>
                         </div>
                     )}
                     <div>
-                        <h3 className="text-2xl sm:text-3xl md:text-5xl font-[1000] uppercase text-white italic tracking-tighter leading-none">{title}</h3>
-                        {isNational && <p className="text-[10px] md:text-xs text-green-500/80 font-mono mt-1 md:mt-2 uppercase tracking-widest flex items-center gap-2"><Flag size={10}/> Apoya la industria local • Envío Inmediato</p>}
+                        <h3 className="text-3xl md:text-5xl font-[1000] uppercase text-white italic tracking-tighter leading-none">{title}</h3>
+                        {isNational && <p className="text-xs text-green-500/80 font-mono mt-2 uppercase tracking-widest flex items-center gap-2"><Flag size={10}/> Apoya la industria local • Envío Inmediato</p>}
                     </div>
                 </div>
-                {/* Nota: Eliminamos los botones de flechas porque ahora se controla con el mouse */}
             </div>
             
-            {/* Contenedor del Scroll */}
-            <div 
-                ref={scrollRef} 
-                onMouseMove={handleMouseMove} // Detecta el movimiento del mouse
-                className="flex overflow-x-auto gap-4 pb-8 scrollbar-hide -mx-4 md:-mx-6 px-4 md:px-6 snap-x snap-mandatory cursor-crosshair" // cursor-crosshair indica interactividad
-            >
-                {items.map((product, i) => <ProductCard key={product.id || i} product={product} />)}
-                <div className="min-w-[20px] md:hidden"></div>
+            {/* Contenedor Relativo para posicionar flechas */}
+            <div className="relative group/track">
+                
+                {/* Flecha Izquierda (Visible en Hover) */}
+                <button 
+                    onClick={() => scroll('left')}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-12 h-20 bg-black/80 backdrop-blur border border-white/10 flex items-center justify-center text-white hover:bg-[#FDCB02] hover:text-black transition-all opacity-0 group-hover/track:opacity-100 rounded-r-lg shadow-xl"
+                >
+                    <ChevronLeft size={24} strokeWidth={3}/>
+                </button>
+
+                {/* Flecha Derecha (Visible en Hover) */}
+                <button 
+                    onClick={() => scroll('right')}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-12 h-20 bg-black/80 backdrop-blur border border-white/10 flex items-center justify-center text-white hover:bg-[#FDCB02] hover:text-black transition-all opacity-0 group-hover/track:opacity-100 rounded-l-lg shadow-xl"
+                >
+                    <ChevronRight size={24} strokeWidth={3}/>
+                </button>
+
+                {/* Scroll Container (Sin onMouseMove) */}
+                <div 
+                    ref={scrollRef} 
+                    className="flex overflow-x-auto gap-6 pb-12 scrollbar-hide -mx-6 px-6 snap-x snap-mandatory py-4"
+                >
+                    {items.map((product, i) => <ProductCard key={product.id || i} product={product} />)}
+                    <div className="min-w-[20px] md:hidden"></div>
+                </div>
             </div>
         </section>
     );
@@ -228,8 +275,7 @@ export default function CoyoteMarketplace() {
     const nationalProducts = useMemo(() => products.filter((p: any) => 
         p.title.includes('Nacional') || p.id.includes('apolo')
     ), []);
-    const trendingProducts = useMemo(() => products.slice(-6), []);
-
+    
     const FilterContent = () => (
         <>
             <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/10">
@@ -245,7 +291,7 @@ export default function CoyoteMarketplace() {
                             key={name} 
                             onClick={() => toggleFilter(name)}
                             title={name}
-                            className={`w-10 h-10 rounded-[2px] border cursor-pointer relative flex items-center justify-center transition-all ${selectedFilters.includes(name) ? 'border-[#FDCB02] scale-110 ring-1 ring-[#FDCB02]' : 'border-white/10 hover:border-white'}`}
+                            className={`w-10 h-10 rounded border cursor-pointer relative flex items-center justify-center transition-all ${selectedFilters.includes(name) ? 'border-[#FDCB02] scale-110 ring-1 ring-[#FDCB02]' : 'border-white/10 hover:border-white'}`}
                             style={{ backgroundColor: hex }}
                         >
                             {selectedFilters.includes(name) && <Check size={14} className={name === 'Blanco' || name === 'Beige' ? 'text-black' : 'text-white'} strokeWidth={4}/>}
@@ -293,8 +339,8 @@ export default function CoyoteMarketplace() {
                         Control absoluto del suministro. Sin rivales. Sin excusas.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                        <Link href="/contenedor" className="bg-[#FDCB02] text-black h-14 md:h-16 px-12 flex items-center justify-center font-[900] uppercase text-xs md:text-sm tracking-widest rounded-[2px] hover:bg-white transition-colors">Cotizar Contenedor</Link>
-                        <button className="h-14 md:h-16 px-12 border border-white/20 bg-black/50 backdrop-blur text-white flex items-center justify-center font-[900] uppercase text-xs md:text-sm tracking-widest rounded-[2px] hover:bg-white hover:text-black transition-colors">
+                        <Link href="/contenedor" className="bg-[#FDCB02] text-black h-14 md:h-16 px-12 flex items-center justify-center font-[900] uppercase text-xs md:text-sm tracking-widest rounded hover:bg-white transition-colors">Cotizar Contenedor</Link>
+                        <button className="h-14 md:h-16 px-12 border border-white/20 bg-black/50 backdrop-blur text-white flex items-center justify-center font-[900] uppercase text-xs md:text-sm tracking-widest rounded hover:bg-white hover:text-black transition-colors">
                              Ver Stock
                         </button>
                     </div>
@@ -307,7 +353,7 @@ export default function CoyoteMarketplace() {
                 <div className="lg:hidden w-full sticky top-20 z-30 mb-4">
                     <button 
                         onClick={() => setIsFilterOpen(true)}
-                        className="w-full bg-[#111]/90 backdrop-blur border border-white/10 text-white py-3 px-4 flex justify-between items-center rounded-[2px] shadow-xl"
+                        className="w-full bg-[#111]/90 backdrop-blur border border-white/10 text-white py-3 px-4 flex justify-between items-center rounded shadow-xl"
                     >
                         <span className="flex items-center gap-2 font-[900] uppercase text-xs"><Filter size={14} className="text-[#FDCB02]"/> Filtrar Productos</span>
                         <span className="bg-[#FDCB02] text-black text-[10px] font-bold px-2 py-0.5 rounded-full">{selectedFilters.length}</span>
@@ -324,35 +370,16 @@ export default function CoyoteMarketplace() {
                                 <button onClick={() => setIsFilterOpen(false)}><X size={24}/></button>
                             </div>
                             <FilterContent />
-                            <button onClick={() => setIsFilterOpen(false)} className="w-full bg-[#FDCB02] text-black font-[900] uppercase py-4 mt-4 rounded-[2px]">Ver Resultados</button>
+                            <button onClick={() => setIsFilterOpen(false)} className="w-full bg-[#FDCB02] text-black font-[900] uppercase py-4 mt-4 rounded">Ver Resultados</button>
                         </div>
                     </div>
                 )}
-
-                {/* SIDEBAR */}
-                <aside className="w-72 sticky top-32 hidden lg:block overflow-y-auto max-h-[80vh] scrollbar-hide">
-                    <FilterContent />
-                    <div className="mt-8 p-6 bg-[#111] border border-white/10 relative overflow-hidden group rounded-[2px] hover:border-[#FDCB02]/50 transition-colors">
-                        <div className="absolute -right-4 -top-4 text-[#FDCB02]/5 group-hover:text-[#FDCB02]/10 transition-colors duration-500">
-                             <Ship size={100} strokeWidth={1}/>
-                        </div>
-                        <h5 className="font-[900] uppercase text-white text-xs mb-2 relative z-10">Contenedor<br/>Directo</h5>
-                        <p className="text-[10px] text-neutral-400 font-medium leading-relaxed mb-4 relative z-10">
-                            Precios CIF/FOB para pedidos mayores a 10 Toneladas.
-                        </p>
-                        <Link href="/contenedor" className="inline-flex items-center gap-2 text-[#FDCB02] text-[9px] font-black uppercase tracking-widest hover:text-white transition-colors relative z-10 border-b border-[#FDCB02] pb-0.5 hover:border-white">
-                            INICIAR TRÁMITE <ArrowRight size={10}/>
-                        </Link>
-                    </div>
-                </aside>
-
-                {/* CONTENIDO PRINCIPAL */}
                 <div className="flex-1 w-full min-w-0">
-                    <div className="space-y-16 animate-in fade-in duration-700">
-                        <ProductRail title="Top Ventas Mayoreo" items={bestSellers} icon={Trophy}/>
+                    <div className="space-y-24 animate-in fade-in duration-700">
+                        <ProductRail title="Potencia en cada fibra" items={bestSellers} icon={BicepsFlexed}/>
                         {sportProducts.length > 0 && <ProductRail title="Textiles Deportivos" items={sportProducts} icon={Zap}/>}
                         
-                        <div className="w-full h-auto py-8 md:h-40 relative rounded-[2px] overflow-hidden group border border-white/10 flex flex-col md:flex-row items-start md:items-center px-6 md:px-12 bg-[#111] gap-6">
+                        <div className="w-full h-auto py-8 md:h-40 relative rounded overflow-hidden group border border-white/10 flex flex-col md:flex-row items-start md:items-center px-6 md:px-12 bg-[#111] gap-6">
                             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"/>
                             <div className="relative z-10 flex flex-col items-start gap-2">
                                 <div className="flex items-center gap-2 text-[#FDCB02] mb-1">
@@ -361,18 +388,17 @@ export default function CoyoteMarketplace() {
                                 <h3 className="text-2xl md:text-3xl font-[900] uppercase text-white italic tracking-tighter">Protección Solar Certificada</h3>
                                 <p className="text-xs md:text-sm text-neutral-400 font-mono mt-1">Disponible en Piqué y Microfibra para uniformes escolares.</p>
                             </div>
-                            <button className="md:ml-auto w-full md:w-auto bg-white hover:bg-[#FDCB02] text-black px-8 py-3 md:py-4 text-[10px] md:text-[11px] font-[900] uppercase tracking-widest transition-colors rounded-[2px]">Ver Colección</button>
+                            <button className="md:ml-auto w-full md:w-auto bg-white hover:bg-[#FDCB02] text-black px-8 py-3 md:py-4 text-[10px] md:text-[11px] font-[900] uppercase tracking-widest transition-colors rounded">Ver Colección</button>
                         </div>
 
                         {nationalProducts.length > 0 && <ProductRail title="Producción Nacional" items={nationalProducts} icon={Flag} isNational={true}/>}
-                        <ProductRail title="Tendencias de Compra" items={trendingProducts} icon={Flame}/>
 
                         <section className="pt-8 border-t border-white/10">
-                            <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-4 gap-4 uppercase">
+                            <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 pb-4 gap-4 uppercase">
                                 <h3 className="text-3xl md:text-4xl font-[900] text-white italic tracking-tighter">Catálogo Global</h3>
-                                <span className="text-xs font-mono text-neutral-500 font-bold border border-white/10 px-3 py-1 rounded-[2px] bg-[#0a0a0a] w-fit">{products.length} Referencias</span>
+                                <span className="text-xs font-mono text-neutral-500 font-bold border border-white/10 px-3 py-1 rounded bg-[#0a0a0a] w-fit">{products.length} Referencias</span>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-y-12 gap-x-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                                 {products.map((p) => <ProductCard key={p.id} product={p} className="!w-full !min-w-0" />)}
                             </div>
                         </section>

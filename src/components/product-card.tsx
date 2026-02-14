@@ -1,164 +1,196 @@
 "use client"
 
-import Image from "next/image"
-import Link from "next/link"
-import { ShoppingCart, Crown, Check, ArrowRight } from "lucide-react"
-import { useCart } from "@/lib/context/cart-context"
-import { useB2BPrice } from "@/hooks/use-b2b-price" 
 import { useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import Link from "next/link"
+import Image from "next/image"
+import { useCart } from "@/lib/context/cart-context"
+import { usePriceEngine } from "@/hooks/use-price-engine" 
+import { 
+  Check, ArrowRight, Scale, Ruler, Weight, Info, Plus, Minus
+} from "lucide-react"
 
 interface ProductProps {
-  id: string
-  title: string
-  price: number // Precio Base (Público)
-  image: string
-  sku?: string
-  category?: string
+  product: any
+  className?: string
 }
 
-export default function ProductCard({ id, title, price, image, sku, category }: ProductProps) {
-  const { addItem } = useCart()
-  const [isHovered, setIsHovered] = useState(false)
-  const [justAdded, setJustAdded] = useState(false)
-  
-  // Lógica de Precios según nivel de socio
-  const { price: finalPrice, label, discount, role } = useB2BPrice(price)
+const formatMoney = (amount: number) => 
+  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(amount);
 
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault(); 
-    e.stopPropagation();
+export default function ProductCard({ product, className = "" }: ProductProps) {
+    const { addItem } = useCart();
     
-    // 👇 REPARACIÓN PARA EL BUILD: Agregamos los campos obligatorios
-    addItem({ 
-      id: `${id}-kilo`, // ID único para variante
-      productId: id,    // ID base del producto
-      title, 
-      price: finalPrice, 
-      image,
-      quantity: 1,      // Cantidad inicial
-      unit: "Kg",       // Unidad por defecto
-      meta: { mode: "kilo" }
-    })
-    
-    // Feedback visual
-    setJustAdded(true)
-    setTimeout(() => setJustAdded(false), 2000)
-  }
+    const [activeImage, setActiveImage] = useState(product.thumbnail);
+    const [selectedColorName, setSelectedColorName] = useState<string | null>(product.colors?.[0]?.name || null);
+    const [hovered, setHovered] = useState(false);
 
-  // Color del Badge según nivel de cliente
-  const getBadgeColor = () => {
-    if (role === 'black') return 'bg-black text-white' 
-    if (role === 'gold') return 'bg-[#FDCB02] text-black'
-    return 'bg-neutral-100 text-neutral-600' 
-  }
+    const [mode, setMode] = useState<'rollo' | 'kilo'>('rollo'); 
+    const [quantity, setQuantity] = useState(1);
 
-  return (
-    <div 
-      className="group relative bg-white border border-neutral-200 hover:border-[#FDCB02] transition-all duration-300 rounded-lg overflow-hidden flex flex-col h-full shadow-sm hover:shadow-md"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      
-      {/* --- ETIQUETA DE DESCUENTO SOCIO --- */}
-      {discount > 0 && (
-        <div className={`absolute top-3 left-0 z-20 px-3 py-1 uppercase tracking-widest flex items-center gap-1.5 shadow-sm rounded-r-md ${getBadgeColor()}`}>
-          <Crown size={10} strokeWidth={3} /> 
-          <span className="text-[9px] font-[900]">{label} -{discount}%</span>
-        </div>
-      )}
+    const { finalPrice, label, isDiscounted, discountPercent, role } = usePriceEngine(product, mode);
 
-      {/* --- IMAGEN DEL PRODUCTO --- */}
-      <Link href={`/products/${id}`} className="block relative aspect-[4/5] w-full bg-neutral-100 overflow-hidden cursor-pointer">
-        <Image 
-          src={image} 
-          alt={title} 
-          fill 
-          className={`object-cover transition-transform duration-700 ease-out ${isHovered ? 'scale-105' : 'scale-100'}`}
-        />
-        
-        {/* Botón de compra rápida al pasar el mouse (Desktop) */}
-        <AnimatePresence>
-          {isHovered && !justAdded && (
-            <motion.button
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              onClick={handleAddToCart}
-              className="absolute bottom-4 right-4 bg-white text-black p-3 rounded-full shadow-xl hover:bg-[#FDCB02] transition-colors z-30 hidden lg:flex items-center justify-center border border-neutral-100"
-            >
-              <ShoppingCart size={18} />
-            </motion.button>
-          )}
-        </AnimatePresence>
-      </Link>
+    const unitWeight = mode === 'rollo' ? 25 : 1; 
+    const currentWeight = quantity * unitWeight;
+    const totalPay = currentWeight * finalPrice;
+    const totalMeters = (currentWeight * (product.rendimiento || 4.3)).toFixed(1);
 
-      {/* --- DATOS DEL PRODUCTO --- */}
-      <div className="p-4 flex flex-col flex-1 bg-white relative z-10">
-        
-        {/* Categoría y Referencia */}
-        <div className="flex justify-between items-start mb-2">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">
-                {category || "Textiles Coyote"}
-            </span>
-            {sku && <span className="text-[9px] font-mono text-neutral-300">REF: {sku}</span>}
-        </div>
+    const handleColorClick = (e: any, color: any) => {
+        e.preventDefault(); 
+        e.stopPropagation();
+        if (color.image) setActiveImage(color.image);
+        setSelectedColorName(color.name);
+    };
 
-        {/* Título */}
-        <Link href={`/products/${id}`} className="block">
-            <h3 className="text-black font-bold uppercase text-xs leading-tight mb-4 line-clamp-2 group-hover:text-[#FDCB02] transition-colors cursor-pointer tracking-tight">
-                {title}
-            </h3>
-        </Link>
-        
-        <div className="mt-auto space-y-3">
-            {/* Precios */}
-            <div className="flex flex-col border-t border-neutral-100 pt-3">
+    const handleAddToCart = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        addItem({ 
+            id: `${product.id}-${mode}-${selectedColorName || 'default'}`, 
+            productId: product.id,
+            title: product.title,
+            price: finalPrice, 
+            image: activeImage,
+            quantity: currentWeight,
+            unit: mode === 'rollo' ? 'Kg (Rollo)' : 'Kg', 
+            meta: {
+                mode: mode,
+                // 👇 CORRECCIÓN 2: Convertimos null a undefined usando ||
+                color: selectedColorName || undefined, 
+                packages: quantity
+            }
+        });
+    };
+
+    return (
+        <div 
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            className={`min-w-[320px] w-full bg-[#050505] border border-white/10 hover:border-[#FDCB02]/50 transition-all duration-300 relative flex flex-col group overflow-hidden rounded-xl shadow-2xl ${className}`}
+        >
+            <Link href={`/products/${product.id}`} className="block relative aspect-[4/3] w-full overflow-hidden border-b border-white/5 cursor-pointer">
+                <Image 
+                    src={activeImage} alt={product.title} fill 
+                    className={`object-cover transition-transform duration-700 ${hovered ? 'scale-110' : 'scale-100'}`}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-90"/>
                 
-                {discount > 0 && (
-                    <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-neutral-400 line-through text-[10px] font-medium">
-                            ${price.toLocaleString()}
-                        </span>
-                        <span className="text-[8px] text-neutral-400 uppercase font-bold">P. Lista</span>
+                {/* 👇 CORRECCIÓN 1: Usamos 'black' en lugar de 'distribuidor' */}
+                {isDiscounted && (
+                    <div className={`absolute top-3 right-3 text-[9px] font-[1000] px-2 py-1 rounded uppercase shadow-lg z-10 flex items-center gap-1 animate-in zoom-in
+                        ${role === 'black' ? 'bg-black text-white border border-white/20' : 'bg-[#FDCB02] text-black'}
+                    `}>
+                        {role === 'black' ? 'Socio Black' : 'Socio Gold'} Ahorro {discountPercent}%
                     </div>
                 )}
-                
-                <div className="flex items-end justify-between">
-                    <div className="flex flex-col">
-                        <span className={`text-lg font-black tracking-tighter ${discount > 0 ? 'text-black' : 'text-black'}`}>
-                            ${finalPrice.toLocaleString()} 
-                            <span className="text-[10px] text-neutral-400 font-normal ml-1">MXN / KG</span>
-                        </span>
+
+                <div className="absolute bottom-0 left-0 w-full p-5">
+                    <h3 className="text-2xl font-[1000] uppercase text-white leading-none tracking-tight mb-1">{product.title}</h3>
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-[#FDCB02] tracking-widest uppercase">{product.composicion || "100% Poliéster"}</span>
+                        <div className="flex flex-col items-end leading-none">
+                            <span className="text-[9px] text-neutral-400 font-bold uppercase">GSM</span>
+                            <span className="text-lg font-black text-white">{product.gramaje || "145"}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </Link>
 
-            {/* --- BOTÓN DE ACCIÓN --- */}
-            <button 
-              onClick={handleAddToCart}
-              disabled={justAdded}
-              className={`
-                w-full py-2.5 font-bold uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 transition-all duration-300 rounded-md relative overflow-hidden border
-                ${justAdded 
-                    ? 'bg-green-600 border-green-600 text-white cursor-default' 
-                    : 'bg-neutral-50 border-neutral-200 text-black hover:bg-[#FDCB02] hover:border-[#FDCB02] hover:shadow-md'
-                }
-              `}
-            >
-                {justAdded ? (
-                    <div className="flex items-center gap-2">
-                        <Check size={14} strokeWidth={3} /> AGREGADO
+            {/* ... Resto del componente sigue igual ... */}
+            <div className="p-5 flex flex-col gap-5 bg-[#050505]">
+                <div className="grid grid-cols-2 bg-[#111] p-1 rounded-lg border border-white/10">
+                    <button 
+                        onClick={(e) => { e.preventDefault(); setMode('rollo'); setQuantity(1); }} 
+                        className={`text-[10px] font-[900] uppercase py-2 rounded transition-all ${mode === 'rollo' ? 'bg-[#FDCB02] text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
+                    >
+                        Por Rollo
+                    </button>
+                    <button 
+                        onClick={(e) => { e.preventDefault(); setMode('kilo'); setQuantity(1); }} 
+                        className={`text-[10px] font-[900] uppercase py-2 rounded transition-all ${mode === 'kilo' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
+                    >
+                        Muestra
+                    </button>
+                </div>
+
+                <div className="flex justify-between items-end border-b border-white/5 pb-4">
+                    <div>
+                        <p className="text-[9px] font-bold text-neutral-500 uppercase mb-0.5 flex items-center gap-1">
+                            {label} 
+                            {isDiscounted && <Info size={10} className="text-[#FDCB02]"/>}
+                        </p>
+                        <div className="flex items-baseline gap-2">
+                            <p className="text-4xl font-[1000] text-white tracking-tighter">
+                                ${finalPrice.toFixed(0)}<span className="text-sm text-neutral-500 font-bold align-top">.00</span>
+                            </p>
+                            {isDiscounted && (
+                                <span className="text-xs text-neutral-600 line-through font-bold">
+                                    ${(mode === 'rollo' ? product.prices.mayoreo : product.prices.menudeo).toFixed(0)}
+                                </span>
+                            )}
+                        </div>
                     </div>
-                ) : (
-                    <>
-                        <ShoppingCart size={14} strokeWidth={2} /> 
-                        Añadir
-                    </>
-                )}
-            </button>
+                    <div className="text-right flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-1.5 text-[#FDCB02]">
+                            <Weight size={14} strokeWidth={2.5}/>
+                            <span className="text-sm font-[900]">{currentWeight} KG</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-neutral-400">
+                            <Ruler size={12}/>
+                            <span className="text-[10px] font-mono font-bold">{totalMeters} MT</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div className="flex justify-between items-center mb-3">
+                        <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Colorido</span>
+                        <span className="text-[9px] font-bold text-[#FDCB02] uppercase tracking-widest">{selectedColorName || "Seleccionar"}</span>
+                    </div>
+                    {product.colors && (
+                        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                            {product.colors.slice(0, 6).map((c: any, i: number) => (
+                                <button 
+                                    key={i} 
+                                    onClick={(e) => handleColorClick(e, c)} 
+                                    className={`w-8 h-8 rounded-full border shrink-0 transition-all relative group/color ${selectedColorName === c.name ? 'border-white ring-2 ring-[#FDCB02] ring-offset-2 ring-offset-black scale-110' : 'border-white/10 hover:border-white'}`} 
+                                    style={{ backgroundColor: c.hex }} 
+                                    title={c.name}
+                                >
+                                    {selectedColorName === c.name && <Check size={12} className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name === 'Blanco' || c.name === 'Beige' ? 'text-black' : 'text-white'}`}/>}
+                                </button>
+                            ))}
+                            {product.colors.length > 6 && <div className="w-8 h-8 rounded-full bg-[#111] border border-white/10 flex items-center justify-center text-[9px] font-bold text-white">+{product.colors.length - 6}</div>}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between bg-[#111] border border-white/10 h-10 rounded px-1">
+                        <button 
+                            onClick={(e) => { e.preventDefault(); setQuantity(Math.max(1, quantity - 1)); }} 
+                            className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"
+                        >
+                            <Minus size={14}/>
+                        </button>
+                        <span className="text-xs font-bold text-white uppercase">{quantity} {mode === 'rollo' ? 'Rollos' : 'Kilos'}</span>
+                        <button 
+                            onClick={(e) => { e.preventDefault(); setQuantity(quantity + 1); }} 
+                            className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"
+                        >
+                            <Plus size={14}/>
+                        </button>
+                    </div>
+
+                    <button 
+                        onClick={handleAddToCart}
+                        className="w-full h-12 bg-white hover:bg-[#FDCB02] text-black font-[900] uppercase tracking-widest text-xs flex items-center justify-between px-6 rounded transition-all duration-300 group/btn"
+                    >
+                        <span>Agregar • {formatMoney(totalPay)}</span>
+                        <ArrowRight size={16} className="group-hover/btn:-rotate-45 transition-transform duration-300"/>
+                    </button>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  )
+    );
 }

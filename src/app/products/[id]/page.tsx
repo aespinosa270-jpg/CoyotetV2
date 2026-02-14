@@ -7,7 +7,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
   ShoppingCart, ChevronLeft, Layers, Minus, Plus, 
   Shield, Zap, Package, Scissors,
-  Star, Share2, Heart, Truck, LayoutGrid, Globe, ArrowRight, Check, Palette
+  Star, Share2, Heart, Truck, LayoutGrid, Globe, ArrowRight, Check, Palette, Ruler,
+  PaintRoller
 } from 'lucide-react';
 import { useCart } from '@/lib/context/cart-context';
 import { useB2BPrice } from '@/hooks/use-b2b-price';
@@ -39,9 +40,7 @@ export default function ProductDetailPage() {
   // Efecto para actualizar la imagen principal cuando cambia el color seleccionado
   useEffect(() => {
     if (selectedColor && selectedColor.image) {
-      // Si el color tiene imagen específica, la mostramos (aquí asumimos que reemplaza la thumbnail base visualmente)
-      // Nota: En un sistema real, podrías querer agregarla a la galería en lugar de reemplazar.
-      // Para este demo, usaremos una lógica simple en el renderizado de la imagen principal.
+      // Lógica visual si es necesaria
     }
   }, [selectedColor]);
 
@@ -66,46 +65,44 @@ export default function ProductDetailPage() {
   const basePriceToUse = buyingMode === 'rollo' ? product.prices.mayoreo : product.prices.menudeo;
   const { price: finalPrice, label, discount, role } = useB2BPrice(basePriceToUse);
   
-  // Cálculo de Totales
+  // Cálculo de Totales (Peso y Precio)
   const totalWeight = buyingMode === 'rollo' ? quantity * ROLL_WEIGHT_KG : quantity;
   const totalPrice = finalPrice * totalWeight;
   const savingsAmount = (product.prices.menudeo - finalPrice) * totalWeight;
 
+  // --- CÁLCULO DE RENDIMIENTO (METROS) ---
+  // Multiplicamos el peso total por el rendimiento del producto (ej: 4.3 m/kg)
+  const totalMeters = (totalWeight * product.rendimiento).toFixed(1);
+
   // Galería de Imágenes
-  // Construimos la galería: 
-  // 1. Si hay un color seleccionado con imagen específica, esa va primero.
-  // 2. Luego la thumbnail general del producto.
-  // 3. (Opcional) Más imágenes si las tuvieras en el objeto producto.
   const mainImageSrc = (selectedColor && selectedColor.image) ? selectedColor.image : product.thumbnail;
   
-  // Para las miniaturas, mostramos la thumbnail base y (si existe) la del color seleccionado
   const galleryImages = useMemo(() => {
       const images = [product.thumbnail];
       if (selectedColor && selectedColor.image && selectedColor.image !== product.thumbnail) {
           images.unshift(selectedColor.image);
       }
-      // Rellenamos para demo visual si hay pocas
       while(images.length < 3) images.push(product.thumbnail);
       return images;
   }, [product.thumbnail, selectedColor]);
 
   // --- FUNCIÓN AGREGAR AL CARRITO ---
   const handleAddToCart = () => {
-    // Generamos un ID único para distinguir Kilos de Rollos y Colores en el carrito
     const cartVariantId = `${product.id}-${buyingMode}-${selectedColor ? selectedColor.name : 'default'}`;
 
     addItem({
       id: cartVariantId,      
       productId: product.id,  
-      title: `${product.title} ${selectedColor ? `- ${selectedColor.name}` : ''}`, // Añadimos el color al título en el carrito
+      title: `${product.title} ${selectedColor ? `- ${selectedColor.name}` : ''}`, 
       price: finalPrice,
-      image: selectedColor?.image || product.thumbnail, // Usamos la imagen del color si existe
+      image: selectedColor?.image || product.thumbnail, 
       quantity: totalWeight,
       unit: buyingMode === 'rollo' ? 'Kg (Rollo)' : 'Kg',
       meta: {
         mode: buyingMode,
         packages: quantity,
-        color: selectedColor?.name // Guardamos el color en meta
+        color: selectedColor?.name,
+        meters: totalMeters // Guardamos los metros calculados también
       }
     });
   };
@@ -152,8 +149,6 @@ export default function ProductDetailPage() {
              {/* Imagen Principal */}
              <div className="flex-1 relative aspect-square lg:aspect-[4/3] bg-neutral-50 border border-neutral-200 rounded-lg overflow-hidden group shadow-sm">
                 <Image 
-                   // Si el usuario seleccionó una miniatura específica, usamos esa (galleryImages[idx]).
-                   // Si no, y hay un color seleccionado con imagen, mostramos esa prioritariamente.
                    src={galleryImages[selectedImageIndex] || mainImageSrc} 
                    alt={product.title} 
                    fill 
@@ -161,7 +156,6 @@ export default function ProductDetailPage() {
                    priority
                 />
                 
-                {/* Botones Flotantes */}
                 <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
                     <button className="w-9 h-9 bg-white rounded-full shadow-md flex items-center justify-center text-neutral-600 hover:text-[#FDCB02] hover:scale-105 transition-all">
                         <Share2 size={16} />
@@ -231,7 +225,6 @@ export default function ProductDetailPage() {
                         </div>
                     </div>
 
-                    {/* Ahorro */}
                     <div className="text-right">
                         {savingsAmount > 0 && (
                             <div className="animate-in fade-in slide-in-from-bottom-2">
@@ -244,7 +237,7 @@ export default function ProductDetailPage() {
                </div>
             </div>
 
-            {/* SELECCIÓN DE COLOR (NUEVO BLOQUE) */}
+            {/* SELECCIÓN DE COLOR */}
             {product.colors && product.colors.length > 0 && (
                 <div className="mb-8">
                     <div className="flex items-center justify-between mb-3">
@@ -262,7 +255,7 @@ export default function ProductDetailPage() {
                                 key={idx}
                                 onClick={() => {
                                     setSelectedColor(color);
-                                    setSelectedImageIndex(0); // Reset galería para ver la nueva foto
+                                    setSelectedImageIndex(0); 
                                 }}
                                 title={color.name}
                                 className={`group relative w-full aspect-square rounded-md border flex items-center justify-center transition-all ${
@@ -298,7 +291,7 @@ export default function ProductDetailPage() {
                   >
                      {buyingMode === 'kilo' && <div className="absolute top-2 right-2 text-[#FDCB02]"><Check size={14} strokeWidth={3}/></div>}
                      <Scissors size={18} />
-                     <span className="text-xs font-bold">Por Corte (Kg)</span>
+                     <span className="text-xs font-bold">Por Kilo (Kg)</span>
                   </button>
                   <button 
                      onClick={() => { setBuyingMode('rollo'); setQuantity(1); }}
@@ -341,13 +334,22 @@ export default function ProductDetailPage() {
                     </button>
                 </div>
 
-                {/* Barra de Estado */}
+                {/* Barra de Estado / Calculadora de Rendimiento */}
                 <div className="flex justify-between items-center px-1">
-                    <span className="text-[11px] font-medium text-neutral-500">
-                        Peso Total: <strong className="text-black">{totalWeight} kg</strong>
-                    </span>
-                    <span className="text-[11px] font-medium text-neutral-500 flex items-center gap-1">
-                        Estado: <strong className="text-green-600 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse"/> Disponible</strong>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-neutral-400 uppercase">Estimación</span>
+                        <div className="flex items-baseline gap-2">
+                            <strong className="text-black text-sm">{totalWeight} kg</strong>
+                            <span className="text-[10px] text-neutral-400">≈</span>
+                            {/* AQUÍ SE MUESTRA EL RENDIMIENTO CALCULADO */}
+                            <strong className="text-[#FDCB02] text-sm bg-black px-1.5 rounded flex items-center gap-1">
+                                <Ruler size={10} className="text-[#FDCB02]" />
+                                {totalMeters} Metros
+                            </strong>
+                        </div>
+                    </div>
+                    <span className="text-[11px] font-medium text-neutral-500 flex items-center gap-1 self-end mb-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse"/> Disponible
                     </span>
                 </div>
 
@@ -438,7 +440,21 @@ export default function ProductDetailPage() {
                                <Shield className="text-[#FDCB02]" size={20}/>
                                <div>
                                    <h4 className="font-bold text-black text-xs uppercase">Alta Resistencia</h4>
-                                   <p className="text-[10px] text-neutral-500">No hace pilling</p>
+                                   <p className="text-[10pxs] text-neutral-500">No hace pilling</p>
+                               </div>
+                           </div>
+                           <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                               <Check className="text-[#FDCB02]" size={20}/>
+                               <div>
+                                   <h4 className="font-bold text-black text-xs uppercase">Auto-Ready</h4>
+                                   <p className="text-[10px] text-neutral-500">Sin Planchar</p>
+                               </div>
+                           </div>
+                           <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                               <PaintRoller className="text-[#FDCB02]" size={20}/>
+                               <div>
+                                   <h4 className="font-bold text-black text-xs uppercase">Full-Print</h4>
+                                   <p className="text-[10px] text-neutral-500">Sublimción</p>
                                </div>
                            </div>
                        </div>
