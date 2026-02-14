@@ -52,6 +52,8 @@ export async function POST(request: Request) {
     // 4. SI EL PAGO PASÓ: GUARDAR ORDEN EN BASE DE DATOS
     // ---------------------------------------------------------
     
+    
+    
     const newOrder = await prisma.order.create({
       data: {
         total: parseFloat(amount),
@@ -60,7 +62,12 @@ export async function POST(request: Request) {
         customerName: `${customer.name} ${customer.lastName}`,
         customerEmail: customer.email,
         customerPhone: customer.phone,
-        address: customer.address || 'Dirección pendiente', // Asegúrate de mandar esto desde el front
+        address: customer.address || 'Dirección pendiente', 
+        
+        // 🔥 LA PIEZA FALTANTE: Conectamos la orden con el socio en la base de datos 🔥
+        user: {
+          connect: { email: customer.email }
+        },
         
         // Guardamos los productos comprados
         items: {
