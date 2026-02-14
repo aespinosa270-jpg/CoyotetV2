@@ -26,16 +26,12 @@ export default function CatalogPage() {
         </div>
 
         {/* GRID DE PRODUCTOS */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {products.map((product) => (
+             /* 🔥 CORRECCIÓN: Mandamos el objeto completo como la tarjeta lo exige 🔥 */
              <ProductCard 
                 key={product.id}
-                id={product.id}
-                title={product.title}
-                price={product.prices.menudeo} // Pasamos el precio base
-                image={product.thumbnail}
-                sku={product.id.replace('prod_', '').toUpperCase()} // Generamos un SKU visual
-                category="DEPORTIVO"
+                product={product}
              />
           ))}
         </div>
