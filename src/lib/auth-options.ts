@@ -6,10 +6,8 @@ import bcrypt from "bcrypt"
 import { Adapter } from "next-auth/adapters" 
 
 export const authOptions: NextAuthOptions = {
-  // Conectamos Prisma para persistencia, casteando como Adapter para evitar conflictos de tipos
   adapter: PrismaAdapter(prisma) as Adapter, 
   
-  // Usamos JWT porque es más rápido y eficiente para el escalado de Huup
   session: { 
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 días
@@ -23,72 +21,67 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        // Log para ver en la terminal de VS Code (asegúrate de que aparezca)
-        console.log("--- 🛡️ AUTH DEBUG: COYOTE TEXTIL ---");
+        console.log("--- 🛡️ SYSTEM BOOT: COYOTE TEXTIL ---");
 
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("Credenciales incompletas");
+          throw new Error("SYSTEM_ERROR: Credenciales incompletas.");
         }
 
-        // Buscamos al socio en la base de datos de Coyote
         const user = await prisma.user.findUnique({
           where: { email: credentials.email }
         });
 
         if (!user || !user.password) {
-          console.log("❌ Usuario no registrado.");
-          throw new Error("Usuario no encontrado");
+          console.log("❌ ERROR: Nodo no localizado en la red.");
+          throw new Error("SYSTEM_ERROR: Nodo no localizado.");
         }
 
-        // Verificamos la contraseña (comparando contra el hash de la DB)
-        // Nota: Confirmado que tu pass de prueba es "123"
         const isValid = await bcrypt.compare(credentials.password, user.password);
         
-        console.log(`Intento de login: ${user.email} | Válido: ${isValid}`);
+        console.log(`> Evaluando firma: ${user.email} | Match: ${isValid}`);
 
         if (!isValid) {
-          console.log("⛔ Password incorrecta.");
-          throw new Error("Contraseña incorrecta");
+          console.log("⛔ ERROR: Cifrado incorrecto. Acceso denegado.");
+          throw new Error("SYSTEM_ERROR: Cifrado incorrecto.");
         }
 
-        console.log(`✅ Sesión iniciada para: ${user.name} (Rol: ${user.role})`);
+        console.log(`✅ ACCESO CONCEDIDO: ${user.name} | ROL: ${user.role}`);
 
         return {
           id: user.id,
           name: user.name,
           email: user.email!, 
           image: user.image,
-          // El 'as any' es necesario para que TS acepte tus roles personalizados
-          role: user.role as any, 
-        }
+          role: user.role, 
+        } as any
       }
     })
   ],
 
   callbacks: {
-    // Transferimos el ID y el ROL del usuario al Token JWT
-    async jwt({ token, user }: any) {
+    // 1. Inyectamos el ROL y el ID en el token encriptado
+    async jwt({ token, user }) {
       if (user) {
-        token.id = user.id
-        token.role = user.role
+        token.id = user.id;
+        token.role = (user as any).role; 
       }
-      return token
+      return token;
     },
-    // Transferimos los datos del Token a la sesión accesible en el cliente (useSession)
-    async session({ session, token }: any) {
+    // 2. Extraemos el ROL del token para usarlo en el frontend y backend
+    async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id
-        session.user.role = token.role 
+        (session.user as any).id = token.id;
+        (session.user as any).role = token.role; 
       }
-      return session
+      return session;
     }
   },
 
   pages: {
-    signIn: '/login', // Redirige a tu página personalizada de Coyote.ID
-    error: '/login',  // En caso de error, vuelve al login
+    // 🔥 EL ARREGLO ESTÁ AQUÍ: Ahora apunta a tu interfaz brutalista, no al /login fantasma
+    signIn: '/cuenta', 
+    error: '/cuenta',  
   },
 
-  // Secreto para firmar las cookies, extraído de tu .env
   secret: process.env.NEXTAUTH_SECRET,
 }
