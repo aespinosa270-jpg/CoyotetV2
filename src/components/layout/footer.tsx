@@ -157,25 +157,35 @@ export default function Footer() {
                       Política de Cookies
                     </Link>
                 </li>
+                {/* AÑADIDO: Transparencia fiscal para emitir CFDI y cumplimiento PROFECO */}
+                <li>
+                    <Link href="/facturacion" className="text-xs font-[1000] text-[#FDCB02] uppercase tracking-widest hover:text-white hover:pl-2 transition-all flex items-center gap-2 group mt-2">
+                      <FileText size={10} className="text-[#FDCB02] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      Portal Facturación 4.0
+                    </Link>
+                </li>
               </ul>
             </div>
 
             <div className="space-y-8">
               <h4 className="font-[1000] text-[10px] text-[#FDCB02] uppercase tracking-[0.2em] border-b border-white/10 pb-4">
-                Contacto Directo
+                Datos de Contacto
               </h4>
-              <ul className="space-y-8">
+              <ul className="space-y-6">
                 <li>
                   <span className="block text-[9px] font-black text-neutral-600 mb-1.5 tracking-widest">LÍNEA CORPORATIVA</span>
                   <a href="tel:5555421527" className="text-xl font-[1000] text-white hover:text-[#FDCB02] transition-colors">
                     55 5542 1527
                   </a>
                 </li>
+                {/* AÑADIDO: Domicilio Fiscal con C.P. y RFC exigidos por el SAT */}
                 <li>
-                  <span className="block text-[9px] font-black text-neutral-600 mb-1.5 tracking-widest">UBICACIÓN</span>
+                  <span className="block text-[9px] font-black text-neutral-600 mb-1.5 tracking-widest">DOMICILIO FISCAL & RFC</span>
                   <p className="text-xs font-bold text-neutral-300 leading-relaxed uppercase">
+                    Coyote Textil S.A. de C.V.<br/>
+                    RFC: XAXX010101000<br/>
                     República de Guatemala 97-A<br/>
-                    Centro Histórico, CDMX
+                    Centro Histórico, CDMX, C.P. 06000
                   </p>
                 </li>
               </ul>

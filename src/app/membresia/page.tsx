@@ -325,8 +325,7 @@ export default function MembershipStack() {
               <div className="p-6 md:p-8 border-b border-white/5 flex justify-between items-center relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#FDCB02]/50 to-transparent"></div>
                 <div>
-                  <h3 className="text-xl font-[1000] uppercase text-white tracking-widest flex items-center gap-2">
-                    <Shield size={20} className="text-[#FDCB02]" /> NEXUS PAY
+<h3 className="text-xl font-mono font-black uppercase text-white tracking-[0.3em] drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] flex items-center gap-2">                    <Shield size={20} className="text-[#FDCB02]" /> membresias coyote
                   </h3>
                   <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest mt-1">
                     Suscripción {activePlan.key} • <span className="text-white">{formatMoney(priceToDisplay)}</span>
