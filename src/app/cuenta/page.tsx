@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { 
   Check, AlertCircle, Loader2, ArrowRight, 
@@ -13,12 +13,13 @@ import { signIn, useSession } from "next-auth/react";
 
 type AuthState = 'login' | 'register' | 'forgot' | 'verify' | 'upsell';
 
-export default function AccountPage() {
+// 1. Movemos la lógica principal a un componente interno
+function AccountContent() {
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // 1. Lee la URL. Si dice ?mode=register, arranca ahí. Si no, arranca en login.
+  // Lee la URL. Si dice ?mode=register, arranca ahí. Si no, arranca en login.
   const initialMode = (searchParams.get('mode') as AuthState) || 'login';
 
   const [authMode, setAuthMode] = useState<AuthState>(initialMode);
@@ -419,5 +420,18 @@ export default function AccountPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// 2. Exportamos el componente envolviendo la lógica en Suspense
+export default function AccountPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex bg-black items-center justify-center text-[#FDCB02]">
+        <Loader2 className="animate-spin" size={40} />
+      </div>
+    }>
+      <AccountContent />
+    </Suspense>
   );
 }
