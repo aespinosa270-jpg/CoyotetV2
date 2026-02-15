@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 
 type AuthState = 'login' | 'register' | 'forgot' | 'verify' | 'upsell';
@@ -16,8 +16,12 @@ type AuthState = 'login' | 'register' | 'forgot' | 'verify' | 'upsell';
 export default function AccountPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [authMode, setAuthMode] = useState<AuthState>('login');
+  // 1. Lee la URL. Si dice ?mode=register, arranca ahí. Si no, arranca en login.
+  const initialMode = (searchParams.get('mode') as AuthState) || 'login';
+
+  const [authMode, setAuthMode] = useState<AuthState>(initialMode);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -91,8 +95,8 @@ export default function AccountPage() {
     }
   };
 
-  // --- ANIMACIONES UX SENIOR ---
-  const customEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
+  // --- ANIMACIONES UX SENIOR CON TIPADO ESTRICTO ---
+  const customEase = [0.22, 1, 0.36, 1] as const;
 
   const containerVars: Variants = {
     hidden: { opacity: 0 },
@@ -123,7 +127,6 @@ export default function AccountPage() {
       ========================================================= */}
       <div className="hidden lg:flex w-1/2 relative bg-[#050505] items-center justify-center border-r border-white/5 overflow-hidden">
         
-        {/* VIDEO EN OPACIDAD 100% PARA COLORES REALES */}
         <video 
           autoPlay 
           loop 
@@ -133,7 +136,6 @@ export default function AccountPage() {
           src="/assets/coyotelogin.mp4"
         />
 
-        {/* OVERLAY TÁCTICO: Oscuro a la izquierda para leer, transparente a la derecha para ver el video */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent z-10" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent z-10" />
 
@@ -185,21 +187,19 @@ export default function AccountPage() {
       </div>
 
       {/* =========================================================
-          LADO DERECHO: DISEÑO EDITORIAL B2B (ALPHA CENTAURI UX)
+          LADO DERECHO: DISEÑO EDITORIAL B2B
       ========================================================= */}
       <div 
         ref={rightPanelRef}
         onMouseMove={handleMouseMove}
         className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:p-12 relative bg-[#000000] z-40 overflow-hidden"
       >
-        {/* Glow dinámico de fondo (Animación respirando) */}
         <motion.div 
           animate={{ scale: [1, 1.15, 1], opacity: [0.03, 0.08, 0.03] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(circle_at_center,_#FDCB02_0%,_transparent_55%)]"
         />
 
-        {/* Glow de seguimiento de ratón */}
         <div 
           className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-500 opacity-0 lg:opacity-100"
           style={{ background: `radial-gradient(600px circle at ${mousePosition.x}px ${mousePosition.y}px, rgba(253, 203, 2, 0.04), transparent 50%)` }}
@@ -207,7 +207,6 @@ export default function AccountPage() {
 
         <div className="w-full max-w-[420px] relative z-20">
           
-          {/* Marcadores de Esquina Arquitectónicos */}
           <div className="absolute -top-10 -left-10 text-neutral-800 pointer-events-none">+</div>
           <div className="absolute -top-10 -right-10 text-neutral-800 pointer-events-none">+</div>
           <div className="absolute -bottom-10 -left-10 text-neutral-800 pointer-events-none">+</div>
@@ -222,7 +221,6 @@ export default function AccountPage() {
               <motion.div key="login" variants={containerVars} initial="hidden" animate="show" exit="exit" className="w-full relative">
                 
                 <motion.div variants={formItemVars} className="mb-14">
-                    {/* Logo SVG centrado (o a la izquierda) */}
                     <div className="mb-8">
                       <Image 
                         src="/coyotelogo.svg" 
@@ -232,7 +230,6 @@ export default function AccountPage() {
                         className="object-contain"
                       />
                     </div>
-                    {/* Texto dividido en colores */}
                     <h1 className="text-5xl font-[1000] uppercase tracking-tighter leading-none italic">
                       <span className="text-white">INICIAR</span> <span className="text-[#FDCB02]">SESIÓN</span>
                     </h1>

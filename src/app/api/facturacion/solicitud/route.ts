@@ -1,18 +1,26 @@
 import { NextResponse } from 'next/server';
-import { Resend } from 'resend';
-
-// Inicializamos Resend con tu variable de entorno
-const resend = new Resend(process.env.RESEND_API_KEY);
+import nodemailer from 'nodemailer';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { razonSocial, rfc, cp, regimen, pedido, email } = body;
 
+    // 0. CONFIGURACIÓN DEL MOTOR ZOHO SMTP
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.zoho.com',
+      port: 465,
+      secure: true,
+      auth: {
+        user: process.env.ZOHO_EMAIL,    // Tu correo de Zoho (ej. facturacion@coyotetextil.com)
+        pass: process.env.ZOHO_PASSWORD, // Tu contraseña de aplicación de Zoho
+      },
+    });
+
     // 1. CORREO PARA EL CLIENTE (Confirmación Institucional)
-    const emailCliente = await resend.emails.send({
-      from: 'COYOTE TEXTIL <facturacion@huup.com.mx>', // Cambia el dominio por el tuyo verificado en Resend
-      to: [email],
+    const mailCliente = {
+      from: `"COYOTE TEXTIL" <${process.env.ZOHO_EMAIL}>`, // Sale desde tu Zoho
+      to: email,
       subject: `[COYOTE TEXTIL] Solicitud de Factura Recibida - Pedido ${pedido}`,
       html: `
         <div style="background-color: #050505; color: #ffffff; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; border: 1px solid #222; max-width: 600px; margin: 0 auto;">
@@ -33,12 +41,13 @@ export async function POST(req: Request) {
           </p>
         </div>
       `
-    });
+    };
 
     // 2. CORREO INTERNO PARA TI (Datos crudos para timbrar)
-    const emailAdmin = await resend.emails.send({
-      from: 'SISTEMA COYOTE <facturacion@huup.com.mx>',
-      to: ['tu-correo-admin@huup.com.mx'], // Pon aquí tu correo o el del contador
+    const mailAdmin = {
+      from: `"SISTEMA COYOTE" <${process.env.ZOHO_EMAIL}>`,
+      to: process.env.ZOHO_EMAIL, // Te lo envías a ti mismo
+      replyTo: email, // Si le das responder, le contestas al cliente
       subject: `⚡ TIMBRAR FACTURA: ${pedido} - ${razonSocial}`,
       html: `
         <div style="background-color: #111; color: #fff; font-family: monospace; padding: 20px;">
@@ -56,13 +65,11 @@ export async function POST(req: Request) {
           <p style="color: #888;">Copia y pega estos datos en el portal del SAT. El cliente ya recibió el SLA de 24 hrs.</p>
         </div>
       `
-    });
+    };
 
-    // Validamos que Resend no haya regresado error
-    if (emailCliente.error || emailAdmin.error) {
-      console.error("Resend Error:", emailCliente.error || emailAdmin.error);
-      return NextResponse.json({ error: 'Fallo al despachar correos' }, { status: 500 });
-    }
+    // 3. Ejecutamos el disparo de ambos correos vía Zoho
+    await transporter.sendMail(mailCliente);
+    await transporter.sendMail(mailAdmin);
 
     return NextResponse.json({ success: true, message: 'Operación completada' }, { status: 200 });
 
