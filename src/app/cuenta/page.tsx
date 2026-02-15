@@ -295,7 +295,7 @@ function AccountContent() {
                 </motion.div>
                 <form onSubmit={handleSubmit} className="space-y-8">
                   <motion.div variants={formItemVars}>
-                    <label className="block text-[11px] font-black uppercase tracking-widest text-neutral-500 mb-2">Razón Social o Nombre</label>
+                    <label className="block text-[11px] font-black uppercase tracking-widest text-neutral-500 mb-2">Razón Social o Nombre completo</label>
                     <input type="text" name="name" value={formData.name} onChange={handleInputChange} required className="w-full h-12 bg-transparent border-b-2 border-white/20 focus:border-[#FDCB02] outline-none font-bold text-lg text-white transition-colors rounded-none px-0"/>
                   </motion.div>
                   <motion.div variants={formItemVars}>
