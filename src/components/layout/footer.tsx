@@ -182,8 +182,7 @@ export default function Footer() {
                 <li>
                   <span className="block text-[9px] font-black text-neutral-600 mb-1.5 tracking-widest">DOMICILIO FISCAL & RFC</span>
                   <p className="text-xs font-bold text-neutral-300 leading-relaxed uppercase">
-                    Coyote Textil S.A. de C.V.<br/>
-                    RFC: XAXX010101000<br/>
+                    Coyote Textil.<br/>
                     República de Guatemala 97-A<br/>
                     Centro Histórico, CDMX, C.P. 06000
                   </p>
@@ -201,7 +200,7 @@ export default function Footer() {
           <div className="flex flex-col md:flex-row items-center gap-8 w-full justify-between">
             <div className="flex items-center gap-2 text-[9px] font-mono text-neutral-600 uppercase font-bold tracking-widest">
               <Copyright size={10} />
-              <span>2026 Coyote Textil S.A. de C.V.</span>
+              <span>2026 Coyote Textil</span>
             </div>
             
             <div className="flex flex-wrap justify-center gap-6 md:gap-8">
