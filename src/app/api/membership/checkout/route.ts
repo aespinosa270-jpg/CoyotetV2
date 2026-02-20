@@ -67,7 +67,7 @@ export async function POST(req: Request) {
       data: {
         userId: user.id,
         total: subscription.amount || 0, // El monto real cobrado
-        status: "paid",
+        status: "PAID",
         paymentId: subscription.id, // ID de la transacción bancaria
         customerName: user.name || "Socio Comercial",
         customerEmail: user.email,

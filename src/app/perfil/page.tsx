@@ -39,9 +39,9 @@ export default async function PerfilPage() {
   // 3. MOTOR FINANCIERO Y LOGÍSTICO
   const orders = userStats.orders || []
   
-  const totalSpent = orders
-    .filter(o => o.status === 'COMPLETED' || o.status === 'PAID' || o.status === 'DELIVERED')
-    .reduce((sum, order) => sum + (order.total || 0), 0)
+ const totalSpent = orders
+      .filter(o => o.status === 'PAID' || o.status === 'DELIVERED')
+      .reduce((sum, order) => sum + (order.total || 0), 0)
 
   const activeOrdersCount = orders
     .filter(o => o.status === 'PENDING' || o.status === 'PROCESSING' || o.status === 'SHIPPED')

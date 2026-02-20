@@ -141,31 +141,7 @@ export default function NewArrivalsPage() {
                 </div>
             </div>
 
-            {/* --- 1. HERO SECTION (INDUSTRIAL RADAR) --- */}
-            <div className="relative h-[50vh] flex items-center bg-[#050505] border-b border-white/10 overflow-hidden">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-[#111] via-[#050505] to-black z-0"/>
-                
-                {/* Elemento Decorativo Radar */}
-                <div className="absolute right-[-10%] top-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-white/5 rounded-full opacity-20 animate-[spin_10s_linear_infinite]">
-                    <div className="absolute top-0 left-1/2 w-0.5 h-1/2 bg-gradient-to-t from-transparent to-[#FDCB02] origin-bottom -translate-x-1/2"/>
-                </div>
-
-                <div className="container mx-auto px-6 relative z-20 pt-10">
-                    <div className="inline-flex items-center gap-3 border border-white/10 bg-white/5 backdrop-blur-md px-4 py-1.5 rounded-[2px] mb-6">
-                        <Radar size={14} className="text-[#FDCB02] animate-pulse"/>
-                        <span className="text-[10px] font-[900] uppercase tracking-[0.2em] text-white">Logística de Entrada</span>
-                    </div>
-                    
-                    <h1 className="text-6xl md:text-8xl font-[1000] uppercase tracking-tighter leading-[0.85] mb-6 text-white">
-                        RECIÉN <br/>
-                        <span className="text-[#FDCB02]">DESEMBARCADO</span>
-                    </h1>
-                    
-                    <p className="max-w-xl text-lg font-mono text-neutral-400 uppercase tracking-wide border-l-2 border-[#FDCB02] pl-4">
-                        Acceso anticipado a los lotes que acaban de cruzar aduana. Disponibilidad limitada por alta demanda.
-                    </p>
-                </div>
-            </div>
+           
 
             {/* --- 2. LAYOUT PRINCIPAL --- */}
             <main className="container mx-auto px-6 py-12 flex gap-12 items-start relative z-10">
