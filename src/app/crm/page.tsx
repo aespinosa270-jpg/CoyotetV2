@@ -1,85 +1,79 @@
 // src/app/crm/page.tsx
 import React from 'react';
-import { PrismaClient } from '@prisma/client';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
 import ClientDashboard from './ClientDashboard';
 
-const prisma = new PrismaClient();
-
 // ============================================================================
-// 1. MOTOR DE DATA MASKING
+// DATA MASKING
 // ============================================================================
-const maskEmail = (email: string | null) => {
+const maskEmail = (email: string | null): string => {
   if (!email) return 'Sin correo';
   const [name, domain] = email.split('@');
   if (!domain) return email;
-  const maskedName = name.length > 3 ? name.substring(0, 3) + '••••' : name + '••••';
-  const domainParts = domain.split('.');
-  const maskedDomain = domainParts[0].length > 3 
-    ? domainParts[0].substring(0, 3) + '••••.' + (domainParts[1] || 'com')
-    : '••••.' + (domainParts[1] || 'com');
+  const maskedName = name.length > 3 ? `${name.substring(0, 3)}••••` : `${name}••••`;
+  const [tld, ext = 'com'] = domain.split('.');
+  const maskedDomain = tld.length > 3 ? `${tld.substring(0, 3)}••••.${ext}` : `••••.${ext}`;
   return `${maskedName}@${maskedDomain}`;
 };
 
-const maskPhone = (phone: string | null) => {
+const maskPhone = (phone: string | null): string => {
   if (!phone) return 'Sin teléfono';
   const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.length >= 4) {
-    const last4 = cleaned.slice(-4);
-    return `+52 55 •••• ${last4}`;
-  }
-  return '••••••••';
+  return cleaned.length >= 4 ? `+52 55 •••• ${cleaned.slice(-4)}` : '••••••••';
 };
 
-const maskAddress = (address: string | null) => {
-  if (!address || address.trim() === '') return 'Dirección B2B protegida';
-  return address.replace(/([A-Z][a-z]{2,})\w+/g, '$1••••'); 
+const maskAddress = (address: string | null): string => {
+  if (!address?.trim()) return 'Dirección B2B protegida';
+  return address.replace(/([A-Z][a-z]{2,})\w+/g, '$1••••');
 };
+
+const dateFormat = (date: Date, withTime = false): string =>
+  new Intl.DateTimeFormat('es-MX', {
+    year: 'numeric', month: 'short', day: '2-digit',
+    ...(withTime && { hour: '2-digit', minute: '2-digit' }),
+  }).format(date);
 
 // ============================================================================
-// 2. EXTRACCIÓN Y VERIFICACIÓN DE IDENTIDAD
+// PAGE — ZERO-TRUST AUTH + DATA FETCH
 // ============================================================================
 export default async function CRMPage() {
-  
-  // 🔥 PROTOCOLO ZERO-TRUST: Verificamos si existe la cookie de empleado (CON AWAIT)
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
   const cookieStore = await cookies();
   const session = cookieStore.get('coyote_crm_session');
 
-  // Si no hay cookie, lo pateamos al Login
-  if (!session || !session.value) {
-    redirect('/crm/login');
-  }
+  if (!session?.value) redirect('/crm/login');
 
-  // Buscamos al empleado en la base de datos con esa cookie
   const employee = await prisma.employee.findUnique({
-    where: { id: session.value }
+    where: { id: session.value },
+    select: { id: true, name: true, role: true, isActive: true },
   });
 
-  // Si el empleado no existe o fue desactivado (Kill Switch) -> Al login
-  if (!employee || !employee.isActive) {
-    redirect('/crm/login');
-  }
+  if (!employee?.isActive) redirect('/crm/login');
 
-  // -------------------------------------------------------------------------
-  // SI LLEGA HASTA AQUÍ, ESTÁ AUTENTICADO. SACAMOS LA DATA.
-  // -------------------------------------------------------------------------
+  // ── Data ──────────────────────────────────────────────────────────────────
+  const [rawUsers, rawOrders] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        orders: { orderBy: { createdAt: 'desc' }, take: 10 },
+      },
+    }),
+    prisma.order.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { hashId: true, name: true } },
+        items: true,
+      },
+    }),
+  ]);
 
-  const rawUsers = await prisma.user.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: { orders: { orderBy: { createdAt: 'desc' }, take: 10 } }
-  });
-
-  const rawOrders = await prisma.order.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: { 
-      user: { select: { hashId: true, name: true } },
-      items: true 
-    }
-  });
-
+  // ── Transforms ────────────────────────────────────────────────────────────
   const safeCustomers = rawUsers.map(user => {
-    const fullAddress = [user.street, user.neighborhood, user.city, user.state].filter(Boolean).join(', ');
+    const fullAddress = [user.street, user.neighborhood, user.city, user.state]
+      .filter(Boolean).join(', ');
     return {
       id: user.hashId,
       name: user.name || 'Empresa sin nombre',
@@ -94,8 +88,8 @@ export default async function CRMPage() {
         orderNumber: o.orderNumber,
         total: o.total,
         status: o.status,
-        date: new Intl.DateTimeFormat('es-MX', { year: 'numeric', month: 'short', day: '2-digit' }).format(o.createdAt)
-      }))
+        date: dateFormat(o.createdAt),
+      })),
     };
   });
 
@@ -105,32 +99,28 @@ export default async function CRMPage() {
     customerId: o.user.hashId,
     customerName: o.customerName || o.user.name || 'Desconocido',
     email: o.customerEmail,
-    phone: o.customerPhone,
+    phone: o.customerPhone || 'Sin teléfono',
     address: o.address || 'Dirección no especificada',
     total: o.total,
     status: o.status,
     logisticsType: o.logisticsType,
     vehiclesNeeded: o.vehiclesNeeded,
-    date: new Intl.DateTimeFormat('es-MX', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(o.createdAt),
+    date: dateFormat(o.createdAt, true),
     items: o.items.map(i => ({
       id: i.id,
       title: i.title,
       quantity: i.quantity,
       unit: i.unit || 'PZA',
-      color: i.color || 'N/A'
-    }))
+      color: i.color || 'N/A',
+    })),
   }));
 
-  // Pasamos TODO al Frontend, incluyendo quién es el empleado logueado
   return (
-    <ClientDashboard 
-      customers={safeCustomers} 
-      globalOrders={globalOrders.map(order => ({
-        ...order,
-        phone: order.phone || "Sin teléfono"
-      }))} 
-      employeeName={employee.name} 
-      employeeRole={employee.role} 
+    <ClientDashboard
+      customers={safeCustomers}
+      globalOrders={globalOrders}
+      employeeName={employee.name}
+      employeeRole={employee.role}
     />
   );
 }
