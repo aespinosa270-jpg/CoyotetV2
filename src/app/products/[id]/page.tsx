@@ -6,25 +6,22 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   ShoppingCart, ChevronLeft, Layers, Minus, Plus, 
-  Shield, Zap, Package, Scissors,
-  Star, Share2, Heart, Truck, LayoutGrid, Globe, ArrowRight, Check, Palette, Ruler,
-  PaintRoller
+  Shield, Zap, Package, Scissors, Flame, Heart, Truck, 
+  LayoutGrid, Globe, ArrowRight, Check, Palette, Ruler,
+  PaintRoller, Star, Share2
 } from 'lucide-react';
 import { useCart } from '@/lib/context/cart-context';
 import { useB2BPrice } from '@/hooks/use-b2b-price';
 import { products } from '@/lib/products';
-
-// Constantes
-const ROLL_WEIGHT_KG = 25;
 
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { addItem } = useCart();
   
-  // 1. Obtener Producto de forma segura
+  // 1. Obtener Producto de forma segura (con as any para evitar error TS)
   const productId = Array.isArray(params.id) ? params.id[0] : params.id;
-  const product = products.find(p => p.id === productId);
+  const product: any = products.find(p => p.id === productId);
 
   // Estados
   const [quantity, setQuantity] = useState(1);
@@ -61,18 +58,23 @@ export default function ProductDetailPage() {
     );
   }
 
+  // 🔥 MAGIA DINÁMICA DE UNIDADES
+  const isMeter = product.unit === 'Metro';
+  const unitLabel = isMeter ? 'Metro' : 'Kilo';
+  const unitAbbr = isMeter ? 'm' : 'Kg';
+  const unitsPerRoll = product.unidadesPorRollo || 25;
+
   // Lógica de Precios
   const basePriceToUse = buyingMode === 'rollo' ? product.prices.mayoreo : product.prices.menudeo;
   const { price: finalPrice, label, discount, role } = useB2BPrice(basePriceToUse);
   
-  // Cálculo de Totales (Peso y Precio)
-  const totalWeight = buyingMode === 'rollo' ? quantity * ROLL_WEIGHT_KG : quantity;
+  // Cálculo de Totales (Calcula unidades: Kilos o Metros)
+  const totalWeight = buyingMode === 'rollo' ? quantity * unitsPerRoll : quantity;
   const totalPrice = finalPrice * totalWeight;
   const savingsAmount = (product.prices.menudeo - finalPrice) * totalWeight;
 
   // --- CÁLCULO DE RENDIMIENTO (METROS) ---
-  // Multiplicamos el peso total por el rendimiento del producto (ej: 4.3 m/kg)
-  const totalMeters = (totalWeight * product.rendimiento).toFixed(1);
+  const totalMeters = !isMeter ? (totalWeight * (product.rendimiento || 1)).toFixed(1) : totalWeight;
 
   // Galería de Imágenes
   const mainImageSrc = (selectedColor && selectedColor.image) ? selectedColor.image : product.thumbnail;
@@ -97,12 +99,12 @@ export default function ProductDetailPage() {
       price: finalPrice,
       image: selectedColor?.image || product.thumbnail, 
       quantity: totalWeight,
-      unit: buyingMode === 'rollo' ? 'Kg (Rollo)' : 'Kg',
+      unit: buyingMode === 'rollo' ? `${unitAbbr} (Rollo)` : unitAbbr,
       meta: {
         mode: buyingMode,
         packages: quantity,
         color: selectedColor?.name,
-        meters: totalMeters // Guardamos los metros calculados también
+        meters: totalMeters 
       }
     });
   };
@@ -221,7 +223,7 @@ export default function ProductDetailPage() {
                             <span className="text-4xl lg:text-5xl font-[900] text-black tracking-tight">
                                 ${finalPrice.toLocaleString()}
                             </span>
-                            <span className="text-xs text-neutral-500 font-bold uppercase mb-1">MXN / {buyingMode === 'rollo' ? 'Kg' : 'Kg'}</span>
+                            <span className="text-xs text-neutral-500 font-bold uppercase mb-1">MXN / {unitAbbr}</span>
                         </div>
                     </div>
 
@@ -250,7 +252,7 @@ export default function ProductDetailPage() {
                     </div>
                     
                     <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-neutral-300">
-                        {product.colors.map((color, idx) => (
+                        {product.colors.map((color: any, idx: number) => (
                             <button
                                 key={idx}
                                 onClick={() => {
@@ -291,7 +293,7 @@ export default function ProductDetailPage() {
                   >
                      {buyingMode === 'kilo' && <div className="absolute top-2 right-2 text-[#FDCB02]"><Check size={14} strokeWidth={3}/></div>}
                      <Scissors size={18} />
-                     <span className="text-xs font-bold">Por Kilo (Kg)</span>
+                     <span className="text-xs font-bold">Por {unitLabel} ({unitAbbr})</span>
                   </button>
                   <button 
                      onClick={() => { setBuyingMode('rollo'); setQuantity(1); }}
@@ -300,7 +302,7 @@ export default function ProductDetailPage() {
                   >
                      {buyingMode === 'rollo' && <div className="absolute top-2 right-2 text-[#FDCB02]"><Check size={14} strokeWidth={3}/></div>}
                      <Package size={18} />
-                     <span className="text-xs font-bold">Por Rollo (~25kg)</span>
+                     <span className="text-xs font-bold">Por Rollo (~{unitsPerRoll}{unitAbbr})</span>
                   </button>
                </div>
             </div>
@@ -323,7 +325,7 @@ export default function ProductDetailPage() {
                             className="w-16 bg-transparent text-center font-bold text-xl text-black focus:outline-none"
                         />
                         <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">
-                            {buyingMode === 'rollo' ? 'Rollos' : 'Kilos'}
+                            {buyingMode === 'rollo' ? 'Rollos' : `${unitLabel}s`}
                         </span>
                     </div>
                     <button 
@@ -339,13 +341,17 @@ export default function ProductDetailPage() {
                     <div className="flex flex-col">
                         <span className="text-[10px] font-bold text-neutral-400 uppercase">Estimación</span>
                         <div className="flex items-baseline gap-2">
-                            <strong className="text-black text-sm">{totalWeight} kg</strong>
-                            <span className="text-[10px] text-neutral-400">≈</span>
-                            {/* AQUÍ SE MUESTRA EL RENDIMIENTO CALCULADO */}
-                            <strong className="text-[#FDCB02] text-sm bg-black px-1.5 rounded flex items-center gap-1">
-                                <Ruler size={10} className="text-[#FDCB02]" />
-                                {totalMeters} Metros
-                            </strong>
+                            <strong className="text-black text-sm">{totalWeight} {unitAbbr}</strong>
+                            
+                            {!isMeter && (
+                                <>
+                                    <span className="text-[10px] text-neutral-400">≈</span>
+                                    <strong className="text-[#FDCB02] text-sm bg-black px-1.5 rounded flex items-center gap-1">
+                                        <Ruler size={10} className="text-[#FDCB02]" />
+                                        {totalMeters} Metros
+                                    </strong>
+                                </>
+                            )}
                         </div>
                     </div>
                     <span className="text-[11px] font-medium text-neutral-500 flex items-center gap-1 self-end mb-1">
@@ -393,7 +399,7 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {/* --- TABS DE INFORMACIÓN (SIN CAMBIOS) --- */}
+        {/* --- TABS DE INFORMACIÓN --- */}
         <div className="mt-20 pt-10 border-t border-neutral-200">
            {/* Navegación de Pestañas */}
            <div className="flex border-b border-neutral-200 mb-8 overflow-x-auto scrollbar-hide gap-8">
@@ -425,39 +431,98 @@ export default function ProductDetailPage() {
                        <p className="text-neutral-600 leading-relaxed text-sm">
                            {product.description}
                        </p>
-                       <p className="text-neutral-600 leading-relaxed text-sm">
-                          Esta tela está diseñada para durar. Su tejido especial permite una excelente transpiración, ideal para uniformes deportivos escolares y profesionales. Los colores se mantienen vivos lavada tras lavada.
+
+                       {/* 🔥 CEREBRO DE DESCRIPCIONES DINÁMICAS (AHORA CON TU SUPER COPY DE VENTAS) */}
+                       <p className="text-neutral-600 leading-relaxed text-sm font-medium">
+                          {product.id === 'prod_flanel' 
+                            ? "Nuestra tela Flanel es la reina del invierno. Su textura ultra suave, afelpada y ligera retiene el calor corporal de manera excepcional, haciéndola la opción perfecta para confeccionar pijamas, cobijas, sudaderas y ropa de descanso premium."
+                            : product.id === 'prod_polar'
+                            ? "Tela térmica de alto rendimiento con tecnología anti-pilling. Es ideal desde la confección de pijamas y mamelucos hasta la creación de cobijas, frazadas, y ropa para mascotas, incluyendo camas de perros."
+                            : product.id === 'lycra_metalica'
+                            ? "Licra metálica elástica con acabado brillante. Ideal para prendas deportivas, escénicas, de moda, disfraces y usos decorativos. Se adapta al cuerpo, permite libertad de movimiento y ofrece un look llamativo."
+                            : "Esta tela está diseñada para durar. Su tejido especial permite una excelente transpiración, ideal para uniformes deportivos escolares y profesionales. Los colores se mantienen vivos lavada tras lavada."
+                          }
                        </p>
-                       <div className="flex flex-wrap gap-4 mt-6">
-                           <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
-                               <Zap className="text-[#FDCB02]" size={20}/>
-                               <div>
-                                   <h4 className="font-bold text-black text-xs uppercase">Secado Rápido</h4>
-                                   <p className="text-[10px] text-neutral-500">Tecnología Dry-Fit</p>
+
+                       {/* 🔥 CEREBRO DE CARACTERÍSTICAS DINÁMICAS */}
+                       {product.id === 'prod_flanel' ? (
+                           <div className="flex flex-wrap gap-4 mt-6">
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Heart className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Tacto Suave</h4><p className="text-[10px] text-neutral-500">Afelpado Premium</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Flame className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Térmica</h4><p className="text-[10px] text-neutral-500">Retiene el calor</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Check className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Fácil Lavado</h4><p className="text-[10px] text-neutral-500">Uso rudo</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Shield className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Duradera</h4><p className="text-[10px] text-neutral-500">Colores Firmes</p></div>
                                </div>
                            </div>
-                           <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
-                               <Shield className="text-[#FDCB02]" size={20}/>
-                               <div>
-                                   <h4 className="font-bold text-black text-xs uppercase">Alta Resistencia</h4>
-                                   <p className="text-[10pxs] text-neutral-500">No hace pilling</p>
+                       ) : product.id === 'prod_polar' ? (
+                           <div className="flex flex-wrap gap-4 mt-6">
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Flame className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Térmica Extrema</h4><p className="text-[10px] text-neutral-500">Aísla el frío</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Shield className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Anti-Pilling</h4><p className="text-[10px] text-neutral-500">No hace bolitas</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Check className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Ligereza</h4><p className="text-[10px] text-neutral-500">Abriga sin pesar</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Heart className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Confort</h4><p className="text-[10px] text-neutral-500">Tacto agradable</p></div>
                                </div>
                            </div>
-                           <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
-                               <Check className="text-[#FDCB02]" size={20}/>
-                               <div>
-                                   <h4 className="font-bold text-black text-xs uppercase">Auto-Ready</h4>
-                                   <p className="text-[10px] text-neutral-500">Sin Planchar</p>
+                       ) : product.id === 'lycra_metalica' ? (
+                           <div className="flex flex-wrap gap-4 mt-6">
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Zap className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Elástica</h4><p className="text-[10px] text-neutral-500">Decorativo</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Shield className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Alta Resistencia</h4><p className="text-[10px] text-neutral-500">No hace pilling</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Check className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Auto-Ready</h4><p className="text-[10px] text-neutral-500">Sin Planchar</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <PaintRoller className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Acabado Metálico</h4><p className="text-[10px] text-neutral-500">Brillo Extra</p></div>
                                </div>
                            </div>
-                           <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
-                               <PaintRoller className="text-[#FDCB02]" size={20}/>
-                               <div>
-                                   <h4 className="font-bold text-black text-xs uppercase">Full-Print</h4>
-                                   <p className="text-[10px] text-neutral-500">Sublimción</p>
+                       ) : (
+                           <div className="flex flex-wrap gap-4 mt-6">
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Zap className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Secado Rápido</h4><p className="text-[10px] text-neutral-500">Tecnología Dry-Fit</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Shield className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Alta Resistencia</h4><p className="text-[10px] text-neutral-500">No hace pilling</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Check className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Auto-Ready</h4><p className="text-[10px] text-neutral-500">Sin Planchar</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <PaintRoller className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Full-Print</h4><p className="text-[10px] text-neutral-500">Sublimación</p></div>
                                </div>
                            </div>
-                       </div>
+                       )}
+
                     </div>
                     <div className="relative h-64 lg:h-auto bg-neutral-100 rounded-lg overflow-hidden border border-neutral-200">
                         <Image src={product.thumbnail} alt="Textura Zoom" fill className="object-cover hover:scale-105 transition-transform duration-700"/>
@@ -478,7 +543,7 @@ export default function ProductDetailPage() {
                                 ['Composición', product.composicion],
                                 ['Gramaje (Peso)', `${product.gramaje} g/m²`],
                                 ['Ancho', product.ancho],
-                                ['Rendimiento', `${product.rendimiento} m/kg`],
+                                ['Rendimiento', isMeter ? `1 metro = 1 metro` : `${product.rendimiento} m/kg`],
                                 ['Origen', product.origin === 'MX' ? 'Nacional' : 'Importado'],
                              ].map(([key, val], i) => (
                                 <tr key={i} className="group hover:bg-neutral-50 transition-colors">

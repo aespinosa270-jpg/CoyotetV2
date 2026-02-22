@@ -1,36 +1,15 @@
 import { NextResponse } from 'next/server';
-import { Redis } from '@upstash/redis';
 import { products } from '@/lib/products';
 
 export async function GET() {
-  try {
-    // 1. INTENTO PRINCIPAL: Conectar al cerebro central (Redis)
-    const redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-    });
-
-    const bodega = await redis.get('bodega_coyote');
-
-    if (bodega) {
-      console.log('🟢 [API] Sirviendo catálogo en vivo desde Redis');
-      return NextResponse.json({ success: true, data: bodega }, { 
-        status: 200,
-        headers: {
-          'Cache-Control': 'public, max-age=60', // Se actualiza cada minuto
-          'Access-Control-Allow-Origin': '*', // ⚠️ VITAL para que tu App Móvil (Expo) lo pueda leer
-        }
-      });
-    }
-  } catch (error) {
-    console.warn('⚠️ [API] Falló Redis. Activando protocolo de respaldo local...', error);
-  }
-
-  // 2. SISTEMA DE RESPALDO: Si Redis falla o está vacío, usamos tu archivo local
-  console.log('🟡 [API] Sirviendo catálogo desde el archivo estático de respaldo');
+  console.log('🐺 [API] Sirviendo catálogo directo y en vivo a la App Móvil');
   const data: Record<string, any> = {};
 
   for (const p of products) {
+    const pExtra = p as any; 
+    const factor = pExtra.unidadesPorRollo || 25; 
+    const unidad = pExtra.unit || "Kilo";
+
     data[p.id] = {
       id:          p.id,
       title:       p.title,
@@ -41,20 +20,23 @@ export async function GET() {
       ancho:       p.ancho,
       rendimiento: p.rendimiento,
       category:    p.category,
+      unit:        unidad,          
+      unidadesPorRollo: factor,     
       menudeo:     p.prices.menudeo,
       mayoreo:     p.prices.mayoreo,
-      precioRollo: p.prices.mayoreo * 25,
+      precioRollo: p.prices.mayoreo * factor, 
       hasRollo:    p.hasRollo,
       singleColor: p.singleColor ?? false,
-      colors:      (p.colors ?? []).map((c: any) => ({ name: c.name, hex: c.hex })),
+      // 🔥 También le pasamos las imágenes de los colores a la app por si las ocupas
+      colors:      (p.colors ?? []).map((c: any) => ({ name: c.name, hex: c.hex, image: c.image })),
     };
   }
 
   return NextResponse.json({ success: true, data }, {
     status: 200,
     headers: {
-      'Cache-Control': 'public, max-age=300',
-      'Access-Control-Allow-Origin': '*', // ⚠️ VITAL para la App Móvil
+      'Cache-Control': 'no-store, max-age=0', // 🔴 CERO CACHÉ: Se actualiza al segundo
+      'Access-Control-Allow-Origin': '*', 
     },
   });
 }

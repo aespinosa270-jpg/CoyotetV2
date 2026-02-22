@@ -25,6 +25,7 @@ export interface Product {
   origin?: string;
   category: string;
   colors?: ProductColor[];
+  unidadesPorRollo?: number;
 }
 
 export const products: Product[] = [
@@ -72,7 +73,6 @@ export const products: Product[] = [
     hasRollo: true,
     origin: "Importado",
     category: "Línea Gold",
-   
   },
   {
     id: "prod_torneo",
@@ -88,7 +88,6 @@ export const products: Product[] = [
     hasRollo: true,
     origin: "Importado",
     category: "Línea Gold",
-    
   },
   {
     id: "prod_kyoto",
@@ -217,5 +216,151 @@ export const products: Product[] = [
     hasRollo: true,
     origin: "Importado",
     category: "Telas Técnicas"
+  },
+  {
+    id: "lycra_metalica",
+    title: "Lycra Metálica",
+    unit: "Metro", 
+    unidadesPorRollo: 98, 
+    thumbnail: "/assets/products/lycra_metalica/oro.jpg", 
+    description: "Licra metálica elástica con acabado brillante. Ideal para prendas deportivas, escénicas, de moda, disfraces y usos decorativos. Se adapta al cuerpo, permite libertad de movimiento y ofrece un look llamativo.",
+    composicion: "100% Poliéster", 
+    gramaje: "145",
+    ancho: "1.60m",
+    rendimiento: 1, 
+    singleColor: false, 
+    prices: { menudeo: 45.00, mayoreo: 40.00 }, 
+    hasRollo: true,
+    origin: "Importado",
+    category: "Telas Técnicas",
+    colors: [
+      { name: "Oro Metálico", hex: "#D4AF37", image: "/assets/products/lycra_metalica/oro.jpg" },
+      { name: "Plata Metálica", hex: "#C0C0C0", image: "/assets/products/lycra_metalica/plata.jpg" },
+      { name: "Naranja Metálico", hex: "#CD7F32", image: "/assets/products/lycra_metalica/bronce.jpg" },
+      { name: "Rojo Metálico", hex: "#A40000", image: "/assets/products/lycra_metalica/rojo.jpg" },
+      { name: "Azul Rey Metálico", hex: "#1D3263", image: "/assets/products/lycra_metalica/azulrey.jpg" },
+      { name: "Turquésa Metálico", hex: "#8CBED6", image: "/assets/products/lycra_metalica/cielo.jpg" },
+      { name: "Perla Metálico", hex: "#EAE0C8", image: "/assets/products/lycra_metalica/perla.jpg" },
+      { name: "Verde Bandera Metálico", hex: "#114232", image: "/assets/products/lycra_metalica/verdebadera.jpg" }, // Corregido para empatar con la foto
+      { name: "Verde Manzana Metálico", hex: "#8DB600", image: "/assets/products/lycra_metalica/verdemanzana.jpg" },
+      { name: "Rosa Pastel Metálico", hex: "#F2B8C6", image: "/assets/products/lycra_metalica/rosapastel.jpg" },
+      { name: "Fiucha Metálico", hex: "#C154C1", image: "/assets/products/lycra_metalica/fiucha.jpg" },
+      { name: "Blanco Metálico", hex: "#F8F9FA", image: "/assets/products/lycra_metalica/blanco.jpg" },
+      { name: "Negro Metálico", hex: "#2B2B2C", image: "/assets/products/lycra_metalica/negro.jpg" }
+    ]
+  },
+  {
+    id: "prod_flanel",
+    title: "Flanel",
+    unit: "Kilo", 
+    unidadesPorRollo: 27, 
+    thumbnail: "/assets/products/flanel/blanco.jpg", 
+    description: "Nuestra tela Flanel es la reina del invierno. Su textura ultra suave, afelpada y ligera retiene el calor corporal de manera excepcional, haciéndola la opción perfecta para confeccionar pijamas, cobijas, sudaderas y ropa de descanso premium.",
+    composicion: "100% Poliéster", 
+    gramaje: "260", 
+    ancho: "1.60m",
+    rendimiento: 2.4, 
+    singleColor: false, 
+    prices: { menudeo: 95.00, mayoreo: 90.00 }, 
+    hasRollo: true,
+    origin: "Importado",
+    category: "Línea Invernal",
+    colors: [
+      { name: "Blanco", hex: "#ffffff", image: "/assets/products/flanel/blanco.jpg" },
+      { name: "Vino", hex: "#5C1527", image: "/assets/products/flanel/vino.jpg" },
+      { name: "Marino", hex: "#1A243A", image: "/assets/products/flanel/marino.jpg" },
+      { name: "Negro", hex: "#111111", image: "/assets/products/flanel/negro.jpg" },
+      { name: "Fiusha", hex: "#E01B6A", image: "/assets/products/flanel/fiusha.jpg" },
+      { name: "Palo Rosa", hex: "#D69A9A", image: "/assets/products/flanel/palorosa.jpg" },
+      { name: "Rosa Pastel", hex: "#F4C2C2", image: "/assets/products/flanel/rosapastel.jpg" }, // Corregido: Sin espacio
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/flanel/azulrey.jpg" },
+      { name: "Naranja", hex: "#FF6F00", image: "/assets/products/flanel/naranja.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/flanel/rojo.jpg" }
+    ]
+  },
+  {
+    id: "prod_polar",
+    title: "Polar",
+    unit: "Kilo", 
+    unidadesPorRollo: 25, 
+    thumbnail: "/assets/products/polar/vino.jpg", 
+    description: "Tela térmica de alto rendimiento con tecnología anti-pilling. Es ideal desde la confección de pijamas y mamelucos hasta la creación de cobijas, frazadas, y ropa para mascotas, incluyendo camas de perros.",
+    composicion: "100% Poliéster", 
+    gramaje: "280", 
+    ancho: "1.60m",
+    rendimiento: 2.5, 
+    singleColor: false, 
+    prices: { menudeo: 85.00, mayoreo: 80.00 }, 
+    hasRollo: true,
+    origin: "Importado",
+    category: "Línea Invernal",
+    colors: [
+      { name: "Verde Botella", hex: "#004B23", image: "/assets/products/polar/verdebotella.jpg" },
+      { name: "Verde Militar", hex: "#4B5320", image: "/assets/products/polar/verdemilitar.jpg" },
+      { name: "Palo Rosa", hex: "#D69A9A", image: "/assets/products/polar/palorosa.jpg" },
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/polar/azulrey.jpg" },
+      { name: "Vino", hex: "#5C1527", image: "/assets/products/polar/vino.jpg" },
+      { name: "Marino", hex: "#1A243A", image: "/assets/products/polar/marino.jpg" },
+      { name: "Fiusha", hex: "#E01B6A", image: "/assets/products/polar/fiusha.jpg" },
+      { name: "Negro", hex: "#111111", image: "/assets/products/polar/negro.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/polar/rojo.jpg" },
+      { name: "Blanco", hex: "#F8F9FA", image: "/assets/products/polar/blanco.jpg" }
+    ]
+  },
+  {
+    id: "prod_felpa_china",
+    title: "Felpa China",
+    unit: "Kilo", 
+    unidadesPorRollo: 25, // 🔥 El estándar de 25kg por rollo
+    thumbnail: "/assets/products/felpa_china/marino.jpg", 
+    description: "La tela ideal para la confección de sudaderas, pants y ropa deportiva de invierno. Cuenta con una cara lisa y un reverso afelpado que garantiza máxima calidez y durabilidad.",
+    composicion: "50% Algodón / 50% Poliéster", // Ajusta si la tuya es 100% poliéster
+    gramaje: "280", // Gramaje clásico de felpa china
+    ancho: "1.60m",
+    rendimiento: 2.2, // Rendimiento estimado por kilo, ajústalo si es necesario
+    singleColor: false, 
+    prices: { menudeo: 85.00, mayoreo: 80.00 }, // 🚨 Pon tus precios reales aquí
+    hasRollo: true,
+    origin: "Importado",
+    category: "Línea Invernal",
+    colors: [
+      { name: "Marino", hex: "#1A243A", image: "/assets/products/felpa_china/marino.jpg" },
+      { name: "Negro", hex: "#111111", image: "/assets/products/felpa_china/negro.jpg" },
+      { name: "Blanco", hex: "#F8F9FA", image: "/assets/products/felpa_china/blanco.jpg" },
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/felpa_china/azulrey.jpg" },
+      { name: "Vino", hex: "#5C1527", image: "/assets/products/felpa_china/vino.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/felpa_china/rojo.jpg" },
+      { name: "Jaspe Perla", hex: "#DCDCDC", image: "/assets/products/felpa_china/jaspe_perla.jpg" },
+      { name: "Oxford Jaspe", hex: "#555555", image: "/assets/products/felpa_china/oxfordjaspe.jpg" }
+
+      
+    ]
+},
+  {
+    id: "prod_diablo",
+    title: "Diablo",
+    unit: "Metro", 
+    unidadesPorRollo: 50, 
+    thumbnail: "/assets/products/diablo/negro.jpg", 
+    description: "Uso rudo absoluto. Resistente a la abrasión, ideal para equipo táctico y calzado.",
+    composicion: "100% Nylon Alta Tenacidad", 
+    gramaje: "220", 
+    ancho: "1.50m",
+    rendimiento: 1, 
+    singleColor: false, 
+    prices: { menudeo: 60.00, mayoreo: 55.00 }, 
+    hasRollo: true,
+    origin: "Importado",
+    category: "Telas Técnicas",
+    colors: [
+      { name: "Perla", hex: "#EAE0C8", image: "/assets/products/diablo/perla.jpg" },
+      { name: "Marino", hex: "#1A243A", image: "/assets/products/diablo/marino.jpg" },
+      { name: "Vino", hex: "#5C1527", image: "/assets/products/diablo/vino.jpg" },
+      { name: "Blanco", hex: "#F8F9FA", image: "/assets/products/diablo/blanco.jpg" },
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/diablo/azulrey.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/diablo/rojo.jpg" },
+      { name: "Negro", hex: "#050505", image: "/assets/products/diablo/negro.jpg" },
+      { name: "Oxford", hex: "#3C3C3C", image: "/assets/products/diablo/oxford.jpg" }
+    ]
   }
 ];

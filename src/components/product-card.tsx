@@ -29,10 +29,18 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
 
     const { finalPrice, label, isDiscounted, discountPercent, role } = usePriceEngine(product, mode);
 
-    const unitWeight = mode === 'rollo' ? 25 : 1; 
+    // 🔥 MAGIA DINÁMICA DE UNIDADES (Sin romper diseño)
+    const isMeter = product.unit === 'Metro';
+    const unitLabel = isMeter ? 'Metro' : 'Kilo';
+    const unitAbbr = isMeter ? 'm' : 'Kg';
+    const unitsPerRoll = product.unidadesPorRollo || 25;
+
+    const unitWeight = mode === 'rollo' ? unitsPerRoll : 1; 
     const currentWeight = quantity * unitWeight;
     const totalPay = currentWeight * finalPrice;
-    const totalMeters = (currentWeight * (product.rendimiento || 4.3)).toFixed(1);
+    
+    // Solo calcula metros de rendimiento si el producto se vende por Kilo
+    const totalMeters = !isMeter ? (currentWeight * (product.rendimiento || 4.3)).toFixed(1) : currentWeight;
 
     const handleColorClick = (e: any, color: any) => {
         e.preventDefault(); 
@@ -52,12 +60,12 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
             price: finalPrice, 
             image: activeImage,
             quantity: currentWeight,
-            unit: mode === 'rollo' ? 'Kg (Rollo)' : 'Kg', 
+            unit: mode === 'rollo' ? `${unitAbbr} (Rollo)` : unitAbbr, 
             meta: {
                 mode: mode,
-                // 👇 CORRECCIÓN 2: Convertimos null a undefined usando ||
                 color: selectedColorName || undefined, 
-                packages: quantity
+                packages: quantity,
+                meters: totalMeters
             }
         });
     };
@@ -75,7 +83,6 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-90"/>
                 
-                {/* 👇 CORRECCIÓN 1: Usamos 'black' en lugar de 'distribuidor' */}
                 {isDiscounted && (
                     <div className={`absolute top-3 right-3 text-[9px] font-[1000] px-2 py-1 rounded uppercase shadow-lg z-10 flex items-center gap-1 animate-in zoom-in
                         ${role === 'black' ? 'bg-black text-white border border-white/20' : 'bg-[#FDCB02] text-black'}
@@ -96,7 +103,6 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                 </div>
             </Link>
 
-            {/* ... Resto del componente sigue igual ... */}
             <div className="p-5 flex flex-col gap-5 bg-[#050505]">
                 <div className="grid grid-cols-2 bg-[#111] p-1 rounded-lg border border-white/10">
                     <button 
@@ -132,13 +138,18 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                     </div>
                     <div className="text-right flex flex-col items-end gap-1">
                         <div className="flex items-center gap-1.5 text-[#FDCB02]">
-                            <Weight size={14} strokeWidth={2.5}/>
-                            <span className="text-sm font-[900]">{currentWeight} KG</span>
+                            {/* Cambia el ícono dependiendo de si es Metro o Kilo */}
+                            {isMeter ? <Ruler size={14} strokeWidth={2.5}/> : <Weight size={14} strokeWidth={2.5}/>}
+                            <span className="text-sm font-[900]">{currentWeight} {unitAbbr.toUpperCase()}</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-neutral-400">
-                            <Ruler size={12}/>
-                            <span className="text-[10px] font-mono font-bold">{totalMeters} MT</span>
-                        </div>
+                        
+                        {/* Solo mostrar estimación de metros si se vende por kilos */}
+                        {!isMeter && (
+                            <div className="flex items-center gap-1.5 text-neutral-400">
+                                <Ruler size={12}/>
+                                <span className="text-[10px] font-mono font-bold">{totalMeters} MT</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -173,7 +184,7 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                         >
                             <Minus size={14}/>
                         </button>
-                        <span className="text-xs font-bold text-white uppercase">{quantity} {mode === 'rollo' ? 'Rollos' : 'Kilos'}</span>
+                        <span className="text-xs font-bold text-white uppercase">{quantity} {mode === 'rollo' ? 'Rollos' : `${unitLabel}s`}</span>
                         <button 
                             onClick={(e) => { e.preventDefault(); setQuantity(quantity + 1); }} 
                             className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"

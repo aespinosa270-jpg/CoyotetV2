@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation"; // <-- Añadido para el intro loader
-import { motion, AnimatePresence } from "framer-motion"; // <-- Añadido AnimatePresence
+import { usePathname } from "next/navigation"; 
+import { motion, AnimatePresence } from "framer-motion"; 
 import { products } from "@/lib/products"; 
 import { useCart } from "@/lib/context/cart-context"; 
 import { 
@@ -109,7 +109,7 @@ const TECH_FILTERS = {
 
 // --- COMPONENTES UI ---
 
-// 1. PRODUCT CARD PREMIUM (INTACTO)
+// 1. PRODUCT CARD PREMIUM (LÓGICA DINÁMICA APLICADA 🔥)
 const ProductCard = ({ product, className = "" }: { product: any, className?: string }) => {
     const { addItem } = useCart();
     
@@ -122,15 +122,23 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
     const [mode, setMode] = useState<'rollo' | 'kilo'>('rollo'); 
     const [quantity, setQuantity] = useState(1);
 
+    // Lógica Dinámica de Kilos y Metros
+    const isMeter = product.unit === 'Metro';
+    const unitLabel = isMeter ? 'Metro' : 'Kilo';
+    const unitAbbr = isMeter ? 'MT' : 'KG';
+    const unitsPerRoll = product.unidadesPorRollo || 25;
+
     // Datos del Producto
     const priceUnit = mode === 'rollo' ? product.prices?.mayoreo : product.prices?.menudeo;
-    const unitWeight = mode === 'rollo' ? 25 : 1; 
+    const unitFactor = mode === 'rollo' ? unitsPerRoll : 1; 
     
     // Cálculos Dinámicos
-    const currentWeight = quantity * unitWeight;
+    const currentUnits = quantity * unitFactor;
     const currentPrice = priceUnit;
-    const totalPay = currentWeight * currentPrice;
-    const totalMeters = (currentWeight * (product.rendimiento || 4.3)).toFixed(1);
+    const totalPay = currentUnits * currentPrice;
+    
+    // Solo calculamos el rendimiento en metros si la tela se vende por kilos
+    const totalMeters = !isMeter ? (currentUnits * (product.rendimiento || 4.3)).toFixed(1) : currentUnits;
 
     const handleColorClick = (e: any, color: any) => {
         e.preventDefault();
@@ -176,16 +184,16 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
                 {/* 1. Selector de Modo */}
                 <div className="grid grid-cols-2 bg-[#111] p-1 rounded-lg border border-white/10">
                     <button 
-                        onClick={() => { setMode('rollo'); setQuantity(1); }}
+                        onClick={(e) => { e.preventDefault(); setMode('rollo'); setQuantity(1); }}
                         className={`text-[10px] font-[900] uppercase py-2 rounded transition-all ${mode === 'rollo' ? 'bg-[#FDCB02] text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
                     >
                         Por Rollo
                     </button>
                     <button 
-                        onClick={() => { setMode('kilo'); setQuantity(1); }}
+                        onClick={(e) => { e.preventDefault(); setMode('kilo'); setQuantity(1); }}
                         className={`text-[10px] font-[900] uppercase py-2 rounded transition-all ${mode === 'kilo' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
                     >
-                        Por Kilo
+                        Por {unitLabel}
                     </button>
                 </div>
 
@@ -199,13 +207,15 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
                     </div>
                     <div className="text-right flex flex-col items-end gap-1">
                         <div className="flex items-center gap-1.5 text-[#FDCB02]">
-                            <Weight size={14} strokeWidth={2.5}/>
-                            <span className="text-sm font-[900]">{currentWeight} KG</span>
+                            {isMeter ? <Ruler size={14} strokeWidth={2.5}/> : <Weight size={14} strokeWidth={2.5}/>}
+                            <span className="text-sm font-[900]">{currentUnits} {unitAbbr}</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-neutral-400">
-                            <Ruler size={12}/>
-                            <span className="text-[10px] font-mono font-bold">{totalMeters} MT</span>
-                        </div>
+                        {!isMeter && (
+                            <div className="flex items-center gap-1.5 text-neutral-400">
+                                <Ruler size={12}/>
+                                <span className="text-[10px] font-mono font-bold">{totalMeters} MT</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -240,20 +250,23 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
                 {/* 4. Controles Finales */}
                 <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between bg-[#111] border border-white/10 h-10 rounded px-1">
-                        <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"><Minus size={14}/></button>
-                        <span className="text-xs font-bold text-white uppercase">{quantity} {mode === 'rollo' ? 'Rollos' : 'Kilos'}</span>
-                        <button onClick={() => setQuantity(quantity + 1)} className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"><Plus size={14}/></button>
+                        <button onClick={(e) => { e.preventDefault(); setQuantity(Math.max(1, quantity - 1)); }} className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"><Minus size={14}/></button>
+                        <span className="text-xs font-bold text-white uppercase">{quantity} {mode === 'rollo' ? 'Rollos' : `${unitLabel}s`}</span>
+                        <button onClick={(e) => { e.preventDefault(); setQuantity(quantity + 1); }} className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"><Plus size={14}/></button>
                     </div>
 
                     <button 
-                        onClick={() => addItem({ 
-                            ...product, 
-                            price: priceUnit, 
-                            quantity: currentWeight, 
-                            unit: mode === 'rollo' ? 'Kg (Rollo)' : 'Kg', 
-                            variantId: mode, 
-                            color: selectedColorName 
-                        })} 
+                        onClick={(e) => {
+                            e.preventDefault();
+                            addItem({ 
+                                ...product, 
+                                price: priceUnit, 
+                                quantity: currentUnits, 
+                                unit: mode === 'rollo' ? `${unitLabel} (Rollo)` : unitLabel, 
+                                variantId: mode, 
+                                color: selectedColorName 
+                            });
+                        }} 
                         className="w-full h-12 bg-white hover:bg-[#FDCB02] text-black font-[900] uppercase tracking-widest text-xs flex items-center justify-between px-6 rounded transition-all duration-300 group/btn"
                     >
                         <span>Agregar • {formatMoney(totalPay)}</span>

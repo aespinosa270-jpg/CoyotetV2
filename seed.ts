@@ -1,30 +1,40 @@
-const { PrismaClient } = require('@prisma/client')
-const bcrypt = require('bcrypt')
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs'; // Usamos bcryptjs porque es el que está en tu API
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
 async function main() {
-  const password = await bcrypt.hash('123456', 10) // Tu contraseña real aquí
+  console.log('🐺 Forjando credenciales para Valeria...');
   
-  const user = await prisma.user.upsert({
-    where: { email: 'admin@coyote.com' },
-    update: {},
-    create: {
-      email: 'admin@coyote.com',
-      name: 'Admin Coyote',
-      password: password,
-      role: 'black', // Rol máximo
+  // 1. Encriptamos la contraseña
+  const hashedPassword = await bcrypt.hash('coyote01', 10);
+  
+  // 2. Usamos prisma.employee (¡La tabla correcta!)
+  const empleado = await prisma.employee.upsert({
+    where: { email: 'valeria@coyotetextil.com' },
+    update: {
+      password: hashedPassword,
+      isActive: true, // ¡Vital! Tu API exige que esté activa
     },
-  })
-  console.log({ user })
+    create: {
+      email: 'valeria@coyotetextil.com',
+      name: 'Valeria', 
+      password: hashedPassword,
+      role: 'ADMIN', // Asegúrate de que este rol exista en tu schema (puede ser 'ADMIN', 'VENDEDOR', 'black', etc.)
+      isActive: true,
+    },
+  });
+  
+  console.log('✅ ¡Misión cumplida! El empleado ha sido registrado exitosamente.');
+  console.log(`👤 Usuario: ${empleado.email}`);
 }
 
 main()
   .then(async () => {
-    await prisma.$disconnect()
+    await prisma.$disconnect();
   })
   .catch(async (e) => {
-    console.error(e)
-    await prisma.$disconnect()
-    process.exit(1)
-  })
+    console.error('❌ Error de sistema:', e);
+    await prisma.$disconnect();
+    process.exit(1);
+  });

@@ -1,4 +1,3 @@
-// src/app/api/auth/crm/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
@@ -9,7 +8,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { email, password } = body;
 
-    // Validación básica de input
     if (!email || !password) {
       return NextResponse.json(
         { error: 'Email y contraseña requeridos' },
@@ -29,7 +27,6 @@ export async function POST(request: Request) {
       },
     });
 
-    // Respuesta genérica — no revelar si el email existe o no
     if (!employee || !employee.isActive) {
       return NextResponse.json(
         { error: 'Credenciales inválidas o cuenta desactivada' },
@@ -37,9 +34,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // ⚠️  Si tus passwords aún son texto plano en la DB, usa esto temporalmente:
-    //     const passwordOk = employee.password === password;
-    // ✅  Con bcrypt (recomendado):
+    
     const passwordOk = await bcrypt.compare(password, employee.password);
 
     if (!passwordOk) {
