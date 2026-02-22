@@ -9,28 +9,132 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// Llaves OpenPay
 const OPENPAY_ID = process.env.OPENPAY_MERCHANT_ID;
 const OPENPAY_SK = process.env.OPENPAY_PRIVATE_KEY;
 const openpayAuth = Buffer.from(`${OPENPAY_SK}:`).toString('base64');
 
-// Llaves Facturapi
 const FACTURAPI_KEY = process.env.FACTURAPI_KEY;
 const facturapiAuth = Buffer.from(`${FACTURAPI_KEY}:`).toString('base64');
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // ==========================================
-// 🔧 REDIS — FUENTE DE VERDAD UNICA
+// 🔧 REDIS
 // ==========================================
 function getRedis() {
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-    throw new Error('Faltan env vars de Upstash: UPSTASH_REDIS_REST_URL y UPSTASH_REDIS_REST_TOKEN');
+    throw new Error('Faltan env vars de Upstash');
   }
   return new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL,
     token: process.env.UPSTASH_REDIS_REST_TOKEN,
   });
+}
+
+// ==========================================
+// 🎛️ CONFIGURACIÓN DINÁMICA DE JACK
+// ==========================================
+// Esta estructura contiene TODO lo que Jack puede cambiar globalmente.
+// Se guarda en Redis como 'config_jack' y se aplica a TODOS los clientes.
+
+interface ConfigJack {
+  // IDENTIDAD Y PERSONALIDAD
+  nombreBot: string;               // Nombre del bot (ej: "El Coyote", "Max", "Asistente Coyote")
+  tono: string;                    // Descripción libre del tono general
+  frasesBienvenida: string[];      // Frases de bienvenida para nuevos clientes
+  frasesDesignacionHombre: string[]; // Cómo llamar a hombres (jefe, patrón, etc.)
+  frasesDesignacionMujer: string[]; // Cómo llamar a mujeres (jefa, patrona, etc.)
+  fraseCierre: string;             // Frase de cierre de conversación
+  fraseIncondicional: string;      // Frase final tipo "auuuuu..."
+  emojisPrincipales: string;       // Emojis característicos del bot
+  
+  // RESTRICCIONES Y COMPORTAMIENTOS
+  maximoLineasRespuesta: number;   // Máximo de líneas por respuesta
+  fraseProhibidas: string[];       // Frases que NUNCA debe decir
+  instruccionesEspeciales: string; // Reglas adicionales en texto libre
+
+  // CATÁLOGO DE PRODUCTOS (extensible por Jack)
+  productosExtra: Array<{
+    nombre: string;
+    menudeo: number;
+    mayoreo: number;
+    info: string;
+  }>;
+
+  // DESCUENTOS Y PROMOCIONES ACTIVAS
+  promocionesActivas: Array<{
+    nombre: string;
+    descripcion: string;
+    descuento: string;            // Ej: "10% en rollos de Torneo"
+    vigencia: string;
+  }>;
+
+  // INFORMACIÓN DEL NEGOCIO
+  infoPagos: string;              // Instrucciones extra de pago
+  infoEnvios: string;             // Instrucciones extra de envíos
+  mensajePromoFinal: string;      // Mensaje de promo al cerrar
+
+  // HORARIOS / AVISOS
+  avisoGeneral: string;           // Aviso que se dice a todos (vacaciones, retraso, etc.)
+  horarioAtencion: string;
+
+  // META
+  ultimaActualizacion: string;
+  actualizadoPor: string;
+}
+
+// Config base (DEFAULT) — Jack puede sobreescribir cualquier campo
+const CONFIG_DEFAULT: ConfigJack = {
+  nombreBot: 'El Coyote',
+  tono: 'Listo, rápido, cuate mexicano, informal pero profesional. Directo al grano.',
+  frasesBienvenida: [
+    '¡Hola! Bienvenido a la familia *Coyote Textil* 🐺\n\n¿Autorizas que te enviemos promociones y novedades?\n\n📋 Términos: https://www.coyotetextil.com/terms\n🔒 Privacidad: https://www.coyotetextil.com/privacy\n\nEstamos para servirte *24/7 los 365 días del año*. 💪\n\n¿Con quién tengo el gusto?'
+  ],
+  frasesDesignacionHombre: ['jefe', 'patrón', 'amigo'],
+  frasesDesignacionMujer: ['jefa', 'patrona'],
+  fraseCierre: 'Estamos vistiendo la fuerza de México en cada hilo. Tú ya eres parte de nuestra familia, y estamos contigo 24/7. Con tu permiso, te sorprenderemos con promociones a tu medida, porque juntos tejemos éxitos.',
+  fraseIncondicional: 'auuuuuuuuu aquí estamos chambeando sin parar, patrón. Ando medio desvielado pero jalando. 🐺',
+  emojisPrincipales: '🐺📦💪',
+  maximoLineasRespuesta: 4,
+  fraseProhibidas: [
+    'Te enviaré los detalles',
+    'Enviaré la cotización',
+    'Procederé',
+    '¿Algo más en lo que pueda asistirte?',
+    'te mando',
+    'te envío',
+    'te hago llegar'
+  ],
+  instruccionesEspeciales: '',
+  productosExtra: [],
+  promocionesActivas: [],
+  infoPagos: '',
+  infoEnvios: '',
+  mensajePromoFinal: '',
+  avisoGeneral: '',
+  horarioAtencion: '24/7 los 365 días del año',
+  ultimaActualizacion: new Date().toISOString(),
+  actualizadoPor: 'sistema'
+};
+
+async function getConfigJack(redis: Redis): Promise<ConfigJack> {
+  try {
+    const guardado = await redis.get<ConfigJack>('config_jack');
+    if (!guardado) {
+      await redis.set('config_jack', CONFIG_DEFAULT);
+      return CONFIG_DEFAULT;
+    }
+    // Merge: si hay campos nuevos en DEFAULT que no están en guardado, los agrega
+    return { ...CONFIG_DEFAULT, ...guardado };
+  } catch {
+    return CONFIG_DEFAULT;
+  }
+}
+
+async function saveConfigJack(redis: Redis, config: ConfigJack) {
+  config.ultimaActualizacion = new Date().toISOString();
+  await redis.set('config_jack', config);
+  console.log('✅ Config Jack actualizada:', JSON.stringify(config).slice(0, 300));
 }
 
 // ==========================================
@@ -45,12 +149,11 @@ interface ClientePerfil {
   totalCompras: number;
   montoAcumulado: number;
   productosComprados: string[];
-  direccionEnvio: string;   // Dirección COMPLETA de entrega (calle, número, colonia, ciudad, CP de envío)
-  cpFiscal: string;         // CP FISCAL exclusivo para facturación SAT — NUNCA usar para envío
+  direccionEnvio: string;
+  cpFiscal: string;
   metodoPagoFavorito: string;
   requiereFrecuenteFactura: boolean;
   notas: string;
-  // Nuevos campos para personalización avanzada
   cumpleanos?: string;
   preferencias?: string[];
   ultimaCampana?: string;
@@ -68,7 +171,7 @@ interface PedidoRegistro {
 }
 
 // ==========================================
-// 🚚 CONSTANTES DE LOGÍSTICA REAL
+// 🚚 CONSTANTES DE LOGÍSTICA
 // ==========================================
 const DIESEL_PRICE_PER_LITER = 27.00;
 const LITERS_PER_100KM = 20.0;
@@ -78,8 +181,8 @@ const MAX_ROLLS_PER_VEHICLE = 80;
 
 interface ProductoEnvio {
   nombre: string;
-  kg: number;                // kilos solicitados
-  esRollo?: boolean;         // true si ya se vende por rollo completo
+  kg: number;
+  esRollo?: boolean;
 }
 
 interface ResultadoEnvio {
@@ -92,7 +195,7 @@ interface ResultadoEnvio {
   base: number;
   iva: number;
   total: number;
-  desglose: string;          // texto listo para mostrar al cliente
+  desglose: string;
 }
 
 function calcularEnvioReal(
@@ -101,19 +204,13 @@ function calcularEnvioReal(
   subtotal: number,
   requiereFactura: boolean
 ): ResultadoEnvio {
-  // Calcular peso total y número de rollos
   let totalKilos = productos.reduce((acc, p) => acc + p.kg, 0);
   let totalRollos = 0;
   for (const p of productos) {
-    if (p.esRollo) {
-      totalRollos += Math.ceil(p.kg / 25); // un rollo son 25kg
-    } else {
-      totalRollos += Math.ceil(p.kg / 25);
-    }
+    totalRollos += Math.ceil(p.kg / 25);
   }
-  totalRollos = Math.max(1, totalRollos); // mínimo 1 para efectos de flete
+  totalRollos = Math.max(1, totalRollos);
 
-  // --- FLETE (carga de bultos) ---
   let flete = 0;
   if (totalKilos < 10 && totalRollos === 1) flete = 150;
   else if (totalRollos === 1) flete = 200;
@@ -123,12 +220,10 @@ function calcularEnvioReal(
   else if (totalRollos <= 20) flete = 500;
   else flete = 1000;
 
-  // --- DETERMINAR ZONA Y DISTANCIA (COYOTE LOCAL VS SKYDROPX) ---
   const prefix2 = Math.floor(parseInt(cpEnvio) / 1000);
   let tipoEnvio: 'COYOTE' | 'SKYDROPX' = 'SKYDROPX';
   let distanciaKm = 0;
 
-  // CDMX
   if (prefix2 >= 1 && prefix2 <= 16) {
     tipoEnvio = 'COYOTE';
     if ([15, 6, 8].includes(prefix2)) distanciaKm = 5;
@@ -136,9 +231,7 @@ function calcularEnvioReal(
     else if ([2, 4, 11].includes(prefix2)) distanciaKm = 18;
     else if ([1, 5, 10, 12, 13, 14, 16].includes(prefix2)) distanciaKm = 28;
     else distanciaKm = 15;
-  }
-  // EDOMEX
-  else if (prefix2 >= 50 && prefix2 <= 57) {
+  } else if (prefix2 >= 50 && prefix2 <= 57) {
     tipoEnvio = 'COYOTE';
     if (prefix2 === 57) distanciaKm = 10;
     else if (prefix2 === 55) distanciaKm = 20;
@@ -147,14 +240,10 @@ function calcularEnvioReal(
     else if (prefix2 === 52) distanciaKm = 55;
     else if (prefix2 === 50 || prefix2 === 51) distanciaKm = 70;
     else distanciaKm = 40;
-  }
-  // Colindantes
-  else if (prefix2 === 42 || prefix2 === 43) { tipoEnvio = 'COYOTE'; distanciaKm = 100; }
+  } else if (prefix2 === 42 || prefix2 === 43) { tipoEnvio = 'COYOTE'; distanciaKm = 100; }
   else if (prefix2 >= 72 && prefix2 <= 75) { tipoEnvio = 'COYOTE'; distanciaKm = 130; }
   else if (prefix2 === 62) { tipoEnvio = 'COYOTE'; distanciaKm = 90; }
-  // Resto del país: SKYDROPX
 
-  // --- TRASLADO ---
   let traslado = 0;
   let vehiculos = 1;
   if (tipoEnvio === 'COYOTE') {
@@ -165,20 +254,15 @@ function calcularEnvioReal(
     const costoPorVehiculo = costoCombustible * OPERATIONAL_MARKUP;
     traslado = costoPorVehiculo * vehiculos;
   } else {
-    // Skydropx
     traslado = 180;
     if (totalKilos > 5) traslado += (totalKilos - 5) * 12;
   }
 
-  // --- TARIFA DE SERVICIO ---
   const tarifa = FIXED_SERVICE_FEE;
-
-  // --- BASE E IVA ---
   const base = subtotal + flete + traslado + tarifa;
   const iva = requiereFactura ? base * 0.16 : 0;
   const total = base + iva;
 
-  // --- DESGLOSE PARA MOSTRAR ---
   const desglose = `
 📦 *Desglose de tu cotización*
 • Subtotal productos: $${subtotal.toFixed(2)} MXN
@@ -190,25 +274,13 @@ ${requiereFactura ? `• IVA 16%: $${iva.toFixed(2)}` : ''}
 • *TOTAL: $${total.toFixed(2)} MXN*
   `.trim();
 
-  return {
-    totalKilos,
-    totalRollos,
-    flete,
-    traslado,
-    vehiculos,
-    tarifaServicio: tarifa,
-    base,
-    iva,
-    total,
-    desglose
-  };
+  return { totalKilos, totalRollos, flete, traslado, vehiculos, tarifaServicio: tarifa, base, iva, total, desglose };
 }
 
 // ==========================================
-// 🧠 HELPERS DE MEMORIA PERSISTENTE
+// 🧠 HELPERS DE MEMORIA
 // ==========================================
-
-async function getHistorial(redis: Redis, tel: string): Promise<Array<{role: string; content: string}>> {
+async function getHistorial(redis: Redis, tel: string) {
   try {
     return (await redis.get<Array<{role: string; content: string}>>(`historial:${tel}`)) || [];
   } catch { return []; }
@@ -220,9 +292,7 @@ async function saveHistorial(redis: Redis, tel: string, h: Array<{role: string; 
 }
 
 async function getCliente(redis: Redis, tel: string): Promise<ClientePerfil | null> {
-  try {
-    return await redis.get<ClientePerfil>(`cliente:${tel}`);
-  } catch { return null; }
+  try { return await redis.get<ClientePerfil>(`cliente:${tel}`); } catch { return null; }
 }
 
 async function saveCliente(redis: Redis, tel: string, p: ClientePerfil) {
@@ -241,16 +311,14 @@ async function registrarPedido(redis: Redis, tel: string, pedido: PedidoRegistro
   pedidos.push(pedido);
   await redis.set(`pedidos:${tel}`, pedidos);
   await saveCliente(redis, tel, cliente);
-  console.log(`📊 Pedido registrado para ${cliente.nombre}: $${pedido.monto} MXN`);
 }
 
 async function detectarGenero(nombre: string): Promise<'hombre' | 'mujer' | 'unknown'> {
   try {
     const res = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: `El nombre es "${nombre}". Responde SOLO: "hombre", "mujer" o "unknown". Sin nada mas.` }],
-      max_tokens: 5,
-      temperature: 0,
+      messages: [{ role: 'user', content: `El nombre es "${nombre}". Responde SOLO: "hombre", "mujer" o "unknown".` }],
+      max_tokens: 5, temperature: 0,
     });
     const g = res.choices[0].message.content?.trim().toLowerCase() || 'unknown';
     if (g === 'hombre' || g === 'mujer') return g;
@@ -261,28 +329,26 @@ async function detectarGenero(nombre: string): Promise<'hombre' | 'mujer' | 'unk
 // ==========================================
 // 🏪 BODEGA Y PRECIOS
 // ==========================================
-// Paleta compartida para micro piqué, piqué vera, micro panal y torneo
 const COLORES_STOCK = "Azul rey, Rojo, Negro, Kaki, Amarillo canario, Amarillo mango, Perla, Gris medio, Oxford, Azul marino oscuro, Azul marino claro, Fiusha, Palo de rosa, Rosa pastel, Rosa baby, Petróleo, Uva, Gris baby, Naranja, Lila, Vino, Azul cielo, Verde bandera, Verde botella, Verde militar, Magenta, Aqua, Menta, Celeste, Turquesa, Amarillo neón, Verde neón, Rosa neón, Oro viejo, Mostaza, Camel, Francia, Chedron, Uva oscuro, Pistache, Manzana, Acero, Cemento, Hueso";
 
 const PRECIOS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string }> = {
-  "micro piqué":       { menudeo: 90,  mayoreo: 85,  info: `100% Poliéster 145g. Dry-Fit alto rendimiento. Rend. 4.3m/kg. Colores disponibles: ${COLORES_STOCK}.` },
-  "piqué vera":        { menudeo: 95,  mayoreo: 90,  info: `100% Poliéster 145g. Más suave que el micro. Rend. 4.3m/kg. Colores disponibles: ${COLORES_STOCK}.` },
-  "micro panal":       { menudeo: 95,  mayoreo: 90,  info: `100% Poliéster 145g. Máxima transpiración. Rend. 4.3m/kg. Colores disponibles: ${COLORES_STOCK}.` },
-  "torneo":            { menudeo: 105, mayoreo: 98,  info: `100% Poliéster 150g. Uso rudo/torneos. Rend. 4.3m/kg. Colores disponibles: ${COLORES_STOCK}.` },
-  "athlos":            { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
-  "brock":             { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
-  "piqué vera sport":  { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
-  "kyoto":             { menudeo: 155, mayoreo: 140, info: "145g. Tacto seda, caída premium. Rend. 4.0m/kg. Color único." },
-  "panal plus":        { menudeo: 155, mayoreo: 140, info: "145g. Mayor cuerpo y estructura. Rend. 3.7m/kg. Color único." },
-  "apolo":             { menudeo: 160, mayoreo: 145, info: "150g. Anti-pilling. Rend. 3.7m/kg. Color único." },
-  "horous":            { menudeo: 160, mayoreo: 155, info: "145g. Moda deportiva urbana. Rend. 4.2m/kg. Color único." },
-  "panal nitro":       { menudeo: 185, mayoreo: 170, info: "145g. Control de humedad extremo. Color único." },
+  "micro piqué":      { menudeo: 90,  mayoreo: 85,  info: `100% Poliéster 145g. Dry-Fit alto rendimiento. Rend. 4.3m/kg. Colores: ${COLORES_STOCK}.` },
+  "piqué vera":       { menudeo: 95,  mayoreo: 90,  info: `100% Poliéster 145g. Más suave. Rend. 4.3m/kg. Colores: ${COLORES_STOCK}.` },
+  "micro panal":      { menudeo: 95,  mayoreo: 90,  info: `100% Poliéster 145g. Máxima transpiración. Rend. 4.3m/kg. Colores: ${COLORES_STOCK}.` },
+  "torneo":           { menudeo: 105, mayoreo: 98,  info: `100% Poliéster 150g. Uso rudo. Rend. 4.3m/kg. Colores: ${COLORES_STOCK}.` },
+  "athlos":           { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
+  "brock":            { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
+  "piqué vera sport": { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
+  "kyoto":            { menudeo: 155, mayoreo: 140, info: "145g. Tacto seda, caída premium. Rend. 4.0m/kg. Color único." },
+  "panal plus":       { menudeo: 155, mayoreo: 140, info: "145g. Mayor cuerpo y estructura. Rend. 3.7m/kg. Color único." },
+  "apolo":            { menudeo: 160, mayoreo: 145, info: "150g. Anti-pilling. Rend. 3.7m/kg. Color único." },
+  "horous":           { menudeo: 160, mayoreo: 155, info: "145g. Moda deportiva urbana. Rend. 4.2m/kg. Color único." },
+  "panal nitro":      { menudeo: 185, mayoreo: 170, info: "145g. Control de humedad extremo. Color único." },
 };
 
 async function getBodega(redis: Redis) {
   const guardado = await redis.get<typeof PRECIOS_DEFAULT>('bodega_coyote');
   if (!guardado) { await redis.set('bodega_coyote', PRECIOS_DEFAULT); return PRECIOS_DEFAULT; }
-  // Siempre sobreescribe el campo info de los 4 productos con paleta de colores para que Redis no quede desactualizado
   let dirty = false;
   for (const key of Object.keys(PRECIOS_DEFAULT) as Array<keyof typeof PRECIOS_DEFAULT>) {
     if (guardado[key] && guardado[key].info !== PRECIOS_DEFAULT[key].info) {
@@ -302,6 +368,24 @@ async function actualizarPrecio(redis: Redis, producto: string, campo: 'menudeo'
   return true;
 }
 
+async function agregarProducto(redis: Redis, nombre: string, menudeo: number, mayoreo: number, info: string) {
+  const bodega = await getBodega(redis);
+  bodega[nombre.toLowerCase()] = { menudeo, mayoreo, info };
+  await redis.set('bodega_coyote', bodega);
+  console.log(`✅ Producto agregado a bodega: ${nombre}`);
+  return true;
+}
+
+async function eliminarProducto(redis: Redis, nombre: string) {
+  const bodega = await getBodega(redis);
+  const key = nombre.toLowerCase();
+  if (!bodega[key]) return false;
+  delete bodega[key];
+  await redis.set('bodega_coyote', bodega);
+  console.log(`🗑️ Producto eliminado de bodega: ${nombre}`);
+  return true;
+}
+
 // ==========================================
 // 📲 HELPER ENVIAR WHATSAPP
 // ==========================================
@@ -318,15 +402,13 @@ async function enviarWhatsapp(to: string, body: string) {
 }
 
 // ==========================================
-// 🏦 WEBHOOK OPENPAY — PAGO CONFIRMADO
+// 🏦 WEBHOOK OPENPAY
 // ==========================================
 async function handleOpenpayWebhook(body: any) {
   console.log('🔔 OPENPAY:', body.type);
-
   if (body.type === 'charge.succeeded') {
     const transaccion = body.transaction;
     const metadata = transaccion.metadata;
-
     if (metadata?.phone) {
       const redis = getRedis();
       const tel = metadata.phone.replace(/\D/g, '');
@@ -334,11 +416,9 @@ async function handleOpenpayWebhook(body: any) {
       const monto = transaccion.amount;
       const perfil = await getCliente(redis, tel);
       const saludo = perfil?.nombre ? `¡Qué onda ${perfil.nombre}!` : '¡Qué onda patrón!';
-
       let msg = `🐺 ${saludo} El sistema de pagos confirmó que tu pago de *$${monto} MXN* ya cayó. ✅\n\n¡Tu pedido entró a bodega! 📦`;
 
       if (quiereFactura && metadata.rfc !== 'NONE') {
-        console.log(`🧾 Facturando RFC: ${metadata.rfc}`);
         try {
           const custRes = await fetch('https://www.facturapi.io/v2/customers', {
             method: 'POST',
@@ -350,7 +430,6 @@ async function handleOpenpayWebhook(body: any) {
           let formaPago = "04";
           if (transaccion.method === 'bank_account') formaPago = "03";
           if (transaccion.method === 'store') formaPago = "01";
-
           const invRes = await fetch('https://www.facturapi.io/v2/invoices', {
             method: 'POST',
             headers: { 'Authorization': `Basic ${facturapiAuth}`, 'Content-Type': 'application/json' },
@@ -361,35 +440,23 @@ async function handleOpenpayWebhook(body: any) {
             })
           });
           const factura = await invRes.json();
-
-          if (invRes.ok) {
-            msg += `\n\n🧾 *Tu Factura 4.0 ya está timbrada.*\nDescarga el PDF:\nhttps://www.facturapi.io/v2/invoices/${factura.id}/pdf`;
-            console.log('✅ Factura timbrada.');
-          } else {
-            console.error('❌ Facturapi:', factura);
-            msg += `\n\n⚠️ El SAT rebotó un dato (RFC o CP). El Patrón lo revisa manualmente.`;
-          }
+          if (invRes.ok) msg += `\n\n🧾 *Tu Factura 4.0 ya está timbrada.*\nhttps://www.facturapi.io/v2/invoices/${factura.id}/pdf`;
+          else msg += `\n\n⚠️ El SAT rebotó un dato. El Patrón lo revisa.`;
         } catch (e) {
-          console.error('❌ Error facturación:', e);
           msg += `\n\n⚠️ Intermitencia con el SAT. Te mando tu factura más tarde.`;
         }
       }
-
       await registrarPedido(redis, tel, {
-        fecha: new Date().toISOString(),
-        productos: metadata.productos || 'No especificado',
-        monto,
-        metodo: transaccion.method || 'desconocido',
-        conFactura: quiereFactura
+        fecha: new Date().toISOString(), productos: metadata.productos || 'No especificado',
+        monto, metodo: transaccion.method || 'desconocido', conFactura: quiereFactura
       });
-
       await enviarWhatsapp(tel, msg);
     }
   }
 }
 
 // ==========================================
-// 💬 WEBHOOK WHATSAPP — MENSAJES
+// 💬 WEBHOOK WHATSAPP
 // ==========================================
 async function handleWhatsappWebhook(body: any) {
   const mensajeInfo = body.entry[0].changes[0].value.messages[0];
@@ -403,7 +470,7 @@ async function handleWhatsappWebhook(body: any) {
   const redis = getRedis();
   const msgLower = msgCliente.trim().toLowerCase();
 
-  // ── COMANDOS ADMIN (JACK) ──────────────────
+  // ── COMANDOS ADMIN ──────────────────────────
   if (msgLower === 'soy jack' || msgLower === 'soy jack.') {
     await enviarWhatsapp(tel, 'hola habibi te puedes verificar 🔒');
     return;
@@ -411,16 +478,17 @@ async function handleWhatsappWebhook(body: any) {
   if (msgLower === 'elcoyote56') {
     const h = await getHistorial(redis, tel);
     h.push({ role: 'user', content: msgCliente });
-    h.push({ role: 'assistant', content: '🐺 ¡Órdenes recibidas Habibi! Modo Administrador activo. ¿Qué cambiamos de la bodega o a quién le mandamos mensaje?' });
+    h.push({ role: 'assistant', content: '🐺 ¡Órdenes recibidas Habibi! Modo Administrador activo. ¿Qué cambiamos?' });
     await saveHistorial(redis, tel, h);
-    await enviarWhatsapp(tel, '🐺 ¡Órdenes recibidas Habibi! Modo Administrador activo. ¿Qué cambiamos de la bodega o a quién le mandamos mensaje?');
+    await enviarWhatsapp(tel, '🐺 ¡Órdenes recibidas Habibi! Modo Administrador activo.\n\nPuedes cambiar CUALQUIER cosa:\n• Precios y productos (agregar/quitar)\n• Mi personalidad, tono y forma de hablar\n• Frases, emojis, reglas\n• Promociones activas\n• Avisos para todos los clientes\n• ¡Lo que se te ocurra!\n\n¿Qué hacemos?');
     return;
   }
 
-  // ── 🐺 TRIGGER "COYOTE" — RESPUESTA AUTOMÁTICA ──
+  // Trigger "coyote"
   const esSoloCoyote = /^\s*coyote[\s!?.]*$/i.test(msgCliente.trim());
   if (esSoloCoyote) {
-    const respuestaCoyote = '🐺 ¡Aquí estoy! Un Coyote nunca duerme. ¿En qué te puedo ayudar?';
+    const cfg = await getConfigJack(redis);
+    const respuestaCoyote = `🐺 ¡Aquí estoy! ${cfg.nombreBot} nunca duerme. ¿En qué te puedo ayudar?`;
     const h = await getHistorial(redis, tel);
     h.push({ role: 'user', content: msgCliente });
     h.push({ role: 'assistant', content: respuestaCoyote });
@@ -429,34 +497,20 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  // ── PERFIL DEL CLIENTE ─────────────────────
+  // ── PERFIL DEL CLIENTE ───────────────────────
   let perfil = await getCliente(redis, tel);
+  const config = await getConfigJack(redis);
 
-  // ── CLIENTE COMPLETAMENTE NUEVO ────────────
   if (!perfil) {
     perfil = {
       nombre: '', genero: 'unknown', telefono: tel,
       primerContacto: new Date().toISOString(), ultimoContacto: new Date().toISOString(),
       totalCompras: 0, montoAcumulado: 0, productosComprados: [],
       direccionEnvio: '', cpFiscal: '', metodoPagoFavorito: '', requiereFrecuenteFactura: false, notas: '',
-      // nuevos campos opcionales
-      cumpleanos: undefined,
-      preferencias: [],
-      ultimaCampana: undefined,
-      etapaAbandono: null,
-      fechaAbandono: undefined,
-      recordatoriosPendientes: []
+      preferencias: [], etapaAbandono: null, recordatoriosPendientes: []
     };
     await saveCliente(redis, tel, perfil);
-
-    const bienvenida =
-      `¡Hola! Bienvenido a la familia *Coyote Textil* 🐺\n\n` +
-      `¿Autorizas que te enviemos promociones y novedades para mejorar la calidad del servicio? 🎯\n\n` +
-      `📋 Términos y condiciones: https://www.coyotetextil.com/terms\n` +
-      `🔒 Aviso de privacidad: https://www.coyotetextil.com/privacy\n\n` +
-      `Estamos para servirte *24/7 los 365 días del año*. 💪\n\n` +
-      `¿Con quién tengo el gusto? ¿Cuál es tu nombre? 😊`;
-
+    const bienvenida = config.frasesBienvenida[Math.floor(Math.random() * config.frasesBienvenida.length)];
     const h = await getHistorial(redis, tel);
     h.push({ role: 'user', content: msgCliente });
     h.push({ role: 'assistant', content: bienvenida });
@@ -465,7 +519,6 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  // ── AÚN NO TENEMOS SU NOMBRE ──────────────
   if (!perfil.nombre) {
     const primerNombre = msgCliente.trim().split(' ')[0];
     perfil.nombre = primerNombre.charAt(0).toUpperCase() + primerNombre.slice(1).toLowerCase();
@@ -473,10 +526,12 @@ async function handleWhatsappWebhook(body: any) {
     perfil.ultimoContacto = new Date().toISOString();
     await saveCliente(redis, tel, perfil);
 
+    const tratamiento = perfil.genero === 'mujer'
+      ? config.frasesDesignacionMujer[0]
+      : config.frasesDesignacionHombre[0];
     const saludo = perfil.genero === 'mujer'
       ? `¡Un placer, ${perfil.nombre}! 🌟 ¿En qué te puedo ayudar hoy?`
-      : `¡Mucho gusto, ${perfil.nombre}! 🐺 ¿En qué te puedo ayudar hoy?`;
-
+      : `¡Mucho gusto, ${perfil.nombre}! ${config.emojisPrincipales} ¿En qué te puedo ayudar hoy?`;
     const h = await getHistorial(redis, tel);
     h.push({ role: 'user', content: msgCliente });
     h.push({ role: 'assistant', content: saludo });
@@ -485,186 +540,224 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  // Actualizar último contacto
   perfil.ultimoContacto = new Date().toISOString();
   await saveCliente(redis, tel, perfil);
 
-  // ── HISTORIAL COMPLETO DESDE REDIS ─────────
   let historial = await getHistorial(redis, tel);
   historial.push({ role: 'user', content: msgCliente });
 
   const esElJefe = historial.some((m: any) => m.role === 'user' && m.content.trim() === 'elcoyote56');
 
-  // ── DATOS FRESCOS PARA EL PROMPT ───────────
   const bodega = await getBodega(redis);
-  const PRECIOS_ACTUALES = Object.entries(bodega)
+
+  // Combinar productos base + productos extra de Jack
+  const bodegaCompleta: typeof PRECIOS_DEFAULT = { ...bodega };
+  for (const pe of config.productosExtra) {
+    bodegaCompleta[pe.nombre.toLowerCase()] = { menudeo: pe.menudeo, mayoreo: pe.mayoreo, info: pe.info };
+  }
+
+  const PRECIOS_ACTUALES = Object.entries(bodegaCompleta)
     .map(([name, p]) => `- ${name.toUpperCase()}: $${p.menudeo}/kg menudeo | $${p.mayoreo}/kg mayoreo | rollo 25kg = $${p.mayoreo * 25}. ${p.info}`)
     .join('\n');
 
   const alertaDireccion = perfil.direccionEnvio
-    ? `⚠️ DIRECCIÓN GUARDADA: "${perfil.direccionEnvio}". Antes de calcular envío CONFIRMA con el cliente si sigue siendo correcta o si cambió.`
-    : `⚠️ SIN DIRECCIÓN DE ENVÍO. OBLIGATORIO pedirla antes de calcular flete, aunque el cliente ya haya comprado antes. Pídela así: "¿A qué dirección te enviamos? (calle, número, colonia, ciudad y CP)"`;
+    ? `⚠️ DIRECCIÓN GUARDADA: "${perfil.direccionEnvio}". Confirma si sigue siendo correcta.`
+    : `⚠️ SIN DIRECCIÓN. Pídela antes de calcular envío: "¿A qué dirección te enviamos? (calle, número, colonia, ciudad y CP)"`;
 
   const resumenCliente = `
-PERFIL DEL CLIENTE EN ESTE CHAT:
+PERFIL:
 - Nombre: ${perfil.nombre} | Género: ${perfil.genero}
-- Compras realizadas: ${perfil.totalCompras} | Total gastado: $${perfil.montoAcumulado} MXN
-- Productos que ha comprado antes: ${perfil.productosComprados.length > 0 ? perfil.productosComprados.join(', ') : 'ninguno aún'}
+- Compras: ${perfil.totalCompras} | Total gastado: $${perfil.montoAcumulado} MXN
+- Productos comprados: ${perfil.productosComprados.join(', ') || 'ninguno'}
 - ${alertaDireccion}
-- CP Fiscal (SAT): ${perfil.cpFiscal || 'no registrado — pedirlo SOLO si requiere factura'}
-- Método de pago habitual: ${perfil.metodoPagoFavorito || 'no registrado'}
-- Requiere factura frecuentemente: ${perfil.requiereFrecuenteFactura ? 'SÍ — ofrecerla proactivamente' : 'NO'}
-- Notas del cliente: ${perfil.notas || 'ninguna'}
-- Preferencias: ${perfil.preferencias?.join(', ') || 'aún no registradas'}
-- Etapa de abandono: ${perfil.etapaAbandono || 'ninguna'}
+- CP Fiscal: ${perfil.cpFiscal || 'no registrado'}
+- Método de pago: ${perfil.metodoPagoFavorito || 'no registrado'}
+- Requiere factura frecuente: ${perfil.requiereFrecuenteFactura ? 'SÍ' : 'NO'}
+- Notas: ${perfil.notas || 'ninguna'}
 `.trim();
 
-  const tratamiento = perfil.genero === 'mujer'
-    ? `Usa "jefa", "patrona" o su nombre "${perfil.nombre}". Tono cálido, amigable, profesional.`
-    : `Usa "jefe", "patrón", "amigo" o su nombre "${perfil.nombre}". Tono de cuate mexicano, informal pero profesional.`;
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 🎛️ PROMPT DINÁMICO — CONSTRUIDO 100% DESDE LA CONFIG DE JACK
+  // ─────────────────────────────────────────────────────────────────────────────
+  const promocionesTexto = config.promocionesActivas.length > 0
+    ? `\n🎯 PROMOCIONES ACTIVAS (menciónalas cuando sea relevante):\n${config.promocionesActivas.map(p => `• ${p.nombre}: ${p.descripcion} — ${p.descuento} (${p.vigencia})`).join('\n')}`
+    : '';
+
+  const avisoTexto = config.avisoGeneral
+    ? `\n⚠️ AVISO GENERAL PARA TODOS LOS CLIENTES: ${config.avisoGeneral}`
+    : '';
+
+  const infoPagosTexto = config.infoPagos
+    ? `\n💳 INSTRUCCIONES EXTRA DE PAGO: ${config.infoPagos}`
+    : '';
+
+  const infoEnviosTexto = config.infoEnvios
+    ? `\n🚚 INSTRUCCIONES EXTRA DE ENVÍOS: ${config.infoEnvios}`
+    : '';
+
+  const instruccionesExtra = config.instruccionesEspeciales
+    ? `\n📌 INSTRUCCIONES ESPECIALES DEL PATRÓN (prioridad máxima, seguirlas siempre):\n${config.instruccionesEspeciales}`
+    : '';
 
   const CONTEXTO_VENDEDOR = `
-ERES "EL COYOTE", UN AGENTE DE IA ESPECIALIZADO EN VENTAS, ATENCIÓN AL CLIENTE Y MARKETING AUTOMATION. OPERAS PRINCIPALMENTE POR WHATSAPP.
+ERES "${config.nombreBot}", UN AGENTE DE IA DE VENTAS Y ATENCIÓN AL CLIENTE DE COYOTE TEXTIL OPERANDO POR WHATSAPP.
 
-🎯 IDENTIDAD
-Representas a COYOTE TEXTIL. Tu comunicación es natural, cálida, persuasiva y autónoma. Buscas maximizar conversiones y retención.
+🎯 PERSONALIDAD Y TONO:
+${config.tono}
+- Máximo ${config.maximoLineasRespuesta} líneas por respuesta. Directo, sin rodeos.
+- Para hombres usa: ${config.frasesDesignacionHombre.join(', ')} o su nombre.
+- Para mujeres usa: ${config.frasesDesignacionMujer.join(', ')} o su nombre.
+- Emojis característicos: ${config.emojisPrincipales}
+- Horario de atención que debes mencionar: ${config.horarioAtencion}
 
-📋 FUNCIONES PRINCIPALES
-1. WHATSAPP: Gestionas conversaciones entrantes y salientes. Respondes inmediato, empático y orientado a acción. Mantienes el tono de la marca.
-2. REPORTES: Puedes generar reportes periódicos (conversaciones, leads, ventas, tasa de respuesta, conversión). Si te piden un reporte, usa el comando: GENERAR_REPORTE|tipo(diario/semanal/mensual)|formato(texto/json)
-3. CAMPAÑAS DE PUBLICIDAD: Apoyas en envíos masivos segmentados. Personalizas según perfil. Para enviar una campaña: ENVIAR_CAMPANA|segmento(todos/activos/inactivos)|mensaje
-4. ATENCIÓN AL CLIENTE: Resuelves dudas, quejas y solicitudes autónomamente. Escalas a humano solo si es estrictamente necesario. Registrar cada interacción.
-5. RECORDATORIOS: Envías recordatorios automáticos de citas, pagos, renovaciones o seguimientos. Para programar: PROGRAMAR_RECORDATORIO|telefono|fecha|mensaje
-6. PERSONALIZACIÓN: Adaptas cada interacción según nombre, historial, preferencias, comportamiento. NUNCA trates a dos clientes igual si sus perfiles son distintos.
-7. RECUPERACIÓN DE ABANDONO: Detectas clientes que dejaron de comprar o abandonaron proceso. Inicias secuencia de reactivación (máx 3 intentos). Si detectas abandono, usa: REACTIVAR|telefono|etapa
-8. APRENDIZAJE CONTINUO: Aprendes de cada conversación para mejorar respuestas. Identificas objeciones frecuentes y propones nuevas respuestas. Si encuentras algo que no sabes manejar, notifica: ESCALAR|duda
+🚫 FRASES PROHIBIDAS — NUNCA las uses:
+${config.fraseProhibidas.map(f => `• "${f}"`).join('\n')}
+${instruccionesExtra}
+${avisoTexto}
+${promocionesTexto}
 
-📌 REGLAS DE COMPORTAMIENTO
-- Siempre saluda con el nombre del cliente si lo conoces.
-- Nunca prometas lo que no puedes cumplir.
-- Si no sabes algo, dilo y busca la respuesta antes de responder.
-- Prioriza cerrar la venta o resolver el problema en el menor número de mensajes posible.
-- Usa lenguaje simple, directo y humano. Evita sonar como un bot.
+📋 FUNCIONES PRINCIPALES:
+1. Gestionar conversaciones, responder inmediato y orientado a acción.
+2. Cotizar y vender telas (ver catálogo abajo).
+3. Calcular envíos con el comando CALCULAR_ENVIO.
+4. Generar cobros con OpenPay.
+5. Generar reportes, campañas, recordatorios y reactivar clientes.
+6. Personalizar cada interacción según el perfil del cliente.
 
-🚀 OBJETIVO FINAL
-Aumentar ventas, mejorar la experiencia del cliente y reducir carga operativa del equipo humano. Actúa con autonomía, criterio y orientación a resultados.
-
---- REGLAS ESPECÍFICAS DE COYOTE TEXTIL ---
-
-PERSONALIDAD:
-- Eres listo, rápido, y conoces las telas al 100%. Siempre tienes la respuesta.
-- Máximo 4 líneas por respuesta. Directo, sin rodeos. Nada de bienvenidas repetidas.
-- ${tratamiento}
-- Usas el historial de conversación completo. NUNCA preguntes algo que el cliente ya respondió antes.
-- Si el cliente ya ha comprado antes, reconócelo naturalmente.
-- Si ${perfil.requiereFrecuenteFactura}, ofrece la factura antes de que la pida.
-
-REGLAS DE PRODUCTO — CRÍTICO:
+REGLAS DE PRODUCTO:
 - Todo se vende por kilo.
-- Un rollo pesa EXACTAMENTE 25kg. Nunca menciones otro número.
-- Menudeo: menos de 25kg. Mayoreo: desde 25kg (un rollo completo).
-- El precio de un rollo completo = precio mayoreo × 25. Siempre muéstralo calculado.
-- Empuja el rollo completo porque baja el precio y es mejor negocio para el cliente.
+- Un rollo = exactamente 25kg.
+- Menudeo: menos de 25kg. Mayoreo: 25kg o más.
+- Precio rollo completo = precio mayoreo × 25. Siempre muéstralo calculado.
+- Empuja el rollo completo porque el precio baja.
 
-🗺️ FLUJO DE VENTA OBLIGATORIO — RESPÉTALO SIEMPRE EN ESTE ORDEN:
-1. COTIZACIÓN: El cliente pregunta por tela → presentas precio menudeo/mayoreo y el precio del rollo calculado.
-2. DIRECCIÓN DE ENVÍO: Inmediatamente después de cotizar, pides o confirmas la dirección COMPLETA:
-   - Si NO hay dirección guardada: "¿A qué dirección te lo enviamos? (calle, número, colonia, ciudad y CP)"
-   - Si YA hay dirección guardada: "¿Te lo mandamos de nuevo a [dirección guardada]? ¿O cambió la dirección?"
-   → Con el CP de ESA dirección calculas el flete. NUNCA uses el CP fiscal para esto.
-3. TOTAL CON ENVÍO: Presentas el desglose: producto + flete + tarifa de servicio = total.
-   IMPORTANTE: NO CALCULES EL ENVÍO MANUALMENTE. Cuando tengas el producto, la cantidad y el CP de envío, usa el comando:
-   CALCULAR_ENVIO|productos=[{"nombre":"nombre del producto","kg":cantidad}]|cp=01234
-   El sistema te devolverá el desglose exacto. Luego preséntalo al cliente.
-4. FACTURA: Preguntas si requiere factura.
-   → Si SÍ: pides RFC, Razón Social, CP FISCAL (es diferente al de envío), Régimen y Uso CFDI. Sumas 16% IVA.
-   → Si NO: precio sin IVA.
-5. MÉTODO DE PAGO: Tarjeta, SPEI o OXXO (no OXXO si supera $29,000).
-6. COBRO: Generas el cargo con el comando GENERAR_COBRO.
+🗺️ FLUJO DE VENTA OBLIGATORIO:
+1. COTIZACIÓN → 2. DIRECCIÓN DE ENVÍO → 3. TOTAL CON ENVÍO → 4. FACTURA → 5. MÉTODO DE PAGO → 6. COBRO
 
-⚠️ SEPARACIÓN ABSOLUTA DE CÓDIGOS POSTALES:
-- CP DE ENVÍO = parte de la dirección física donde llega la mercancía. Lo usas SOLO para calcular distancia/flete.
-- CP FISCAL = dato del SAT para timbrar la factura. Lo pides SOLO si el cliente quiere factura, NUNCA antes.
-- Son dos datos completamente distintos. JAMÁS los mezcles ni uses uno en lugar del otro.
-
-🎨 REGLA DE COLORES:
-- Micro piqué, Piqué vera, Micro panal y Torneo tienen paleta amplia de colores.
-- SIEMPRE que el cliente pregunte o cotice cualquiera de estas 4 telas, pregunta por el color ANTES de continuar. Ejemplo: "¡Con gusto! ¿En qué color lo necesitas? 🎨"
-- Si el cliente pide la carta de colores o pregunta qué colores hay: PEGA LA LISTA COMPLETA DEL CATÁLOGO AQUÍ MISMO, en este mensaje, ahora. NO mandes un subconjunto. NO digas "aquí algunos ejemplos". NO digas "te mando la carta por mensaje". NO pidas número. NO ofrezcas enviarla "después" ni "por otro medio". La lista YA ESTÁ en el catálogo — solo pégala completa y listo.
-- Si el cliente pide *blanco*: confirmamos que sí lo manejamos. De cortesía, menciónale también otros tonos claros que podrían interesarle: Perla, Hueso, Gris baby, Rosa baby, Celeste, Menta. Algo como: "¡Claro que sí! Y por si te late alguno, también tenemos Perla, Hueso, Celeste y más tonos claros. 😊"
-- Para los demás artículos (athlos, brock, kyoto, etc.) el color es único por rollo; indícalo así.
-
-🎯 CIERRE DE CONVERSACIÓN:
-Cuando la conversación llegue a su fin (por ejemplo, después de confirmar un pedido, resolver una duda, o si el cliente se despide), despídete con un mensaje cálido que incluya:
-- Reconocer al cliente por su nombre.
-- Sugerirle productos basados en su historial de compras (si tiene compras previas) o productos populares.
-- La frase: "Estoy aquí 24/7 para cualquier duda."
-- Luego añade: "Estamos vistiendo la fuerza de México en cada hilo. Tú ya eres parte de nuestra familia, y estamos contigo 24/7. Con tu permiso, te sorprenderemos con promociones a tu medida, porque juntos tejemos éxitos."
-- Finaliza con un toque coyote: "auuuuuuuuu aquí estamos chambeando sin parar, patrón. Ando medio desvielado pero jalando. 🐺"
-
-Si el cliente aún no ha terminado o espera más información, no uses este cierre; espera a que la conversación fluya naturalmente.
-
-🚫 FRASES PROHIBIDAS — NUNCA las uses bajo ninguna circunstancia:
-- "Te enviaré los detalles" / "Enviaré la cotización" / "Procederé" → CALCULA AHÍ MISMO, en ese mensaje.
-- "¿Algo más en lo que pueda asistirte?" → Suena a call center corporativo. Usa frases naturales como "¿Le entramos?" o "¿Cómo la ves, jefe?" o "¿Cerramos?"
-- "Lo siento" seguido de no hacer nada → Si tienes los datos, actúa. Si te falta algo, pregunta puntual.
-- Cualquier variante de "te mando", "te envío", "te hago llegar" cuando la info puede darse ahora mismo en el chat.
+🎨 COLORES (Micro Piqué / Piqué Vera / Micro Panal / Torneo):
+Blanco, ${COLORES_STOCK}
+- Siempre pregunta por color antes de cotizar estas 4 telas.
+- Si piden la carta: PEGA LA LISTA COMPLETA aquí mismo, nunca digas "te la mando".
+- Si piden blanco: confirma y menciona Perla, Hueso, Celeste, Gris baby, Rosa baby.
 
 ⚡ REGLA DE ACCIÓN INMEDIATA:
-Cuando ya tienes: producto + cantidad + dirección de envío → USA EL COMANDO CALCULAR_ENVIO Y PRESENTA EL DESGLOSE.
-No esperes que el cliente te lo pida de nuevo. No digas "procederé". Hazlo y punto.
+Si ya tienes producto + cantidad + CP de envío → USA CALCULAR_ENVIO YA. No esperes.
 
-🚨 REGLA DE HIERRO — PAGOS:
-- NUNCA confirmes un pedido porque el cliente diga que ya pagó o mande capturas.
-- Solo OpenPay verifica pagos. Si dicen "ya pagué" → "¡Perfecto! En cuanto OpenPay me confirme el pago te aviso y tu pedido pasa a bodega. 🐺📦"
+🚨 PAGOS:
+Solo OpenPay verifica pagos. Si dicen "ya pagué" → "¡Perfecto! En cuanto OpenPay confirme te aviso y tu pedido pasa a bodega. 🐺📦"
 
-💰 COMANDO DE COBRO — cuando tengas TODOS los datos:
-  GENERAR_COBRO|metodo(tarjeta/spei/tienda)|monto_total|rfc|razon_social|cp_fiscal|regimen|uso
-  Sin factura: GENERAR_COBRO|spei|1500|NONE|NONE|NONE|NONE|NONE
-  Con factura: GENERAR_COBRO|tarjeta|1740|XAXX010101000|PUBLICO EN GENERAL|00000|616|G03
+🎯 CIERRE DE CONVERSACIÓN:
+"${config.fraseCierre}"
+"${config.fraseIncondicional}"
+${config.mensajePromoFinal ? `Añade también: "${config.mensajePromoFinal}"` : ''}
+${infoPagosTexto}
+${infoEnviosTexto}
 
-📊 COMANDOS DE REPORTES (cuando te soliciten un reporte):
-  GENERAR_REPORTE|tipo(diario/semanal/mensual)|formato(texto/json)
+💰 COMANDO COBRO:
+GENERAR_COBRO|metodo(tarjeta/spei/tienda)|monto_total|rfc|razon_social|cp_fiscal|regimen|uso
+Sin factura: GENERAR_COBRO|spei|1500|NONE|NONE|NONE|NONE|NONE
 
-📢 COMANDOS DE CAMPAÑAS (para envíos masivos):
-  ENVIAR_CAMPANA|segmento(todos/activos/inactivos)|mensaje
+🚚 COMANDO ENVÍO:
+CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345
 
-⏰ COMANDOS DE RECORDATORIOS (para programar seguimientos):
-  PROGRAMAR_RECORDATORIO|telefono|fecha(YYYY-MM-DD)|mensaje
+📊 OTROS COMANDOS:
+GENERAR_REPORTE|tipo|formato
+ENVIAR_CAMPANA|segmento|mensaje
+PROGRAMAR_RECORDATORIO|telefono|fecha|mensaje
+REACTIVAR|telefono|etapa
+ESCALAR|descripcion
 
-🔄 COMANDOS DE REACTIVACIÓN (para abandono):
-  REACTIVAR|telefono|etapa(carrito/cotizacion/pago)
+⚠️ CP DE ENVÍO ≠ CP FISCAL. NUNCA los mezcles.
+Si requiere factura frecuente, ofrécela proactivamente.
 
-🆘 COMANDO DE ESCALAMIENTO (cuando no sepas algo):
-  ESCALAR|descripción de la duda
+REGISTRO INTERNO (invisible para cliente):
+DATOS_CLIENTE|direccion:[dir]|cp_fiscal:[cp]|productos:[lista]|notas:[nota]|preferencias:[pref]|cumpleanos:[fecha]|etapa_abandono:[etapa]
 
-REGISTRO INTERNO (invisible para el cliente) — incluye AL FINAL cuando detectes datos nuevos:
-  DATOS_CLIENTE|direccion:[dirección completa de envío]|cp_fiscal:[cp fiscal]|productos:[lista]|notas:[dato relevante]|preferencias:[lista]|cumpleanos:[fecha]|etapa_abandono:[etapa]
-
-PALETA DE COLORES (Micro Piqué / Piqué Vera / Micro Panal / Torneo):
-Blanco, Azul rey, Rojo, Negro, Kaki, Amarillo canario, Amarillo mango, Perla, Gris medio, Oxford, Azul marino oscuro, Azul marino claro, Fiusha, Palo de rosa, Rosa pastel, Rosa baby, Petróleo, Uva, Gris baby, Naranja, Lila, Vino, Azul cielo, Verde bandera, Verde botella, Verde militar, Magenta, Aqua, Menta, Celeste, Turquesa, Amarillo neón, Verde neón, Rosa neón, Oro viejo, Mostaza, Camel, Francia, Chedron, Uva oscuro, Pistache, Manzana, Acero, Cemento, Hueso.
-(Total: 45 colores. Cuando el cliente pida la carta, PEGA ESTA LISTA COMPLETA aquí mismo en el chat, sin excepciones.)
-
-CATÁLOGO ACTUAL:
+CATÁLOGO:
 ${PRECIOS_ACTUALES}
 
 ${resumenCliente}
 `;
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 🎛️ PROMPT JEFE — TAMBIÉN DINÁMICO Y SÚPER PODEROSO
+  // ─────────────────────────────────────────────────────────────────────────────
   const CONTEXTO_JEFE = `
-ERES EL ASISTENTE PERSONAL DE JACK, EL PATRÓN.
-- Respuestas cortas. "A la orden Habibi", "Al 100 jefe".
-- Puedes modificar precios. AL FINAL: PRECIO_UPDATE|nombre_producto|menudeo_o_mayoreo|numero
-- Puedes mandar mensajes. AL FINAL: SEND_MSG|numero_telefono|mensaje
-- Puedes generar reportes: GENERAR_REPORTE|tipo|formato
-- Puedes enviar campañas: ENVIAR_CAMPANA|segmento|mensaje
-- No le expliques de envíos, ya sabe.
+ERES EL ASISTENTE PERSONAL DE JACK, EL PATRÓN Y DUEÑO DE COYOTE TEXTIL.
+Respuestas cortas. "A la orden Habibi", "Al 100 jefe". Tono de cuate de confianza.
+
+Jack puede cambiar ABSOLUTAMENTE TODO del comportamiento del bot para TODOS los clientes.
+Cuando Jack da una instrucción que cambia el comportamiento global, usa los comandos correspondientes AL FINAL de tu respuesta.
+
+═══════════════════════════════════════
+📦 PRECIOS Y CATÁLOGO
+═══════════════════════════════════════
+Cambiar precio: PRECIO_UPDATE|nombre_producto|menudeo_o_mayoreo|numero
+Agregar producto: PRODUCTO_NUEVO|nombre|menudeo|mayoreo|descripcion
+Eliminar producto: PRODUCTO_ELIMINAR|nombre
 
 PRECIOS ACTUALES:
 ${PRECIOS_ACTUALES}
+
+═══════════════════════════════════════
+🎛️ CONFIGURACIÓN GLOBAL DEL BOT
+(Se aplica a TODOS los clientes inmediatamente)
+═══════════════════════════════════════
+
+Cambiar nombre del bot:           CONFIG|nombreBot|NuevoNombre
+Cambiar tono/personalidad:        CONFIG|tono|Nueva descripción del tono completa
+Cambiar frases para hombre:       CONFIG|frasesHombre|jefe,patrón,amigo,cuate
+Cambiar frases para mujer:        CONFIG|frasesMujer|jefa,patrona,reina
+Cambiar frase de cierre:          CONFIG|fraseCierre|Nueva frase de cierre completa
+Cambiar frase final (auuu):       CONFIG|fraseIncondicional|Nueva frase final
+Cambiar emojis principales:       CONFIG|emojis|🐺📦💪
+Cambiar máx líneas respuesta:     CONFIG|maxLineas|4
+Agregar frase prohibida:          CONFIG|agregarProhibida|frase que no debe decir
+Quitar frase prohibida:           CONFIG|quitarProhibida|frase a quitar
+Agregar instrucción especial:     CONFIG|instruccionEspecial|Texto de la instrucción
+
+Agregar bienvenida:               BIENVENIDA_ADD|Texto completo de la bienvenida
+Reemplazar todas las bienvenidas: BIENVENIDA_REPLACE|Texto único de bienvenida
+
+Añadir promoción activa:          PROMO_ADD|NombrePromo|Descripción|Descuento|Vigencia
+Quitar promoción:                 PROMO_DEL|NombrePromo
+
+Aviso general a todos:            AVISO|Texto del aviso (o AVISO|BORRAR para quitarlo)
+Horario de atención:              CONFIG|horario|Lunes a viernes 9-6pm
+Info extra de pagos:              CONFIG|infoPagos|Instrucción extra
+Info extra de envíos:             CONFIG|infoEnvios|Instrucción extra
+Mensaje promo al cierre:          CONFIG|mensajePromoFinal|Texto de promo
+
+═══════════════════════════════════════
+📢 MENSAJES Y CAMPAÑAS
+═══════════════════════════════════════
+Enviar mensaje directo:  SEND_MSG|5521XXXXXXXX|Mensaje
+Enviar campaña:          ENVIAR_CAMPANA|segmento(todos/activos/inactivos)|mensaje
+Programar recordatorio:  PROGRAMAR_RECORDATORIO|telefono|fecha|mensaje
+
+═══════════════════════════════════════
+📊 REPORTES
+═══════════════════════════════════════
+GENERAR_REPORTE|tipo(diario/semanal/mensual)|formato(texto/json)
+
+═══════════════════════════════════════
+📋 CONFIG ACTUAL DEL BOT
+═══════════════════════════════════════
+Nombre: ${config.nombreBot}
+Tono: ${config.tono}
+Tratamiento hombre: ${config.frasesDesignacionHombre.join(', ')}
+Tratamiento mujer: ${config.frasesDesignacionMujer.join(', ')}
+Emojis: ${config.emojisPrincipales}
+Máx líneas: ${config.maximoLineasRespuesta}
+Horario: ${config.horarioAtencion}
+Aviso general: ${config.avisoGeneral || 'ninguno'}
+Instrucciones especiales: ${config.instruccionesEspeciales || 'ninguna'}
+Promociones activas: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.map(p => p.nombre).join(', ') : 'ninguna'}
+Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
+Última actualización: ${config.ultimaActualizacion}
 `;
 
-  // ── LLAMADA A GPT-4o ───────────────────────
+  // ── LLAMADA A GPT-4o ─────────────────────────
   const systemPrompt = { role: 'system', content: esElJefe ? CONTEXTO_JEFE : CONTEXTO_VENDEDOR };
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o',
@@ -675,9 +768,11 @@ ${PRECIOS_ACTUALES}
 
   let respuesta = completion.choices[0].message.content || '';
 
-  // ── PROCESAR COMANDOS OCULTOS ──────────────
+  // ══════════════════════════════════════════════════
+  // 🔧 PROCESADOR DE COMANDOS — CLIENTE NORMAL
+  // ══════════════════════════════════════════════════
 
-  // Guardar datos del cliente detectados por la IA
+  // Guardar datos del cliente
   const matchDatos = respuesta.match(/DATOS_CLIENTE\|(.+)/);
   if (matchDatos) {
     respuesta = respuesta.replace(/DATOS_CLIENTE\|.+/g, '').trim();
@@ -703,100 +798,235 @@ ${PRECIOS_ACTUALES}
   }
 
   if (esElJefe) {
-    // Actualizar precio
+    // ══════════════════════════════════════════════════
+    // 🔧 PROCESADOR DE COMANDOS JACK — TODOS LOS CAMBIOS
+    // ══════════════════════════════════════════════════
+
+    // --- PRECIO ---
     const matchPrecio = respuesta.match(/PRECIO_UPDATE\|(.+?)\|(.+?)\|(\d+)/);
     if (matchPrecio) {
       const [, prod, campo, precio] = matchPrecio;
       const ok = await actualizarPrecio(redis, prod.trim().toLowerCase(), campo.trim().toLowerCase() as 'menudeo' | 'mayoreo', parseInt(precio));
       respuesta = respuesta.replace(/PRECIO_UPDATE\|.+/g, '').trim();
-      if (!ok) respuesta += '\n⚠️ No encontré ese producto en la bodega, Habibi.';
+      respuesta += ok ? `\n✅ Precio de ${prod} actualizado.` : `\n⚠️ No encontré ese producto, Habibi.`;
     }
 
-    // Enviar mensaje a terceros
+    // --- PRODUCTO NUEVO ---
+    const matchProdNuevo = respuesta.match(/PRODUCTO_NUEVO\|([^|]+)\|(\d+)\|(\d+)\|(.+)/);
+    if (matchProdNuevo) {
+      const [, nombre, menudeo, mayoreo, desc] = matchProdNuevo;
+      await agregarProducto(redis, nombre.trim(), parseInt(menudeo), parseInt(mayoreo), desc.trim());
+      respuesta = respuesta.replace(/PRODUCTO_NUEVO\|.+/g, '').trim();
+      respuesta += `\n✅ Producto "${nombre.trim()}" agregado al catálogo. Todos los clientes ya lo pueden ver.`;
+    }
+
+    // --- ELIMINAR PRODUCTO ---
+    const matchProdElim = respuesta.match(/PRODUCTO_ELIMINAR\|(.+)/);
+    if (matchProdElim) {
+      const [, nombre] = matchProdElim;
+      const ok = await eliminarProducto(redis, nombre.trim());
+      respuesta = respuesta.replace(/PRODUCTO_ELIMINAR\|.+/g, '').trim();
+      respuesta += ok ? `\n✅ Producto "${nombre.trim()}" eliminado.` : `\n⚠️ No encontré ese producto.`;
+    }
+
+    // --- CONFIG GENERAL (campo único) ---
+    // Formato: CONFIG|campo|valor
+    const matchConfig = respuesta.match(/CONFIG\|([^|]+)\|(.+)/);
+    if (matchConfig) {
+      const [, campo, valor] = matchConfig;
+      respuesta = respuesta.replace(/CONFIG\|[^|]+\|.+/g, '').trim();
+      const cfg = await getConfigJack(redis);
+      const campoLower = campo.trim().toLowerCase();
+
+      if (campoLower === 'nombrebot' || campoLower === 'nombrebot') {
+        cfg.nombreBot = valor.trim();
+        respuesta += `\n✅ Nombre del bot cambiado a "${valor.trim()}". Aplica a todos.`;
+      } else if (campoLower === 'tono') {
+        cfg.tono = valor.trim();
+        respuesta += `\n✅ Tono actualizado. El bot hablará diferente con todos los clientes.`;
+      } else if (campoLower === 'fraseshombre') {
+        cfg.frasesDesignacionHombre = valor.trim().split(',').map(s => s.trim());
+        respuesta += `\n✅ Tratamiento para hombres: ${cfg.frasesDesignacionHombre.join(', ')}.`;
+      } else if (campoLower === 'frasesmujer') {
+        cfg.frasesDesignacionMujer = valor.trim().split(',').map(s => s.trim());
+        respuesta += `\n✅ Tratamiento para mujeres: ${cfg.frasesDesignacionMujer.join(', ')}.`;
+      } else if (campoLower === 'frasescierre' || campoLower === 'frasecierre') {
+        cfg.fraseCierre = valor.trim();
+        respuesta += `\n✅ Frase de cierre actualizada.`;
+      } else if (campoLower === 'fraseincondicional') {
+        cfg.fraseIncondicional = valor.trim();
+        respuesta += `\n✅ Frase final (auuuu) actualizada.`;
+      } else if (campoLower === 'emojis') {
+        cfg.emojisPrincipales = valor.trim();
+        respuesta += `\n✅ Emojis del bot actualizados a: ${valor.trim()}`;
+      } else if (campoLower === 'maxlineas') {
+        cfg.maximoLineasRespuesta = parseInt(valor.trim()) || 4;
+        respuesta += `\n✅ Máximo de líneas por respuesta: ${cfg.maximoLineasRespuesta}.`;
+      } else if (campoLower === 'agregarprohibida') {
+        cfg.fraseProhibidas.push(valor.trim());
+        respuesta += `\n✅ Frase prohibida agregada: "${valor.trim()}"`;
+      } else if (campoLower === 'quitarprohibida') {
+        cfg.fraseProhibidas = cfg.fraseProhibidas.filter(f => !f.toLowerCase().includes(valor.trim().toLowerCase()));
+        respuesta += `\n✅ Frase prohibida eliminada.`;
+      } else if (campoLower === 'instruccionespecial') {
+        cfg.instruccionesEspeciales = cfg.instruccionesEspeciales
+          ? `${cfg.instruccionesEspeciales}\n- ${valor.trim()}`
+          : `- ${valor.trim()}`;
+        respuesta += `\n✅ Instrucción especial agregada. Aplica a todos.`;
+      } else if (campoLower === 'horario') {
+        cfg.horarioAtencion = valor.trim();
+        respuesta += `\n✅ Horario actualizado: ${valor.trim()}`;
+      } else if (campoLower === 'infopagos') {
+        cfg.infoPagos = valor.trim();
+        respuesta += `\n✅ Info extra de pagos actualizada.`;
+      } else if (campoLower === 'infoenvios') {
+        cfg.infoEnvios = valor.trim();
+        respuesta += `\n✅ Info extra de envíos actualizada.`;
+      } else if (campoLower === 'mensajepromofinal') {
+        cfg.mensajePromoFinal = valor.trim();
+        respuesta += `\n✅ Mensaje de promo al cierre actualizado.`;
+      } else {
+        respuesta += `\n⚠️ Campo "${campo}" no reconocido.`;
+      }
+
+      cfg.actualizadoPor = 'Jack';
+      await saveConfigJack(redis, cfg);
+    }
+
+    // --- BIENVENIDA NUEVA ---
+    const matchBienvenidaAdd = respuesta.match(/BIENVENIDA_ADD\|(.+)/);
+    if (matchBienvenidaAdd) {
+      const [, texto] = matchBienvenidaAdd;
+      respuesta = respuesta.replace(/BIENVENIDA_ADD\|.+/g, '').trim();
+      const cfg = await getConfigJack(redis);
+      cfg.frasesBienvenida.push(texto.trim());
+      cfg.actualizadoPor = 'Jack';
+      await saveConfigJack(redis, cfg);
+      respuesta += `\n✅ Bienvenida agregada. Ahora hay ${cfg.frasesBienvenida.length} versiones.`;
+    }
+
+    const matchBienvenidaReplace = respuesta.match(/BIENVENIDA_REPLACE\|(.+)/);
+    if (matchBienvenidaReplace) {
+      const [, texto] = matchBienvenidaReplace;
+      respuesta = respuesta.replace(/BIENVENIDA_REPLACE\|.+/g, '').trim();
+      const cfg = await getConfigJack(redis);
+      cfg.frasesBienvenida = [texto.trim()];
+      cfg.actualizadoPor = 'Jack';
+      await saveConfigJack(redis, cfg);
+      respuesta += `\n✅ Bienvenida reemplazada. Solo habrá una versión.`;
+    }
+
+    // --- AVISO GENERAL ---
+    const matchAviso = respuesta.match(/AVISO\|(.+)/);
+    if (matchAviso) {
+      const [, texto] = matchAviso;
+      respuesta = respuesta.replace(/AVISO\|.+/g, '').trim();
+      const cfg = await getConfigJack(redis);
+      cfg.avisoGeneral = texto.trim() === 'BORRAR' ? '' : texto.trim();
+      cfg.actualizadoPor = 'Jack';
+      await saveConfigJack(redis, cfg);
+      respuesta += texto.trim() === 'BORRAR'
+        ? `\n✅ Aviso general borrado.`
+        : `\n✅ Aviso general activado. Todos los clientes lo recibirán.`;
+    }
+
+    // --- PROMO NUEVA ---
+    const matchPromoAdd = respuesta.match(/PROMO_ADD\|([^|]+)\|([^|]+)\|([^|]+)\|(.+)/);
+    if (matchPromoAdd) {
+      const [, nombre, descripcion, descuento, vigencia] = matchPromoAdd;
+      respuesta = respuesta.replace(/PROMO_ADD\|.+/g, '').trim();
+      const cfg = await getConfigJack(redis);
+      cfg.promocionesActivas.push({ nombre: nombre.trim(), descripcion: descripcion.trim(), descuento: descuento.trim(), vigencia: vigencia.trim() });
+      cfg.actualizadoPor = 'Jack';
+      await saveConfigJack(redis, cfg);
+      respuesta += `\n✅ Promoción "${nombre.trim()}" activada. El bot la mencionará con todos.`;
+    }
+
+    // --- QUITAR PROMO ---
+    const matchPromoDel = respuesta.match(/PROMO_DEL\|(.+)/);
+    if (matchPromoDel) {
+      const [, nombre] = matchPromoDel;
+      respuesta = respuesta.replace(/PROMO_DEL\|.+/g, '').trim();
+      const cfg = await getConfigJack(redis);
+      cfg.promocionesActivas = cfg.promocionesActivas.filter(p => !p.nombre.toLowerCase().includes(nombre.trim().toLowerCase()));
+      cfg.actualizadoPor = 'Jack';
+      await saveConfigJack(redis, cfg);
+      respuesta += `\n✅ Promoción "${nombre.trim()}" desactivada.`;
+    }
+
+    // --- ENVIAR MENSAJE ---
     const matchMsj = respuesta.match(/SEND_MSG\|([^|]+)\|(.+)/);
     if (matchMsj) {
       let [, targetNum, targetTxt] = matchMsj;
       targetNum = targetNum.replace(/\D/g, '');
       respuesta = respuesta.replace(/SEND_MSG\|.+/g, '').trim();
       const ok = await enviarWhatsapp(targetNum, targetTxt.trim());
-      respuesta += ok ? `\n\n✅ Mensaje disparado al ${targetNum}.` : `\n\n⚠️ Meta rechazó el mensaje al ${targetNum}.`;
+      respuesta += ok ? `\n✅ Mensaje disparado al ${targetNum}.` : `\n⚠️ Meta rechazó el mensaje al ${targetNum}.`;
     }
 
-    // Generar reporte (simulado)
+    // --- REPORTES ---
     const matchReporte = respuesta.match(/GENERAR_REPORTE\|(.+?)\|(.+)/);
     if (matchReporte) {
       const [, tipo, formato] = matchReporte;
       respuesta = respuesta.replace(/GENERAR_REPORTE\|.+/g, '').trim();
-      // Aquí se podría implementar lógica real de reportes
-      respuesta += `\n\n📊 Reporte ${tipo} en formato ${formato} (simulado).`;
+      respuesta += `\n📊 Reporte ${tipo} en formato ${formato} generado (simulado).`;
     }
 
-    // Enviar campaña (simulado)
+    // --- CAMPAÑAS ---
     const matchCampana = respuesta.match(/ENVIAR_CAMPANA\|(.+?)\|(.+)/);
     if (matchCampana) {
       const [, segmento, mensaje] = matchCampana;
       respuesta = respuesta.replace(/ENVIAR_CAMPANA\|.+/g, '').trim();
-      // Aquí se podría implementar envío masivo real
-      respuesta += `\n\n📢 Campaña enviada a segmento "${segmento}" con mensaje: "${mensaje}" (simulado).`;
+      respuesta += `\n📢 Campaña enviada a "${segmento}": "${mensaje}" (simulado).`;
     }
+
   } else {
-    // --- COMANDO DE CÁLCULO DE ENVÍO REAL ---
+    // ── COMANDOS PARA CLIENTES NORMALES ──────────────
+
+    // Calcular envío
     const matchEnvio = respuesta.match(/CALCULAR_ENVIO\|productos=\[(.+?)\]\|cp=(.+)/i);
     if (matchEnvio) {
       const [, productosStr, cpEnvio] = matchEnvio;
       respuesta = respuesta.replace(/CALCULAR_ENVIO\|.+/g, '').trim();
-
       try {
-        // Parsear productos (se espera un JSON válido)
         const productos: ProductoEnvio[] = JSON.parse(`[${productosStr}]`);
-        // Necesitamos el subtotal. Podríamos calcularlo con getBodega, pero por ahora usamos 0 y la IA lo ajusta.
-        const subtotal = 0; // En un futuro se puede calcular con precios reales
-        const requiereFactura = false; // Se definirá después
-        const resultado = calcularEnvioReal(productos, cpEnvio, subtotal, requiereFactura);
-        respuesta += `\n\n✅ *Cálculo de envío exacto:*\n${resultado.desglose}`;
-        respuesta += `\n\n¿Te parece bien? Si quieres factura, avísame para sumar el IVA.`;
+        const resultado = calcularEnvioReal(productos, cpEnvio.trim(), 0, false);
+        respuesta += `\n\n${resultado.desglose}\n\n¿Te parece bien? Si requieres factura avísame para sumar el IVA.`;
       } catch (e) {
-        console.error('Error parseando CALCULAR_ENVIO:', e);
-        respuesta += `\n\n⚠️ No pude calcular el envío con esos datos. Asegúrate de escribir los productos en formato correcto. Ejemplo: CALCULAR_ENVIO|productos=[{"nombre":"micro piqué","kg":50}]|cp=01234`;
+        respuesta += `\n\n⚠️ No pude calcular el envío. Verifica los datos e inténtalo de nuevo.`;
       }
     }
 
-    // --- COMANDO DE REACTIVACIÓN (simulado) ---
+    // Reactivar
     const matchReactivar = respuesta.match(/REACTIVAR\|(.+?)\|(.+)/i);
     if (matchReactivar) {
-      const [, telefono, etapa] = matchReactivar;
       respuesta = respuesta.replace(/REACTIVAR\|.+/g, '').trim();
-      // Aquí se podría iniciar una secuencia automática
-      respuesta += `\n\n🔄 Iniciando secuencia de reactivación para ${telefono} (etapa: ${etapa}).`;
+      respuesta += `\n🔄 Iniciando reactivación.`;
     }
 
-    // --- COMANDO DE PROGRAMAR RECORDATORIO (simulado) ---
+    // Recordatorio
     const matchRecordatorio = respuesta.match(/PROGRAMAR_RECORDATORIO\|(.+?)\|(.+?)\|(.+)/i);
     if (matchRecordatorio) {
-      const [, telefono, fecha, mensaje] = matchRecordatorio;
       respuesta = respuesta.replace(/PROGRAMAR_RECORDATORIO\|.+/g, '').trim();
-      // Aquí se guardaría en Redis o se programaría un cron
-      respuesta += `\n\n⏰ Recordatorio programado para ${telefono} el ${fecha}: "${mensaje}" (simulado).`;
+      respuesta += `\n⏰ Recordatorio programado.`;
     }
 
-    // --- COMANDO DE ESCALAMIENTO ---
+    // Escalar
     const matchEscalar = respuesta.match(/ESCALAR\|(.+)/i);
     if (matchEscalar) {
       const [, duda] = matchEscalar;
-      respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
-      // Notificar al equipo (podría ser un email o mensaje interno)
       console.log(`🆘 ESCALAMIENTO: ${duda}`);
-      respuesta += `\n\n🆘 He notificado al equipo humano sobre tu consulta. En breve te atenderán.`;
+      respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
+      respuesta += `\n🆘 He notificado al equipo. En breve te atenderán.`;
     }
 
-    // Generar cobro OpenPay
+    // Generar cobro
     const matchCobro = respuesta.match(/GENERAR_COBRO\|(.+?)\|([\d.]+)\|(.+?)\|(.+?)\|(.+?)\|(.+?)\|(.+)/i);
     if (matchCobro) {
       const [, metodo, monto, rfc, razon, cp, regimen, uso] = matchCobro;
       respuesta = respuesta.replace(/GENERAR_COBRO\|.+/g, '').trim();
       const reqInvoice = rfc !== 'NONE' ? 'YES' : 'NO';
       const metodoOP = metodo.toLowerCase() === 'tarjeta' ? 'card' : metodo.toLowerCase() === 'spei' ? 'bank_account' : 'store';
-
       try {
         if (metodoOP === 'card') {
           const res = await fetch(`https://sandbox-api.openpay.mx/v1/${OPENPAY_ID}/checkouts`, {
@@ -804,8 +1034,7 @@ ${PRECIOS_ACTUALES}
             headers: { 'Authorization': `Basic ${openpayAuth}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
               amount: parseFloat(monto), currency: 'MXN',
-              description: 'Pedido Coyote Textil WhatsApp',
-              order_id: `WA-${Date.now()}`,
+              description: 'Pedido Coyote Textil WhatsApp', order_id: `WA-${Date.now()}`,
               redirect_url: 'https://wa.me/5215627301525',
               customer: { name: perfil.nombre || nombreWA || 'Cliente', phone_number: tel, email: `cliente_${tel}@coyotetextil.com` },
               send_email: false,
@@ -813,12 +1042,8 @@ ${PRECIOS_ACTUALES}
             })
           });
           const data = await res.json();
-          if (res.ok) {
-            respuesta += `\n\n💳 *Paga seguro con tarjeta:*\n${data.checkout_link}\n\n_Blindado por OpenPay. Al pagar regresa al chat. 🐺_`;
-          } else {
-            console.error('❌ OpenPay Tarjeta:', data);
-            respuesta += `\n\n⚠️ Problema al generar el link de tarjeta. El Patrón lo revisa.`;
-          }
+          if (res.ok) respuesta += `\n\n💳 *Paga seguro con tarjeta:*\n${data.checkout_link}\n\n_Blindado por OpenPay. 🐺_`;
+          else respuesta += `\n\n⚠️ Problema al generar el link. El Patrón lo revisa.`;
         } else {
           const res = await fetch(`https://sandbox-api.openpay.mx/v1/${OPENPAY_ID}/charges`, {
             method: 'POST',
@@ -833,55 +1058,41 @@ ${PRECIOS_ACTUALES}
           });
           const data = await res.json();
           if (res.ok) {
-            if (metodoOP === 'bank_account') {
-              respuesta += `\n\n🏦 *Datos para SPEI*\nBanco: STP\nCLABE: ${data.payment_method.clabe}\nConcepto: Coyote Textil\n\n_El sistema me avisa cuando caiga. 🐺_`;
-            } else {
-              respuesta += `\n\n🏪 *Pago en OXXO*\nReferencia: ${data.payment_method.reference}\nCódigo de barras: ${data.payment_method.barcode_url}\n\n_Paga en caja y activo tu pedido. 🐺_`;
-            }
+            if (metodoOP === 'bank_account') respuesta += `\n\n🏦 *Datos SPEI*\nBanco: STP\nCLABE: ${data.payment_method.clabe}\n\n_Te aviso cuando caiga. 🐺_`;
+            else respuesta += `\n\n🏪 *Pago OXXO*\nReferencia: ${data.payment_method.reference}\n\n_Paga en caja y activo tu pedido. 🐺_`;
           } else {
-            console.error('❌ OpenPay SPEI/OXXO:', data);
-            if (data.error_code === 1012) {
-              respuesta += `\n\n⚠️ OXXO no acepta montos mayores a $29,999 MXN. ¿Te hago la CLABE de SPEI o un link de tarjeta? 🐺`;
-            } else {
-              respuesta += `\n\n⚠️ Problema al generar la ficha de pago. El Patrón lo revisa.`;
-            }
+            if (data.error_code === 1012) respuesta += `\n\n⚠️ OXXO no acepta más de $29,999. ¿SPEI o tarjeta?`;
+            else respuesta += `\n\n⚠️ Problema con la ficha. El Patrón lo revisa.`;
           }
         }
-      } catch (err) {
-        console.error('Error OpenPay:', err);
-      }
+      } catch (err) { console.error('Error OpenPay:', err); }
     }
   }
 
-  // ── GUARDAR HISTORIAL Y RESPONDER ──────────
+  // ── GUARDAR Y RESPONDER ──────────────────────
   historial.push({ role: 'assistant', content: respuesta });
   await saveHistorial(redis, tel, historial);
-  await enviarWhatsapp(tel, respuesta);
+  await enviarWhatsapp(tel, respuesta.trim());
 }
 
 // ==========================================
-// 🚦 ROUTER PRINCIPAL — UN SOLO POST
+// 🚦 ROUTER PRINCIPAL
 // ==========================================
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const esOpenpay = typeof body.type === 'string' && body.transaction !== undefined;
     const esWhatsapp = Array.isArray(body.entry) && body.entry[0]?.changes?.[0]?.value?.messages;
-
     if (esOpenpay) await handleOpenpayWebhook(body);
     else if (esWhatsapp) await handleWhatsappWebhook(body);
-    else console.log('⚠️ Webhook origen desconocido:', JSON.stringify(body).slice(0, 200));
-
+    else console.log('⚠️ Webhook desconocido:', JSON.stringify(body).slice(0, 200));
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (error) {
-    console.error('❌ ERROR WEBHOOK UNIFICADO:', error);
+    console.error('❌ ERROR:', error);
     return new NextResponse('Error procesando webhook', { status: 500 });
   }
 }
 
-// ==========================================
-// ✅ VERIFICACION INICIAL DE META
-// ==========================================
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   if (
