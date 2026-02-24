@@ -13,7 +13,7 @@ import { signIn, useSession } from "next-auth/react";
 
 type AuthState = 'login' | 'register' | 'forgot' | 'verify' | 'upsell';
 
-// 1. Movemos la lógica principal a un componente interno
+// 1. Lógica principal del componente
 function AccountContent() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -76,9 +76,37 @@ function AccountContent() {
         router.push('/perfil');
       } 
       else if (authMode === 'register') {
-        await new Promise(r => setTimeout(r, 1800)); 
-        setSuccessMsg(`Código enviado a ${formData.email}`);
-        setAuthMode('verify'); 
+        // 🔥 LÓGICA DE REGISTRO REAL A PRISMA
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            password: formData.password
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.message || "Error al crear la cuenta");
+        }
+
+        // Si se registró bien, lo logueamos automáticamente
+        const loginResult = await signIn("credentials", {
+          redirect: false,
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (loginResult?.error) {
+           throw new Error("Cuenta creada, pero hubo un error al auto-loguear.");
+        }
+
+        // Saltamos directo al Upsell (venta de membresía)
+        setSuccessMsg("¡Cuenta creada exitosamente!");
+        setAuthMode('upsell'); 
       }
       else if (authMode === 'forgot') {
         await new Promise(r => setTimeout(r, 1800));
@@ -86,6 +114,7 @@ function AccountContent() {
         setTimeout(() => setAuthMode('login'), 3500);
       }
       else if (authMode === 'verify') {
+        // Esta vista se queda por si luego implementas validación OTP por email
         await new Promise(r => setTimeout(r, 1800));
         setAuthMode('upsell'); 
       }
@@ -293,6 +322,9 @@ function AccountContent() {
                     </h1>
                     <motion.div variants={lineVars} className="h-[4px] bg-[#FDCB02] mt-4" />
                 </motion.div>
+
+                {error && <motion.div variants={formItemVars} className="mb-8 p-4 bg-red-950/30 border border-red-500/50 text-red-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-3"><AlertCircle size={16} strokeWidth={2}/> {error}</motion.div>}
+
                 <form onSubmit={handleSubmit} className="space-y-8">
                   <motion.div variants={formItemVars}>
                     <label className="block text-[11px] font-black uppercase tracking-widest text-neutral-500 mb-2">Razón Social o Nombre completo</label>
