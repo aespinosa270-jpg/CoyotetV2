@@ -1,15 +1,15 @@
-// src/app/checkout/page.tsx
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react'; // 🔥 Inyectamos la sesión para leer la membresía
 import { useCart } from '@/lib/context/cart-context';
 import { 
   ShieldCheck, Lock, CreditCard, User, MapPin, 
   Phone, Mail, ArrowLeft, ShoppingBag, Truck, Package, 
-  Landmark, Store, Banknote, Info, FileText, CheckCircle2, Factory, Map, ChevronRight, Loader2
+  Landmark, Store, Banknote, Info, FileText, CheckCircle2, Factory, Map, ChevronRight, Loader2, Crown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -36,7 +36,11 @@ const MAX_ROLLS_PER_VEHICLE = 80;
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, clearCart } = useCart();
+  const { data: session } = useSession(); // 🔥 Leemos al usuario
   
+  // Extraemos el nivel de membresía
+  const role = (session?.user as any)?.membershipTier || 'NONE';
+
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState(1); 
   
@@ -70,7 +74,6 @@ export default function CheckoutPage() {
     holder: '', number: '', expYear: '', expMonth: '', cvv: '' 
   });
 
-  // 🔥 CONFIGURACIÓN SEGURA DE OPENPAY (REINTENTOS AUTOMÁTICOS) 🔥
   const setupOpenPay = () => {
     if (typeof window !== 'undefined' && window.OpenPay && window.OpenPay.deviceData) {
       try {
@@ -79,7 +82,6 @@ export default function CheckoutPage() {
         window.OpenPay.setSandboxMode(process.env.NODE_ENV !== 'production');
         setDeviceSessionId(window.OpenPay.deviceData.setup());
         setIsSdkReady(true);
-        console.log("✅ SDK de OpenPay cargado y asegurado.");
       } catch (error) { 
         console.error("Error OpenPay:", error); 
       }
@@ -88,7 +90,6 @@ export default function CheckoutPage() {
     }
   };
 
-  // 🔥 INYECCIÓN DOM NATIVA (ADIÓS ERRORES DE CARRERA) 🔥
   useEffect(() => { 
     setMounted(true); 
 
@@ -156,7 +157,8 @@ export default function CheckoutPage() {
     return { type: 'SKYDROPX_NACIONAL', distance: 0 };
   };
 
-  const { freightCost, shippingCost, vehiclesNeeded, serviceFee, taxIVA, total, totalWeight, totalRolls } = useMemo(() => {
+  // 🔥 CEREBRO LOGÍSTICO Y FINANCIERO (CON BENEFICIOS ELITE)
+  const { freightCost, shippingCost, originalShippingCost, isFreeShipping, vehiclesNeeded, serviceFee, taxIVA, total, totalWeight, totalRolls } = useMemo(() => {
     let rollCount = 0;
     let weight = 0;
 
@@ -182,7 +184,7 @@ export default function CheckoutPage() {
         else flete = 1000;
     }
 
-    let envio = 0;
+    let originalEnvio = 0;
     let requiredVehicles = 1;
 
     if (selectedLogistics === 'coyote') {
@@ -191,10 +193,14 @@ export default function CheckoutPage() {
         const litersNeededPerVehicle = (totalDistanceRoundTrip / 100) * LITERS_PER_100KM;
         const fuelCostPerVehicle = litersNeededPerVehicle * DIESEL_PRICE_PER_LITER;
         const costPerVehicle = fuelCostPerVehicle * OPERATIONAL_MARKUP;
-        envio = costPerVehicle * requiredVehicles;
+        originalEnvio = costPerVehicle * requiredVehicles;
     } else {
-        envio = skydropxRate;
+        originalEnvio = skydropxRate;
     }
+
+    // 🔥 APLICACIÓN DE BENEFICIO ELITE (ENVÍO GRATIS)
+    const isFreeShipping = role === 'ELITE';
+    const envio = isFreeShipping ? 0 : originalEnvio;
 
     const fee = FIXED_SERVICE_FEE; 
     const baseTotal = subtotal + flete + envio + fee;
@@ -203,6 +209,8 @@ export default function CheckoutPage() {
     return {
         freightCost: flete,
         shippingCost: envio,
+        originalShippingCost: originalEnvio, // Guardamos el costo real para tacharlo en la UI
+        isFreeShipping,
         vehiclesNeeded: requiredVehicles,
         serviceFee: fee,
         taxIVA: iva,
@@ -210,7 +218,7 @@ export default function CheckoutPage() {
         totalWeight: weight,
         totalRolls: rollCount
     };
-  }, [items, subtotal, wantsInvoice, selectedLogistics, coyoteDistanceKm, skydropxRate]); 
+  }, [items, subtotal, wantsInvoice, selectedLogistics, coyoteDistanceKm, skydropxRate, role]); 
 
   const handleTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -278,7 +286,6 @@ export default function CheckoutPage() {
     }
   };
 
-  // 🔥 AQUÍ ESTÁ LA CORRECCIÓN CLAVE 🔥
   const validateStep1 = async () => {
     if (!customerData.name || !customerData.email || !customerData.street || !customerData.state || !customerData.city || !customerData.neighborhood || customerData.zip.length < 5) {
       alert("Por favor completa todos los campos de dirección. SkydropX los requiere exactos para cotizar.");
@@ -288,7 +295,6 @@ export default function CheckoutPage() {
     setIsQuoting(true); 
     
     try {
-        // 1. SIEMPRE le pegamos a SkydropX, sin importar si es CDMX o foráneo
         const res = await fetch('/api/shipping/quote', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -302,24 +308,20 @@ export default function CheckoutPage() {
         });
         const data = await res.json();
         
-        // Guardamos los datos de SkydropX si la cotización fue exitosa
         if (data.success && data.bestQuote && data.bestQuote.amount > 0) {
             setSkydropxRate(data.bestQuote.amount);
             setSkydropxCarrier(data.bestQuote.carrier);
             setSkydropxDays(data.bestQuote.days);
         }
 
-        // 2. Ahora evaluamos la lógica local o foránea para decidir qué mostrar
         const logistics = getLogisticsInfo(customerData.zip);
         
         if (logistics.type === 'COYOTE_LOCAL') {
-            // Es local: Ponemos Coyote por defecto, pero SkydropX ya tiene su precio real guardado
             setCoyoteDistanceKm(logistics.distance);
             setSelectedLogistics('coyote');
             setIsLocalZone(true); 
             setStep(2);
         } else {
-            // Es foráneo: Bloqueamos si SkydropX falló
             if (!data.success || !data.bestQuote || data.bestQuote.amount === 0) {
                 alert(`SkydropX no devolvió un costo válido para tu zona. (${data.error || '0 pesos'})`);
                 setIsQuoting(false);
@@ -510,9 +512,18 @@ export default function CheckoutPage() {
                               </div>
                             </div>
                             <div className="w-px h-12 bg-neutral-100 hidden md:block"></div>
+                            
+                            {/* 🔥 MOSTRANDO EL BENEFICIO ELITE (FLOTILLA) */}
                             <div className="flex-1 text-right">
                                 <span className="block text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-1">Inversión Logística</span>
-                                <span className="text-2xl font-[1000] text-black tracking-tighter">${shippingCost.toLocaleString()}</span>
+                                {isFreeShipping ? (
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-sm line-through text-neutral-400 font-bold">${originalShippingCost.toLocaleString()}</span>
+                                        <span className="text-green-600 font-[1000] text-xl flex items-center gap-1"><Crown size={16}/> GRATIS</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-2xl font-[1000] text-black tracking-tighter">${shippingCost.toLocaleString()}</span>
+                                )}
                             </div>
                           </div>
                           
@@ -540,9 +551,18 @@ export default function CheckoutPage() {
                               <p className="text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-1">Peso Bruto</p>
                               <p className="text-lg font-bold text-black">{totalWeight} <span className="text-sm text-neutral-400">KG</span></p>
                             </div>
+
+                            {/* 🔥 MOSTRANDO EL BENEFICIO ELITE (SKYDROPX) */}
                             <div className="text-right">
                                 <span className="block text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-1">Mejor Tarifa: {skydropxCarrier}</span>
-                                <span className="text-2xl font-[1000] text-blue-600 tracking-tighter">${shippingCost.toLocaleString()}</span>
+                                {isFreeShipping ? (
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-sm line-through text-blue-400 font-bold">${originalShippingCost.toLocaleString()}</span>
+                                        <span className="text-green-600 font-[1000] text-xl flex items-center gap-1"><Crown size={16}/> GRATIS</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-2xl font-[1000] text-blue-600 tracking-tighter">${shippingCost.toLocaleString()}</span>
+                                )}
                             </div>
                           </div>
                         </motion.div>
@@ -668,6 +688,7 @@ export default function CheckoutPage() {
             </AnimatePresence>
           </div>
 
+          {/* ================= COLUMNA DERECHA (RESUMEN) ================= */}
           <div className="lg:col-span-5">
              <div className="bg-[#0a0a0a] text-white p-8 rounded-3xl shadow-2xl sticky top-28 border border-white/10">
                 <div className="flex items-center justify-between mb-8 pb-6 border-b border-white/10">
@@ -705,12 +726,22 @@ export default function CheckoutPage() {
                         <span className="font-bold text-white">${freightCost.toLocaleString()}</span>
                     </div>
 
-                    <div className="flex justify-between text-sm">
+                    {/* 🔥 RESUMEN LOGÍSTICO (BENEFICIO ELITE) */}
+                    <div className="flex justify-between text-sm items-center">
                         <span className="text-neutral-400 flex items-center gap-2">
                           {selectedLogistics === 'coyote' ? <Factory size={14} className="text-[#FDCB02]"/> : <Map size={14} className="text-blue-400"/>}
                           Logística {selectedLogistics === 'coyote' ? 'Coyote' : skydropxCarrier}
                         </span>
-                        <span className="font-bold text-white">${shippingCost.toLocaleString()}</span>
+                        <div className="text-right flex items-center gap-2">
+                            {isFreeShipping && originalShippingCost > 0 ? (
+                                <>
+                                    <span className="text-xs text-neutral-500 line-through">${originalShippingCost.toLocaleString()}</span>
+                                    <span className="font-bold text-black bg-[#FDCB02] px-2 py-0.5 rounded uppercase tracking-widest text-[9px]">Socio Elite</span>
+                                </>
+                            ) : (
+                                <span className="font-bold text-white">${shippingCost.toLocaleString()}</span>
+                            )}
+                        </div>
                     </div>
 
                     <div className="flex justify-between text-sm">

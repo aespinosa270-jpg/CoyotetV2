@@ -8,16 +8,18 @@ import {
   ShoppingCart, ChevronLeft, Layers, Minus, Plus, 
   Shield, Zap, Package, Scissors, Flame, Heart, Truck, 
   LayoutGrid, Globe, ArrowRight, Check, Palette, Ruler,
-  PaintRoller, Star, Share2
+  PaintRoller, Star, Share2, Crown 
 } from 'lucide-react';
 import { useCart } from '@/lib/context/cart-context';
-import { useB2BPrice } from '@/hooks/use-b2b-price';
 import { products } from '@/lib/products';
+import { useSession } from 'next-auth/react'; // 🔥 Importamos la sesión
+import { getDiscountMultiplier, getTierBadge } from '@/lib/pricing'; // 🔥 Importamos tu archivo real
 
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { addItem } = useCart();
+  const { data: session } = useSession(); // 🔥 Sacamos los datos del usuario
   
   // 1. Obtener Producto de forma segura (con as any para evitar error TS)
   const productId = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -27,14 +29,9 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [buyingMode, setBuyingMode] = useState<'kilo' | 'rollo'>('kilo');
   const [activeTab, setActiveTab] = useState<'details' | 'specs' | 'reviews'>('details');
-  
-  // Estado para la imagen principal (Galería)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  
-  // Estado para el color seleccionado (si el producto tiene variantes)
   const [selectedColor, setSelectedColor] = useState(product?.colors?.[0] || null);
 
-  // Efecto para actualizar la imagen principal cuando cambia el color seleccionado
   useEffect(() => {
     if (selectedColor && selectedColor.image) {
       // Lógica visual si es necesaria
@@ -64,14 +61,16 @@ export default function ProductDetailPage() {
   const unitAbbr = isMeter ? 'm' : 'Kg';
   const unitsPerRoll = product.unidadesPorRollo || 25;
 
-  // Lógica de Precios
+  // 🔥 LÓGICA DE PRECIOS DIRECTA DESDE PRICING.TS
+  const role = (session?.user as any)?.membershipTier || 'NONE';
   const basePriceToUse = buyingMode === 'rollo' ? product.prices.mayoreo : product.prices.menudeo;
-  const { price: finalPrice, label, discount, role } = useB2BPrice(basePriceToUse);
+  const finalPrice = basePriceToUse * getDiscountMultiplier(role);
+  const label = getTierBadge(role);
   
-  // Cálculo de Totales (Calcula unidades: Kilos o Metros)
+  // Cálculo de Totales 
   const totalWeight = buyingMode === 'rollo' ? quantity * unitsPerRoll : quantity;
   const totalPrice = finalPrice * totalWeight;
-  const savingsAmount = (product.prices.menudeo - finalPrice) * totalWeight;
+  const savingsAmount = (basePriceToUse - finalPrice) * totalWeight;
 
   // --- CÁLCULO DE RENDIMIENTO (METROS) ---
   const totalMeters = !isMeter ? (totalWeight * (product.rendimiento || 1)).toFixed(1) : totalWeight;
@@ -205,36 +204,90 @@ export default function ProductDetailPage() {
                   )}
                </div>
 
-               {/* Tarjeta de Precio */}
-               <div className="bg-neutral-50 border border-neutral-200 p-5 rounded-lg relative transition-all">
-                  <div className="flex justify-between items-end">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[11px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded uppercase">
-                                Precio {role === 'silver' ? 'Público' : role}
+               {/* 🔥 NUEVA TARJETA DE PRECIO B2B (FOMO + MEMBRESÍAS) */}
+               <div className={`p-6 rounded-lg border-2 relative transition-all ${
+                   role === 'NONE' || role === 'silver' || role === 'USER'
+                   ? 'bg-neutral-50 border-neutral-200' 
+                   : 'bg-[#FDCB02]/5 border-[#FDCB02]/50 shadow-md'
+               }`}>
+                  <div className="flex flex-col gap-2">
+                    
+                    {/* UI PARA MORTALES (Nivel Básico) */}
+                    {(role === 'NONE' || role === 'silver' || role === 'USER') ? (
+                      <>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-[11px] font-bold bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded uppercase">
+                                Precio Mortal (Lista)
                             </span>
-                            {discount > 0 && (
-                                <span className="text-xs text-neutral-400 line-through">
-                                    ${(buyingMode === 'rollo' ? product.prices.mayoreo : product.prices.menudeo).toLocaleString()}
+                            <div className="flex items-baseline gap-1 mt-2">
+                                <span className="text-4xl lg:text-5xl font-[900] text-black tracking-tight">
+                                    ${basePriceToUse.toLocaleString()}
                                 </span>
-                            )}
-                        </div>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-4xl lg:text-5xl font-[900] text-black tracking-tight">
-                                ${finalPrice.toLocaleString()}
-                            </span>
-                            <span className="text-xs text-neutral-500 font-bold uppercase mb-1">MXN / {unitAbbr}</span>
-                        </div>
-                    </div>
-
-                    <div className="text-right">
-                        {savingsAmount > 0 && (
-                            <div className="animate-in fade-in slide-in-from-bottom-2">
-                                <span className="block text-[10px] text-green-600 font-bold uppercase mb-0.5">Ahorras</span>
-                                <span className="text-xl font-bold text-green-600">-${savingsAmount.toLocaleString()}</span>
+                                <span className="text-xs text-neutral-500 font-bold uppercase mb-1">MXN / {unitAbbr}</span>
                             </div>
-                        )}
-                    </div>
+                          </div>
+                        </div>
+
+                        {/* El Dulce (La trampa de ventas) */}
+                        <div className="mt-4 pt-4 border-t border-neutral-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Crown size={14} className="text-[#FDCB02]" />
+                            <span className="text-xs font-bold text-[#FDCB02] uppercase tracking-widest">
+                                Precio Master Elite
+                            </span>
+                          </div>
+                          <div className="flex items-end gap-3">
+                            <span className="text-2xl font-black text-neutral-400 line-through decoration-[#FDCB02] decoration-2">
+                                ${(basePriceToUse * 0.85).toLocaleString()}
+                            </span>
+                            <span className="text-[10px] text-green-600 font-bold uppercase mb-1">
+                              (Ahorras 15%)
+                            </span>
+                          </div>
+                          <button 
+                            onClick={() => router.push('/membresia')}
+                            className="w-full mt-3 text-[11px] bg-black text-[#FDCB02] hover:bg-neutral-800 font-black uppercase tracking-widest py-2.5 rounded transition-colors shadow-sm"
+                          >
+                            ADQUIRIR MEMBRESÍA PARA DESBLOQUEAR
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      
+                      // UI PARA SOCIOS (Con Membresía Activa)
+                      <>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-[11px] font-bold bg-black text-[#FDCB02] px-3 py-1 rounded-sm uppercase tracking-wider flex items-center gap-1 w-fit">
+                                <Crown size={12} /> {label}
+                            </span>
+                            
+                            <div className="flex items-baseline gap-2 mt-3">
+                                <span className="text-4xl lg:text-5xl font-[900] text-black tracking-tight">
+                                    ${finalPrice.toLocaleString()}
+                                </span>
+                                <span className="text-xs text-neutral-500 font-bold uppercase mb-1">MXN / {unitAbbr}</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="text-sm text-neutral-400 line-through decoration-red-500/50">
+                                    ${basePriceToUse.toLocaleString()} (Precio Lista)
+                                </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                              {savingsAmount > 0 && (
+                                  <div className="animate-in fade-in slide-in-from-bottom-2 bg-green-50 border border-green-200 px-3 py-2 rounded">
+                                      <span className="block text-[9px] text-green-700 font-black uppercase mb-0.5">Ahorro Activo</span>
+                                      <span className="text-xl font-black text-green-600">-${savingsAmount.toLocaleString()}</span>
+                                  </div>
+                              )}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                </div>
             </div>

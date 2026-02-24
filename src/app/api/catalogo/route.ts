@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import { products } from '@/lib/products';
+// 🔥 Importamos tu motor de precios para que la App sepa las reglas
+import { getDiscountMultiplier, getTierBadge } from '@/lib/pricing';
 
 export async function GET() {
   console.log('🐺 [API] Sirviendo catálogo directo y en vivo a la App Móvil');
+  
   const data: Record<string, any> = {};
 
+  // 1. Empaquetamos los productos
   for (const p of products) {
     const pExtra = p as any; 
     const factor = pExtra.unidadesPorRollo || 25; 
@@ -32,7 +36,29 @@ export async function GET() {
     };
   }
 
-  return NextResponse.json({ success: true, data }, {
+  // 🔥 2. Empaquetamos las reglas del negocio (Multiplicadores B2B)
+  // Así la App Móvil sabe cómo calcular los descuentos sin tener que programarlo allá
+  const b2bRules = {
+    GOLD: { 
+        multiplier: getDiscountMultiplier('GOLD'), 
+        badge: getTierBadge('GOLD') 
+    },
+    BLACK: { 
+        multiplier: getDiscountMultiplier('BLACK'), 
+        badge: getTierBadge('BLACK') 
+    },
+    ELITE: { 
+        multiplier: getDiscountMultiplier('ELITE'), 
+        badge: getTierBadge('ELITE'),
+        freeShipping: true // Beneficio extra para que la app lo sepa
+    }
+  };
+
+  return NextResponse.json({ 
+      success: true, 
+      b2bRules, // 👈 Se lo mandamos a la App en la cabecera
+      data 
+  }, {
     status: 200,
     headers: {
       'Cache-Control': 'no-store, max-age=0', // 🔴 CERO CACHÉ: Se actualiza al segundo

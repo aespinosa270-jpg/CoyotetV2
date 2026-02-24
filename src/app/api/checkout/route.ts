@@ -5,7 +5,10 @@ import { PrismaClient } from '@prisma/client';
 // 🔥 IMPORTAMOS TU NUEVO MOTOR DE FACTURACIÓN CFDI 4.0 🔥
 import { timbrarFacturaReal } from '@/lib/facturapi';
 
-const prisma = new PrismaClient();
+// Evita múltiples instancias de Prisma en desarrollo
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 // Inicializar OpenPay de forma segura con variables de entorno
 const openpay = new Openpay(
@@ -55,7 +58,7 @@ export async function POST(request: Request) {
         },
         subtotal: subtotalCalc,
         freightCost: metadata.freight_cost,
-        shippingCost: metadata.shipping_cost,
+        shippingCost: metadata.shipping_cost, // 🔥 Aquí pasa el $0 si es Elite
         serviceFee: metadata.service_fee,
         taxIVA: metadata.tax_iva,
         total: amount,
@@ -76,7 +79,7 @@ export async function POST(request: Request) {
             price: Number(item.price),
             quantity: Number(item.quantity),
             unit: item.unit || 'Pieza',
-            color: item.meta?.color || null
+            color: item.meta?.color ? String(item.meta.color) : null // 🔥 Sanitizado seguro
           }))
         }
       }
@@ -148,6 +151,7 @@ export async function POST(request: Request) {
         }
       });
       
+      // El LTV (Life Time Value) del usuario suma lo que acaba de comprar
       await prisma.user.update({
         where: { id: newOrder.userId },
         data: { ltv: { increment: amount } }
@@ -163,7 +167,6 @@ export async function POST(request: Request) {
 
         if (metadata.req_invoice === 'YES') {
            if (invoiceData && invoiceData.pdf) {
-               // 🔥 Si se timbró con éxito, le mandamos el link del PDF de inmediato
                mensajeCoyote += `\n\n🧾 *¡Tu factura ya fue timbrada ante el SAT!* Descarga tu PDF oficial aquí:\n📄 ${invoiceData.pdf}`;
            } else {
                mensajeCoyote += `\n\n🧾 *Tus datos fiscales fueron recibidos.* Te haré llegar tu factura por este medio a la brevedad.`;
