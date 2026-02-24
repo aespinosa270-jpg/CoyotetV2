@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useCart } from "@/lib/context/cart-context" 
@@ -9,45 +9,126 @@ import {
   ShoppingCart, Search, User, Menu, X,
   ChevronDown, HelpCircle, FileText, Sparkles,
   Crown, Ship, Building2, Package, Truck, 
-  ArrowRight, LogOut, ChevronRight
+  ArrowRight, LogOut, ChevronRight, Loader2
 } from "lucide-react"
+
+// ─── Tipo simple para mensajes ───────────────────────────────────────────────
+interface ChatMessage {
+  id: string
+  role: "user" | "assistant"
+  content: string
+}
 
 export default function Navbar() {
   const { totalItems, openCart } = useCart()
-  
-  // --- EL MOTOR REAL DE SESIONES ---
   const { data: session } = useSession()
   const user = session?.user
+  
   const [searchMode, setSearchMode] = useState<'sku' | 'ia'>('sku')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isAIResultsOpen, setIsAIResultsOpen] = useState(false)
+
+  // ─── Estado IA (sin useChat, sin DefaultChatTransport) ────────────────────
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const [input, setInput] = useState("")
 
   const categories = [
     "Telas Deportivas",
     "Telas para Sublimar",
     "Telas Escolares",
     "Telas Nacionales"
-  ];
+  ]
 
   useEffect(() => {
     if (mobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden'
     } else {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = 'unset'
     }
-  }, [mobileMenuOpen]);
+  }, [mobileMenuOpen])
 
-  // Función corporativa para cerrar sesión
   const handleLogout = async () => {
-    setMobileMenuOpen(false);
-    await signOut({ callbackUrl: '/cuenta' });
-  };
+    setMobileMenuOpen(false)
+    await signOut({ callbackUrl: '/cuenta' })
+  }
+
+  // ─── Función que hace el stream a mano ───────────────────────────────────
+  const sendAIMessage = async (text: string) => {
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: text }
+    const newHistory = [...messages, userMsg]
+    setMessages(newHistory)
+    setIsLoading(true)
+    setIsAIResultsOpen(true)
+
+    const assistantId = (Date.now() + 1).toString()
+    setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "" }])
+
+    try {
+      abortRef.current = new AbortController()
+      const res = await fetch("/api/ai-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: newHistory.map(m => ({ role: m.role, content: m.content })),
+        }),
+        signal: abortRef.current.signal,
+      })
+
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const lines = decoder.decode(value).split("\n").filter(Boolean)
+        for (const line of lines) {
+          if (line.startsWith("0:")) {
+            try {
+              const chunk = JSON.parse(line.slice(2))
+              setMessages(prev =>
+                prev.map(m => m.id === assistantId ? { ...m, content: m.content + chunk } : m)
+              )
+            } catch {}
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantId
+              ? { ...m, content: "Error al conectar. Intenta de nuevo." }
+              : m
+          )
+        )
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const onSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchMode === "ia") {
+      if (!input.trim() || isLoading) return
+      sendAIMessage(input)
+      setInput("")
+    } else {
+      window.location.href = `/catalogo?q=${encodeURIComponent(input)}`
+    }
+  }
 
   return (
     <>
       <nav className="sticky top-0 z-[100] w-full flex flex-col bg-[#050505] border-b border-white/10 font-sans selection:bg-[#FDCB02] selection:text-black transition-all">
         
-        {/* 1. BARRA SUPERIOR (Utility Bar) */}
+        {/* 1. BARRA SUPERIOR */}
         <div className="bg-[#020202] h-9 hidden lg:flex items-center border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
           <div className="max-w-[1920px] mx-auto w-full px-6 flex justify-between items-center">
             <div className="flex items-center gap-6">
@@ -88,20 +169,78 @@ export default function Navbar() {
               </div>
           </Link>
 
+          {/* BUSCADOR DUAL */}
           <div className="flex-1 hidden lg:flex max-w-2xl relative z-20">
-              <form className="w-full flex h-[52px] bg-[#111] border border-white/10 rounded-sm focus-within:border-[#FDCB02] focus-within:ring-1 focus-within:ring-[#FDCB02] transition-all overflow-hidden">
-                  <div className="flex items-center px-5 bg-[#1a1a1a] border-r border-white/10 cursor-pointer hover:bg-[#222]" onClick={() => setSearchMode(searchMode === 'sku' ? 'ia' : 'sku')}>
-                      <span className="text-[10px] font-[1000] uppercase text-neutral-400 w-16 text-center">{searchMode === 'sku' ? 'SKU' : 'IA'}</span>
-                      <ChevronDown size={12} className="text-neutral-600 ml-1"/>
+              <form onSubmit={onSearchSubmit} className={`w-full flex h-[52px] bg-[#111] border rounded-sm transition-all overflow-hidden ${searchMode === 'ia' ? 'border-[#FDCB02] ring-1 ring-[#FDCB02]' : 'border-white/10'}`}>
+                  <div 
+                    className="flex items-center px-5 bg-[#1a1a1a] border-r border-white/10 cursor-pointer hover:bg-[#222] transition-colors group" 
+                    onClick={() => {
+                      setSearchMode(searchMode === 'sku' ? 'ia' : 'sku')
+                      setIsAIResultsOpen(false)
+                    }}
+                  >
+                      <div className="flex flex-col items-center justify-center w-16">
+                        {searchMode === 'ia' ? <Sparkles size={14} className="text-[#FDCB02] mb-0.5 animate-pulse" /> : <Package size={14} className="text-neutral-500 mb-0.5" />}
+                        <span className={`text-[9px] font-[1000] uppercase tracking-tighter ${searchMode === 'ia' ? 'text-[#FDCB02]' : 'text-neutral-400'}`}>
+                          {searchMode === 'sku' ? 'MODO SKU' : 'MODO IA'}
+                        </span>
+                      </div>
+                      <ChevronDown size={12} className="text-neutral-600 ml-1 group-hover:text-white transition-colors"/>
                   </div>
-                  <input type="text" placeholder={searchMode === 'ia' ? "Describe tu necesidad..." : "BUSCAR REFERENCIA..."} className="flex-1 bg-transparent px-6 text-[13px] font-bold text-white placeholder:text-neutral-700 focus:outline-none uppercase tracking-wider"/>
-                  <button className="bg-[#FDCB02] hover:bg-[#ffe159] text-black px-7 flex items-center justify-center"><Search size={22} strokeWidth={3}/></button>
+                  
+                  <input 
+                    type="text" 
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder={searchMode === 'ia' ? "Pregunta sobre rendimientos, precios o stock..." : "BUSCAR REFERENCIA / SKU..."} 
+                    className="flex-1 bg-transparent px-6 text-[13px] font-bold text-white placeholder:text-neutral-700 focus:outline-none uppercase tracking-wider"
+                  />
+                  
+                  <button type="submit" className="bg-[#FDCB02] hover:bg-[#ffe159] text-black px-7 flex items-center justify-center transition-colors">
+                    {isLoading ? <Loader2 size={22} className="animate-spin" /> : <Search size={22} strokeWidth={3}/>}
+                  </button>
               </form>
+
+              {/* PANEL DE RESULTADOS IA */}
+              {isAIResultsOpen && messages.length > 0 && (
+                <div className="absolute top-full left-0 mt-3 w-full bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="p-4 border-b border-white/5 bg-black/40 flex justify-between items-center">
+                    <span className="text-[10px] font-black text-[#FDCB02] uppercase tracking-[0.2em] flex items-center gap-2">
+                      <Sparkles size={12} /> Coyote Intelligence
+                    </span>
+                    <button onClick={() => setIsAIResultsOpen(false)} className="text-neutral-500 hover:text-white"><X size={14}/></button>
+                  </div>
+                  <div className="max-h-[400px] overflow-y-auto p-6 space-y-6">
+                    {messages.map((m) => (
+                      <div key={m.id} className={`flex gap-4 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[85%] p-4 rounded-2xl text-xs leading-relaxed ${
+                          m.role === "user" 
+                          ? "bg-white/5 text-neutral-400 italic rounded-tr-none" 
+                          : "bg-[#111] text-white border border-white/5 rounded-tl-none font-medium"
+                        }`}>
+                          {m.content}
+                          {/* Cursor parpadeante mientras el assistant escribe */}
+                          {m.role === "assistant" && isLoading && m.content === "" && (
+                            <span className="inline-block w-2 h-3 bg-[#FDCB02] animate-pulse ml-1 rounded-sm"/>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-4 bg-black/40 border-t border-white/5 flex justify-center">
+                    <button 
+                      onClick={() => { setMessages([]); setInput(''); setIsAIResultsOpen(false) }} 
+                      className="text-[9px] font-black text-neutral-600 uppercase hover:text-white transition-colors"
+                    >
+                      Limpiar Consulta
+                    </button>
+                  </div>
+                </div>
+              )}
           </div>
 
           <div className="flex items-center gap-4 lg:gap-8 text-white ml-auto lg:ml-0">
             <div className="hidden lg:flex items-center gap-4">
-              {/* RENDEREADO CONDICIONAL DE SESIÓN */}
               {user ? (
                  <div className="relative group py-2">
                     <Link href="/perfil" className="flex items-center gap-4 cursor-pointer">
@@ -113,8 +252,6 @@ export default function Navbar() {
                             {user.name?.charAt(0).toUpperCase() || "U"}
                         </div>
                     </Link>
-
-                    {/* MENU DESPLEGABLE DESKTOP */}
                     <div className="absolute top-full right-0 mt-2 w-64 opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 z-50">
                         <div className="bg-[#0A0A0A] border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col backdrop-blur-xl">
                             <div className="p-4 border-b border-white/5 bg-gradient-to-br from-[#111] to-black">
@@ -165,7 +302,7 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* 3. NAVEGACIÓN INFERIOR (Solo Desktop) */}
+        {/* 3. NAVEGACIÓN INFERIOR */}
         <div className="hidden lg:block border-t border-white/5 bg-[#080808] h-14 relative">
           <div className="max-w-[1920px] mx-auto w-full px-6 h-full flex items-center gap-12">
               <div className="relative h-full" onMouseEnter={() => setIsMenuOpen(true)} onMouseLeave={() => setIsMenuOpen(false)}>
@@ -199,11 +336,8 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* ==================================================================================
-          MÓVIL: DASHBOARD PANTALLA COMPLETA
-         ================================================================================== */}
+      {/* MÓVIL */}
       <div className={`fixed inset-0 z-[200] lg:hidden bg-[#050505] transition-all duration-300 ${mobileMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
-        
         <div className="shrink-0 px-6 py-5 flex justify-between items-center border-b border-white/10 bg-[#020202]">
              <div className="flex items-center gap-4">
                 <Image src="/coyotelogo.svg" alt="Logo" width={40} height={40} className="object-contain"/>
@@ -216,14 +350,17 @@ export default function Navbar() {
                 <X size={24} />
              </button>
         </div>
-
         <div className="flex-1 flex flex-col p-6 gap-4 overflow-y-auto">
-            
-            <div className="relative shrink-0">
+            <form onSubmit={onSearchSubmit} className="relative shrink-0">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500" size={18}/>
-                <input type="text" placeholder="BUSCAR TELAS..." className="w-full bg-[#111] border border-white/10 rounded-lg h-14 pl-12 pr-4 text-sm font-bold text-white uppercase focus:border-[#FDCB02] outline-none shadow-inner"/>
-            </div>
-
+                <input 
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  type="text" 
+                  placeholder="PREGUNTA O BUSCA SKU..." 
+                  className="w-full bg-[#111] border border-white/10 rounded-lg h-14 pl-12 pr-4 text-sm font-bold text-white uppercase focus:border-[#FDCB02] outline-none shadow-inner"
+                />
+            </form>
             <div className="grid grid-cols-2 gap-3 shrink-0">
                 <Link href="/catalogo" onClick={() => setMobileMenuOpen(false)} className="col-span-2 bg-[#FDCB02] rounded-lg p-5 flex items-center justify-between group relative overflow-hidden active:scale-[0.98] transition-transform">
                     <div>
@@ -232,73 +369,6 @@ export default function Navbar() {
                     </div>
                     <ArrowRight size={28} className="text-black opacity-60 group-hover:opacity-100 group-hover:translate-x-2 transition-all"/>
                 </Link>
-
-                <Link href="/lo-nuevo" onClick={() => setMobileMenuOpen(false)} className="bg-[#111] border border-white/10 rounded-lg p-4 flex flex-col justify-center gap-2 hover:border-[#FDCB02] transition-colors active:bg-white/5">
-                    <Sparkles size={24} className="text-[#FDCB02]"/>
-                    <span className="text-xs font-[900] uppercase text-white">Lo Nuevo</span>
-                </Link>
-
-                <Link href="/nosotros" onClick={() => setMobileMenuOpen(false)} className="bg-[#111] border border-white/10 rounded-lg p-4 flex flex-col justify-center gap-2 hover:border-[#FDCB02] transition-colors active:bg-white/5">
-                    <Building2 size={24} className="text-neutral-400"/>
-                    <span className="text-xs font-[900] uppercase text-white">Nosotros</span>
-                </Link>
-            </div>
-
-            <div className="grid grid-cols-4 gap-2 shrink-0 h-20">
-                <Link href="/rastreo" onClick={() => setMobileMenuOpen(false)} className="bg-[#111] rounded-lg border border-white/5 flex flex-col items-center justify-center gap-1 active:bg-white/10 active:border-[#FDCB02]">
-                    <Truck size={20} className="text-[#FDCB02]"/>
-                    <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide">Rastreo</span>
-                </Link>
-                <Link href="/contenedor" onClick={() => setMobileMenuOpen(false)} className="bg-[#111] rounded-lg border border-white/5 flex flex-col items-center justify-center gap-1 active:bg-white/10 active:border-red-500">
-                    <Ship size={20} className="text-red-500"/>
-                    <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide">Contenedor</span>
-                </Link>
-                <Link href="/facturacion" onClick={() => setMobileMenuOpen(false)} className="bg-[#111] rounded-lg border border-white/5 flex flex-col items-center justify-center gap-1 active:bg-white/10 active:border-white">
-                    <FileText size={20} className="text-white"/>
-                    <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide">Factura</span>
-                </Link>
-                <a href="https://wa.me/5215555421527" className="bg-[#111] rounded-lg border border-white/5 flex flex-col items-center justify-center gap-1 active:bg-white/10 active:border-green-500">
-                    <HelpCircle size={20} className="text-green-500"/>
-                    <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide">Soporte</span>
-                </a>
-            </div>
-
-            <Link href="/membresia" onClick={() => setMobileMenuOpen(false)} className="shrink-0 flex items-center justify-center gap-3 bg-[#FDCB02]/10 border border-[#FDCB02]/30 rounded-lg h-12 active:bg-[#FDCB02]/20">
-                <Crown size={18} className="text-[#FDCB02]"/>
-                <span className="text-xs font-black uppercase text-[#FDCB02] tracking-widest">Acceso Socios Coyote</span>
-            </Link>
-
-            {/* SECCIÓN DE USUARIO MÓVIL */}
-            <div className="mt-auto pt-6 border-t border-white/10">
-               {user ? (
-                  <div className="flex flex-col gap-4">
-                      <Link href="/perfil" onClick={() => setMobileMenuOpen(false)} className="flex items-center justify-between p-4 bg-[#111] border border-white/10 rounded-xl active:bg-white/5 transition-colors group">
-                          <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 bg-white/5 border border-white/10 group-active:bg-[#FDCB02] group-active:text-black rounded-lg flex items-center justify-center text-white font-black text-lg transition-colors">
-                                  {user.name?.charAt(0).toUpperCase() || "U"}
-                              </div>
-                              <div className="flex flex-col">
-                                  <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Ir a Mi Perfil</span>
-                                  <span className="text-base font-black text-white uppercase">{user.name?.split(' ')[0] || "USUARIO"}</span>
-                              </div>
-                          </div>
-                          <ChevronRight size={20} className="text-[#FDCB02]" />
-                      </Link>
-                      
-                      <div className="flex gap-2">
-                        <Link href="/facturacion" onClick={() => setMobileMenuOpen(false)} className="flex-1 h-12 bg-[#111] rounded-lg border border-white/5 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400 active:text-white">
-                           <FileText size={14}/> Datos
-                        </Link>
-                        <button onClick={handleLogout} className="flex-1 h-12 bg-red-500/10 text-red-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 flex items-center justify-center gap-2">
-                            <LogOut size={14} /> Salir
-                        </button>
-                      </div>
-                  </div>
-               ) : (
-                  <Link href="/cuenta" onClick={() => setMobileMenuOpen(false)} className="flex items-center justify-center gap-3 bg-white text-black font-black uppercase text-sm h-14 rounded-xl shadow-xl active:scale-[0.98] transition-transform">
-                      <User size={20}/> Iniciar Sesión / Registro
-                  </Link>
-               )}
             </div>
         </div>
       </div>
