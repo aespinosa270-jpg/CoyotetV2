@@ -18,7 +18,6 @@ export default function Navbar() {
   // --- EL MOTOR REAL DE SESIONES ---
   const { data: session } = useSession()
   const user = session?.user
-  
   const [searchMode, setSearchMode] = useState<'sku' | 'ia'>('sku')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)

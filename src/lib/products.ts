@@ -362,5 +362,73 @@ export const products: Product[] = [
       { name: "Negro", hex: "#050505", image: "/assets/products/diablo/negro.jpg" },
       { name: "Oxford", hex: "#3C3C3C", image: "/assets/products/diablo/oxford.jpg" }
     ]
+    },
+  {
+    id: "prod_felpa_spun",
+    title: "Felpa Spun",
+    unit: "Kg", // Venta por kilo
+    unidadesPorRollo: 25, // Kilos promedio por rollo
+    thumbnail: "/assets/products/felpa spun/negro.jpg", //
+    description: "Tejido de alto volumen y suavidad excepcional. Ideal para sudaderas y pants de gama premium con excelente retención de calor.",
+    composicion: "100% Poliéster",
+    gramaje: "280",
+    ancho: "1.90m",
+    rendimiento: 2.5, // 📏 2.5 metros por kilo
+    singleColor: false, 
+    prices: { 
+        menudeo: 145.00, // Precio por kilo (Muestra)
+        mayoreo: 125.00  // Precio por kilo (Cerrado)
+    }, 
+    hasRollo: true,
+    origin: "Importado",
+    category: "Invernal",
+    colors: [
+      { name: "Blanco", hex: "#F8F9FA", image: "/assets/products/felpa spun/blanco.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/felpa spun/rojo.jpg" },
+      { name: "Marino", hex: "#1A243A", image: "/assets/products/felpa spun/marino.jpg" },
+      { name: "Negro", hex: "#050505", image: "/assets/products/felpa spun/negro.jpg" },
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/felpa spun/azulrey.jpg" },
+      { name: "Vino", hex: "#5C1527", image: "/assets/products/felpa spun/vino.jpg" }
+    ] // Colores verificados de tu carpeta assets
+},
+  {
+
+  id: "prod_sportok_escolar",
+  title: "Sportok",
+  unit: "Kg", 
+  unidadesPorRollo: 25, // 📦 Configurado a 25kg por rollo según bodega
+  thumbnail: "/assets/products/sportock/mango.jpg", 
+  description: "Textil 100% poliéster de alta resistencia con acabado semi-brillante e interior térmico afelpado. La tela estándar para pants, sudaderas y uniformes escolares. No se arruga y es de fácil lavado.",
+  composicion: "100% Poliéster (Interior Afelpado)",
+  gramaje: "260", 
+  ancho: "1.60m",
+  rendimiento: 2.4, // 📏 2.4 metros por kilo [Ficha Técnica Real]
+  prices: { 
+    menudeo: 135.00, 
+    mayoreo: 115.00 
+  },
+  hasRollo: true,
+  category: "Escolar / Deportivo",
+  origin: "importado",
+  colors: [
+    { name: "Acero", hex: "#778899", image: "/assets/products/sportock/acero.jpg" },
+    { name: "Beige", hex: "#F5F5DC", image: "/assets/products/sportock/beige.jpg" },
+    { name: "Verde Botella", hex: "#006A4E", image: "/assets/products/sportock/verdebotella.jpg" },
+    { name: "Cielo", hex: "#87CEEB", image: "/assets/products/sportock/cielo.jpg" },
+    { name: "Amarillo Pastel", hex: "#FDFD96", image: "/assets/products/sportock/amarillopastel.jpg" },
+    { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/sportock/azulrey.jpg" },
+    { name: "Manzana", hex: "#8DB600", image: "/assets/products/sportock/manzana.jpg" },
+    { name: "Amarillo Neón", hex: "#CCFF00", image: "/assets/products/sportock/amarilloneon.jpg" },
+    { name: "Verde Neón", hex: "#39FF14", image: "/assets/products/sportock/verdeneon.jpg" },
+    { name: "Negro", hex: "#050505", image: "/assets/products/sportock/negro.jpg" },
+    { name: "Blanco", hex: "#F8F9FA", image: "/assets/products/sportock/blanco.jpg" },
+    { name: "Perla", hex: "#EAE0C8", image: "/assets/products/sportock/perla.jpg" },
+    { name: "Rosa Pastel", hex: "#FFD1DC", image: "/assets/products/sportock/rosapastel.jpg" },
+    { name: "Mango", hex: "#FF8243", image: "/assets/products/sportock/mango.jpg" },
+    { name: "Bandera", hex: "#006847", image: "/assets/products/sportock/bandera.jpg" },
+    { name: "Vino", hex: "#5C1527", image: "/assets/products/sportock/vino.jpg" },
+    { name: "Fiusha", hex: "#FF007F", image: "/assets/products/sportock/fiusha.jpg" }
+  ]
+
   }
 ];

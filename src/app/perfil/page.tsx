@@ -1,3 +1,4 @@
+// src/app/perfil/page.tsx
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { redirect } from "next/navigation"
@@ -6,22 +7,25 @@ import Link from "next/link"
 import { 
   ChevronLeft, LayoutDashboard, TrendingUp, Package, 
   ShieldCheck, KeyRound, User, Crown, Star, 
-  ArrowUpRight, Clock, Activity, Zap
+  ArrowRight, ArrowUpRight, Clock, Activity, Zap, Gem, Trophy,
+  Calendar, Percent, Truck, Gift, QrCode, CreditCard
 } from "lucide-react"
 
-// Formateador financiero de alta precisión
+// Formateadores
 const formatMoney = (amount: number) => 
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount)
 
+const formatPoints = (points: number) => 
+  new Intl.NumberFormat('es-MX').format(Math.floor(points))
+
 export default async function PerfilPage() {
-  // 1. AUTENTICACIÓN A NIVEL DE SERVIDOR
   const session = await getServerSession(authOptions)
 
   if (!session?.user?.email) {
-    redirect("/login")
+    redirect("/cuenta")
   }
 
-  // 2. EXTRACCIÓN DE DATOS REALES (POSTGRESQL)
+  // 1. DATA MINING: Extracción de ADN del Socio y Finanzas
   const userStats = await prisma.user.findUnique({
     where: { email: session.user.email },
     include: {
@@ -32,293 +36,266 @@ export default async function PerfilPage() {
     }
   })
 
-  if (!userStats) {
-    redirect("/login")
-  }
+  if (!userStats) redirect("/cuenta")
 
-  // 3. MOTOR FINANCIERO Y LOGÍSTICO
+  const tier = userStats.membershipTier || "NONE"
   const orders = userStats.orders || []
-  
- const totalSpent = orders
-      .filter(o => o.status === 'PAID' || o.status === 'DELIVERED')
-      .reduce((sum, order) => sum + (order.total || 0), 0)
+
+  // Cálculos Reales
+  const totalSpent = orders
+    .filter(o => o.status === 'PAID' || o.status === 'DELIVERED')
+    .reduce((sum, order) => sum + (order.total || 0), 0)
 
   const activeOrdersCount = orders
-    .filter(o => o.status === 'PENDING' || o.status === 'PROCESSING' || o.status === 'SHIPPED')
+    .filter(o => ['PENDING', 'PROCESSING', 'SHIPPED'].includes(o.status))
     .length
 
-  const lastOrderDate = orders.length > 0 ? new Date(orders[0].createdAt).toLocaleDateString('es-MX') : 'Sin registro'
-
-  // 4. ALGORITMO DE JERARQUÍA B2B (CON PRIVILEGIO DE ADMIN)
-  let nextTierGoal = 10000000 // Meta Silver -> Gold: 10M
-  let currentTierName = "Silver"
-  let nextTierName = "Gold"
-  
-  // OVERRIDE: El rol en la base de datos es la máxima autoridad
-  const isDbBlack = userStats.role === 'black'
-  const isDbGold = userStats.role === 'gold'
-
-  if (totalSpent >= 50000000 || isDbBlack) {
-    nextTierGoal = totalSpent > 50000000 ? totalSpent : 50000000 
-    currentTierName = "Black"
-    nextTierName = "MAX"
-  } else if (totalSpent >= 10000000 || isDbGold) {
-    nextTierGoal = 50000000 
-    currentTierName = "Gold"
-    nextTierName = "Black"
-  }
-
-  // 5. RENDERIZADO DINÁMICO DE ESTILOS (UI MATERIAL B2B)
-  let tierStyle = {
-    label: "Socio Silver",
-    sub: "Público General",
-    gradient: "from-neutral-300 via-neutral-100 to-neutral-400",
-    text: "text-black",
-    badge: "bg-black text-white",
-    border: "border-neutral-200/20",
-    icon: <ShieldCheck className="text-black" size={24} />,
-    glow: "shadow-[0_0_30px_rgba(255,255,255,0.1)]"
-  }
-
-  if (currentTierName === "Black") {
-    tierStyle = {
-      label: "Socio Black",
-      sub: "Distribuidor Master",
-      gradient: "from-[#1a1a1a] via-[#0a0a0a] to-black",
-      text: "text-white",
-      badge: "bg-white text-black",
-      border: "border-white/10",
-      icon: <Crown className="text-white" size={24} />,
-      glow: "shadow-[0_0_40px_rgba(255,255,255,0.05)]"
-    }
-  } else if (currentTierName === "Gold") {
-    tierStyle = {
+  // 2. CONFIGURACIÓN DE IDENTIDAD POR RANGO (Diferenciación Total)
+  const TIER_UI: Record<string, any> = {
+    NONE: {
+      label: "Socio Silver",
+      sub: "Acceso Estándar",
+      gradient: "from-neutral-400 via-neutral-200 to-neutral-500",
+      text: "text-black",
+      badge: "bg-black text-white",
+      icon: <ShieldCheck size={28} className="text-black" />,
+      glow: "shadow-[0_0_40px_rgba(255,255,255,0.05)]",
+      accent: "text-neutral-400",
+      factor: "0.5x",
+      perks: [
+        { icon: <Percent size={14}/>, text: "Precios de Lista" },
+        { icon: <Zap size={14}/>, text: "Acumulación Base" }
+      ]
+    },
+    GOLD: {
       label: "Socio Gold",
-      sub: "Cliente VIP",
-      gradient: "from-[#FDCB02] via-[#ffda44] to-[#B89600]",
+      sub: "Distribuidor Autorizado",
+      gradient: "from-[#FDCB02] via-[#FFD700] to-[#B8860B]",
       text: "text-black",
       badge: "bg-black text-[#FDCB02]",
-      border: "border-[#FDCB02]/30",
-      icon: <Star className="text-black" size={24} />,
-      glow: "shadow-[0_0_40px_rgba(253,203,2,0.15)]"
+      icon: <Star size={28} fill="black" />,
+      glow: "shadow-[0_0_50px_rgba(253,203,2,0.2)]",
+      accent: "text-[#FDCB02]",
+      factor: "1.0x",
+      perks: [
+        { icon: <Percent size={14}/>, text: "10% de Descuento Activo" },
+        { icon: <Calendar size={14}/>, text: "7 Días de Apartado" },
+        { icon: <Zap size={14}/>, text: "Puntos por Compra" }
+      ]
+    },
+    BLACK: {
+      label: "Socio Black",
+      sub: "Socio Ejecutivo",
+      gradient: "from-[#222] via-[#0a0a0a] to-black",
+      text: "text-white",
+      badge: "bg-white text-black",
+      icon: <Crown size={28} className="text-white" />,
+      glow: "shadow-[0_0_60px_rgba(255,255,255,0.05)]",
+      accent: "text-white",
+      factor: "2.0x",
+      perks: [
+        { icon: <Percent size={14}/>, text: "15% de Descuento Activo" },
+        { icon: <Truck size={14}/>, text: "Prioridad SkydropX" },
+        { icon: <Gift size={14}/>, text: "Muestrarios Gratis" }
+      ]
+    },
+    ELITE: {
+      label: "Socio Elite",
+      sub: "Master Partner",
+      gradient: "from-[#0b0e11] via-[#1c252b] to-[#2b3a42]",
+      text: "text-white",
+      badge: "bg-[#FDCB02] text-black",
+      icon: <Gem size={28} className="text-[#FDCB02]" />,
+      glow: "shadow-[0_0_80px_rgba(0,180,255,0.15)]",
+      accent: "text-cyan-400",
+      factor: "4.0x",
+      perks: [
+        { icon: <Truck size={14}/>, text: "Envío Local GRATIS" },
+        { icon: <Percent size={14}/>, text: "Tarifa Preferencial Elite" },
+        { icon: <Trophy size={14}/>, text: "Acceso a Novedades 30d" },
+        { icon: <Calendar size={14}/>, text: "15 Días de Apartado" }
+      ]
     }
   }
 
-  const progressPercentage = currentTierName === "Black" 
-    ? 100 
-    : Math.min(100, (totalSpent / nextTierGoal) * 100)
+  const current = TIER_UI[tier]
 
   return (
-    <div className="min-h-screen bg-[#020202] text-white selection:bg-[#FDCB02] selection:text-black font-sans">
-      {/* BACKGROUND TEXTURE: Malla Industrial Premium */}
-      <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:radial-gradient(ellipse_at_top,white,transparent_80%)] opacity-15 pointer-events-none" />
-      <div className="absolute top-0 inset-x-0 h-[500px] bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
+    <div className="min-h-screen bg-[#020202] text-white selection:bg-[#FDCB02] selection:text-black font-sans pb-20">
+      <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-[0.03] pointer-events-none" />
 
-      <main className="relative z-10 max-w-7xl mx-auto px-6 py-12 lg:py-20 animate-in fade-in slide-in-from-bottom-12 duration-1000 ease-out">
+      <main className="relative z-10 max-w-7xl mx-auto px-6 pt-12 lg:pt-20">
         
-        {/* TOP NAV: Elegante y Funcional */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16 border-b border-white/5 pb-8">
-          <div>
-            <Link 
-              href="/" 
-              className="inline-flex items-center gap-2 text-neutral-500 hover:text-[#FDCB02] transition-colors text-[10px] font-black uppercase tracking-[0.2em] mb-6"
-            >
-              <ChevronLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
-              Portal Principal
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+          <div className="space-y-4">
+            <Link href="/" className="inline-flex items-center gap-2 text-neutral-600 hover:text-[#FDCB02] transition-all text-[10px] font-black uppercase tracking-widest">
+              <ChevronLeft size={14} /> Back to Coyote
             </Link>
-            <h1 className="text-6xl md:text-7xl font-[1000] uppercase tracking-tighter leading-none text-transparent bg-clip-text bg-gradient-to-br from-white to-neutral-500">
-              Mi Cuenta<span className="text-[#FDCB02]">.</span>
+            <h1 className="text-6xl md:text-8xl font-[1000] uppercase tracking-tighter leading-none italic">
+              Dashboard<span className={current.accent}>.</span>
             </h1>
           </div>
-
-          <div className="flex items-center gap-4">
-             {isDbBlack && (
-               <Link href="/admin" className="h-14 px-8 bg-white text-black hover:bg-[#FDCB02] rounded-xl flex items-center gap-3 text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(253,203,2,0.3)] group">
-                  <LayoutDashboard size={18} className="group-hover:scale-110 transition-transform" />
-                  Consola Admin
-               </Link>
-             )}
-          </div>
+          {userStats.role === 'ADMIN' && (
+            <Link href="/admin" className="h-16 px-10 bg-white text-black hover:bg-[#FDCB02] rounded-2xl flex items-center gap-4 text-xs font-black uppercase tracking-widest transition-all shadow-2xl">
+              <LayoutDashboard size={20} /> Admin Panel
+            </Link>
+          )}
         </div>
 
-        {/* GRID PRINCIPAL B2B */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
           
-          {/* COLUMNA IZQ: ID CARD METÁLICA (Span 4) */}
-          <div className="xl:col-span-4">
-            <div className={`relative w-full rounded-3xl overflow-hidden bg-[#0A0A0A] border ${tierStyle.border} ${tierStyle.glow} transition-all duration-500 hover:-translate-y-1 group`}>
-              
-              {/* Header de la Tarjeta */}
-              <div className={`h-32 bg-gradient-to-br ${tierStyle.gradient} p-8 flex justify-between items-start relative overflow-hidden`}>
-                <div className="absolute inset-0 bg-noise opacity-10 mix-blend-overlay"></div>
-                <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em] shadow-2xl ${tierStyle.badge} z-10 backdrop-blur-md`}>
-                  Tier {currentTierName}
-                </div>
-                <div className="z-10 bg-white/20 p-2 rounded-xl backdrop-blur-sm">
-                  {tierStyle.icon}
-                </div>
+          {/* COL IZQ: IDENTIDAD Y PERKS (DISEÑO MUTABLE) */}
+          <div className="xl:col-span-4 space-y-8">
+            <div className={`rounded-[2.5rem] overflow-hidden bg-[#0A0A0A] border border-white/5 ${current.glow}`}>
+              <div className={`h-40 bg-gradient-to-br ${current.gradient} p-10 flex justify-between items-start relative`}>
+                 <div className="absolute inset-0 bg-black/10 mix-blend-overlay opacity-50" />
+                 <div className={`px-5 py-2 rounded-xl text-[10px] font-[1000] uppercase tracking-widest z-10 ${current.badge} shadow-2xl`}>
+                   {current.label}
+                 </div>
+                 <div className="z-10 bg-white/10 backdrop-blur-xl p-3 rounded-2xl border border-white/10">
+                   {current.icon}
+                 </div>
               </div>
 
-              {/* Cuerpo de la Tarjeta */}
-              <div className="px-8 pb-8 relative">
-                {/* Avatar Hexagonal / Redondeado */}
-                <div className="w-24 h-24 bg-[#050505] border-4 border-[#0A0A0A] rounded-2xl absolute -top-12 left-8 flex items-center justify-center overflow-hidden shadow-2xl ring-1 ring-white/10">
-                  {userStats.image ? (
-                    <img src={userStats.image} alt={userStats.name || "Perfil"} className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="text-neutral-600" size={40} />
-                  )}
+              <div className="px-10 pb-10 relative">
+                <div className="w-28 h-28 bg-black border-8 border-[#0A0A0A] rounded-[2rem] absolute -top-14 left-10 overflow-hidden shadow-2xl">
+                  {userStats.image ? <img src={userStats.image} className="w-full h-full object-cover" /> : <User size={48} className="m-auto mt-6 text-neutral-800" />}
                 </div>
 
-                <div className="pt-16">
-                  <h2 className="text-3xl font-[1000] text-white uppercase tracking-tighter leading-none mb-2">
-                    {userStats.name || "Socio B2B"}
-                  </h2>
-                  <p className="text-neutral-500 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center gap-2">
-                    <KeyRound size={10} /> {userStats.email}
-                  </p>
+                <div className="pt-20">
+                  <h2 className="text-4xl font-[1000] uppercase tracking-tighter leading-none mb-2">{userStats.name || "Socio B2B"}</h2>
+                  <div className="flex items-center gap-2 text-neutral-500 font-bold uppercase text-[10px] tracking-widest">
+                    <KeyRound size={12} className={current.accent} /> {userStats.email}
+                  </div>
                 </div>
 
-                <div className="mt-10 pt-6 border-t border-white/5 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">Estado de Cuenta</span>
-                    <span className="text-xs font-black text-green-500 uppercase flex items-center gap-1"><Activity size={12}/> Activo</span>
+                {/* ESTATUS Y EXPIRACIÓN */}
+                <div className="mt-8 grid grid-cols-2 gap-4">
+                  <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5">
+                    <p className="text-[8px] font-black text-neutral-600 uppercase tracking-widest mb-1">Estatus</p>
+                    <p className="text-xs font-black text-green-500 uppercase flex items-center gap-1.5"><Activity size={12}/> Activo</p>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">Rol del Sistema</span>
-                    <span className="text-xs font-black text-white uppercase">{tierStyle.sub}</span>
+                  <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5">
+                    <p className="text-[8px] font-black text-neutral-600 uppercase tracking-widest mb-1">Expira</p>
+                    <p className="text-xs font-black text-white uppercase">{userStats.membershipExpiry ? new Date(userStats.membershipExpiry).toLocaleDateString('es-MX') : 'Indefinido'}</p>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">Último Movimiento</span>
-                    <span className="text-xs font-black text-white uppercase">{lastOrderDate}</span>
-                  </div>
+                </div>
+
+                {/* BENEFICIOS REALES */}
+                <div className="mt-8 space-y-3">
+                  <p className="text-[9px] font-black text-neutral-600 uppercase tracking-[0.3em] mb-4">Privilegios de Nivel</p>
+                  {current.perks.map((perk: any, i: number) => (
+                    <div key={i} className="flex items-center gap-4 text-xs font-bold uppercase tracking-tight text-neutral-300 bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div className={current.accent}>{perk.icon}</div>
+                      {perk.text}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
+
+            {/* BOTÓN DE UPGRADE SI NO ES ELITE */}
+            {tier !== 'ELITE' && (
+              <Link href="/membresias" className="flex items-center justify-between p-6 bg-[#FDCB02] text-black rounded-3xl font-[1000] uppercase text-xs tracking-widest hover:bg-white transition-all shadow-[0_0_30px_rgba(253,203,2,0.2)] group">
+                <span>Subir de Nivel</span>
+                <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              </Link>
+            )}
           </div>
 
-          {/* COLUMNA DER: PANEL DE RENDIMIENTO FINANCIERO (Span 8) */}
+          {/* COL DER: BILLETERA Y FINANZAS */}
           <div className="xl:col-span-8 space-y-8">
             
-            {/* TITULO DE SECCIÓN */}
-            <div className="flex items-center gap-3 px-2">
-              <Zap size={20} className="text-[#FDCB02]" />
-              <h3 className="text-sm font-black text-white uppercase tracking-[0.2em]">Rendimiento Comercial</h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 💳 COYOTE WALLET (Puntos Reales) */}
+            <div className="bg-gradient-to-br from-[#111] to-black border border-white/5 p-10 rounded-[3rem] relative overflow-hidden group shadow-2xl">
+              <div className="absolute -right-10 -bottom-10 text-white/[0.03] rotate-12 group-hover:scale-110 transition-transform duration-1000">
+                <QrCode size={280} />
+              </div>
               
-              {/* TARJETA DE MILLONES (Volumen) */}
-              <div className="bg-gradient-to-b from-[#111] to-[#0A0A0A] border border-white/5 p-8 rounded-3xl relative overflow-hidden group hover:border-white/10 transition-colors shadow-2xl">
-                <div className="absolute -top-10 -right-10 text-white/5 group-hover:text-[#FDCB02]/10 transition-colors duration-500 rotate-12">
-                  <TrendingUp size={160} strokeWidth={1} />
-                </div>
-                
-                <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-[0.2em] mb-4">Capital Invertido</p>
-                <h3 className="text-5xl lg:text-6xl font-[1000] tracking-tighter text-white mb-2 relative z-10">
-                  {formatMoney(totalSpent)}
-                </h3>
-                
-                {/* BARRA DE PROGRESO HIGH-END */}
-                <div className="mt-12 relative z-10">
-                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-3">
-                    <span className="text-white">Nivel actual: {currentTierName}</span>
-                    <span className="text-neutral-500">{currentTierName === "Black" ? "Tope Alcanzado" : `Meta: ${formatMoney(nextTierGoal)}`}</span>
-                  </div>
-                  <div className="h-3 w-full bg-black rounded-full overflow-hidden border border-white/5 shadow-inner">
-                    <div 
-                      className="h-full bg-gradient-to-r from-[#FDCB02] via-[#ffea8a] to-[#FDCB02] transition-all duration-1000 ease-out relative" 
-                      style={{ width: `${progressPercentage}%` }}
-                    >
-                      {/* Efecto de luz viajando en la barra */}
-                      {totalSpent > 0 && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent w-[50px] animate-[shimmer_2s_infinite]" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* TARJETA DE LOGÍSTICA B2B */}
-              <div className="bg-gradient-to-b from-[#111] to-[#0A0A0A] border border-white/5 p-8 rounded-3xl relative overflow-hidden group hover:border-white/10 transition-colors shadow-2xl flex flex-col justify-between">
+              <div className="flex justify-between items-start mb-12 relative z-10">
                 <div>
-                  <div className="flex justify-between items-start mb-6">
-                    <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-[0.2em]">En Tránsito</p>
-                    <div className="p-3 bg-black border border-white/5 rounded-xl text-[#FDCB02] shadow-inner">
-                      <Package size={24} />
-                    </div>
-                  </div>
-                  <h3 className="text-6xl font-[1000] text-white tracking-tighter">
-                    {activeOrdersCount}
-                    <span className="text-lg text-neutral-600 font-bold tracking-widest ml-2 uppercase">Órdenes</span>
-                  </h3>
+                  <p className="text-[10px] text-neutral-500 font-black uppercase tracking-[0.4em] mb-3">Bóveda de Recompensas</p>
+                  <h3 className="text-4xl font-[1000] uppercase italic tracking-tighter">Coyote Wallet<span className={current.accent}>.</span></h3>
                 </div>
-                
-                <Link href="/pedidos" className="mt-8 flex items-center justify-between w-full p-4 bg-black border border-white/5 hover:border-[#FDCB02]/50 rounded-xl text-[10px] font-black text-white uppercase tracking-[0.2em] transition-all group/btn">
-                  <span>Centro de Logística</span>
-                  <ArrowUpRight size={16} className="text-[#FDCB02] group-hover/btn:rotate-45 transition-transform" />
-                </Link>
+                <div className={`p-5 bg-black border ${tier !== 'NONE' ? 'border-[#FDCB02]/50' : 'border-white/10'} rounded-[2rem] shadow-inner`}>
+                  <Zap size={32} className={current.accent} fill="currentColor" />
+                </div>
+              </div>
+
+              <div className="flex items-baseline gap-4 mb-10 relative z-10">
+                <span className="text-8xl md:text-9xl font-[1000] tracking-tighter text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                  {formatPoints(userStats.points)}
+                </span>
+                <span className="text-2xl font-black text-neutral-500 uppercase tracking-widest">Pts</span>
+              </div>
+
+              <div className="bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-white/10 relative z-10 max-w-sm">
+                <div className="flex justify-between text-[9px] font-black uppercase tracking-widest mb-3">
+                  <span className="text-neutral-400">Factor de Acumulación</span>
+                  <span className={current.accent}>{current.factor}</span>
+                </div>
+                <div className="h-2 w-full bg-black rounded-full overflow-hidden">
+                  <div className={`h-full bg-gradient-to-r from-white to-white transition-all`} style={{ width: '45%' }} />
+                </div>
+                <p className="text-[8px] text-neutral-600 mt-3 uppercase font-bold text-center">Desbloquea canje por mercancía a los 5,000 pts</p>
               </div>
             </div>
 
-            {/* SEGURIDAD B2B COMPLEJA */}
-            <div className="mt-8 bg-[#0A0A0A] border border-white/5 rounded-3xl overflow-hidden shadow-2xl">
-               <div className="p-6 md:p-8 border-b border-white/5 flex items-center justify-between bg-black/50">
-                  <div className="flex items-center gap-3">
-                    <ShieldCheck size={20} className="text-neutral-400" />
-                    <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">Centro de Seguridad B2B</h3>
-                  </div>
-               </div>
-               
-               <div className="p-6 md:p-8 space-y-2">
-                  
-                  {/* Item: Credenciales */}
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 hover:bg-white/[0.02] rounded-2xl transition-colors border border-transparent hover:border-white/5">
-                     <div className="flex items-center gap-5">
-                        <div className="p-3 bg-black border border-white/5 rounded-xl text-neutral-500 shadow-inner">
-                          <KeyRound size={20} />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-white uppercase tracking-widest mb-1">Cifrado de Acceso</p>
-                          <p className="text-[10px] text-neutral-500 uppercase tracking-wider flex items-center gap-1">
-                            <Clock size={10} /> Cuenta generada: {new Date(userStats.createdAt).toLocaleDateString('es-MX')}
-                          </p>
-                        </div>
-                     </div>
-                     <button className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border border-white/5">
-                       Actualizar
-                     </button>
-                  </div>
+            {/* MÉTRICAS FINANCIERAS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="bg-[#0A0A0A] border border-white/5 p-10 rounded-[2.5rem] relative overflow-hidden group">
+                <div className="absolute -top-10 -right-10 text-white/[0.02] rotate-12"><TrendingUp size={180} /></div>
+                <p className="text-[10px] text-neutral-500 font-black uppercase tracking-[0.3em] mb-4">Capital Invertido</p>
+                <h3 className="text-5xl font-[1000] tracking-tighter text-white mb-2">{formatMoney(totalSpent)}</h3>
+                <p className="text-[9px] text-neutral-600 font-bold uppercase">Facturación histórica total</p>
+              </div>
 
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 hover:bg-white/[0.02] rounded-2xl transition-colors border border-transparent hover:border-white/5">
-                     <div className="flex items-center gap-5">
-                        <div className="p-3 bg-black border border-white/5 rounded-xl text-neutral-500 shadow-inner">
-                          <ShieldCheck size={20} />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-white uppercase tracking-widest mb-1">MFA / 2-Factor</p>
-                          <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span> Sistema Vulnerable
-                          </p>
-                        </div>
-                     </div>
-                     <button className="px-6 py-3 bg-[#FDCB02] hover:bg-[#ffda44] text-black shadow-[0_0_15px_rgba(253,203,2,0.2)] rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all">
-                       Vincular App
-                     </button>
-                  </div>
-
-               </div>
+              <div className="bg-[#0A0A0A] border border-white/5 p-10 rounded-[2.5rem] flex flex-col justify-between group">
+                <div className="flex justify-between items-start">
+                  <p className="text-[10px] text-neutral-500 font-black uppercase tracking-[0.3em]">Órdenes Activas</p>
+                  <Package className={current.accent} size={28} />
+                </div>
+                <div>
+                  <h3 className="text-7xl font-[1000] tracking-tighter text-white">{activeOrdersCount}</h3>
+                  <Link href="/pedidos" className="mt-8 flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 group/link">
+                    <span>Logística en Tiempo Real</span>
+                    <ArrowUpRight size={18} className="group-hover/link:rotate-45 transition-transform" />
+                  </Link>
+                </div>
+              </div>
             </div>
 
+            {/* SEGURIDAD B2B */}
+            <div className="bg-[#0A0A0A] border border-white/5 rounded-[2.5rem] overflow-hidden">
+               <div className="p-8 border-b border-white/5 flex items-center justify-between bg-black/40">
+                  <div className="flex items-center gap-4">
+                    <ShieldCheck size={24} className={current.accent} />
+                    <h3 className="text-xs font-black uppercase tracking-widest">Seguridad de la Cuenta</h3>
+                  </div>
+               </div>
+               <div className="p-10 flex flex-col md:flex-row gap-8 justify-between items-center">
+                  <div className="flex items-center gap-6">
+                    <div className="p-4 bg-black rounded-2xl border border-white/5 text-neutral-600 shadow-inner"><Clock size={24}/></div>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-widest text-white">Miembro desde</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase">{new Date(userStats.createdAt).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-4 w-full md:w-auto">
+                    <button className="flex-1 md:flex-none px-10 py-5 bg-white/5 hover:bg-white hover:text-black text-white rounded-2xl text-[10px] font-[1000] uppercase tracking-widest transition-all border border-white/5">
+                      Seguridad
+                    </button>
+                    <button className="flex-1 md:flex-none px-10 py-5 bg-white/5 hover:bg-white hover:text-black text-white rounded-2xl text-[10px] font-[1000] uppercase tracking-widest transition-all border border-white/5">
+                      Facturación
+                    </button>
+                  </div>
+               </div>
+            </div>
           </div>
+
         </div>
       </main>
-
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes shimmer {
-          100% { transform: translateX(1000%); }
-        }
-      `}} />
     </div>
   )
 }

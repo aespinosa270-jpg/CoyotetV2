@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import Openpay from 'openpay';
 import { PrismaClient } from '@prisma/client';
+// 🔥 IMPORTAMOS TU NUEVO MOTOR DE FACTURACIÓN CFDI 4.0 🔥
+import { timbrarFacturaReal } from '@/lib/facturapi';
 
 const prisma = new PrismaClient();
 
@@ -35,14 +37,13 @@ export async function POST(request: Request) {
     // 3. CREAR ORDEN EN PRISMA (ESTADO: PENDING)
     const newOrder = await prisma.order.create({
       data: {
-        // Conectar o Crear Cliente (Upsert)
         user: {
           connectOrCreate: {
             where: { email: customer.email },
             create: {
               email: customer.email,
               name: `${customer.name} ${customer.lastName}`.trim(),
-              password: `guest_${Date.now()}`, // Hash temporal para invitados
+              password: `guest_${Date.now()}`, 
               phone: customer.phone,
               street: customer.street,
               neighborhood: customer.neighborhood,
@@ -52,32 +53,22 @@ export async function POST(request: Request) {
             }
           }
         },
-        
-        // Desglose Financiero
         subtotal: subtotalCalc,
         freightCost: metadata.freight_cost,
         shippingCost: metadata.shipping_cost,
         serviceFee: metadata.service_fee,
         taxIVA: metadata.tax_iva,
         total: amount,
-        
-        // Estado y Configuración
         status: 'PENDING',
         paymentMethod: method, 
         logisticsType: dbLogisticsType,
         vehiclesNeeded: metadata.vehicles_used,
-        
-        // Snapshot Histórico
         customerName: `${customer.name} ${customer.lastName}`.trim(),
         customerEmail: customer.email,
         customerPhone: customer.phone,
         address: fullAddress,
-        
-        // Facturación
         wantsInvoice: metadata.req_invoice === 'YES',
         invoiceStatus: metadata.req_invoice === 'YES' ? 'PENDING' : null,
-
-        // Items
         items: {
           create: items.map((item: any) => ({
             productId: item.id || item.productId,
@@ -99,7 +90,7 @@ export async function POST(request: Request) {
       amount: parseFloat(amount),
       currency: 'MXN',
       description: description,
-      order_id: newOrder.id, // 🔥 CRÍTICO PARA QUE EL WEBHOOK FUNCIONE
+      order_id: newOrder.id, 
       device_session_id: deviceSessionId,
       customer: {
         name: customer.name,
@@ -109,7 +100,6 @@ export async function POST(request: Request) {
       }
     };
 
-    // Si es tarjeta, inyectamos el token
     if (method === 'card') {
       chargeRequest.source_id = token;
     }
@@ -122,9 +112,34 @@ export async function POST(request: Request) {
       });
     });
 
-    // 6. ACTUALIZACIONES POST-OPENPAY
+    // 🔥 6. BLOQUE DE FACTURACIÓN REAL CFDI 4.0 🔥
+    let invoiceData: any = null;
+    if (metadata.req_invoice === 'YES' && metadata.fiscal_data) {
+        console.log("🧾 Iniciando proceso de facturación automática...");
+        const totalLogistica = (metadata.freight_cost || 0) + (metadata.shipping_cost || 0) + (metadata.service_fee || 0);
+
+        // Se dispara el timbrado al SAT (PUE si es Tarjeta, PPD si es OXXO/SPEI)
+        const facturacion = await timbrarFacturaReal(
+            customer, 
+            metadata.fiscal_data, 
+            items, 
+            method, 
+            totalLogistica
+        );
+
+        if (facturacion.success) {
+            invoiceData = facturacion;
+            
+            // Actualizamos la orden en la BD para que quede registro de que ya se emitió la factura
+            await prisma.order.update({
+              where: { id: newOrder.id },
+              data: { invoiceStatus: 'ISSUED' } 
+            });
+        }
+    }
+
+    // 7. ACTUALIZACIONES POST-OPENPAY Y WHATSAPP
     if (method === 'card') {
-      // Si es tarjeta y pasó, ya cobramos. Actualizamos a PAID.
       await prisma.order.update({
         where: { id: newOrder.id },
         data: { 
@@ -133,22 +148,26 @@ export async function POST(request: Request) {
         }
       });
       
-      // Sumamos al LTV del cliente
       await prisma.user.update({
         where: { id: newOrder.userId },
         data: { ltv: { increment: amount } }
       });
 
-      // 🚀 MAGIA OMNICANAL: EL COYOTE AVISA POR WHATSAPP AL CLIENTE WEB
+      // 🚀 MAGIA OMNICANAL: EL COYOTE AVISA POR WHATSAPP (¡AHORA CON FACTURA!)
       try {
         const waToken = process.env.WHATSAPP_TOKEN;
         const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || '920775764462309'; 
-        const numeroLimpio = customer.phone.replace(/\D/g, ''); // Limpiamos el celular del form
+        const numeroLimpio = customer.phone.replace(/\D/g, ''); 
 
         let mensajeCoyote = `🐺 ¡Qué onda ${customer.name}! Soy El Coyote de Coyote Textil.\n\nEl sistema me avisa que tu pago con Tarjeta por *$${amount} MXN* en nuestra página web pasó al 100% (Orden: ${newOrder.id}). ✅\n\nTu pedido ya está en fila para bodega. Por aquí te iré avisando cualquier novedad. 📦`;
 
         if (metadata.req_invoice === 'YES') {
-           mensajeCoyote += `\n\n🧾 *Tus datos fiscales fueron recibidos.* Te haré llegar tu factura por este medio.`;
+           if (invoiceData && invoiceData.pdf) {
+               // 🔥 Si se timbró con éxito, le mandamos el link del PDF de inmediato
+               mensajeCoyote += `\n\n🧾 *¡Tu factura ya fue timbrada ante el SAT!* Descarga tu PDF oficial aquí:\n📄 ${invoiceData.pdf}`;
+           } else {
+               mensajeCoyote += `\n\n🧾 *Tus datos fiscales fueron recibidos.* Te haré llegar tu factura por este medio a la brevedad.`;
+           }
         }
 
         if (waToken) {
@@ -173,29 +192,23 @@ export async function POST(request: Request) {
       }
 
     } else {
-      // Si es OXXO/SPEI, solo guardamos el ID de OpenPay, se queda en PENDING
+      // Si es OXXO/SPEI, solo guardamos el ID de OpenPay y se queda en PENDING
       await prisma.order.update({
         where: { id: newOrder.id },
         data: { paymentId: charge.id }
       });
-      // Nota: El aviso de OXXO/SPEI se enviará desde el Webhook de OpenPay cuando caiga el dinero real.
     }
 
     // Retornamos éxito al Frontend
     return NextResponse.json({ 
       success: true, 
       charge, 
-      orderId: newOrder.id 
+      orderId: newOrder.id,
+      invoice: invoiceData // Pasamos la info por si el frontend quiere mostrar un botón de descarga
     });
 
   } catch (error: any) {
     console.error('❌ Error en Checkout:', error);
-    
-    // Fallback: Si OpenPay rebotó la tarjeta, cancelamos la orden interna para no ensuciar el CRM
-    if (error.error_code) {
-      // Podrías poner lógica aquí para cambiar a CANCELLED si ya existía newOrder
-    }
-
     const errorCode = error.error_code || 500;
     const errorMessage = error.description || 'Error procesando la transacción B2B';
 

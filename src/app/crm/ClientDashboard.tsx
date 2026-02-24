@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Softphone from './Softphone';
+import InteractionForm from './components/InteractionForm';
 // --- TIPOS ---
 type OrderItem = { id: string; title: string; quantity: number; unit: string; color: string };
 type Order = { id: string; orderNumber: string; total: number; status: string; date: string };
@@ -444,6 +445,14 @@ export default function ClientDashboard({
                     <DataRow label="Email" value={selectedCustomer.safeEmail} mono />
                     <DataRow label="Teléfono" value={selectedCustomer.safePhone} mono />
                     <DataRow label="LTV" value={`$${selectedCustomer.ltv.toLocaleString()} MXN`} highlight />
+                  </div>
+                </div>
+
+                {/* 🐺 INYECCIÓN: Formulario de Interacciones 🐺 */}
+                <div>
+                  <SectionLabel icon={<Activity size={10} className="text-[#FDCB02]" />} label="Registro de Actividad" />
+                  <div className="mt-3">
+                    <InteractionForm clientId={selectedCustomer.id} />
                   </div>
                 </div>
 

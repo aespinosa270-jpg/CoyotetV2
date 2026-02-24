@@ -5,9 +5,6 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import ClientDashboard from './ClientDashboard';
 
-// ============================================================================
-// DATA MASKING
-// ============================================================================
 const maskEmail = (email: string | null): string => {
   if (!email) return 'Sin correo';
   const [name, domain] = email.split('@');
@@ -54,8 +51,20 @@ export default async function CRMPage() {
   if (!employee?.isActive) redirect('/crm/login');
 
   // ── Data ──────────────────────────────────────────────────────────────────
+  // ── Data ──────────────────────────────────────────────────────────────────
   const [rawUsers, rawOrders] = await Promise.all([
     prisma.user.findMany({
+      where: {
+        // 🔥 ESCUDO ZERO-TRUST CORREGIDO
+        email: {
+          not: {
+            contains: '@coyote' // Así sí lo entiende Prisma
+          }
+        },
+        role: {
+          notIn: ['black', 'ADMIN', 'EMPLOYEE', 'MANAGER'], // Excluimos los roles internos
+        }
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         orders: { orderBy: { createdAt: 'desc' }, take: 10 },

@@ -1,201 +1,542 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { 
-  ArrowRight, Activity, Target, 
-  ChevronRight, ChevronLeft, Fingerprint, Shield, Zap, QrCode, 
-  Loader2, X, CreditCard, Building2, Store, Lock
+import {
+  ArrowRight, Fingerprint, Shield, Zap, QrCode,
+  Loader2, X, CreditCard, Building2, Store, Lock,
+  ChevronRight, ChevronLeft, Check, Sparkles, Crown
 } from 'lucide-react';
 import Script from 'next/script';
 
-const formatMoney = (amount: number) => {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TIPOS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+declare global { interface Window { OpenPay: any; } }
 
+const fmx = (n: number) =>
+  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(n);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PLANES — cada uno tiene su propio ADN visual
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const PLANS = [
   {
-    id: 0, key: 'BASE', name: 'Acceso Inicial', price: 0, 
-    bgClass: 'bg-gradient-to-br from-[#e3e3e3] via-[#c4c4c4] to-[#8a8a8a]',
-    glowColor: 'rgba(255,255,255,0.3)',
-    textColor: 'text-neutral-900',
-    borderColor: 'border-white/60',
-    features: ['0.5 Puntos por cada $100 MXN', 'Acceso a Catálogo Global', 'Sin acceso a apartados'],
-    tag: 'STANDARD MEMBER'
+    id: 0, key: 'BASE', name: 'Acceso Inicial', price: 0,
+    planId: null,
+    // Material: aluminio cepillado frío
+    cardBg: 'linear-gradient(135deg, #e8e8e8 0%, #c8c8c8 40%, #a0a0a0 70%, #d4d4d4 100%)',
+    cardSheen: 'linear-gradient(105deg, rgba(255,255,255,0.6) 0%, transparent 40%, rgba(255,255,255,0.2) 100%)',
+    ambientColor: 'rgba(200,200,200,0.08)',
+    numberColor: '#555',
+    nameColor: '#333',
+    tagColor: '#888',
+    accentLine: '#aaa',
+    tag: 'STANDARD',
+    features: [
+      '0.5 pts por cada $100 MXN',
+      'Acceso a catálogo global',
+      'Panel de historial básico',
+      'Sin acceso a apartados',
+    ],
   },
   {
-    id: 1, key: 'GOLD', name: 'Socio Comercial', price: 499, 
-    bgClass: 'bg-gradient-to-br from-[#FFD700] via-[#FDCB02] to-[#B8860B]',
-    glowColor: 'rgba(253, 203, 2, 0.6)',
-    textColor: 'text-black',
-    borderColor: 'border-yellow-200/50',
+    id: 1, key: 'GOLD', name: 'Socio Comercial', price: 499,
+    planId: 'p83a2hxbhkfdqkpouz0h',
     recommended: true,
-    features: ['7 Días de Apartado', '3 Colocaciones s/costo', '1 Punto por cada $100 MXN'],
-    tag: 'PRIORITY MEMBER'
+    // Material: oro 24k con reflejos cálidos
+    cardBg: 'linear-gradient(135deg, #ffd700 0%, #fdcb02 25%, #e8a800 55%, #ffd000 75%, #c89000 100%)',
+    cardSheen: 'linear-gradient(115deg, rgba(255,255,255,0.75) 0%, transparent 35%, rgba(255,220,50,0.35) 65%, transparent 100%)',
+    ambientColor: 'rgba(253,203,2,0.15)',
+    numberColor: '#5a3800',
+    nameColor: '#3d2600',
+    tagColor: '#7a5200',
+    accentLine: 'rgba(255,200,0,0.6)',
+    tag: 'PRIORITY',
+    features: [
+      '10% descuento en textiles',
+      '7 días de apartado garantizado',
+      '3 colocaciones sin costo/mes',
+      '1 punto por cada $100 MXN',
+    ],
   },
   {
-    id: 2, key: 'BLACK', name: 'Socio Ejecutivo', price: 799, 
-    bgClass: 'bg-gradient-to-br from-[#333] via-[#1a1a1a] to-[#000]',
-    glowColor: 'rgba(255,255,255,0.2)',
-    textColor: 'text-white',
-    borderColor: 'border-white/20',
-    features: ['7 Días de Apartado', '6 Colocaciones s/costo', '2 Puntos por cada $100 MXN', 'Prioridad en Paquetería', 'Muestrarios Gratis'],
-    tag: 'EXECUTIVE ACCESS'
+    id: 2, key: 'BLACK', name: 'Socio Ejecutivo', price: 799,
+    planId: 'pkkvsgtvhz2hk8xyqtnp',
+    // Material: carbono tejido + titanio
+    cardBg: 'linear-gradient(135deg, #2a2a2a 0%, #111 40%, #1e1e1e 70%, #0a0a0a 100%)',
+    cardSheen: 'linear-gradient(110deg, rgba(255,255,255,0.12) 0%, transparent 40%, rgba(255,255,255,0.05) 100%)',
+    ambientColor: 'rgba(255,255,255,0.05)',
+    numberColor: '#888',
+    nameColor: '#ccc',
+    tagColor: '#666',
+    accentLine: 'rgba(255,255,255,0.2)',
+    tag: 'EXECUTIVE',
+    features: [
+      '15% descuento en textiles',
+      '6 colocaciones sin costo/mes',
+      '2 puntos por cada $100 MXN',
+      'Prioridad en paquetería',
+      'Muestrarios gratis',
+    ],
   },
   {
-    id: 3, key: 'ELITE', name: 'Master Partner', price: 1129, 
-    bgClass: 'bg-gradient-to-br from-[#2b3a42] via-[#1c252b] to-[#0b0e11]',
-    glowColor: 'rgba(100, 200, 255, 0.3)',
-    textColor: 'text-white',
-    borderColor: 'border-cyan-900/30',
-    features: ['15 Días de Apartado', '10 Colocaciones s/costo', '4 Puntos por cada $100 MXN', 'Acceso 30 días antes a Novedades', 'Prioridad Total en Despacho', 'Muestrarios & Regalos Textiles'],
-    tag: 'ELITE PARTNER'
-  }
+    id: 3, key: 'ELITE', name: 'Master Partner', price: 1129,
+    planId: 'phlugox3vwsbvbsi1nxf',
+    // Material: cerámica con destellos iridiscentes
+    cardBg: 'linear-gradient(135deg, #0d1b2a 0%, #1a3a5c 30%, #0d2137 60%, #071420 100%)',
+    cardSheen: 'linear-gradient(115deg, rgba(100,220,255,0.25) 0%, transparent 30%, rgba(50,150,255,0.15) 60%, rgba(100,220,255,0.08) 100%)',
+    ambientColor: 'rgba(50,180,255,0.10)',
+    numberColor: '#4a9fd4',
+    nameColor: '#8dd4f0',
+    tagColor: '#2a7aaa',
+    accentLine: 'rgba(80,180,255,0.4)',
+    tag: 'ELITE',
+    features: [
+      '15% dto + envío local gratis',
+      '15 días de apartado',
+      '4 puntos por cada $100 MXN',
+      'Acceso anticipado 30 días',
+      'Gerente de cuenta dedicado',
+    ],
+  },
 ];
 
-declare global {
-  interface Window {
-    OpenPay: any;
-  }
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TARJETA PREMIUM — con tilt 3D reactivo al cursor
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function PremiumCard({
+  plan, isActive, offset, onClick, index,
+}: {
+  plan: typeof PLANS[0]; isActive: boolean; offset: number; onClick: () => void; index: number;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const rx = useSpring(useTransform(my, [-0.5, 0.5], ['12deg', '-12deg']), { stiffness: 300, damping: 30 });
+  const ry = useSpring(useTransform(mx, [-0.5, 0.5], ['-12deg', '12deg']), { stiffness: 300, damping: 30 });
+  const sheenX = useTransform(mx, [-0.5, 0.5], ['0%', '100%']);
+  const sheenY = useTransform(my, [-0.5, 0.5], ['0%', '100%']);
+
+  const handleMove = (e: React.MouseEvent) => {
+    if (!isActive || !cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    mx.set((e.clientX - rect.left) / rect.width - 0.5);
+    my.set((e.clientY - rect.top) / rect.height - 0.5);
+  };
+  const handleLeave = () => { mx.set(0); my.set(0); };
+
+  const stackZ  = isActive ? 40 : 10 - Math.abs(offset);
+  const stackX  = isActive ? 0 : offset * 55;
+  const stackY  = isActive ? 0 : Math.abs(offset) * 30 + offset * 10;
+  const stackRX = isActive ? 0 : 28 + Math.abs(offset) * 6;
+  const sc      = isActive ? 1.08 : 0.80 - Math.abs(offset) * 0.05;
+  const opac    = isActive ? 1 : 0.45 - Math.abs(offset) * 0.15;
+
+  return (
+    <motion.div
+      ref={cardRef}
+      onClick={onClick}
+      onMouseMove={handleMove}
+      onMouseLeave={handleLeave}
+      style={{ zIndex: stackZ, rotateX: isActive ? rx : stackRX, rotateY: isActive ? ry : 0 }}
+      animate={{ x: stackX, y: stackY, scale: sc, opacity: opac, filter: isActive ? 'brightness(1)' : 'brightness(0.4) blur(1.5px)' }}
+      transition={{ type: 'spring', stiffness: 90, damping: 22 }}
+      className="absolute cursor-pointer"
+      whileHover={!isActive ? { scale: sc + 0.03, opacity: opac + 0.15 } : {}}
+    >
+      {/* Resplandor ambiental por debajo */}
+      {isActive && (
+        <motion.div
+          className="absolute -inset-8 rounded-3xl blur-3xl pointer-events-none"
+          style={{ background: plan.ambientColor }}
+          animate={{ opacity: [0.5, 0.9, 0.5] }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      )}
+
+      {/* La tarjeta */}
+      <div
+        className="relative w-[300px] h-[188px] lg:w-[480px] lg:h-[300px] rounded-[20px] overflow-hidden"
+        style={{
+          background: plan.cardBg,
+          boxShadow: isActive
+            ? `0 50px 100px rgba(0,0,0,0.6), 0 20px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3)`
+            : '0 20px 40px rgba(0,0,0,0.5)',
+        }}
+      >
+        {/* Sheen dinámico (sigue el cursor) */}
+        {isActive && (
+          <motion.div
+            className="absolute inset-0 pointer-events-none rounded-[20px]"
+            style={{
+              background: plan.cardSheen,
+              backgroundPosition: `${sheenX}% ${sheenY}%`,
+              backgroundSize: '200% 200%',
+              mixBlendMode: 'overlay',
+            }}
+          />
+        )}
+
+        {/* Textura diagonal sutil */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.04]"
+          style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.5) 0, rgba(255,255,255,0.5) 1px, transparent 1px, transparent 8px)' }}
+        />
+
+        {/* Contenido de la tarjeta */}
+        <div className="relative h-full p-6 lg:p-9 flex flex-col justify-between">
+          {/* Header */}
+          <div className="flex justify-between items-start">
+            <div className="flex items-center gap-2.5">
+              {/* Logo holográfico */}
+              <div className="w-9 h-9 lg:w-11 lg:h-11 rounded-xl flex items-center justify-center"
+                style={{ background: `rgba(0,0,0,0.18)`, backdropFilter: 'blur(4px)', border: `1px solid ${plan.accentLine}` }}>
+                <span className="font-black text-[11px] tracking-tighter" style={{ color: plan.nameColor }}>CY</span>
+              </div>
+              <span className="font-black text-[11px] lg:text-xs uppercase tracking-[0.18em]" style={{ color: plan.tagColor }}>COYOTE TEXTIL</span>
+            </div>
+            <div className="border rounded px-2 py-0.5 text-[7px] lg:text-[8px] font-black uppercase tracking-[0.2em]"
+              style={{ borderColor: plan.accentLine, color: plan.tagColor }}>
+              {plan.tag}
+            </div>
+          </div>
+
+          {/* Key name enorme */}
+          <div className="text-center">
+            <span
+              className="leading-none select-none"
+              style={{
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 'clamp(56px, 10vw, 112px)',
+                color: plan.nameColor,
+                letterSpacing: '0.04em',
+                textShadow: isActive ? `0 2px 20px ${plan.ambientColor}` : 'none',
+              }}
+            >
+              {plan.key}
+            </span>
+          </div>
+
+          {/* Footer */}
+          <div className="flex justify-between items-end">
+            <div>
+              <p className="text-[7px] lg:text-[8px] font-black uppercase tracking-[0.22em] mb-1" style={{ color: plan.tagColor }}>ACCESS ID</p>
+              <div className="flex items-center gap-1.5">
+                <Fingerprint size={10} style={{ color: plan.numberColor }} />
+                <span className="font-mono text-[10px] lg:text-xs font-bold" style={{ color: plan.numberColor }}>
+                  MX-{plan.id}9-2026
+                </span>
+              </div>
+            </div>
+            {/* Chip EMV realista */}
+            <div className="w-10 h-8 lg:w-12 lg:h-9 rounded-md overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, rgba(0,0,0,0.2), rgba(0,0,0,0.1))', border: `1px solid ${plan.accentLine}` }}>
+              <div className="w-full h-full grid grid-cols-3 grid-rows-3 gap-px p-1">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <div key={i} className="rounded-[1px]" style={{ background: i % 2 === 0 ? plan.accentLine : 'transparent', opacity: 0.6 }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MODAL DE PAGO — vault de seguridad
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function PaymentVault({
+  plan, price, billing, onClose, onProcess, loading, error, openPayReady,
+}: {
+  plan: typeof PLANS[0]; price: number; billing: string;
+  onClose: () => void; onProcess: (method: string, card: any) => void;
+  loading: boolean; error: string; openPayReady: boolean;
+}) {
+  const [method, setMethod]   = useState<'card' | 'spei' | 'store'>('card');
+  const [card,   setCard]     = useState({ holder:'', number:'', expMonth:'', expYear:'', cvv:'' });
+  const [flip,   setFlip]     = useState(false);
+
+  const METHODS = [
+    { id:'card',         label:'Tarjeta', icon:CreditCard },
+    { id:'spei',         label:'SPEI',    icon:Building2 },
+    { id:'store',        label:'Efectivo',icon:Store },
+  ] as const;
+
+  const formatCardNum = (v: string) => v.replace(/\D/g,'').slice(0,16).replace(/(.{4})/g,'$1 ').trim();
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(28px)' }}
+    >
+      {/* Halo del plan seleccionado */}
+      <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden">
+        <motion.div
+          className="w-[800px] h-[800px] rounded-full blur-[200px] opacity-15"
+          style={{ background: plan.ambientColor }}
+          animate={{ scale: [0.8, 1.1, 0.8] }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      </div>
+
+      <motion.div
+        initial={{ scale: 0.88, y: 32, filter: 'blur(8px)' }}
+        animate={{ scale: 1, y: 0, filter: 'blur(0px)' }}
+        exit={{ scale: 0.9, y: 16, filter: 'blur(4px)' }}
+        transition={{ type: 'spring', damping: 26, stiffness: 200 }}
+        className="relative w-full max-w-md z-10"
+      >
+        {/* Borde del plan */}
+        <div className="absolute -inset-px rounded-[2rem] pointer-events-none" style={{ background: `linear-gradient(135deg, ${plan.accentLine}, transparent, ${plan.accentLine})`, opacity: 0.4 }} />
+
+        <div className="bg-[#080808] rounded-[2rem] overflow-hidden border border-white/[0.07]">
+
+          {/* Header vault */}
+          <div className="px-7 pt-7 pb-5 border-b border-white/[0.06] flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2.5 mb-1">
+                <Shield size={15} className="text-green-400" />
+                <p className="text-[9px] font-black uppercase tracking-[0.25em] text-white/30">Pago Seguro · OpenPay</p>
+              </div>
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: '26px', letterSpacing: '0.04em' }} className="text-white leading-none">
+                Plan <span style={{ color: plan.nameColor === '#3d2600' ? '#FDCB02' : plan.nameColor }}>{plan.key}</span>
+              </p>
+              <p className="text-[11px] text-white/30 font-semibold mt-0.5">
+                {fmx(price)} MXN · {billing === 'annual' ? 'anual' : 'mensual'}
+              </p>
+            </div>
+            <button
+              onClick={() => !loading && onClose()}
+              className="w-10 h-10 rounded-full bg-white/[0.05] hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="p-7 space-y-5">
+            {/* Selector de método */}
+            <div className="grid grid-cols-3 gap-1.5 bg-white/[0.03] rounded-2xl p-1.5 border border-white/[0.05]">
+              {METHODS.map(m => (
+                <button key={m.id} type="button" onClick={() => setMethod(m.id)}
+                  className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${method === m.id
+                    ? 'bg-white text-black shadow-lg'
+                    : 'text-white/25 hover:text-white/60'
+                  }`}
+                >
+                  <m.icon size={12} />{m.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Error */}
+            <AnimatePresence>
+              {error && (
+                <motion.div initial={{ height:0, opacity:0 }} animate={{ height:'auto', opacity:1 }} exit={{ height:0, opacity:0 }}
+                  className="bg-red-500/[0.08] border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-[10px] font-bold uppercase tracking-wide flex items-center gap-2"
+                >
+                  <Zap size={12} />{error}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence mode="wait">
+              {method === 'card' && (
+                <motion.div key="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }} className="space-y-3">
+                  {/* Mini preview de tarjeta */}
+                  <div className="relative h-28 rounded-xl overflow-hidden mb-4" style={{ background: plan.cardBg }}>
+                    <div className="absolute inset-0" style={{ background: plan.cardSheen, mixBlendMode: 'overlay' }} />
+                    <div className="absolute inset-0 p-4 flex flex-col justify-between">
+                      <div className="flex justify-between items-start">
+                        <span className="font-black text-[10px] tracking-widest" style={{ color: plan.tagColor }}>COYOTE TEXTIL</span>
+                        <CreditCard size={16} style={{ color: plan.numberColor }} />
+                      </div>
+                      <div>
+                        <p className="font-mono text-sm tracking-[0.18em]" style={{ color: plan.nameColor, fontFamily: 'JetBrains Mono, monospace' }}>
+                          {card.number || '•••• •••• •••• ••••'}
+                        </p>
+                        <div className="flex justify-between mt-1">
+                          <p className="text-[10px] font-bold uppercase" style={{ color: plan.tagColor }}>
+                            {card.holder || 'TITULAR'}
+                          </p>
+                          <p className="text-[10px] font-mono" style={{ color: plan.numberColor }}>
+                            {card.expMonth || 'MM'}/{card.expYear || 'AA'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Campos */}
+                  {[
+                    { placeholder: 'NOMBRE DEL TITULAR', key: 'holder', type:'text', col: 'full', upper: true },
+                  ].map(f => (
+                    <input key={f.key} type={f.type} placeholder={f.placeholder}
+                      value={(card as any)[f.key]}
+                      onChange={e => setCard({ ...card, [f.key]: f.upper ? e.target.value.toUpperCase() : e.target.value })}
+                      className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3.5 text-white font-bold text-sm uppercase placeholder:text-white/15 outline-none focus:border-white/30 transition-colors"
+                    />
+                  ))}
+                  <input
+                    placeholder="0000 0000 0000 0000"
+                    value={card.number}
+                    maxLength={19}
+                    onChange={e => setCard({ ...card, number: formatCardNum(e.target.value) })}
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3.5 text-white font-mono text-lg tracking-widest placeholder:text-white/15 outline-none focus:border-white/30 transition-colors"
+                    style={{ fontFamily: 'JetBrains Mono, monospace' }}
+                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { placeholder:'MM', key:'expMonth', maxLength:2 },
+                      { placeholder:'AA', key:'expYear', maxLength:2 },
+                      { placeholder:'CVV', key:'cvv', maxLength:4, pass:true },
+                    ].map(f => (
+                      <div key={f.key} onFocus={() => f.pass && setFlip(true)} onBlur={() => f.pass && setFlip(false)}>
+                        <input type={f.pass ? 'password' : 'text'} placeholder={f.placeholder} maxLength={f.maxLength}
+                          value={(card as any)[f.key]}
+                          onChange={e => setCard({ ...card, [f.key]: e.target.value })}
+                          className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-3.5 text-white font-mono text-center text-base placeholder:text-white/15 outline-none focus:border-white/30 transition-colors"
+                          style={{ fontFamily: 'JetBrains Mono, monospace' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {(method === 'spei' || method === 'store') && (
+                <motion.div key={method} initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }}
+                  className="py-10 flex flex-col items-center text-center"
+                >
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 border"
+                    style={{ background: plan.ambientColor, borderColor: plan.accentLine }}>
+                    {method === 'spei' ? <Building2 size={26} style={{ color: plan.nameColor }} /> : <Store size={26} style={{ color: plan.nameColor }} />}
+                  </div>
+                  <p className="text-white/70 text-sm font-medium max-w-xs leading-relaxed">
+                    {method === 'spei'
+                      ? 'Generaremos una CLABE única. Tu membresía se activa automáticamente al confirmar el depósito.'
+                      : 'Recibirás un código de barras válido por 72h para pagar en OXXO o 7-Eleven.'
+                    }
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* CTA de pago */}
+            <motion.button
+              whileHover={{ scale: 1.012 }}
+              whileTap={{ scale: 0.985 }}
+              onClick={() => onProcess(method, card)}
+              disabled={loading}
+              className="w-full h-14 rounded-2xl font-black uppercase tracking-[0.18em] text-sm flex items-center justify-center gap-2.5 transition-all duration-300 overflow-hidden relative"
+              style={{
+                background: loading ? 'rgba(255,255,255,0.08)' : plan.cardBg,
+                color: plan.nameColor,
+                boxShadow: loading ? 'none' : `0 8px 32px ${plan.ambientColor}`,
+              }}
+            >
+              {!loading && <div className="absolute inset-0" style={{ background: plan.cardSheen, mixBlendMode:'overlay' }} />}
+              <span className="relative flex items-center gap-2.5">
+                {loading ? <><Loader2 size={16} className="animate-spin text-white/50" /><span className="text-white/40">Procesando…</span></> : (
+                  <>{method === 'card' ? <Lock size={14} /> : <Zap size={14} />}
+                  {method === 'card' ? `Pagar ${fmx(price)}` : 'Generar referencia'}</>
+                )}
+              </span>
+            </motion.button>
+
+            <p className="text-center text-[9px] text-white/15 font-black uppercase tracking-[0.22em] flex items-center justify-center gap-2">
+              <Shield size={10} className="text-green-500/40" />PCI-DSS · TLS 1.3 · OpenPay
+            </p>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMPONENTE PRINCIPAL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function MembershipStack() {
   const { data: session } = useSession();
   const router = useRouter();
-  const [activeIndex, setActiveIndex] = useState(1);
-  const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
-  const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  
-  // Estados del Modal
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'spei' | 'store'>('card');
-  const [cardData, setCardData] = useState({ holder: '', number: '', expMonth: '', expYear: '', cvv: '' });
-  const [paymentError, setPaymentError] = useState('');
-  const [openPayReady, setOpenPayReady] = useState(false);
+
+  const [activeIdx,   setActiveIdx]   = useState(1);
+  const [billing,     setBilling]     = useState<'monthly'|'annual'>('monthly');
+  const [mounted,     setMounted]     = useState(false);
+  const [loading,     setLoading]     = useState(false);
+  const [showVault,   setShowVault]   = useState(false);
+  const [openpayOk,   setOpenpayOk]   = useState(false);
+  const [payError,    setPayError]    = useState('');
+  const [sdkStep,     setSdkStep]     = useState(0);
 
   useEffect(() => {
     setMounted(true);
-    const initInterval = setInterval(() => {
-      if (typeof window !== 'undefined' && window.OpenPay && window.OpenPay.deviceData) {
+    const t = setInterval(() => {
+      if (typeof window !== 'undefined' && window.OpenPay?.deviceData) {
         window.OpenPay.setId(process.env.NEXT_PUBLIC_OPENPAY_MERCHANT_ID);
         window.OpenPay.setApiKey(process.env.NEXT_PUBLIC_OPENPAY_PUBLIC_KEY);
         window.OpenPay.setSandboxMode(true);
-        setOpenPayReady(true);
-        clearInterval(initInterval);
+        setOpenpayOk(true);
+        setSdkStep(3);
+        clearInterval(t);
       }
     }, 300);
-    return () => clearInterval(initInterval);
+    return () => clearInterval(t);
   }, []);
 
-  const nextPlan = useCallback(() => setActiveIndex((prev) => (prev + 1) % PLANS.length), []);
-  const prevPlan = useCallback(() => setActiveIndex((prev) => (prev - 1 + PLANS.length) % PLANS.length), []);
+  const plan   = PLANS[activeIdx];
+  const isAnn  = billing === 'annual';
+  const price  = isAnn ? Math.round(plan.price * 12 * 0.90) : plan.price;
+  const savings = Math.round((plan.price * 12) - price);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (showPaymentModal) return; 
-      if (e.key === 'ArrowRight') nextPlan();
-      if (e.key === 'ArrowLeft') prevPlan();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nextPlan, prevPlan, showPaymentModal]);
+  const next = useCallback(() => setActiveIdx(p => (p + 1) % PLANS.length), []);
+  const prev = useCallback(() => setActiveIdx(p => (p - 1 + PLANS.length) % PLANS.length), []);
 
-  const activePlan = PLANS[activeIndex];
-  const isAnnual = billing === 'annual';
-  const monthlyPrice = activePlan.price;
-  const annualTotalPrice = Math.round(monthlyPrice * 12 * 0.90);
-  const savings = Math.round((monthlyPrice * 12) - annualTotalPrice);
-  const priceToDisplay = isAnnual ? annualTotalPrice : monthlyPrice;
-  const periodLabel = isAnnual ? 'MXN / AÑO' : 'MXN / MES';
-
-  const handleInitiatePurchase = () => {
-    if (!session) {
-      // AQUÍ ESTÁ EL ARREGLO: Redirige al registro en lugar del 404
-      router.push('/cuenta?mode=register');
-      return;
-    }
-    if (activePlan.price === 0) {
-      processServerCheckout(null, null, 'free');
-    } else {
-      setShowPaymentModal(true);
-    }
+  const handleBuy = () => {
+    if (!session) { router.push('/cuenta?mode=register'); return; }
+    if (plan.price === 0) processCheckout('free', null);
+    else { setPayError(''); setShowVault(true); }
   };
 
-  const handleProcessPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setPaymentError('');
-
-    if (!openPayReady || !window.OpenPay || !window.OpenPay.deviceData) {
-      setPaymentError("Conectando con túnel bancario... Espera 2 segundos e intenta de nuevo.");
-      setLoading(false);
-      return;
-    }
-
+  const processCheckout = async (method: string, cardData: any) => {
+    setLoading(true); setPayError('');
     try {
-      const deviceSessionId = window.OpenPay.deviceData.setup("payment-form");
+      let tokenId    = null;
+      let sessionId  = null;
 
-      // Si eligen SPEI o Tienda, no ocupamos tokenizar tarjeta, mandamos directo al backend
-      if (paymentMethod === 'spei' || paymentMethod === 'store') {
-        processServerCheckout(null, deviceSessionId, paymentMethod);
-        return;
+      if (method === 'card') {
+        if (!openpayOk) throw new Error('SDK bancario no disponible. Intenta en un momento.');
+        sessionId = window.OpenPay.deviceData.setup();
+        tokenId   = await new Promise<string>((res, rej) => {
+          window.OpenPay.token.create({
+            card_number:      cardData.number.replace(/\s/g,''),
+            holder_name:      cardData.holder.toUpperCase(),
+            expiration_year:  cardData.expYear,
+            expiration_month: cardData.expMonth,
+            cvv2:             cardData.cvv,
+          }, (r: any) => res(r.data.id), (e: any) => rej(e));
+        });
       }
 
-      // Si es Tarjeta, Tokenizamos
-      window.OpenPay.token.create({
-        "card_number": cardData.number.replace(/\s/g, ''),
-        "holder_name": cardData.holder,
-        "expiration_year": cardData.expYear,
-        "expiration_month": cardData.expMonth,
-        "cvv2": cardData.cvv
-      }, 
-      (response: any) => {
-        const tokenId = response.data.id;
-        processServerCheckout(tokenId, deviceSessionId, 'card');
-      }, 
-      (error: any) => {
-        setPaymentError(error.data.description || "Tarjeta declinada o inválida.");
-        setLoading(false);
-      });
-    } catch (err: any) {
-      setPaymentError("Error de encriptación. Contacta a soporte Coyote.");
-      setLoading(false);
-    }
-  };
-
-  const processServerCheckout = async (tokenId: string | null, deviceSessionId: string | null, method: string) => {
-    try {
-      const response = await fetch('/api/membership/checkout', {
+      const res  = await fetch('/api/membership/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planKey: activePlan.key,
-          price: priceToDisplay,
-          billingCycle: billing,
-          tokenId: tokenId,
-          deviceSessionId: deviceSessionId,
-          paymentMethod: method // Mandamos el método al backend
-        })
+        body: JSON.stringify({ planKey: plan.key, price, billingCycle: billing, tokenId, deviceSessionId: sessionId, paymentMethod: method }),
       });
+      const data = await res.json();
 
-      if (response.ok) {
-        setShowPaymentModal(false);
-        // Aquí podrías redirigir a una pantalla de "Instrucciones de pago" si es SPEI/OXXO
-        router.push(method === 'card' || method === 'free' ? '/perfil?status=success' : '/perfil?status=pending_payment');
-      } else {
-        const errorText = await response.text();
-        setPaymentError(errorText || "Error en la pasarela bancaria.");
-      }
-    } catch (err) {
-      setPaymentError("Error de red. Revisa tu conexión a internet.");
+      if (res.ok) {
+        if (data.type === 'payment_reference' && data.payment_info?.url) window.open(data.payment_info.url, '_blank');
+        setShowVault(false);
+        router.push('/perfil?status=success');
+      } else throw new Error(data.error || 'Error en el servidor.');
+    } catch (e: any) {
+      setPayError(e.data?.description || e.message || 'Error desconocido');
     } finally {
       setLoading(false);
     }
@@ -203,257 +544,286 @@ export default function MembershipStack() {
 
   if (!mounted) return null;
 
+  // Calcular stacks visibles
+  const visiblePlans = PLANS.map((p, i) => {
+    let off = i - activeIdx;
+    if (off < -PLANS.length / 2) off += PLANS.length;
+    if (off > PLANS.length / 2)  off -= PLANS.length;
+    return { plan: p, index: i, offset: off };
+  }).filter(({ offset }) => Math.abs(offset) <= 1);
+
   return (
     <>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600;700;800&display=swap" />
       <Script src="https://js.openpay.mx/openpay.v1.min.js" strategy="afterInteractive" />
       <Script src="https://js.openpay.mx/openpay-data.v1.min.js" strategy="afterInteractive" />
 
-      <div className="h-screen w-full bg-[#050505] text-white font-sans overflow-hidden flex flex-col lg:flex-row relative selection:bg-[#FDCB02] selection:text-black">
-        
-        {/* --- BACKGROUND --- */}
+      <div
+        className="h-screen w-full overflow-hidden flex flex-col lg:flex-row select-none relative"
+        style={{ background: '#030303', fontFamily: 'Instrument Sans, sans-serif' }}
+      >
+
+        {/* ── FONDO REACTIVO ───────────────────────────────────── */}
         <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,#1a1a1a_0%,#000000_100%)]" />
-            <div className="absolute inset-0 opacity-[0.04] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-repeat mix-blend-overlay" />
-            <motion.div animate={{ background: activePlan.glowColor }} transition={{ duration: 0.8 }} className="absolute left-[25%] top-1/2 -translate-y-1/2 w-[800px] h-[800px] blur-[250px] rounded-full opacity-20 mix-blend-screen" />
+          {/* Ruido de grano */}
+          <div className="absolute inset-0 opacity-[0.028]"
+            style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")", backgroundSize: '180px' }}
+          />
+          {/* Grid de líneas tenues */}
+          <div className="absolute inset-0 opacity-[0.022]"
+            style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)', backgroundSize: '64px 64px' }}
+          />
+          {/* Halo del plan activo */}
+          <AnimatePresence>
+            <motion.div
+              key={activeIdx}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.8 }}
+              className="absolute top-1/2 left-[30%] -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] rounded-full blur-[280px]"
+              style={{ background: plan.ambientColor, mixBlendMode: 'screen' }}
+            />
+          </AnimatePresence>
         </div>
 
-        {/* --- COLUMNA IZQUIERDA --- */}
-        <div className="w-full lg:w-1/2 h-[55vh] lg:h-full flex items-center justify-center relative perspective-2000 z-20">
-            <button onClick={prevPlan} disabled={showPaymentModal} className="absolute left-4 lg:left-12 p-3 rounded-full border border-white/10 hover:bg-white hover:text-black transition-all z-50 bg-black/40 backdrop-blur-md disabled:opacity-50"><ChevronLeft size={24} /></button>
-            <button onClick={nextPlan} disabled={showPaymentModal} className="absolute right-4 lg:right-12 p-3 rounded-full border border-white/10 hover:bg-white hover:text-black transition-all z-50 bg-black/40 backdrop-blur-md disabled:opacity-50"><ChevronRight size={24} /></button>
-            <div className="relative w-full h-full flex items-center justify-center">
-                <AnimatePresence initial={false} mode='popLayout'>
-                    {PLANS.map((plan, index) => {
-                        const isActive = index === activeIndex;
-                        let offset = index - activeIndex;
-                        if (offset < -1) offset += PLANS.length; 
-                        if (offset > 1) offset -= PLANS.length;
-                        if (offset === 2) offset = -2;
-                        if (!(Math.abs(offset) <= 1 || isActive)) return null;
-                        return (
-                            <motion.div key={plan.key} onClick={() => !showPaymentModal && setActiveIndex(index)} initial={{ opacity: 0, y: 100, scale: 0.8 }} animate={{ x: isActive ? 0 : offset * 50, y: isActive ? 0 : offset * 140, z: isActive ? 0 : -100, scale: isActive ? 1.1 : 0.9, rotateX: isActive ? 0 : 40, rotateZ: isActive ? 0 : offset * -3, zIndex: isActive ? 50 : 10 - Math.abs(offset), opacity: 1, filter: isActive ? 'brightness(1) drop-shadow(0 50px 80px rgba(0,0,0,0.8))' : 'brightness(0.35) blur(1px)' }} transition={{ type: "spring", stiffness: 120, damping: 20, mass: 1 }} className={`absolute w-[300px] h-[190px] lg:w-[480px] lg:h-[300px] ${!showPaymentModal ? 'cursor-pointer' : ''} rounded-2xl origin-center preserve-3d overflow-hidden border-t border-l ${plan.borderColor}`} style={{ transformStyle: 'preserve-3d' }}>
-                                  <div className={`absolute inset-0 ${plan.bgClass}`} />
-                                  <div className="absolute inset-0 opacity-15 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-repeat mix-blend-multiply pointer-events-none" />
-                                  <div className={`relative h-full w-full p-6 lg:p-8 flex flex-col justify-between ${plan.textColor}`}>
-                                      <div className="flex justify-between items-start">
-                                          <div className="flex items-center gap-2 opacity-90"><Target size={20} strokeWidth={2.5} /><span className="text-lg font-[1000] italic uppercase tracking-tighter leading-none">COYOTE</span></div>
-                                          <div className="border border-current px-2 py-0.5 rounded text-[7px] lg:text-[9px] font-black uppercase tracking-widest opacity-60">{plan.tag}</div>
-                                      </div>
-                                      <div className="flex flex-col items-center justify-center flex-1 my-2"><span className="text-4xl lg:text-7xl font-[1000] uppercase tracking-tighter leading-none text-center opacity-95 drop-shadow-lg">{plan.key}</span><div className="w-10 h-1 bg-current mt-3 opacity-40 rounded-full"/></div>
-                                      <div className="flex justify-between items-end opacity-80"><div className="flex flex-col"><span className="text-[8px] font-black uppercase tracking-wider mb-0.5 opacity-70">ID ACCESO</span><div className="flex items-center gap-2 font-mono text-xs font-bold"><Fingerprint size={12} /><span>MX-{plan.id}9-2026</span></div></div><QrCode size={28} className="opacity-70" /></div>
-                                  </div>
-                                  {isActive && ( <motion.div animate={{ x: ['-150%', '150%'] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 2 }} className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12 pointer-events-none z-30 mix-blend-soft-light" /> )}
-                            </motion.div>
-                        );
-                    })}
-                </AnimatePresence>
-            </div>
-        </div>
+        {/* ── PANEL IZQUIERDO: STACK DE TARJETAS ───────────────── */}
+        <div className="w-full lg:w-1/2 h-[48vh] lg:h-full flex items-center justify-center relative z-20"
+          style={{ perspective: '2400px', perspectiveOrigin: '50% 50%' }}>
 
-        {/* --- COLUMNA DERECHA --- */}
-        <div className="w-full lg:w-1/2 h-[45vh] lg:h-full relative z-20 flex flex-col justify-center px-6 lg:px-20 py-8 lg:py-0 bg-gradient-to-t lg:bg-gradient-to-l from-black via-[#050505] to-transparent">
-            <AnimatePresence mode="wait">
-                <motion.div key={activeIndex} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="w-full max-w-lg mx-auto lg:mx-0">
-                    <div className="mb-6">
-                        <div className="flex items-center gap-3 mb-2">
-                            <h2 className="text-5xl lg:text-7xl font-[1000] uppercase italic text-white leading-none tracking-tighter">{activePlan.key}</h2>
-                            {activePlan.recommended && ( <span className="bg-[#FDCB02] text-black text-[9px] font-[900] px-2 py-1 uppercase tracking-wider rounded-sm animate-pulse">Recomendado</span> )}
-                        </div>
-                        <p className="text-neutral-400 font-medium text-sm flex items-center gap-2"><Activity size={14} className="text-[#FDCB02]" /> {activePlan.name}</p>
-                    </div>
+          {/* Botones nav */}
+          {[
+            { action: prev, dir: 'left', icon: ChevronLeft },
+            { action: next, dir: 'right', icon: ChevronRight },
+          ].map(({ action, dir, icon: Icon }) => (
+            <button key={dir}
+              onClick={action}
+              className={`absolute ${dir === 'left' ? 'left-4 lg:left-8' : 'right-4 lg:right-8'} top-1/2 -translate-y-1/2 z-50 flex items-center justify-center transition-all duration-200 group`}
+            >
+              <div className="w-11 h-11 rounded-full bg-white/[0.05] border border-white/[0.09] flex items-center justify-center group-hover:bg-white group-hover:border-white transition-all duration-200">
+                <Icon size={20} className="text-white/50 group-hover:text-black transition-colors" />
+              </div>
+            </button>
+          ))}
 
-                    <div className="mb-8">
-                        <div className="grid grid-cols-1 gap-2.5">
-                            {activePlan.features.map((feature, i) => (
-                                <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="flex items-center gap-3 text-sm text-neutral-300 font-medium">
-                                    <div className="min-w-[4px] h-[4px] bg-[#FDCB02] rounded-full" /><span className="uppercase tracking-tight">{feature}</span>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="bg-[#111] border border-white/10 rounded-xl p-5 mb-6">
-                        {activePlan.price > 0 ? (
-                            <>
-                              <div className="flex bg-black p-1 rounded-lg border border-white/5 mb-4 font-black uppercase text-[10px] tracking-widest">
-                                  <button onClick={() => setBilling('monthly')} className={`flex-1 py-3 rounded-md transition-all ${billing === 'monthly' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}>Mensual</button>
-                                  <button onClick={() => setBilling('annual')} className={`flex-1 py-3 flex items-center justify-center gap-2 rounded-md transition-all ${billing === 'annual' ? 'bg-[#FDCB02] text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}>Anual <span className="bg-black/20 px-1.5 py-0.5 rounded text-[8px]">-10%</span></button>
-                              </div>
-                              <div className="flex items-end justify-between">
-                                  <div>
-                                      <div className="flex items-baseline gap-1">
-                                          <span className="text-4xl lg:text-5xl font-[1000] tracking-tighter text-white">{formatMoney(priceToDisplay)}</span>
-                                          <span className="text-[10px] text-neutral-500 font-bold uppercase mb-1">{periodLabel}</span>
-                                      </div>
-                                      {isAnnual && ( <p className="text-[10px] text-[#FDCB02] font-mono mt-1 flex items-center gap-1"><Zap size={10} fill="currentColor" /> Ahorras {formatMoney(savings)} al año</p> )}
-                                  </div>
-                                  <button onClick={handleInitiatePurchase} className="h-12 px-6 bg-[#FDCB02] hover:bg-white text-black font-[1000] uppercase text-[10px] lg:text-xs tracking-widest rounded-md transition-colors flex items-center gap-3 shadow-lg shadow-yellow-500/20">
-                                      Suscribirme <ArrowRight size={16} />
-                                  </button>
-                              </div>
-                            </>
-                        ) : (
-                            <div className="flex items-center justify-between">
-                                <div><span className="text-4xl font-[1000] tracking-tighter text-white">GRATIS</span><p className="text-[10px] text-neutral-500 font-bold uppercase mt-1">Acceso de por vida</p></div>
-                                <button onClick={handleInitiatePurchase} className="h-12 px-8 bg-white hover:bg-[#FDCB02] text-black font-[1000] uppercase text-xs tracking-widest rounded-md transition-colors flex items-center gap-3">
-                                    Registrarme <ArrowRight size={16} />
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="flex gap-6 opacity-40 border-t border-white/5 pt-4">
-                        <div className="flex items-center gap-2 text-[9px] font-mono uppercase tracking-widest"><Shield size={12} /> Pagos Seguros</div>
-                        <div className="flex items-center gap-2 text-[9px] font-mono uppercase tracking-widest"><Zap size={12} /> Activación Inmediata</div>
-                    </div>
-                </motion.div>
+          {/* Las tarjetas */}
+          <div className="relative w-full h-full flex items-center justify-center" style={{ transformStyle: 'preserve-3d' }}>
+            <AnimatePresence initial={false} mode="popLayout">
+              {visiblePlans.map(({ plan: p, index, offset }) => (
+                <PremiumCard
+                  key={p.key}
+                  plan={p}
+                  isActive={index === activeIdx}
+                  offset={offset}
+                  onClick={() => setActiveIdx(index)}
+                  index={index}
+                />
+              ))}
             </AnimatePresence>
+          </div>
+
+          {/* Indicadores de posición */}
+          <div className="absolute bottom-6 lg:bottom-10 flex gap-2 z-30">
+            {PLANS.map((_, i) => (
+              <button key={i} onClick={() => setActiveIdx(i)}
+                className="transition-all duration-300"
+              >
+                <motion.div
+                  animate={{ width: i === activeIdx ? 28 : 6, opacity: i === activeIdx ? 1 : 0.25 }}
+                  className="h-1.5 rounded-full"
+                  style={{ background: i === activeIdx ? '#FDCB02' : 'white' }}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── PANEL DERECHO: DETALLE Y COMPRA ──────────────────── */}
+        <div className="w-full lg:w-1/2 h-[52vh] lg:h-full relative z-20 flex flex-col justify-center overflow-hidden">
+          {/* Separador vertical */}
+          <div className="hidden lg:block absolute left-0 top-12 bottom-12 w-px"
+            style={{ background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.07), transparent)' }}
+          />
+
+          <div className="px-6 lg:px-16 xl:px-20 h-full flex flex-col justify-center">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeIdx}
+                initial={{ opacity: 0, x: 40, filter: 'blur(6px)' }}
+                animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, x: -24, filter: 'blur(4px)' }}
+                transition={{ type: 'spring', damping: 26, stiffness: 160 }}
+                className="w-full max-w-xl"
+              >
+                {/* Nombre del tier */}
+                <div className="mb-6 lg:mb-8">
+                  <motion.div className="flex items-center gap-3 mb-2">
+                    {plan.recommended && (
+                      <motion.span
+                        initial={{ scale: 0.8 }} animate={{ scale: 1 }}
+                        className="flex items-center gap-1.5 text-black text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-full"
+                        style={{ background: '#FDCB02' }}
+                      >
+                        <Crown size={9} /> Best Value
+                      </motion.span>
+                    )}
+                    <span className="text-[9px] font-black uppercase tracking-[0.28em] text-white/20">{plan.name}</span>
+                  </motion.div>
+
+                  <h1
+                    className="leading-none text-white"
+                    style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 'clamp(52px, 9vw, 100px)', letterSpacing: '0.03em' }}
+                  >
+                    {plan.key}
+                  </h1>
+                </div>
+
+                {/* Features — línea de tiempo vertical */}
+                <div className="mb-7 lg:mb-10 relative">
+                  <div className="absolute left-[5px] top-2 bottom-2 w-px"
+                    style={{ background: `linear-gradient(to bottom, ${plan.accentLine}, transparent)`, opacity: 0.4 }}
+                  />
+                  {plan.features.map((feat, i) => (
+                    <motion.div
+                      key={feat}
+                      initial={{ opacity: 0, x: -12 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.07, type: 'spring', damping: 22, stiffness: 200 }}
+                      className="flex items-center gap-4 py-2 pl-5"
+                    >
+                      <div className="absolute left-[2px] w-[7px] h-[7px] rounded-full border border-current"
+                        style={{ color: plan.accentLine, background: 'transparent' }}
+                      />
+                      <span className="text-xs lg:text-sm font-semibold text-white/60 uppercase tracking-tight">{feat}</span>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Precio y billing */}
+                {plan.price > 0 ? (
+                  <div className="space-y-5">
+                    {/* Toggle mensual/anual */}
+                    <div className="inline-flex items-center gap-1 bg-white/[0.04] rounded-xl p-1 border border-white/[0.07]">
+                      {(['monthly', 'annual'] as const).map(b => (
+                        <button key={b} onClick={() => setBilling(b)}
+                          className={`relative px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-200 ${billing === b ? 'text-black' : 'text-white/25 hover:text-white/50'}`}
+                        >
+                          {billing === b && (
+                            <motion.div layoutId="billing-bg" className="absolute inset-0 rounded-lg"
+                              style={{ background: b === 'annual' ? '#FDCB02' : 'white' }}
+                              transition={{ type: 'spring', damping: 22, stiffness: 300 }}
+                            />
+                          )}
+                          <span className="relative flex items-center gap-1.5">
+                            {b === 'monthly' ? 'Mensual' : <>Anual <span className={`px-1.5 py-0.5 rounded text-[8px] ${billing === 'annual' ? 'bg-black/15' : 'bg-white/10 text-white/30'}`}>−10%</span></>}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Precio grande */}
+                    <div className="flex items-end gap-5">
+                      <div>
+                        <motion.p
+                          key={price}
+                          initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+                          className="text-white leading-none"
+                          style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 'clamp(40px, 7vw, 72px)', letterSpacing: '0.02em' }}
+                        >
+                          {fmx(price)}
+                        </motion.p>
+                        <p className="text-[10px] text-white/20 font-black uppercase tracking-widest mt-1">
+                          MXN / {isAnn ? 'año' : 'mes'}
+                        </p>
+                        {isAnn && (
+                          <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                            className="text-[10px] font-mono font-bold mt-1 flex items-center gap-1.5"
+                            style={{ color: '#FDCB02', fontFamily: 'JetBrains Mono, monospace' }}
+                          >
+                            <Zap size={10} fill="currentColor" /> + {fmx(savings)} de ahorro anual
+                          </motion.p>
+                        )}
+                      </div>
+
+                      {/* Botón de suscripción */}
+                      <motion.button
+                        whileHover={{ scale: 1.04 }}
+                        whileTap={{ scale: 0.96 }}
+                        onClick={handleBuy}
+                        className="h-14 px-8 rounded-2xl font-black uppercase text-xs tracking-[0.18em] flex items-center gap-2.5 relative overflow-hidden transition-shadow duration-300"
+                        style={{
+                          background: plan.cardBg,
+                          color: plan.nameColor,
+                          boxShadow: `0 8px 32px ${plan.ambientColor}, 0 2px 8px rgba(0,0,0,0.4)`,
+                        }}
+                      >
+                        <div className="absolute inset-0" style={{ background: plan.cardSheen, mixBlendMode: 'overlay' }} />
+                        <span className="relative">Suscribirme</span>
+                        <ArrowRight size={15} className="relative" />
+                      </motion.button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-end gap-5">
+                    <div>
+                      <p className="text-white leading-none"
+                        style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 'clamp(40px, 7vw, 72px)', letterSpacing: '0.02em' }}>
+                        GRATIS
+                      </p>
+                      <p className="text-[10px] text-white/20 font-black uppercase tracking-widest mt-1">Acceso de cortesía</p>
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                      onClick={handleBuy}
+                      className="h-14 px-8 rounded-2xl bg-white text-black font-black uppercase text-xs tracking-[0.18em] hover:bg-[#FDCB02] transition-colors flex items-center gap-2"
+                    >
+                      Empezar <ArrowRight size={15} />
+                    </motion.button>
+                  </div>
+                )}
+
+                {/* Indicadores de seguridad */}
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+                  className="flex items-center gap-4 mt-7 pt-6 border-t border-white/[0.06]"
+                >
+                  {[
+                    { icon: Shield, label: 'PCI-DSS' },
+                    { icon: Lock,   label: 'Encriptado' },
+                    { icon: Zap,    label: 'Activación inmediata' },
+                  ].map(({ icon: Icon, label }) => (
+                    <div key={label} className="flex items-center gap-1.5">
+                      <Icon size={11} className="text-white/15" />
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-white/15">{label}</span>
+                    </div>
+                  ))}
+                </motion.div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
-      {/* --- MODAL DE PAGO PREMIUM --- */}
+      {/* ── MODAL VAULT ──────────────────────────────────────────── */}
       <AnimatePresence>
-        {showPaymentModal && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-lg bg-[#050505] border border-white/10 rounded-[2rem] overflow-hidden shadow-[0_0_80px_rgba(253,203,2,0.1)] flex flex-col"
-            >
-              {/* HEADER DEL MODAL */}
-              <div className="p-6 md:p-8 border-b border-white/5 flex justify-between items-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#FDCB02]/50 to-transparent"></div>
-                <div>
-                  <h3 className="text-xl font-mono font-black uppercase text-white tracking-[0.3em] drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] flex items-center gap-2">
-                    <Shield size={20} className="text-[#FDCB02]" /> membresias coyote
-                  </h3>
-                  <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest mt-1">
-                    Suscripción {activePlan.key} • <span className="text-white">{formatMoney(priceToDisplay)}</span>
-                  </p>
-                </div>
-                <button onClick={() => !loading && setShowPaymentModal(false)} className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full transition-colors text-neutral-400 hover:text-white border border-white/5">
-                  <X size={18} />
-                </button>
-              </div>
-
-              <form id="payment-form" onSubmit={handleProcessPayment} className="flex-1 flex flex-col">
-                <div className="p-6 md:p-8">
-                  
-                  {/* SELECTOR DE MÉTODO DE PAGO */}
-                  <div className="flex gap-2 p-1.5 bg-[#111] rounded-2xl border border-white/5 mb-8">
-                    <button type="button" onClick={() => setPaymentMethod('card')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${paymentMethod === 'card' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}>
-                      <CreditCard size={14} /> Tarjeta
-                    </button>
-                    <button type="button" onClick={() => setPaymentMethod('spei')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${paymentMethod === 'spei' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}>
-                      <Building2 size={14} /> SPEI
-                    </button>
-                    <button type="button" onClick={() => setPaymentMethod('store')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${paymentMethod === 'store' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}>
-                      <Store size={14} /> Efectivo
-                    </button>
-                  </div>
-
-                  {paymentError && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-[10px] font-black uppercase tracking-widest mb-6 flex items-start gap-3">
-                      <Zap size={14} className="shrink-0 mt-0.5" /> {paymentError}
-                    </div>
-                  )}
-
-                  {/* CONTENIDO DINÁMICO POR MÉTODO */}
-                  <AnimatePresence mode="wait">
-                    
-                    {/* TAB: TARJETA */}
-                    {paymentMethod === 'card' && (
-                      <motion.div key="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
-                        <div>
-                          <label className="block text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-2">Nombre del Titular</label>
-                          <input type="text" required data-openpay-card="holder_name" value={cardData.holder} onChange={e => setCardData({...cardData, holder: e.target.value})} className="w-full bg-[#111] border border-white/10 rounded-xl px-5 py-4 text-sm text-white focus:border-[#FDCB02] focus:ring-1 focus:ring-[#FDCB02] transition-colors outline-none uppercase font-bold tracking-wider" placeholder="EJ. JUAN PÉREZ" />
-                        </div>
-                        <div>
-                          <label className="block text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-2">Número de Tarjeta</label>
-                          <div className="relative">
-                            <CreditCard size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-600" />
-                            <input type="text" required data-openpay-card="card_number" maxLength={19} value={cardData.number} onChange={e => setCardData({...cardData, number: e.target.value})} className="w-full bg-[#111] border border-white/10 rounded-xl pl-14 pr-5 py-4 text-sm text-white focus:border-[#FDCB02] focus:ring-1 focus:ring-[#FDCB02] transition-colors outline-none font-mono tracking-[0.2em]" placeholder="0000 0000 0000 0000" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-5">
-                          <div>
-                            <label className="block text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-2">Expiración (MM/AA)</label>
-                            <div className="flex items-center bg-[#111] border border-white/10 rounded-xl focus-within:border-[#FDCB02] focus-within:ring-1 focus-within:ring-[#FDCB02] transition-colors overflow-hidden px-2">
-                              <input type="text" required data-openpay-card="expiration_month" maxLength={2} value={cardData.expMonth} onChange={e => setCardData({...cardData, expMonth: e.target.value})} className="w-1/2 bg-transparent py-4 text-sm text-white outline-none font-mono text-center placeholder:text-neutral-700" placeholder="MM" />
-                              <span className="text-neutral-700 font-mono">/</span>
-                              <input type="text" required data-openpay-card="expiration_year" maxLength={2} value={cardData.expYear} onChange={e => setCardData({...cardData, expYear: e.target.value})} className="w-1/2 bg-transparent py-4 text-sm text-white outline-none font-mono text-center placeholder:text-neutral-700" placeholder="AA" />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-2">CVV / CVC</label>
-                            <input type="password" required data-openpay-card="cvv2" maxLength={4} value={cardData.cvv} onChange={e => setCardData({...cardData, cvv: e.target.value})} className="w-full bg-[#111] border border-white/10 rounded-xl px-5 py-4 text-sm text-white focus:border-[#FDCB02] focus:ring-1 focus:ring-[#FDCB02] transition-colors outline-none font-mono text-center tracking-[0.3em]" placeholder="***" />
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {/* TAB: SPEI */}
-                    {paymentMethod === 'spei' && (
-                      <motion.div key="spei" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="py-6 flex flex-col items-center text-center">
-                        <div className="w-20 h-20 bg-white/5 border border-white/10 rounded-full flex items-center justify-center mb-6">
-                          <Building2 size={32} className="text-[#FDCB02]" />
-                        </div>
-                        <h4 className="text-lg font-[1000] text-white uppercase tracking-widest mb-2">Transferencia Bancaria</h4>
-                        <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest leading-relaxed max-w-xs">
-                          Generaremos una CLABE interbancaria única asociada a tu cuenta. El sistema detectará el pago al instante.
-                        </p>
-                      </motion.div>
-                    )}
-
-                    {/* TAB: TIENDAS */}
-                    {paymentMethod === 'store' && (
-                      <motion.div key="store" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="py-6 flex flex-col items-center text-center">
-                        <div className="w-20 h-20 bg-white/5 border border-white/10 rounded-full flex items-center justify-center mb-6">
-                          <Store size={32} className="text-[#FDCB02]" />
-                        </div>
-                        <h4 className="text-lg font-[1000] text-white uppercase tracking-widest mb-2">Pago en Efectivo</h4>
-                        <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest leading-relaxed max-w-xs">
-                          Presenta el código de barras en OXXO, 7-Eleven, Farmacias del Ahorro o más de 30,000 establecimientos.
-                        </p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                </div>
-
-                {/* FOOTER DEL MODAL Y LOGOS */}
-                <div className="mt-auto bg-[#0A0A0A] p-6 md:p-8 border-t border-white/5">
-                  <button type="submit" disabled={loading} className="w-full h-14 bg-[#FDCB02] hover:bg-white text-black font-[1000] uppercase text-xs tracking-[0.2em] rounded-xl transition-all shadow-[0_0_30px_rgba(253,203,2,0.15)] flex items-center justify-center gap-3 disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]">
-                    {loading ? <Loader2 className="animate-spin" size={20} /> : (
-                      <>
-                        <Lock size={16} /> 
-                        {paymentMethod === 'card' ? `Pagar ${formatMoney(priceToDisplay)}` : 'Generar Referencia de Pago'}
-                      </>
-                    )}
-                  </button>
-                  
-                  {/* BARRA DE CONFIANZA */}
-                  <div className="mt-8 flex flex-col items-center gap-4">
-                    <p className="text-[8px] text-neutral-600 uppercase tracking-widest font-black flex items-center gap-2">
-                      <Shield size={10} /> Conexión Encriptada PCI DSS
-                    </p>
-                    <div className="flex items-center justify-center gap-6 opacity-30 grayscale hover:grayscale-0 hover:opacity-100 transition-all duration-500">
-                      <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-4 w-auto brightness-0 invert" />
-                      <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" className="h-5 w-auto brightness-0 invert" />
-                      <img src="https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg" alt="Amex" className="h-5 w-auto brightness-0 invert" />
-                      <div className="w-px h-6 bg-white/20"></div>
-                      <img src="https://raw.githubusercontent.com/open-pay/openpay-js/master/src/assets/openpay.png" alt="OpenPay" className="h-7 w-auto brightness-0 invert" />
-                    </div>
-                  </div>
-                </div>
-
-              </form>
-            </motion.div>
-          </motion.div>
+        {showVault && (
+          <PaymentVault
+            plan={plan}
+            price={price}
+            billing={billing}
+            onClose={() => setShowVault(false)}
+            onProcess={processCheckout}
+            loading={loading}
+            error={payError}
+            openPayReady={openpayOk}
+          />
         )}
       </AnimatePresence>
+
+      <style jsx global>{`
+        * { box-sizing: border-box; }
+        input::placeholder { opacity: 0.3; }
+        input:focus { outline: none; }
+      `}</style>
     </>
   );
 }

@@ -1,7 +1,7 @@
+// src/app/checkout/page.tsx
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import Script from 'next/script';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -9,28 +9,24 @@ import { useCart } from '@/lib/context/cart-context';
 import { 
   ShieldCheck, Lock, CreditCard, User, MapPin, 
   Phone, Mail, ArrowLeft, ShoppingBag, Truck, Package, 
-  Landmark, Store, Banknote, Info, FileText, CheckCircle2, Factory, Calculator, Map, ChevronRight, Loader2
+  Landmark, Store, Banknote, Info, FileText, CheckCircle2, Factory, Map, ChevronRight, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-declare global {
-  interface Window {
-    OpenPay: any;
-  }
-}
+declare global { interface Window { OpenPay: any; } }
 
 const LOGOS = {
-  visa: "https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg",
-  mastercard: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg",
-  amex: "https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg",
-  oxxo: "https://upload.wikimedia.org/wikipedia/commons/6/66/Oxxo_Logo.svg",
-  seven: "https://upload.wikimedia.org/wikipedia/commons/4/40/7-eleven_logo.svg"
+  visa: "https://cdnjs.cloudflare.com/ajax/libs/payment-webfont/1.2.5/logo/visa.svg",
+  mastercard: "https://cdnjs.cloudflare.com/ajax/libs/payment-webfont/1.2.5/logo/mastercard.svg",
+  amex: "https://cdnjs.cloudflare.com/ajax/libs/payment-webfont/1.2.5/logo/amex.svg",
+  oxxo: "https://cdn.iconscout.com/icon/free/png-256/free-oxxo-logo-icon-download-in-svg-png-gif-file-formats--technology-social-media-company-brand-vol-5-pack-logos-icons-2945041.png",
+  seven: "https://cdn.iconscout.com/icon/free/png-256/free-7-eleven-logo-icon-download-in-svg-png-gif-file-formats--technology-social-media-company-brand-vol-1-pack-logos-icons-2944709.png"
 };
 
 type PaymentMethod = 'card' | 'bank_account' | 'store';
 type LogisticsMethod = 'coyote' | 'skydropx';
 
-// --- CONFIGURACIÓN ESTRICTA DE LOGÍSTICA COYOTE ---
+// Configuración Coyote
 const DIESEL_PRICE_PER_LITER = 27.00; 
 const LITERS_PER_100KM = 20.0;        
 const OPERATIONAL_MARKUP = 4;         
@@ -53,6 +49,11 @@ export default function CheckoutPage() {
   const [coyoteDistanceKm, setCoyoteDistanceKm] = useState<number>(0); 
   const [isLocalZone, setIsLocalZone] = useState(false); 
   
+  const [isQuoting, setIsQuoting] = useState(false);
+  const [skydropxRate, setSkydropxRate] = useState<number>(0);
+  const [skydropxCarrier, setSkydropxCarrier] = useState<string>('Paquetería');
+  const [skydropxDays, setSkydropxDays] = useState<number>(3);
+
   const [wantsInvoice, setWantsInvoice] = useState(false);
 
   const [customerData, setCustomerData] = useState({ 
@@ -69,16 +70,65 @@ export default function CheckoutPage() {
     holder: '', number: '', expYear: '', expMonth: '', cvv: '' 
   });
 
-  useEffect(() => { setMounted(true); }, []);
+  // 🔥 CONFIGURACIÓN SEGURA DE OPENPAY (REINTENTOS AUTOMÁTICOS) 🔥
+  const setupOpenPay = () => {
+    if (typeof window !== 'undefined' && window.OpenPay && window.OpenPay.deviceData) {
+      try {
+        window.OpenPay.setId(process.env.NEXT_PUBLIC_OPENPAY_MERCHANT_ID);
+        window.OpenPay.setApiKey(process.env.NEXT_PUBLIC_OPENPAY_PUBLIC_KEY);
+        window.OpenPay.setSandboxMode(process.env.NODE_ENV !== 'production');
+        setDeviceSessionId(window.OpenPay.deviceData.setup());
+        setIsSdkReady(true);
+        console.log("✅ SDK de OpenPay cargado y asegurado.");
+      } catch (error) { 
+        console.error("Error OpenPay:", error); 
+      }
+    } else {
+      setTimeout(setupOpenPay, 200);
+    }
+  };
 
-  // --- ALGORITMO RADIAL DE DISTANCIAS POR CÓDIGO POSTAL ---
+  // 🔥 INYECCIÓN DOM NATIVA (ADIÓS ERRORES DE CARRERA) 🔥
+  useEffect(() => { 
+    setMounted(true); 
+
+    const loadOpenPayScripts = async () => {
+      const loadScript = (src: string) => {
+        return new Promise((resolve, reject) => {
+          if (document.querySelector(`script[src="${src}"]`)) {
+            resolve(true);
+            return;
+          }
+          const script = document.createElement('script');
+          script.src = src;
+          script.async = false;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      };
+
+      try {
+        await loadScript("https://js.openpay.mx/openpay.v1.min.js");
+        setTimeout(async () => {
+          await loadScript("https://js.openpay.mx/openpay-data.v1.min.js");
+          setupOpenPay();
+        }, 100);
+      } catch (error) {
+        console.error("Fallo al inyectar scripts de OpenPay", error);
+      }
+    };
+
+    loadOpenPayScripts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const getLogisticsInfo = (zipCode: string) => {
     const cp = parseInt(zipCode, 10);
     if (isNaN(cp) || zipCode.length < 5) return { type: 'PENDING', distance: 0 };
 
     const prefix2 = Math.floor(cp / 1000); 
 
-    // 1. CDMX
     if (prefix2 >= 1 && prefix2 <= 16) {
         let dist = 15; 
         if ([15, 6, 8].includes(prefix2)) dist = 5;       
@@ -88,7 +138,6 @@ export default function CheckoutPage() {
         return { type: 'COYOTE_LOCAL', distance: dist };
     }
 
-    // 2. EDOMEX
     if (prefix2 >= 50 && prefix2 <= 57) {
         let dist = 40; 
         if (prefix2 === 57) dist = 10;                     
@@ -100,16 +149,13 @@ export default function CheckoutPage() {
         return { type: 'COYOTE_LOCAL', distance: dist };
     }
 
-    // 3. ESTADOS COLINDANTES
     if (prefix2 === 42 || prefix2 === 43) return { type: 'COYOTE_LOCAL', distance: 100 }; 
     if (prefix2 >= 72 && prefix2 <= 75) return { type: 'COYOTE_LOCAL', distance: 130 };   
     if (prefix2 === 62) return { type: 'COYOTE_LOCAL', distance: 90 };                    
 
-    // 4. RESTO DE LA REPÚBLICA
     return { type: 'SKYDROPX_NACIONAL', distance: 0 };
   };
 
-  // --- CÁLCULO PRINCIPAL Y REACTIVO ---
   const { freightCost, shippingCost, vehiclesNeeded, serviceFee, taxIVA, total, totalWeight, totalRolls } = useMemo(() => {
     let rollCount = 0;
     let weight = 0;
@@ -145,13 +191,9 @@ export default function CheckoutPage() {
         const litersNeededPerVehicle = (totalDistanceRoundTrip / 100) * LITERS_PER_100KM;
         const fuelCostPerVehicle = litersNeededPerVehicle * DIESEL_PRICE_PER_LITER;
         const costPerVehicle = fuelCostPerVehicle * OPERATIONAL_MARKUP;
-
         envio = costPerVehicle * requiredVehicles;
     } else {
-        const baseShipping = 180;
-        const extraKgPrice = 12;
-        envio = baseShipping;
-        if (weight > 5) envio += (weight - 5) * extraKgPrice;
+        envio = skydropxRate;
     }
 
     const fee = FIXED_SERVICE_FEE; 
@@ -168,27 +210,14 @@ export default function CheckoutPage() {
         totalWeight: weight,
         totalRolls: rollCount
     };
-  }, [items, subtotal, wantsInvoice, selectedLogistics, coyoteDistanceKm]); 
-
-  // --- SDK Y PAGOS ---
-  const setupOpenPay = () => {
-    if (typeof window !== 'undefined' && window.OpenPay && window.OpenPay.deviceData) {
-      try {
-        window.OpenPay.setId(process.env.NEXT_PUBLIC_OPENPAY_MERCHANT_ID);
-        window.OpenPay.setApiKey(process.env.NEXT_PUBLIC_OPENPAY_PUBLIC_KEY);
-        window.OpenPay.setSandboxMode(process.env.NODE_ENV !== 'production');
-        setDeviceSessionId(window.OpenPay.deviceData.setup());
-        setIsSdkReady(true);
-      } catch (error) { console.error("Error OpenPay:", error); }
-    }
-  };
+  }, [items, subtotal, wantsInvoice, selectedLogistics, coyoteDistanceKm, skydropxRate]); 
 
   const handleTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
 
     try {
-      if (!isSdkReady && paymentMethod === 'card') throw new Error("Cargando túnel de seguridad...");
+      if (!isSdkReady && paymentMethod === 'card') throw new Error("Conexión segura aún no establecida. Espera unos segundos e intenta de nuevo.");
       
       let token = null;
       if (paymentMethod === 'card') {
@@ -227,7 +256,8 @@ export default function CheckoutPage() {
              fiscal_data: wantsInvoice ? fiscalData : null,
              logistics_type: selectedLogistics,
              vehicles_used: vehiclesNeeded,
-             distance_km: selectedLogistics === 'coyote' ? coyoteDistanceKm : 0
+             distance_km: selectedLogistics === 'coyote' ? coyoteDistanceKm : 0,
+             carrier_name: selectedLogistics === 'skydropx' ? skydropxCarrier : 'Coyote Local'
           }
         })
       });
@@ -248,23 +278,62 @@ export default function CheckoutPage() {
     }
   };
 
-  const validateStep1 = () => {
-    if (!customerData.name || !customerData.email || !customerData.street || customerData.zip.length < 5) {
-      alert("Por favor completa los campos principales y un Código Postal válido a 5 dígitos.");
+  // 🔥 AQUÍ ESTÁ LA CORRECCIÓN CLAVE 🔥
+  const validateStep1 = async () => {
+    if (!customerData.name || !customerData.email || !customerData.street || !customerData.state || !customerData.city || !customerData.neighborhood || customerData.zip.length < 5) {
+      alert("Por favor completa todos los campos de dirección. SkydropX los requiere exactos para cotizar.");
       return;
     }
     
-    const logistics = getLogisticsInfo(customerData.zip);
-    if(logistics.type === 'COYOTE_LOCAL') {
-        setCoyoteDistanceKm(logistics.distance);
-        setSelectedLogistics('coyote');
-        setIsLocalZone(true); 
-    } else {
-        setSelectedLogistics('skydropx');
-        setIsLocalZone(false); 
-    }
+    setIsQuoting(true); 
     
-    setStep(2);
+    try {
+        // 1. SIEMPRE le pegamos a SkydropX, sin importar si es CDMX o foráneo
+        const res = await fetch('/api/shipping/quote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                zip_to: customerData.zip, 
+                state_to: customerData.state,
+                city_to: customerData.city,
+                neighborhood_to: customerData.neighborhood,
+                weight: totalWeight 
+            })
+        });
+        const data = await res.json();
+        
+        // Guardamos los datos de SkydropX si la cotización fue exitosa
+        if (data.success && data.bestQuote && data.bestQuote.amount > 0) {
+            setSkydropxRate(data.bestQuote.amount);
+            setSkydropxCarrier(data.bestQuote.carrier);
+            setSkydropxDays(data.bestQuote.days);
+        }
+
+        // 2. Ahora evaluamos la lógica local o foránea para decidir qué mostrar
+        const logistics = getLogisticsInfo(customerData.zip);
+        
+        if (logistics.type === 'COYOTE_LOCAL') {
+            // Es local: Ponemos Coyote por defecto, pero SkydropX ya tiene su precio real guardado
+            setCoyoteDistanceKm(logistics.distance);
+            setSelectedLogistics('coyote');
+            setIsLocalZone(true); 
+            setStep(2);
+        } else {
+            // Es foráneo: Bloqueamos si SkydropX falló
+            if (!data.success || !data.bestQuote || data.bestQuote.amount === 0) {
+                alert(`SkydropX no devolvió un costo válido para tu zona. (${data.error || '0 pesos'})`);
+                setIsQuoting(false);
+                return;
+            }
+            setIsLocalZone(false); 
+            setSelectedLogistics('skydropx');
+            setStep(2);
+        }
+    } catch (error) {
+        alert("Hubo un error al calcular tu envío. Intenta más tarde.");
+    } finally {
+        setIsQuoting(false);
+    }
   };
 
   const validateStep3 = () => {
@@ -296,12 +365,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] pt-24 pb-20 px-4 sm:px-6 font-sans selection:bg-[#FDCB02] selection:text-black">
-      
-      <Script src="https://js.openpay.mx/openpay.v1.min.js" strategy="afterInteractive" />
-      <Script src="https://js.openpay.mx/openpay-data.v1.min.js" strategy="afterInteractive" onLoad={setupOpenPay}/>
-
       <div className="container mx-auto max-w-[1100px]">
-        {/* HEADER LIMPIO */}
         <div className="flex items-center gap-4 mb-8">
             <Link href="/" className="w-10 h-10 bg-white hover:bg-neutral-200 rounded-full flex items-center justify-center transition-colors text-black shadow-sm">
                 <ArrowLeft size={18} />
@@ -311,10 +375,9 @@ export default function CheckoutPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
           
-          {/* ================= COLUMNA IZQUIERDA (WIZARD DE ALTA CONVERSIÓN) ================= */}
+          {/* ================= COLUMNA IZQUIERDA ================= */}
           <div className="lg:col-span-7 space-y-6">
             
-            {/* WIZARD TRACKER PREMIUM */}
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-neutral-100 mb-2">
               <div className="flex justify-between items-center relative z-10">
                 {[
@@ -332,7 +395,6 @@ export default function CheckoutPage() {
                     </span>
                   </div>
                 ))}
-                {/* LÍNEA DE PROGRESO DE FONDO */}
                 <div className="absolute top-5 left-8 right-8 h-1 bg-neutral-100 -z-10 rounded-full overflow-hidden">
                   <div className="h-full bg-[#FDCB02] transition-all duration-700 ease-in-out" style={{ width: `${((step - 1) / 3) * 100}%` }}></div>
                 </div>
@@ -340,7 +402,6 @@ export default function CheckoutPage() {
             </div>
 
             <AnimatePresence mode="wait">
-              {/* --- PASO 1: DATOS DE ENVÍO --- */}
               {step === 1 && (
                 <motion.div key="step1" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="bg-white p-8 rounded-3xl border border-neutral-100 shadow-sm">
                     <div className="flex items-center gap-3 mb-8">
@@ -349,15 +410,16 @@ export default function CheckoutPage() {
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input placeholder="Nombre(s)" value={customerData.name} className="checkout-input-premium" onChange={e => setCustomerData({...customerData, name: e.target.value})}/>
-                        <input placeholder="Apellidos" value={customerData.lastName} className="checkout-input-premium" onChange={e => setCustomerData({...customerData, lastName: e.target.value})}/>
+                        <input placeholder="Nombre(s)" maxLength={15} value={customerData.name} className="checkout-input-premium" onChange={e => setCustomerData({...customerData, name: e.target.value})}/>
+                        <input placeholder="Apellidos" maxLength={15} value={customerData.lastName} className="checkout-input-premium" onChange={e => setCustomerData({...customerData, lastName: e.target.value})}/>
+                        
                         <div className="relative md:col-span-1">
                             <Mail size={18} className="absolute left-4 top-4 text-neutral-400 z-10"/>
                             <input placeholder="Correo Electrónico" type="email" value={customerData.email} className="checkout-input-premium pl-12" onChange={e => setCustomerData({...customerData, email: e.target.value})}/>
                         </div>
                         <div className="relative md:col-span-1">
                             <Phone size={18} className="absolute left-4 top-4 text-neutral-400 z-10"/>
-                            <input placeholder="Teléfono a 10 dígitos" type="tel" value={customerData.phone} className="checkout-input-premium pl-12" onChange={e => setCustomerData({...customerData, phone: e.target.value})}/>
+                            <input placeholder="Teléfono a 10 dígitos" maxLength={10} type="tel" value={customerData.phone} className="checkout-input-premium pl-12" onChange={e => setCustomerData({...customerData, phone: e.target.value})}/>
                         </div>
                         
                         <div className="md:col-span-2 mt-4 mb-2 flex items-center gap-3">
@@ -366,24 +428,32 @@ export default function CheckoutPage() {
                             <div className="h-px bg-neutral-200 flex-1"></div>
                         </div>
 
-                        <input placeholder="Calle" value={customerData.street} className="checkout-input-premium md:col-span-2" onChange={e => setCustomerData({...customerData, street: e.target.value})}/>
+                        <input placeholder="Calle" maxLength={45} value={customerData.street} className="checkout-input-premium md:col-span-2" onChange={e => setCustomerData({...customerData, street: e.target.value})}/>
                         <div className="grid grid-cols-2 gap-4 md:col-span-2">
-                            <input placeholder="No. Exterior" value={customerData.number} className="checkout-input-premium" onChange={e => setCustomerData({...customerData, number: e.target.value})}/>
-                            <input placeholder="No. Interior (Opcional)" value={customerData.unit} className="checkout-input-premium" onChange={e => setCustomerData({...customerData, unit: e.target.value})}/>
+                            <input placeholder="No. Exterior" maxLength={10} value={customerData.number} className="checkout-input-premium" onChange={e => setCustomerData({...customerData, number: e.target.value})}/>
+                            <input placeholder="No. Interior (Opcional)" maxLength={10} value={customerData.unit} className="checkout-input-premium" onChange={e => setCustomerData({...customerData, unit: e.target.value})}/>
                         </div>
                         <input placeholder="Colonia" value={customerData.neighborhood} className="checkout-input-premium md:col-span-2" onChange={e => setCustomerData({...customerData, neighborhood: e.target.value})}/>
                         <input placeholder="Código Postal (Ej. 06000)" value={customerData.zip} maxLength={5} className="checkout-input-premium bg-[#FDCB02]/10 focus:bg-white border-[#FDCB02]/30 text-black font-bold placeholder:text-neutral-500" onChange={e => setCustomerData({...customerData, zip: e.target.value})}/>
                         <input placeholder="Ciudad" value={customerData.city} className="checkout-input-premium" onChange={e => setCustomerData({...customerData, city: e.target.value})}/>
                         <input placeholder="Estado" value={customerData.state} className="checkout-input-premium md:col-span-2" onChange={e => setCustomerData({...customerData, state: e.target.value})}/>
-                        <input placeholder="Referencias (Ej. Portón negro, frente a parque)" value={customerData.reference} className="checkout-input-premium md:col-span-2" onChange={e => setCustomerData({...customerData, reference: e.target.value})}/>
+                        <input placeholder="Referencias (Ej. Portón negro)" maxLength={30} value={customerData.reference} className="checkout-input-premium md:col-span-2" onChange={e => setCustomerData({...customerData, reference: e.target.value})}/>
                     </div>
-                    <button onClick={validateStep1} className="w-full mt-8 bg-black hover:bg-[#FDCB02] text-white hover:text-black h-16 rounded-2xl font-[1000] uppercase text-sm tracking-[0.2em] transition-all duration-300 flex items-center justify-center gap-2 group shadow-xl hover:shadow-yellow-500/20">
-                      Configurar Envío <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform"/>
+
+                    <button 
+                      onClick={validateStep1} 
+                      disabled={isQuoting}
+                      className="w-full mt-8 bg-black hover:bg-[#FDCB02] text-white hover:text-black h-16 rounded-2xl font-[1000] uppercase text-sm tracking-[0.2em] transition-all duration-300 flex items-center justify-center gap-2 group shadow-xl hover:shadow-yellow-500/20 disabled:opacity-70 disabled:cursor-wait"
+                    >
+                      {isQuoting ? (
+                        <>Cotizando en Vivo... <Loader2 size={18} className="animate-spin"/></>
+                      ) : (
+                        <>Configurar Envío <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform"/></>
+                      )}
                     </button>
                 </motion.div>
               )}
 
-              {/* --- PASO 2: LOGÍSTICA (DISEÑO PREMIUM) --- */}
               {step === 2 && (
                 <motion.div key="step2" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="bg-white p-8 rounded-3xl border border-neutral-100 shadow-sm">
                     <div className="flex items-center gap-3 mb-8">
@@ -393,35 +463,28 @@ export default function CheckoutPage() {
 
                     {isLocalZone && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
-                        {/* TARJETA COYOTE (PREMIUM DARK) */}
                         <button onClick={() => setSelectedLogistics('coyote')} className={`relative text-left p-6 rounded-3xl border-2 transition-all duration-300 overflow-hidden group ${selectedLogistics === 'coyote' ? 'border-black bg-black shadow-2xl scale-[1.02]' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}>
                           {selectedLogistics === 'coyote' && <div className="absolute top-0 right-0 bg-[#FDCB02] text-black text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-bl-xl">Recomendado</div>}
-                          
                           <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 transition-colors ${selectedLogistics === 'coyote' ? 'bg-[#FDCB02]' : 'bg-neutral-100'}`}>
                             <Factory size={20} className={selectedLogistics === 'coyote' ? 'text-black' : 'text-neutral-400'}/>
                           </div>
-                          
                           <h4 className={`font-[1000] uppercase text-lg mb-1 ${selectedLogistics === 'coyote' ? 'text-white' : 'text-black'}`}>Flotilla Coyote</h4>
                           <p className={`text-[11px] font-bold uppercase tracking-widest mb-4 ${selectedLogistics === 'coyote' ? 'text-[#FDCB02]' : 'text-neutral-400'}`}>Viaje Directo Dedicado</p>
-                          
                           <div className={`text-xs space-y-2 font-medium ${selectedLogistics === 'coyote' ? 'text-neutral-300' : 'text-neutral-500'}`}>
                             <p className="flex items-center gap-2"><CheckCircle2 size={14} className={selectedLogistics === 'coyote' ? 'text-[#FDCB02]' : 'text-neutral-300'}/> Carga de hasta 80 rollos</p>
                             <p className="flex items-center gap-2"><CheckCircle2 size={14} className={selectedLogistics === 'coyote' ? 'text-[#FDCB02]' : 'text-neutral-300'}/> Cobro exacto por KM</p>
                           </div>
                         </button>
 
-                        {/* TARJETA SKYDROPX (CLEAN WHITE) */}
                         <button onClick={() => setSelectedLogistics('skydropx')} className={`relative text-left p-6 rounded-3xl border-2 transition-all duration-300 overflow-hidden group ${selectedLogistics === 'skydropx' ? 'border-blue-600 bg-blue-50 shadow-xl scale-[1.02]' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}>
                           <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 transition-colors ${selectedLogistics === 'skydropx' ? 'bg-blue-600' : 'bg-neutral-100'}`}>
                             <Map size={20} className={selectedLogistics === 'skydropx' ? 'text-white' : 'text-neutral-400'}/>
                           </div>
-                          
-                          <h4 className={`font-[1000] uppercase text-lg mb-1 ${selectedLogistics === 'skydropx' ? 'text-blue-900' : 'text-black'}`}>Red Skydropx</h4>
-                          <p className={`text-[11px] font-bold uppercase tracking-widest mb-4 ${selectedLogistics === 'skydropx' ? 'text-blue-500' : 'text-neutral-400'}`}>Paquetería Nacional</p>
-                          
+                          <h4 className={`font-[1000] uppercase text-lg mb-1 ${selectedLogistics === 'skydropx' ? 'text-blue-900' : 'text-black'}`}>{skydropxCarrier}</h4>
+                          <p className={`text-[11px] font-bold uppercase tracking-widest mb-4 ${selectedLogistics === 'skydropx' ? 'text-blue-500' : 'text-neutral-400'}`}>Llega en {skydropxDays} días hábiles</p>
                           <div className={`text-xs space-y-2 font-medium ${selectedLogistics === 'skydropx' ? 'text-blue-800' : 'text-neutral-500'}`}>
-                            <p className="flex items-center gap-2"><CheckCircle2 size={14} className={selectedLogistics === 'skydropx' ? 'text-blue-500' : 'text-neutral-300'}/> Múltiples transportistas</p>
-                            <p className="flex items-center gap-2"><CheckCircle2 size={14} className={selectedLogistics === 'skydropx' ? 'text-blue-500' : 'text-neutral-300'}/> Cobro por Peso ({totalWeight}kg)</p>
+                            <p className="flex items-center gap-2"><CheckCircle2 size={14} className={selectedLogistics === 'skydropx' ? 'text-blue-500' : 'text-neutral-300'}/> Guía Automatizada</p>
+                            <p className="flex items-center gap-2"><CheckCircle2 size={14} className={selectedLogistics === 'skydropx' ? 'text-blue-500' : 'text-neutral-300'}/> Peso facturado ({totalWeight}kg)</p>
                           </div>
                         </button>
                       </div>
@@ -432,18 +495,17 @@ export default function CheckoutPage() {
                         <motion.div key="coyote-calc" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-neutral-50 rounded-2xl p-6 border border-neutral-200">
                           <div className="flex items-center justify-between mb-6">
                             <div>
-                              <h5 className="font-[1000] text-black uppercase tracking-tight">Algoritmo de Ruta</h5>
+                              <h5 className="font-[1000] text-black uppercase tracking-tight">Ruta Local Calculada</h5>
                               <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mt-1">Destino: CP {customerData.zip}</p>
                             </div>
-                            <span className="bg-[#FDCB02]/20 text-yellow-800 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Zona Local</span>
+                            <span className="bg-[#FDCB02]/20 text-yellow-800 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Zona Segura</span>
                           </div>
                           
-                          {/* DASHBOARD DE KILOMETRAJE */}
                           <div className="bg-white rounded-2xl p-5 shadow-sm border border-neutral-100 flex items-center justify-between gap-4">
                             <div className="flex-1">
-                              <label className="block text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-2">Ajustar Distancia (Ida)</label>
-                              <div className="flex items-center gap-3">
-                                <input type="number" value={coyoteDistanceKm} onChange={(e) => setCoyoteDistanceKm(Number(e.target.value))} className="w-24 h-12 bg-neutral-100 rounded-xl text-center font-mono text-xl font-bold text-black focus:ring-2 focus:ring-[#FDCB02] focus:bg-white outline-none transition-all"/>
+                              <label className="block text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-2">Distancia de Ruta (Ida)</label>
+                              <div className="flex items-baseline gap-1">
+                                <span className="font-mono text-3xl font-[1000] text-black tracking-tighter">{coyoteDistanceKm}</span>
                                 <span className="text-sm font-bold text-neutral-400">KM</span>
                               </div>
                             </div>
@@ -453,16 +515,13 @@ export default function CheckoutPage() {
                                 <span className="text-2xl font-[1000] text-black tracking-tighter">${shippingCost.toLocaleString()}</span>
                             </div>
                           </div>
-                          <p className="text-[10px] text-neutral-400 mt-4 leading-relaxed font-medium">
-                            <strong className="text-black">Fórmula Operativa:</strong> El sistema calcula el Diésel a $27.00 x 20L/100km considerando el viaje redondo ({(coyoteDistanceKm * 2)} km totales).
-                          </p>
-
+                          
                           {vehiclesNeeded > 1 && (
                             <div className="mt-4 p-4 bg-black rounded-xl flex items-center gap-4 text-white">
                               <div className="w-10 h-10 bg-[#FDCB02] rounded-lg flex items-center justify-center text-black shrink-0"><Truck size={20} strokeWidth={2.5}/></div>
                               <div>
                                 <p className="text-xs font-bold text-[#FDCB02] uppercase tracking-widest mb-0.5">Alerta de Carga Pesada</p>
-                                <p className="text-xs text-neutral-300">Tu pedido excede la capacidad de 80 bultos por unidad. Requerimos <strong>{vehiclesNeeded} camionetas</strong> de la flotilla.</p>
+                                <p className="text-xs text-neutral-300">Tu pedido excede la capacidad. Requerimos <strong>{vehiclesNeeded} camionetas</strong>.</p>
                               </div>
                             </div>
                           )}
@@ -471,8 +530,8 @@ export default function CheckoutPage() {
                         <motion.div key="skydropx-calc" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-blue-50 rounded-2xl p-6 border border-blue-100">
                            <div className="flex items-center justify-between mb-4">
                             <div>
-                              <h5 className="font-[1000] text-blue-900 uppercase tracking-tight">Tarificador Nacional</h5>
-                              <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-1">Destino: CP {customerData.zip}</p>
+                              <h5 className="font-[1000] text-blue-900 uppercase tracking-tight">Tarifa SkydropX Nacional</h5>
+                              <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-1">Destino: {customerData.city} ({customerData.zip})</p>
                             </div>
                             {!isLocalZone && <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">Zona Foránea</span>}
                           </div>
@@ -482,7 +541,7 @@ export default function CheckoutPage() {
                               <p className="text-lg font-bold text-black">{totalWeight} <span className="text-sm text-neutral-400">KG</span></p>
                             </div>
                             <div className="text-right">
-                                <span className="block text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-1">Costo de Guía</span>
+                                <span className="block text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-1">Mejor Tarifa: {skydropxCarrier}</span>
                                 <span className="text-2xl font-[1000] text-blue-600 tracking-tighter">${shippingCost.toLocaleString()}</span>
                             </div>
                           </div>
@@ -492,25 +551,22 @@ export default function CheckoutPage() {
 
                     <div className="flex gap-4 mt-8">
                       <button onClick={() => setStep(1)} className="px-6 py-4 font-bold text-neutral-500 uppercase tracking-widest hover:bg-neutral-100 rounded-2xl transition-colors">Volver</button>
-                       <button onClick={() => setStep(3)} className="flex-1 bg-black text-white py-4 rounded-2xl font-[1000] text-sm uppercase tracking-widest hover:bg-[#FDCB02] hover:text-black transition-all shadow-lg hover:shadow-yellow-500/20">Guardar Logística</button>                    </div>
+                      <button onClick={() => setStep(3)} className="flex-1 bg-black text-white py-4 rounded-2xl font-[1000] text-sm uppercase tracking-widest hover:bg-[#FDCB02] hover:text-black transition-all shadow-lg hover:shadow-yellow-500/20">Guardar Logística</button>
+                    </div>
                 </motion.div>
               )}
 
-              {/* --- PASO 3: FACTURACIÓN --- */}
               {step === 3 && (
                 <motion.div key="step3" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="bg-white p-8 rounded-3xl border border-neutral-100 shadow-sm">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="w-8 h-8 bg-[#FDCB02] rounded-lg flex items-center justify-center text-black"><FileText size={16} strokeWidth={2.5}/></div>
                       <h2 className="text-xl font-[1000] uppercase tracking-tight text-black">Facturación</h2>
                     </div>
-
                     <div className="bg-neutral-50 p-6 rounded-2xl border border-neutral-200 mb-8 flex items-center justify-between">
                       <div>
                         <h4 className="font-bold text-black text-sm">¿Requieres Comprobante Fiscal (CFDI)?</h4>
                         <p className="text-xs text-neutral-500 mt-1">El IVA (16%) se agregará automáticamente al total.</p>
                       </div>
-                      
-                      {/* TOGGLE SWITCH PREMIUM */}
                       <button onClick={() => setWantsInvoice(!wantsInvoice)} className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 focus:outline-none shadow-inner ${wantsInvoice ? 'bg-[#FDCB02]' : 'bg-neutral-300'}`}>
                           <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 flex items-center justify-center ${wantsInvoice ? 'translate-x-6' : 'translate-x-0'}`}>
                             {wantsInvoice && <div className="w-2 h-2 bg-black rounded-full"></div>}
@@ -549,18 +605,14 @@ export default function CheckoutPage() {
                 </motion.div>
               )}
 
-              {/* --- PASO 4: PAGO --- */}
               {step === 4 && (
                 <motion.div key="step4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="bg-white rounded-3xl border border-neutral-100 shadow-sm overflow-hidden">
-                    {/* TABS DE PAGO TIPO FINTECH */}
                     <div className="flex bg-neutral-50 p-2 border-b border-neutral-100">
                         <button onClick={() => setPaymentMethod('card')} className={`flex-1 py-4 px-2 rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${paymentMethod === 'card' ? 'bg-white shadow-sm text-black ring-1 ring-black/5' : 'text-neutral-400 hover:text-black hover:bg-neutral-100'}`}><CreditCard size={16}/> Tarjeta</button>
                         <button onClick={() => setPaymentMethod('bank_account')} className={`flex-1 py-4 px-2 rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${paymentMethod === 'bank_account' ? 'bg-white shadow-sm text-black ring-1 ring-black/5' : 'text-neutral-400 hover:text-black hover:bg-neutral-100'}`}><Landmark size={16}/> SPEI</button>
                         <button onClick={() => setPaymentMethod('store')} className={`flex-1 py-4 px-2 rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${paymentMethod === 'store' ? 'bg-white shadow-sm text-black ring-1 ring-black/5' : 'text-neutral-400 hover:text-black hover:bg-neutral-100'}`}><Store size={16}/> OXXO</button>
                     </div>
-
                     <div className="p-8">
-                        {/* TARJETA */}
                         {paymentMethod === 'card' && (
                             <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                                 <div className="flex justify-between items-center mb-8">
@@ -585,17 +637,13 @@ export default function CheckoutPage() {
                                 </div>
                             </div>
                         )}
-
-                        {/* SPEI */}
                         {paymentMethod === 'bank_account' && (
                             <div className="animate-in fade-in slide-in-from-top-2 duration-300 text-center py-6">
                                 <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6"><Landmark size={36}/></div>
                                 <h2 className="text-xl font-[1000] uppercase mb-2">Transferencia Electrónica</h2>
-                                <p className="text-sm text-neutral-500 mb-8 max-w-sm mx-auto leading-relaxed">Al procesar el pedido, el sistema de OpenPay generará una <strong>CLABE interbancaria única y segura</strong> para tu empresa.</p>
+                                <p className="text-sm text-neutral-500 mb-8 max-w-sm mx-auto leading-relaxed">Generaremos una <strong>CLABE interbancaria única y segura</strong> para tu empresa.</p>
                             </div>
                         )}
-
-                        {/* EFECTIVO */}
                         {paymentMethod === 'store' && (
                             <div className="animate-in fade-in slide-in-from-top-2 duration-300 text-center py-6">
                                   <div className="w-20 h-20 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6"><Banknote size={36}/></div>
@@ -610,26 +658,16 @@ export default function CheckoutPage() {
 
                         <div className="pt-8 mt-4 border-t border-neutral-100 flex gap-4">
                             <button onClick={() => setStep(3)} className="px-6 py-4 font-bold text-neutral-500 uppercase tracking-widest hover:bg-neutral-100 rounded-2xl transition-colors">Volver</button>
-                            <button 
-                                onClick={handleTransaction}
-                                disabled={isProcessing || (paymentMethod === 'card' && !isSdkReady)}
-                                className={`flex-1 font-[1000] uppercase py-4 rounded-2xl text-sm tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 ${isProcessing ? 'bg-neutral-800 text-neutral-400 cursor-wait' : 'bg-[#FDCB02] hover:bg-black hover:text-white text-black hover:shadow-yellow-500/20'}`}
-                            >
-                                {isProcessing ? (
-                                  <>Procesando... <Loader2 size={18} className="animate-spin"/></>
-                                ) : (
-                                  <><span>{paymentMethod === 'card' ? 'Pagar de forma segura' : 'Generar Ficha'}</span></>
-                                )}
+                            <button onClick={handleTransaction} disabled={isProcessing || (paymentMethod === 'card' && !isSdkReady)} className={`flex-1 font-[1000] uppercase py-4 rounded-2xl text-sm tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 ${isProcessing ? 'bg-neutral-800 text-neutral-400 cursor-wait' : 'bg-[#FDCB02] hover:bg-black hover:text-white text-black hover:shadow-yellow-500/20'}`}>
+                                {isProcessing ? (<>Procesando... <Loader2 size={18} className="animate-spin"/></>) : (<><span>{paymentMethod === 'card' ? 'Pagar de forma segura' : 'Generar Ficha'}</span></>)}
                             </button>
                         </div>
-                        <div className="flex items-center justify-center gap-2 mt-6 text-[10px] text-neutral-400 uppercase font-black tracking-widest"><ShieldCheck size={14} className="text-green-500"/> Túnel encriptado OpenPay PCI-DSS</div>
                     </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          {/* ================= COLUMNA DERECHA (RESUMEN PREMIUM DARK) ================= */}
           <div className="lg:col-span-5">
              <div className="bg-[#0a0a0a] text-white p-8 rounded-3xl shadow-2xl sticky top-28 border border-white/10">
                 <div className="flex items-center justify-between mb-8 pb-6 border-b border-white/10">
@@ -637,7 +675,6 @@ export default function CheckoutPage() {
                   <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"><ShoppingBag size={18} className="text-[#FDCB02]"/></div>
                 </div>
                 
-                {/* ITEMS */}
                 <div className="space-y-5 mb-8 max-h-[350px] overflow-y-auto pr-3 custom-scrollbar-dark">
                     {items.map((item) => (
                         <div key={item.id} className="flex gap-4 items-start">
@@ -657,7 +694,6 @@ export default function CheckoutPage() {
                     ))}
                 </div>
                 
-                {/* DESGLOSE */}
                 <div className="space-y-4 pt-6 border-t border-white/10">
                     <div className="flex justify-between text-sm">
                         <span className="text-neutral-400">Subtotal Mercancía</span>
@@ -672,7 +708,7 @@ export default function CheckoutPage() {
                     <div className="flex justify-between text-sm">
                         <span className="text-neutral-400 flex items-center gap-2">
                           {selectedLogistics === 'coyote' ? <Factory size={14} className="text-[#FDCB02]"/> : <Map size={14} className="text-blue-400"/>}
-                          Logística {selectedLogistics === 'coyote' ? 'Coyote' : 'Skydropx'}
+                          Logística {selectedLogistics === 'coyote' ? 'Coyote' : skydropxCarrier}
                         </span>
                         <span className="font-bold text-white">${shippingCost.toLocaleString()}</span>
                     </div>
@@ -691,7 +727,6 @@ export default function CheckoutPage() {
                       )}
                     </AnimatePresence>
 
-                    {/* TOTAL FINAL */}
                     <div className="flex justify-between items-end pt-6 border-t border-white/10 mt-4">
                         <div>
                           <span className="font-black uppercase text-[10px] text-neutral-500 tracking-widest block mb-1">Monto a Pagar</span>
@@ -706,7 +741,6 @@ export default function CheckoutPage() {
       </div>
 
       <style jsx>{`
-        /* CUSTOM UI CLASSES */
         .checkout-input-premium { 
           width: 100%; 
           background-color: #f3f4f6; 
@@ -726,7 +760,6 @@ export default function CheckoutPage() {
           box-shadow: 0 0 0 4px rgba(253,203,2,0.15); 
         }
         
-        /* DARK SCROLLBAR FOR SUMMARY */
         .custom-scrollbar-dark::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar-dark::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar-dark::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }

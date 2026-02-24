@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 
 // ─────────────────────────────────────────────
-// 🐺 COYOTE PAYHOOK v2.0 — Built different
+// 🐺 COYOTE PAYHOOK v2.0 — MODO VERIFICACIÓN
 // ─────────────────────────────────────────────
 
 const prisma = new PrismaClient();
@@ -232,12 +232,15 @@ async function handleChargeFailed(transaction: z.infer<typeof OpenPayTransaction
 export async function POST(req: Request) {
   const rawBody = await req.text();
 
-  // 🔒 Verificar firma HMAC
-  const signature = req.headers.get('x-openpay-signature');
-  if (!verifyOpenPaySignature(rawBody, signature)) {
-    log.warn('Firma inválida — posible request no autorizado');
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // 🚨 ATENCIÓN JEFE: ESCUDO APAGADO TEMPORALMENTE 🚨
+  // Comenté estas líneas para que OpenPay pueda entrar y darnos el código.
+  // En cuanto verifiques, QUÍTALES LAS DOBLES DIAGONALES a estas 5 líneas.
+  
+  // const signature = req.headers.get('x-openpay-signature');
+  // if (!verifyOpenPaySignature(rawBody, signature)) {
+  //   log.warn('Firma inválida — posible request no autorizado');
+  //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // }
 
   let payload: OpenPayWebhook;
   try {
@@ -252,6 +255,10 @@ export async function POST(req: Request) {
   try {
     switch (payload.type) {
       case 'verification':
+        // 🔥 AQUÍ VA A SALIR TU CÓDIGO EN LA TERMINAL 🔥
+        console.log('\n======================================================');
+        console.log('🐺 CÓDIGO DE VERIFICACIÓN OPENPAY:', payload.verification_code);
+        console.log('======================================================\n');
         log.info('🔑 Código de verificación OpenPay', { code: payload.verification_code });
         break;
 
@@ -269,8 +276,6 @@ export async function POST(req: Request) {
 
   } catch (err) {
     log.error('Error crítico en webhook', { err: String(err), type: payload.type });
-    // Retornamos 200 de todas formas para evitar que OpenPay reintente infinitamente
-    // Los errores ya están loggeados y deben manejarse por alertas/monitoring
     return NextResponse.json({ status: 'ok', warning: 'processed_with_errors' });
   }
 }

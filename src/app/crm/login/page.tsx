@@ -27,8 +27,8 @@ export default function CRMLogin() {
       const data = await res.json();
 
       if (res.ok) {
-        router.push('/crm'); // Si las llaves coinciden, entra a la bóveda
-        router.refresh();    // Refrescamos para que el servidor lea la cookie nueva
+        router.push('/crm'); 
+        router.refresh();   
       } else {
         setError(data.error || 'Credenciales inválidas');
         setLoading(false);

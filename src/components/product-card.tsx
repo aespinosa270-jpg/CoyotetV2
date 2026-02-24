@@ -3,10 +3,10 @@
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { useSession } from "next-auth/react" // 🔥 REACCIÓN EN TIEMPO REAL
 import { useCart } from "@/lib/context/cart-context"
-import { usePriceEngine } from "@/hooks/use-price-engine" 
 import { 
-  Check, ArrowRight, Scale, Ruler, Weight, Info, Plus, Minus
+  Check, ArrowRight, Ruler, Weight, Info, Plus, Minus, Star, Truck
 } from "lucide-react"
 
 interface ProductProps {
@@ -18,18 +18,31 @@ const formatMoney = (amount: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(amount);
 
 export default function ProductCard({ product, className = "" }: ProductProps) {
+    const { data: session } = useSession(); // 🔥 OBTENEMOS EL ADN DEL SOCIO
     const { addItem } = useCart();
     
+    // 1. IDENTIFICACIÓN DE MEMBRESÍA REAL
+    const tier = session?.user?.membershipTier || "NONE";
+    const isGold = tier === "GOLD";
+    const isBlack = tier === "BLACK";
+    const isElite = tier === "ELITE";
+    const hasDiscount = isGold || isBlack || isElite;
+
+    // 2. MOTOR DE DESCUENTOS (COHERENTE CON LOS PLANES)
+    // GOLD: 10% | BLACK/ELITE: 15%
+    const discountMultiplier = isElite || isBlack ? 0.85 : isGold ? 0.90 : 1;
+    const discountPercent = isElite || isBlack ? 15 : isGold ? 10 : 0;
+
     const [activeImage, setActiveImage] = useState(product.thumbnail);
     const [selectedColorName, setSelectedColorName] = useState<string | null>(product.colors?.[0]?.name || null);
     const [hovered, setHovered] = useState(false);
-
     const [mode, setMode] = useState<'rollo' | 'kilo'>('rollo'); 
     const [quantity, setQuantity] = useState(1);
 
-    const { finalPrice, label, isDiscounted, discountPercent, role } = usePriceEngine(product, mode);
+    // 3. CÁLCULO FINANCIERO DINÁMICO
+    const basePrice = mode === 'rollo' ? product.prices?.mayoreo : product.prices?.menudeo;
+    const finalPrice = basePrice * discountMultiplier; // 🔥 PRECIO YA REBAJADO
 
-    // 🔥 MAGIA DINÁMICA DE UNIDADES (Sin romper diseño)
     const isMeter = product.unit === 'Metro';
     const unitLabel = isMeter ? 'Metro' : 'Kilo';
     const unitAbbr = isMeter ? 'm' : 'Kg';
@@ -39,7 +52,6 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
     const currentWeight = quantity * unitWeight;
     const totalPay = currentWeight * finalPrice;
     
-    // Solo calcula metros de rendimiento si el producto se vende por Kilo
     const totalMeters = !isMeter ? (currentWeight * (product.rendimiento || 4.3)).toFixed(1) : currentWeight;
 
     const handleColorClick = (e: any, color: any) => {
@@ -65,7 +77,8 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                 mode: mode,
                 color: selectedColorName || undefined, 
                 packages: quantity,
-                meters: totalMeters
+                meters: totalMeters,
+                tierApplied: tier // Guardamos qué tier le dio el precio
             }
         });
     };
@@ -83,11 +96,19 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-90"/>
                 
-                {isDiscounted && (
-                    <div className={`absolute top-3 right-3 text-[9px] font-[1000] px-2 py-1 rounded uppercase shadow-lg z-10 flex items-center gap-1 animate-in zoom-in
-                        ${role === 'black' ? 'bg-black text-white border border-white/20' : 'bg-[#FDCB02] text-black'}
+                {/* 🔥 BADGE DE MEMBRESÍA DINÁMICO */}
+                {hasDiscount && (
+                    <div className={`absolute top-3 right-3 text-[9px] font-[1000] px-2 py-1 rounded uppercase shadow-lg z-10 flex items-center gap-1 animate-in zoom-in duration-500
+                        ${isBlack ? 'bg-white text-black' : isElite ? 'bg-[#FDCB02] text-black ring-2 ring-[#FDCB02] ring-offset-2 ring-offset-black' : 'bg-[#FDCB02] text-black'}
                     `}>
-                        {role === 'black' ? 'Socio Black' : 'Socio Gold'} Ahorro {discountPercent}%
+                        <Star size={10} fill="currentColor" /> Socio {tier} -{discountPercent}%
+                    </div>
+                )}
+
+                {/* 🔥 PRIVILEGIO ELITE: ENVÍO GRATIS */}
+                {isElite && (
+                    <div className="absolute top-3 left-3 bg-green-500 text-white text-[8px] font-black px-2 py-1 rounded uppercase flex items-center gap-1 shadow-lg">
+                        <Truck size={10} /> Envío Local Gratis
                     </div>
                 )}
 
@@ -122,28 +143,27 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                 <div className="flex justify-between items-end border-b border-white/5 pb-4">
                     <div>
                         <p className="text-[9px] font-bold text-neutral-500 uppercase mb-0.5 flex items-center gap-1">
-                            {label} 
-                            {isDiscounted && <Info size={10} className="text-[#FDCB02]"/>}
+                            Precio {tier !== 'NONE' ? `Socio ${tier}` : 'General'} 
+                            {hasDiscount && <Info size={10} className="text-[#FDCB02]"/>}
                         </p>
                         <div className="flex items-baseline gap-2">
-                            <p className="text-4xl font-[1000] text-white tracking-tighter">
-                                ${finalPrice.toFixed(0)}<span className="text-sm text-neutral-500 font-bold align-top">.00</span>
+                            <p className={`text-4xl font-[1000] tracking-tighter ${hasDiscount ? 'text-[#FDCB02]' : 'text-white'}`}>
+                                ${finalPrice.toFixed(0)}<span className={`text-sm font-bold align-top ${hasDiscount ? 'text-yellow-600' : 'text-neutral-500'}`}>.00</span>
                             </p>
-                            {isDiscounted && (
+                            
+                            {/* 🔥 PRECIO ORIGINAL TACHADO */}
+                            {hasDiscount && (
                                 <span className="text-xs text-neutral-600 line-through font-bold">
-                                    ${(mode === 'rollo' ? product.prices.mayoreo : product.prices.menudeo).toFixed(0)}
+                                    ${basePrice.toFixed(0)}
                                 </span>
                             )}
                         </div>
                     </div>
                     <div className="text-right flex flex-col items-end gap-1">
                         <div className="flex items-center gap-1.5 text-[#FDCB02]">
-                            {/* Cambia el ícono dependiendo de si es Metro o Kilo */}
                             {isMeter ? <Ruler size={14} strokeWidth={2.5}/> : <Weight size={14} strokeWidth={2.5}/>}
                             <span className="text-sm font-[900]">{currentWeight} {unitAbbr.toUpperCase()}</span>
                         </div>
-                        
-                        {/* Solo mostrar estimación de metros si se vende por kilos */}
                         {!isMeter && (
                             <div className="flex items-center gap-1.5 text-neutral-400">
                                 <Ruler size={12}/>
@@ -153,6 +173,7 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                     </div>
                 </div>
 
+                {/* SELECTOR DE COLOR */}
                 <div>
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Colorido</span>
@@ -171,31 +192,22 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                                     {selectedColorName === c.name && <Check size={12} className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name === 'Blanco' || c.name === 'Beige' ? 'text-black' : 'text-white'}`}/>}
                                 </button>
                             ))}
-                            {product.colors.length > 6 && <div className="w-8 h-8 rounded-full bg-[#111] border border-white/10 flex items-center justify-center text-[9px] font-bold text-white">+{product.colors.length - 6}</div>}
                         </div>
                     )}
                 </div>
 
                 <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between bg-[#111] border border-white/10 h-10 rounded px-1">
-                        <button 
-                            onClick={(e) => { e.preventDefault(); setQuantity(Math.max(1, quantity - 1)); }} 
-                            className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"
-                        >
-                            <Minus size={14}/>
-                        </button>
+                        <button onClick={(e) => { e.preventDefault(); setQuantity(Math.max(1, quantity - 1)); }} className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"><Minus size={14}/></button>
                         <span className="text-xs font-bold text-white uppercase">{quantity} {mode === 'rollo' ? 'Rollos' : `${unitLabel}s`}</span>
-                        <button 
-                            onClick={(e) => { e.preventDefault(); setQuantity(quantity + 1); }} 
-                            className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"
-                        >
-                            <Plus size={14}/>
-                        </button>
+                        <button onClick={(e) => { e.preventDefault(); setQuantity(quantity + 1); }} className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"><Plus size={14}/></button>
                     </div>
 
                     <button 
                         onClick={handleAddToCart}
-                        className="w-full h-12 bg-white hover:bg-[#FDCB02] text-black font-[900] uppercase tracking-widest text-xs flex items-center justify-between px-6 rounded transition-all duration-300 group/btn"
+                        className={`w-full h-12 font-[900] uppercase tracking-widest text-xs flex items-center justify-between px-6 rounded transition-all duration-300 group/btn
+                            ${hasDiscount ? 'bg-[#FDCB02] text-black hover:bg-white' : 'bg-white text-black hover:bg-[#FDCB02]'}
+                        `}
                     >
                         <span>Agregar • {formatMoney(totalPay)}</span>
                         <ArrowRight size={16} className="group-hover/btn:-rotate-45 transition-transform duration-300"/>

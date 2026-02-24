@@ -28,7 +28,7 @@ enum OrderStatus {
   SHIPPED         // Guía generada / En flotilla
   DELIVERED       // Entregado
   CANCELLED
-  FAILED          // Pago rechazado por OpenPay ← NUEVO
+  FAILED          // Pago rechazado por OpenPay
 }
 
 enum LogisticsType {
@@ -36,66 +36,120 @@ enum LogisticsType {
   SKYDROPX_NACIONAL
 }
 
+// --- NUEVOS ENUMS DEL ERP ---
+
+enum PipelineStatus {
+  PROSPECTO       // Primer contacto
+  COTIZANDO       // Enviando precios
+  NEGOCIACION     // Ajustando detalles
+  CERRADO_GANADO  // Venta exitosa (Se vuelve Order)
+  CERRADO_PERDIDO // No compró
+}
+
+enum InteractionType {
+  LLAMADA
+  WHATSAPP
+  CORREO
+  PRESENCIAL
+}
+
+enum TicketStatus {
+  ABIERTO
+  EN_REVISION
+  RESUELTO
+  CERRADO
+}
+
+enum TicketPriority {
+  BAJA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+// 🔥 ACTUALIZADO: SISTEMA DE MEMBRESÍAS REALES
+enum MembershipTier {
+  NONE      // Cliente mortal (Sin beneficios)
+  GOLD      // 10% de descuento
+  BLACK     // 15% de descuento
+  ELITE     // 15% de descuento + Envíos Locales Gratis
+}
+
 // ==========================================================
 // 1. EL USUARIO / CLIENTE (Blindado)
 // ==========================================================
 model User {
-  id            String    @id @default(cuid())
+  id               String    @id @default(cuid())
   
   // Hash B2B seguro para el CRM (Generado por Postgres)
-  hashId        String    @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
+  hashId           String    @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
   
-  // Datos Base (Tu estructura original)
-  name          String?
-  email         String    @unique
-  password      String    
-  image         String?
-  phone         String?
-  role          String    @default("silver") // Mantenemos tu jerarquía: silver, gold, black
+  // Datos Base 
+  name             String?
+  email            String    @unique
+  password         String    
+  image            String?
+  phone            String?
+  role             String    @default("USER") // Rol de sistema (USER, ADMIN)
   
+  // 🔥 ADN DE MEMBRESÍA Y WALLET DE PUNTOS
+  membershipTier   MembershipTier @default(NONE)
+  membershipExpiry DateTime?
+  points           Float          @default(0) // 💳 BÓVEDA DE PUNTOS ACTIVA
+
+  // 🔥 CONEXIÓN CON OPENPAY SUBSCRIPTIONS
+  openpayCustomerId     String?   // ID del cliente en OpenPay
+  openpaySubscriptionId String?   // ID de la suscripción activa
+
   // KPIs de Negocio
-  ltv           Float     @default(0) // Suma histórica de compras
+  ltv              Float     @default(0) // Suma histórica de compras
 
   // Datos Fiscales y Domicilio B2B
-  rfc           String?
-  taxRegime     String?
-  cfdiUse       String?
-  street        String?
-  neighborhood  String?
-  zipCode       String?
-  city          String?
-  state         String?
+  rfc              String?
+  taxRegime        String?
+  cfdiUse          String?
+  street           String?
+  neighborhood     String?
+  zipCode          String?
+  city             String?
+  state            String?
 
-  // Sistema de Consentimiento LFPDPPP (La Biblia)
-  optedIn       Boolean   @default(false)
-  suppressed    Boolean   @default(false)
-  consentDate   DateTime?
-  optOutDate    DateTime?
+  // Sistema de Consentimiento LFPDPPP 
+  optedIn          Boolean   @default(false)
+  suppressed       Boolean   @default(false)
+  consentDate      DateTime?
+  optOutDate       DateTime?
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
   
   // Relaciones
-  orders        Order[]   
+  orders           Order[]   
+  interactions     Interaction[] // Historial de llamadas/chats
+  tickets          Ticket[]      // Quejas o soporte
 }
 
 // ==========================================================
-// 2. EQUIPO INTERNO Y SEGURIDAD CRM (Nuevo)
+// 2. EQUIPO INTERNO Y SEGURIDAD CRM
 // ==========================================================
 model Employee {
-  id            String         @id @default(cuid())
-  name          String
-  email         String         @unique
-  password      String         
-  role          EmployeeRole   @default(VENDEDORA)
+  id              String         @id @default(cuid())
+  name            String
+  email           String         @unique
+  password        String         
+  role            EmployeeRole   @default(VENDEDORA)
   
   // Kill Switch: Desactivación inmediata
-  isActive      Boolean        @default(true) 
+  isActive        Boolean        @default(true) 
   
-  logs          AuditLog[]
+  // Relaciones
+  logs            AuditLog[]
+  attendances     Attendance[]  // Control de horarios (Check-in/out)
+  interactions    Interaction[] // Llamadas/WhatsApp que ha hecho
+  assignedTickets Ticket[]      // Tickets que está resolviendo
   
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
 // Trazabilidad Total (El Ojo del CEO)
@@ -117,46 +171,48 @@ model AuditLog {
 // 3. E-COMMERCE & LOGÍSTICA
 // ==========================================================
 model Order {
-  id            String         @id @default(cuid())
-  orderNumber   String         @unique @default(cuid()) // Para facturas (CYT-001)
+  id             String         @id @default(cuid())
+  orderNumber    String         @unique @default(cuid()) // Para facturas (CYT-001)
   
   // Conexión con el User
-  userId        String
-  user          User           @relation(fields: [userId], references: [id])
+  userId         String
+  user           User           @relation(fields: [userId], references: [id])
 
-  // Desglose Financiero "Sabroso"
-  subtotal      Float          @default(0)
-  freightCost   Float          @default(0)
-  shippingCost  Float          @default(0)
-  serviceFee    Float          @default(0)
-  taxIVA        Float          @default(0)
-  total         Float
+  // Desglose Financiero
+  subtotal       Float          @default(0)
+  freightCost    Float          @default(0)
+  shippingCost   Float          @default(0)
+  serviceFee     Float          @default(0)
+  taxIVA         Float          @default(0)
+  total          Float
 
   // Estado y Pagos
-  status        OrderStatus    @default(PENDING) // Usando el nuevo Enum
-  paymentMethod String         @default("card")
-  paymentId     String?        // ID de transacción de OpenPay
+  status         OrderStatus    @default(PENDING) 
+  paymentMethod  String         @default("card")
+  paymentId      String?        // ID de transacción 
   
   // Logística 
-  logisticsType LogisticsType  @default(SKYDROPX_NACIONAL)
-  vehiclesNeeded Int           @default(1)
-  trackingNumber String?       
-  trackingUrl   String?
+  logisticsType  LogisticsType  @default(SKYDROPX_NACIONAL)
+  vehiclesNeeded Int            @default(1)
+  trackingNumber String?        
+  trackingUrl    String?
 
   // Datos del Cliente (Snapshot histórico original)
-  customerName  String
-  customerEmail String
-  customerPhone String?
-  address       String?
+  customerName   String
+  customerEmail  String
+  customerPhone  String?
+  address        String?
   
   // Facturación
-  wantsInvoice  Boolean        @default(false)
-  invoiceStatus String?        // PENDING, GENERATED
+  wantsInvoice   Boolean        @default(false)
+  invoiceStatus  String?        // PENDING, GENERATED, ISSUED
 
-  items         OrderItem[]
+  // Relaciones
+  items          OrderItem[]
+  tickets        Ticket[]       // Tickets/Quejas asociados a este pedido
   
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 model OrderItem {
@@ -174,4 +230,80 @@ model OrderItem {
   quantity      Float
   unit          String?
   color         String?
+}
+
+// ==========================================================
+// 4. MÓDULOS DEL NUEVO ERP (PIZARRÓN)
+// ==========================================================
+
+// 4.1. Módulo de Jornada (Horarios)
+model Attendance {
+  id              String    @id @default(cuid())
+  
+  employeeId      String
+  employee        Employee  @relation(fields: [employeeId], references: [id])
+  
+  checkIn         DateTime  @default(now())
+  checkOut        DateTime?
+  horasTrabajadas Float?  
+  
+  ipAddress       String?
+  location        String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// 4.2. Módulo de Interacciones (Llamadas, WhatsApp y Ventas)
+model Interaction {
+  id             String    @id @default(cuid())
+  
+  employeeId     String
+  employee       Employee  @relation(fields: [employeeId], references: [id])
+  
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  
+  type           InteractionType
+  summary        String    
+  
+  pipelineStatus PipelineStatus? // En qué paso del embudo va
+  
+  date           DateTime  @default(now())
+  nextFollowUp   DateTime? // Siguiente llamada programada
+}
+
+// 4.3. Logística CP (Zonas y Tarifas)
+model ShippingZone {
+  id            String    @id @default(cuid())
+  name          String    // ej: "Zona Norte CDMX"
+  zipCodes      String[]  // ej: ["02000", "02010"]
+  
+  baseRate      Float     @default(0) 
+  estimatedDays Int       @default(1) 
+  
+  isActive      Boolean   @default(true)
+}
+
+// 4.4. Atención a Clientes (Tickets de Servicio)
+model Ticket {
+  id             String    @id @default(cuid())
+  ticketNumber   String    @unique @default(dbgenerated("concat('TK-', substr(gen_random_uuid()::text, 1, 6))"))
+  
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  
+  employeeId     String?   
+  employee       Employee? @relation(fields: [employeeId], references: [id])
+  
+  orderId        String?   
+  order          Order?    @relation(fields: [orderId], references: [id])
+  
+  subject        String
+  description    String
+  status         TicketStatus   @default(ABIERTO)
+  priority       TicketPriority @default(MEDIA)
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }

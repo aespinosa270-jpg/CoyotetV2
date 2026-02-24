@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion"; 
 import { products } from "@/lib/products"; 
 import { useCart } from "@/lib/context/cart-context"; 
+import { useSession } from "next-auth/react"; // 🔥 IMPORTAMOS LA SESIÓN
 import { 
   Search, Plus, Minus, Package, Scissors, 
   Check, Ship, ArrowRight, 
@@ -23,34 +24,26 @@ function IntroLoader() {
   const pathname = usePathname();
 
   useEffect(() => {
-    // 1. Detectar si estamos en el Home
     const isHome = pathname === "/";
     
-    // 2. LÓGICA MODIFICADA:
-    // Si NO es el home, lo ocultamos y liberamos scroll.
     if (!isHome) {
       setIsVisible(false);
       document.body.style.overflow = "auto";
       return;
     }
 
-    // 3. SI ES HOME:
-    // Forzamos la visibilidad (por si vienes de otra página) y bloqueamos scroll.
     setIsVisible(true);
     document.body.style.overflow = "hidden";
 
-    // 4. SEGURIDAD: Timeout de 6 segundos por si el video falla
     const safetyTimer = setTimeout(() => {
       handleVideoComplete();
-    }, 6000); // Le di un segundo extra por si acaso
+    }, 6000); 
 
     return () => clearTimeout(safetyTimer);
   }, [pathname]);
 
   const handleVideoComplete = () => {
-    // Ocultamos el loader
     setIsVisible(false);
-    // Reactivamos el scroll
     document.body.style.overflow = "auto";
   };
 
@@ -63,7 +56,6 @@ function IntroLoader() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.8, ease: "easeInOut" }}
         >
-          {/* Fondo negro de seguridad */}
           <div className="absolute inset-0 bg-black -z-10" />
 
           <video
@@ -79,7 +71,6 @@ function IntroLoader() {
             }}
           />
           
-          {/* Botón para saltar intro */}
           <button 
             onClick={handleVideoComplete}
             className="absolute bottom-12 right-8 text-[10px] font-black text-white/40 hover:text-white uppercase tracking-[0.2em] border border-white/10 hover:border-white px-5 py-2 rounded-full transition-all z-50 backdrop-blur-sm"
@@ -109,9 +100,19 @@ const TECH_FILTERS = {
 
 // --- COMPONENTES UI ---
 
-// 1. PRODUCT CARD PREMIUM (LÓGICA DINÁMICA APLICADA 🔥)
+// 1. PRODUCT CARD PREMIUM (CON MAGIA VIP 🔥)
 const ProductCard = ({ product, className = "" }: { product: any, className?: string }) => {
     const { addItem } = useCart();
+    
+    // 🔥 1. EXTRAEMOS LA MEMBRESÍA DE LA SESIÓN EN TIEMPO REAL
+    const { data: session } = useSession();
+    const tier = session?.user?.membershipTier ?? "NONE";
+    const isGold = tier === "GOLD";
+    const isBlack = tier === "BLACK";
+    const isElite = tier === "ELITE";
+    const hasDiscount = isGold || isBlack || isElite;
+    const discountMultiplier = isBlack || isElite ? 0.85 : isGold ? 0.9 : 1;
+    const discountPercent = isBlack || isElite ? 15 : isGold ? 10 : 0;
     
     // Estado Visual
     const [activeImage, setActiveImage] = useState(product.thumbnail);
@@ -128,16 +129,16 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
     const unitAbbr = isMeter ? 'MT' : 'KG';
     const unitsPerRoll = product.unidadesPorRollo || 25;
 
-    // Datos del Producto
-    const priceUnit = mode === 'rollo' ? product.prices?.mayoreo : product.prices?.menudeo;
+    // 🔥 2. CÁLCULO DE PRECIOS CON DESCUENTO VIP/PRO
+    const basePrice = mode === 'rollo' ? product.prices?.mayoreo : product.prices?.menudeo;
+    
+    const currentPrice = basePrice * discountMultiplier;
     const unitFactor = mode === 'rollo' ? unitsPerRoll : 1; 
     
     // Cálculos Dinámicos
     const currentUnits = quantity * unitFactor;
-    const currentPrice = priceUnit;
     const totalPay = currentUnits * currentPrice;
     
-    // Solo calculamos el rendimiento en metros si la tela se vende por kilos
     const totalMeters = !isMeter ? (currentUnits * (product.rendimiento || 4.3)).toFixed(1) : currentUnits;
 
     const handleColorClick = (e: any, color: any) => {
@@ -153,6 +154,13 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
             onMouseLeave={() => setHovered(false)}
             className={`min-w-[320px] w-[320px] bg-[#050505] border border-white/10 hover:border-[#FDCB02]/50 transition-all duration-300 relative flex flex-col snap-center md:snap-align-none group overflow-hidden rounded-xl shadow-2xl ${className}`}
         >
+            {/* 🔥 BADGE VIP VISUAL */}
+            {hasDiscount && (
+                <div className="absolute top-4 right-4 z-20 bg-[#FDCB02] text-black text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded shadow-lg flex items-center gap-1">
+                    <Star size={10} fill="currentColor" /> TARIFA {tier}
+                </div>
+            )}
+
             {/* --- IMAGEN Y HEADER --- */}
             <Link href={`/products/${product.id}`} className="block relative aspect-[4/3] w-full overflow-hidden border-b border-white/5 cursor-pointer">
                 <Image 
@@ -200,9 +208,19 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
                 {/* 2. Precio y Métricas */}
                 <div className="flex justify-between items-end border-b border-white/5 pb-4">
                     <div>
-                        <p className="text-[9px] font-bold text-neutral-500 uppercase mb-0.5">Precio Sin Iva</p>
-                        <p className="text-4xl font-[1000] text-white tracking-tighter">
-                            ${priceUnit.toFixed(0)}<span className="text-sm text-neutral-500 font-bold align-top">.00</span>
+                        <p className="text-[9px] font-bold text-neutral-500 uppercase mb-0.5">
+                            Precio Sin Iva {hasDiscount ? <span className="text-[#FDCB02]">(-{discountPercent}%)</span> : ''}
+                        </p>
+                        
+                        {/* 🔥 PRECIO ORIGINAL TACHADO PARA VIPs */}
+                        {hasDiscount && (
+                            <p className="text-[11px] text-neutral-500 line-through font-bold mb-0.5 leading-none">
+                                ${basePrice.toFixed(2)}
+                            </p>
+                        )}
+                        
+                        <p className={`text-4xl font-[1000] tracking-tighter ${hasDiscount ? 'text-[#FDCB02] drop-shadow-[0_0_10px_rgba(253,203,2,0.3)]' : 'text-white'}`}>
+                            ${currentPrice.toFixed(0)}<span className={`text-sm font-bold align-top ${hasDiscount ? 'text-yellow-600' : 'text-neutral-500'}`}>.00</span>
                         </p>
                     </div>
                     <div className="text-right flex flex-col items-end gap-1">
@@ -260,14 +278,14 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
                             e.preventDefault();
                             addItem({ 
                                 ...product, 
-                                price: priceUnit, 
+                                price: currentPrice, // 🔥 AGREGAMOS AL CARRITO CON EL PRECIO VIP
                                 quantity: currentUnits, 
                                 unit: mode === 'rollo' ? `${unitLabel} (Rollo)` : unitLabel, 
                                 variantId: mode, 
                                 color: selectedColorName 
                             });
                         }} 
-                        className="w-full h-12 bg-white hover:bg-[#FDCB02] text-black font-[900] uppercase tracking-widest text-xs flex items-center justify-between px-6 rounded transition-all duration-300 group/btn"
+                        className={`w-full h-12 font-[900] uppercase tracking-widest text-xs flex items-center justify-between px-6 rounded transition-all duration-300 group/btn ${hasDiscount ? 'bg-[#FDCB02] text-black hover:bg-white' : 'bg-white hover:bg-[#FDCB02] text-black'}`}
                     >
                         <span>Agregar • {formatMoney(totalPay)}</span>
                         <ArrowRight size={16} className="group-hover/btn:-rotate-45 transition-transform duration-300"/>
@@ -283,10 +301,9 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
 const ProductRail = ({ title, items, icon: Icon, isNational = false }: { title: string, items: any[], icon?: any, isNational?: boolean }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Función de Scroll Manual
     const scroll = (direction: 'left' | 'right') => {
         if (scrollRef.current) {
-            const cardWidth = 320 + 24; // Ancho de tarjeta + Gap
+            const cardWidth = 320 + 24; 
             const amount = direction === 'left' ? -cardWidth : cardWidth;
             scrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
         }
@@ -310,10 +327,7 @@ const ProductRail = ({ title, items, icon: Icon, isNational = false }: { title: 
                 </div>
             </div>
             
-            {/* Contenedor Relativo para posicionar flechas */}
             <div className="relative group/track">
-                
-                {/* Flecha Izquierda (Visible en Hover) */}
                 <button 
                     onClick={() => scroll('left')}
                     className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-12 h-20 bg-black/80 backdrop-blur border border-white/10 flex items-center justify-center text-white hover:bg-[#FDCB02] hover:text-black transition-all opacity-0 group-hover/track:opacity-100 rounded-r-lg shadow-xl"
@@ -321,7 +335,6 @@ const ProductRail = ({ title, items, icon: Icon, isNational = false }: { title: 
                     <ChevronLeft size={24} strokeWidth={3}/>
                 </button>
 
-                {/* Flecha Derecha (Visible en Hover) */}
                 <button 
                     onClick={() => scroll('right')}
                     className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-12 h-20 bg-black/80 backdrop-blur border border-white/10 flex items-center justify-center text-white hover:bg-[#FDCB02] hover:text-black transition-all opacity-0 group-hover/track:opacity-100 rounded-l-lg shadow-xl"
@@ -329,7 +342,6 @@ const ProductRail = ({ title, items, icon: Icon, isNational = false }: { title: 
                     <ChevronRight size={24} strokeWidth={3}/>
                 </button>
 
-                {/* Scroll Container (Sin onMouseMove) */}
                 <div 
                     ref={scrollRef} 
                     className="flex overflow-x-auto gap-6 pb-12 scrollbar-hide -mx-6 px-6 snap-x snap-mandatory py-4"
@@ -409,7 +421,6 @@ export default function CoyoteMarketplace() {
     return (
         <div className="bg-[#030303] min-h-screen text-white font-sans selection:bg-[#FDCB02] selection:text-black pb-20 relative overflow-x-hidden">
             
-            {/* AÑADIDO: INTRO LOADER (Se oculta solo cuando termina) */}
             <IntroLoader />
 
             <div className="fixed inset-0 pointer-events-none opacity-[0.04] mix-blend-overlay z-0" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>

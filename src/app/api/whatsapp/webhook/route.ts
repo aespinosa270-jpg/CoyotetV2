@@ -706,8 +706,8 @@ ${PRECIOS_ACTUALES}
 
 Cambiar nombre del bot:           CONFIG|nombreBot|NuevoNombre
 Cambiar tono/personalidad:        CONFIG|tono|Nueva descripción del tono completa
-Cambiar frases para hombre:       CONFIG|frasesHombre|jefe,patrón,amigo,cuate
-Cambiar frases para mujer:        CONFIG|frasesMujer|jefa,patrona,reina
+Cambiar frases para hombre:       CONFIG|frasesHombre|señor, mi estimado.
+Cambiar frases para mujer:        CONFIG|frasesMujer|señora, mi estimado.
 Cambiar frase de cierre:          CONFIG|fraseCierre|Nueva frase de cierre completa
 Cambiar frase final (auuu):       CONFIG|fraseIncondicional|Nueva frase final
 Cambiar emojis principales:       CONFIG|emojis|🐺📦💪
