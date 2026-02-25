@@ -2,8 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(
+  req: Request, 
+  { params }: { params: Promise<{ id: string }> } // 🐺 1. Declaramos que params es una Promesa
+) {
   try {
+    const { id } = await params; // 🐺 2. Desenvolvemos la promesa con await
+
     const { password } = await req.json();
 
     // Validación Coyote: mínimo 8 caracteres para seguridad real
@@ -19,7 +24,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     // Actualizamos el campo password nativo
     await prisma.employee.update({
-      where: { id: params.id },
+      where: { id: id }, // 🐺 3. Usamos la variable limpia que sacamos arriba
       data: { password: hashedPassword },
     });
 
