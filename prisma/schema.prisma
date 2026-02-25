@@ -1,17 +1,16 @@
 generator client {
   provider      = "prisma-client-js"
-  // Vital para Vercel
   binaryTargets = ["native", "rhel-openssl-1.0.x"]
 }
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") // 🔥 CONEXIÓN DIRECTA PARA MIGRACIONES EN SUPABASE
+  directUrl = env("DIRECT_URL")
 }
 
 // ==========================================================
-// ENUMS: REGLAS DE NEGOCIO ESTRICTAS
+// ENUMS
 // ==========================================================
 
 enum EmployeeRole {
@@ -23,13 +22,13 @@ enum EmployeeRole {
 }
 
 enum OrderStatus {
-  PENDING         // Creada, esperando pago
-  PAID            // Pago OpenPay confirmado
-  PROCESSING      // En almacén armando bultos
-  SHIPPED         // Guía generada / En flotilla
-  DELIVERED       // Entregado
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
   CANCELLED
-  FAILED          // Pago rechazado por OpenPay
+  FAILED
 }
 
 enum LogisticsType {
@@ -37,14 +36,17 @@ enum LogisticsType {
   SKYDROPX_NACIONAL
 }
 
-// --- NUEVOS ENUMS DEL ERP ---
+enum PickupLocation {
+  GUATEMALA_97
+  PLOMO_203
+}
 
 enum PipelineStatus {
-  PROSPECTO       // Primer contacto
-  COTIZANDO       // Enviando precios
-  NEGOCIACION     // Ajustando detalles
-  CERRADO_GANADO  // Venta exitosa (Se vuelve Order)
-  CERRADO_PERDIDO // No compró
+  PROSPECTO
+  COTIZANDO
+  NEGOCIACION
+  CERRADO_GANADO
+  CERRADO_PERDIDO
 }
 
 enum InteractionType {
@@ -68,104 +70,110 @@ enum TicketPriority {
   URGENTE
 }
 
-// 🔥 ACTUALIZADO: SISTEMA DE MEMBRESÍAS REALES
 enum MembershipTier {
-  NONE      // Cliente mortal (Sin beneficios)
-  GOLD      // 10% de descuento
-  BLACK     // 15% de descuento
-  ELITE     // 15% de descuento + Envíos Locales Gratis
+  NONE
+  GOLD
+  BLACK
+  ELITE
+}
+
+enum VehicleStatus {
+  ACTIVE
+  IN_REPAIR
+  RETIRED
+}
+
+enum VehicleLogType {
+  GASOLINA
+  SERVICIO
+  REPARACION
+}
+
+enum RouteOrderType {
+  RECOLECCION          // Recolección en domicilio de cliente
+  RESTOCK_INTERNO      // Transferencia Plomo 203 ↔ Guatemala 97
+  RESTOCK_PROVEEDOR    // Recolección en ubicación de proveedor externo
+  ENTREGA_PAQUETERIA   // Drop-off en sucursal de paquetería
+  ENTREGA_DOMICILIO    // Entrega directa al cliente
+}
+
+enum RouteOrderStatus {
+  PENDIENTE
+  ASIGNADA
+  EN_CAMINO
+  COMPLETADA
+  CANCELADA
 }
 
 // ==========================================================
-// 1. EL USUARIO / CLIENTE (Blindado)
+// 1. USUARIO / CLIENTE
 // ==========================================================
 model User {
-  id               String    @id @default(cuid())
-  
-  // Hash B2B seguro para el CRM (Generado por Postgres)
-  hashId           String    @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
-  
-  // Datos Base 
-  name             String?
-  email            String    @unique
-  password         String    
-  image            String?
-  phone            String?
-  role             String    @default("USER") // Rol de sistema (USER, ADMIN)
-  
-  // 🔥 ADN DE MEMBRESÍA Y WALLET DE PUNTOS
-  membershipTier   MembershipTier @default(NONE)
-  membershipExpiry DateTime?
-  points           Float          @default(0) // 💳 BÓVEDA DE PUNTOS ACTIVA
+  id                    String         @id @default(cuid())
+  hashId                String         @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
+  name                  String?
+  email                 String         @unique
+  password              String
+  image                 String?
+  phone                 String?
+  role                  String         @default("USER")
+  membershipTier        MembershipTier @default(NONE)
+  membershipExpiry      DateTime?
+  points                Float          @default(0)
+  openpayCustomerId     String?
+  openpaySubscriptionId String?
+  ltv                   Float          @default(0)
+  rfc                   String?
+  taxRegime             String?
+  cfdiUse               String?
+  street                String?
+  neighborhood          String?
+  zipCode               String?
+  city                  String?
+  state                 String?
+  optedIn               Boolean        @default(false)
+  suppressed            Boolean        @default(false)
+  consentDate           DateTime?
+  optOutDate            DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
-  // 🔥 CONEXIÓN CON OPENPAY SUBSCRIPTIONS
-  openpayCustomerId     String?   // ID del cliente en OpenPay
-  openpaySubscriptionId String?   // ID de la suscripción activa
-
-  // KPIs de Negocio
-  ltv              Float     @default(0) // Suma histórica de compras
-
-  // Datos Fiscales y Domicilio B2B
-  rfc              String?
-  taxRegime        String?
-  cfdiUse          String?
-  street           String?
-  neighborhood     String?
-  zipCode          String?
-  city             String?
-  state            String?
-
-  // Sistema de Consentimiento LFPDPPP 
-  optedIn          Boolean   @default(false)
-  suppressed       Boolean   @default(false)
-  consentDate      DateTime?
-  optOutDate       DateTime?
-
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  
-  // Relaciones
-  orders           Order[]   
-  interactions     Interaction[] // Historial de llamadas/chats
-  tickets          Ticket[]      // Quejas o soporte
+  orders                Order[]
+  interactions          Interaction[]
+  tickets               Ticket[]
 }
 
 // ==========================================================
-// 2. EQUIPO INTERNO Y SEGURIDAD CRM
+// 2. EQUIPO INTERNO
 // ==========================================================
 model Employee {
-  id              String         @id @default(cuid())
+  id              String        @id @default(cuid())
   name            String
-  email           String         @unique
-  password        String         
-  role            EmployeeRole   @default(VENDEDORA)
-  
-  // Kill Switch: Desactivación inmediata
-  isActive        Boolean        @default(true) 
-  
-  // Relaciones
+  email           String        @unique
+  password        String        // Unificado para acceso administrativo y móvil
+  role            EmployeeRole  @default(VENDEDORA)
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
   logs            AuditLog[]
-  attendances     Attendance[]  // Control de horarios (Check-in/out)
-  interactions    Interaction[] // Llamadas/WhatsApp que ha hecho
-  assignedTickets Ticket[]      // Tickets que está resolviendo
-  
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  attendances     Attendance[]
+  interactions    Interaction[]
+  assignedTickets Ticket[]
+  telemetry       Telemetry[]    // Historial GPS
+  routeOrders     RouteOrder[]   // Órdenes de ruta asignadas
 }
 
-// Trazabilidad Total (El Ojo del CEO)
 model AuditLog {
-  id            String         @id @default(cuid())
-  timestamp     DateTime       @default(now())
-  
-  employeeId    String
-  employee      Employee       @relation(fields: [employeeId], references: [id])
-  
-  action        String         // ej: "VIEW_CLIENT_PHONE"
-  resourceId    String?        
-  ipAddress     String?
-  userAgent     String?
-  metadata      Json?          
+  id         String   @id @default(cuid())
+  timestamp  DateTime @default(now())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  action     String
+  resourceId String?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
 }
 
 // ==========================================================
@@ -173,138 +181,214 @@ model AuditLog {
 // ==========================================================
 model Order {
   id             String         @id @default(cuid())
-  orderNumber    String         @unique @default(cuid()) // Para facturas (CYT-001)
-  
-  // Conexión con el User
+  orderNumber    String         @unique @default(cuid())
   userId         String
   user           User           @relation(fields: [userId], references: [id])
-
-  // Desglose Financiero
   subtotal       Float          @default(0)
   freightCost    Float          @default(0)
   shippingCost   Float          @default(0)
   serviceFee     Float          @default(0)
   taxIVA         Float          @default(0)
   total          Float
-
-  // Estado y Pagos
-  status         OrderStatus    @default(PENDING) 
+  status         OrderStatus    @default(PENDING)
+  evidenceUrl    String?
+  deliveryLat    Float?
+  deliveryLng    Float?
   paymentMethod  String         @default("card")
-  paymentId      String?        // ID de transacción 
-  
-  // Logística 
+  paymentId      String?
   logisticsType  LogisticsType  @default(SKYDROPX_NACIONAL)
+  pickupLocation PickupLocation @default(GUATEMALA_97)
   vehiclesNeeded Int            @default(1)
-  trackingNumber String?        
+  trackingNumber String?
   trackingUrl    String?
-
-  // Datos del Cliente (Snapshot histórico original)
   customerName   String
   customerEmail  String
   customerPhone  String?
   address        String?
-  
-  // Facturación
   wantsInvoice   Boolean        @default(false)
-  invoiceStatus  String?        // PENDING, GENERATED, ISSUED
-
-  // Relaciones
-  items          OrderItem[]
-  tickets        Ticket[]       // Tickets/Quejas asociados a este pedido
-  
+  invoiceStatus  String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+
+  items          OrderItem[]
+  tickets        Ticket[]
+
+  vehicleId      String?
+  vehicle        Vehicle?       @relation(fields: [vehicleId], references: [id])
 }
 
 model OrderItem {
-  id            String   @id @default(cuid())
-  
-  // Conexión con la Orden padre
-  orderId       String
-  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  
-  // Detalles del producto
-  productId     String
-  title         String
-  sku           String?
-  price         Float
-  quantity      Float
-  unit          String?
-  color         String?
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  title     String
+  sku       String?
+  price     Float
+  quantity  Float
+  unit      String?
+  color     String?
 }
 
 // ==========================================================
-// 4. MÓDULOS DEL NUEVO ERP (PIZARRÓN)
+// 4. ERP: MÓDULOS EXISTENTES
 // ==========================================================
 
-// 4.1. Módulo de Jornada (Horarios)
 model Attendance {
   id              String    @id @default(cuid())
-  
   employeeId      String
   employee        Employee  @relation(fields: [employeeId], references: [id])
-  
   checkIn         DateTime  @default(now())
   checkOut        DateTime?
-  horasTrabajadas Float?  
-  
+  horasTrabajadas Float?
   ipAddress       String?
   location        String?
-  
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
 
-// 4.2. Módulo de Interacciones (Llamadas, WhatsApp y Ventas)
 model Interaction {
-  id             String    @id @default(cuid())
-  
+  id             String          @id @default(cuid())
   employeeId     String
-  employee       Employee  @relation(fields: [employeeId], references: [id])
-  
+  employee       Employee        @relation(fields: [employeeId], references: [id])
   userId         String
-  user           User      @relation(fields: [userId], references: [id])
-  
+  user           User            @relation(fields: [userId], references: [id])
   type           InteractionType
-  summary        String    
-  
-  pipelineStatus PipelineStatus? // En qué paso del embudo va
-  
-  date           DateTime  @default(now())
-  nextFollowUp   DateTime? // Siguiente llamada programada
+  summary        String
+  pipelineStatus PipelineStatus?
+  date           DateTime        @default(now())
+  nextFollowUp   DateTime?
 }
 
-// 4.3. Logística CP (Zonas y Tarifas)
 model ShippingZone {
-  id            String    @id @default(cuid())
-  name          String    // ej: "Zona Norte CDMX"
-  zipCodes      String[]  // ej: ["02000", "02010"]
-  
-  baseRate      Float     @default(0) 
-  estimatedDays Int       @default(1) 
-  
-  isActive      Boolean   @default(true)
+  id            String   @id @default(cuid())
+  name          String
+  zipCodes      String[]
+  baseRate      Float    @default(0)
+  estimatedDays Int      @default(1)
+  isActive      Boolean  @default(true)
 }
 
-// 4.4. Atención a Clientes (Tickets de Servicio)
 model Ticket {
-  id             String    @id @default(cuid())
-  ticketNumber   String    @unique @default(dbgenerated("concat('TK-', substr(gen_random_uuid()::text, 1, 6))"))
+  id           String         @id @default(cuid())
+  ticketNumber String         @unique @default(dbgenerated("concat('TK-', substr(gen_random_uuid()::text, 1, 6))"))
+  userId       String
+  user         User           @relation(fields: [userId], references: [id])
+  employeeId   String?
+  employee     Employee?      @relation(fields: [employeeId], references: [id])
+  orderId      String?
+  order        Order?         @relation(fields: [orderId], references: [id])
+  subject      String
+  description  String
+  status       TicketStatus   @default(ABIERTO)
+  priority     TicketPriority @default(MEDIA)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+// ==========================================================
+// 5. MÓDULO DE FLOTILLA AVANZADA Y RUTAS
+// ==========================================================
+
+model Vehicle {
+  id              String        @id @default(cuid())
+  plate           String        @unique
+  model           String
+  lastMaintenance DateTime      @default(now())
+  nextMaintenance DateTime
+  mileage         Float         @default(0)
+  status          VehicleStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  orders          Order[]
+  logs            VehicleLog[]
+}
+
+model Telemetry {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  lat        Float
+  lng        Float
+  speed      Float?
+  isSpeeding Boolean  @default(false)
+  timestamp  DateTime @default(now())
+}
+
+model VehicleLog {
+  id        String         @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle        @relation(fields: [vehicleId], references: [id])
+  type      VehicleLogType
+  cost      Float
+  date      DateTime       @default(now())
+  notes     String?
+}
+
+model RouteOrder {
+  id                   String           @id @default(cuid())
+  type                 RouteOrderType
+  status               RouteOrderStatus @default(PENDIENTE)
+
+  // Cliente / Contacto
+  contactName          String
+  contactPhone         String?
+  contactEmail         String?
+
+  // Dirección y Ubicación
+  address              String
+  addressLat           Float?
+  addressLng           Float?
+
+  // Planificación
+  scheduledAt          DateTime
+  notes                String?
+
+  // Asignación
+  assignedTo           String?          
+  employee             Employee?        @relation(fields: [assignedTo], references: [id])
+
+  // Restock Interno
+  originLocation       String?          // PLOMO_203 | GUATEMALA_97
+  destLocation         String?          
   
-  userId         String
-  user           User      @relation(fields: [userId], references: [id])
-  
-  employeeId     String?   
-  employee       Employee? @relation(fields: [employeeId], references: [id])
-  
-  orderId        String?   
-  order          Order?    @relation(fields: [orderId], references: [id])
-  
-  subject        String
-  description    String
-  status         TicketStatus   @default(ABIERTO)
-  priority       TicketPriority @default(MEDIA)
-  
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  // Paquetería
+  carrier              String?          
+  sucursalNombre       String?          
+
+  // Evidencia y Cierre
+  signatureOrigin      String?
+  signatureDestination String?
+  photoDropoff         String[]
+  completedAt          DateTime?
+  deliveryLat          Float?
+  deliveryLng          Float?
+
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  items                RouteOrderItem[]
+  issueLogs            IssueLog[]
+}
+
+model RouteOrderItem {
+  id            String     @id @default(cuid())
+  routeOrderId  String
+  routeOrder    RouteOrder @relation(fields: [routeOrderId], references: [id], onDelete: Cascade)
+  tag           String     
+  description   String?    
+  qtyDispatched Int        
+  qtyDelivered  Int?       
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model IssueLog {
+  id           String     @id @default(cuid())
+  routeOrderId String
+  routeOrder   RouteOrder @relation(fields: [routeOrderId], references: [id])
+  note         String
+  hasDelta     Boolean    @default(false)
+  createdAt    DateTime   @default(now())
 }

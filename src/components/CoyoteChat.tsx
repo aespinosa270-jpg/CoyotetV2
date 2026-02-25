@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { usePathname } from "next/navigation"; // 🔥 IMPORTAMOS EL DETECTOR DE RUTAS
 import { Send, X, MessageSquare, Sparkles, User, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function CoyoteChat() {
+  const pathname = usePathname(); // 🔥 LEEMOS LA RUTA ACTUAL
+
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -53,6 +56,9 @@ export default function CoyoteChat() {
       setIsLoading(false);
     }
   };
+
+  // 🔥 EL CADENERO: SI ES LA APP DE CHOFERES, ESCONDEMOS EL CHAT BOT
+  if (pathname?.startsWith("/flotilla")) return null;
 
   return (
     <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end font-sans selection:bg-[#FDCB02] selection:text-black">

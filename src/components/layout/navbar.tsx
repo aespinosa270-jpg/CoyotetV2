@@ -5,6 +5,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useCart } from "@/lib/context/cart-context" 
 import { useSession, signOut } from "next-auth/react"
+import { usePathname } from "next/navigation" // 🔥 1. IMPORTAMOS EL DETECTOR DE RUTAS
 import { 
   ShoppingCart, Search, User, Menu, X,
   ChevronDown, HelpCircle, FileText, Sparkles,
@@ -20,6 +21,8 @@ interface ChatMessage {
 }
 
 export default function Navbar() {
+  const pathname = usePathname() // 🔥 2. LEEMOS LA RUTA ACTUAL
+
   const { totalItems, openCart } = useCart()
   const { data: session } = useSession()
   const user = session?.user
@@ -29,11 +32,9 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isAIResultsOpen, setIsAIResultsOpen] = useState(false)
 
-  // ─── Estado IA (sin useChat, sin DefaultChatTransport) ────────────────────
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
-  // ─────────────────────────────────────────────────────────────────────────
 
   const [input, setInput] = useState("")
 
@@ -57,7 +58,6 @@ export default function Navbar() {
     await signOut({ callbackUrl: '/cuenta' })
   }
 
-  // ─── Función que hace el stream a mano ───────────────────────────────────
   const sendAIMessage = async (text: string) => {
     const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: text }
     const newHistory = [...messages, userMsg]
@@ -111,7 +111,6 @@ export default function Navbar() {
       setIsLoading(false)
     }
   }
-  // ─────────────────────────────────────────────────────────────────────────
 
   const onSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -123,6 +122,9 @@ export default function Navbar() {
       window.location.href = `/catalogo?q=${encodeURIComponent(input)}`
     }
   }
+
+  // 🔥 3. EL CADENERO: SI ES LA APP DE CHOFERES, ESCONDEMOS EL NAVBAR COMPLETO
+  if (pathname?.startsWith("/flotilla")) return null;
 
   return (
     <>
@@ -219,7 +221,6 @@ export default function Navbar() {
                           : "bg-[#111] text-white border border-white/5 rounded-tl-none font-medium"
                         }`}>
                           {m.content}
-                          {/* Cursor parpadeante mientras el assistant escribe */}
                           {m.role === "assistant" && isLoading && m.content === "" && (
                             <span className="inline-block w-2 h-3 bg-[#FDCB02] animate-pulse ml-1 rounded-sm"/>
                           )}

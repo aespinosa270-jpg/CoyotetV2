@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation" // 🔥 1. IMPORTAMOS EL DETECTOR DE RUTAS
 import { 
   ShieldCheck, 
   Copyright,
@@ -11,6 +12,11 @@ import {
 } from "lucide-react"
 
 export default function Footer() {
+  const pathname = usePathname(); // 🔥 2. LEEMOS LA RUTA ACTUAL
+
+  // 🔥 3. EL CADENERO: SI ES LA APP DE CHOFERES, ESCONDEMOS EL FOOTER COMPLETO
+  if (pathname?.startsWith("/flotilla")) return null;
+
   return (
     <footer className="bg-[#050505] text-white border-t border-white/10 font-sans relative overflow-hidden selection:bg-[#FDCB02] selection:text-black">
       
