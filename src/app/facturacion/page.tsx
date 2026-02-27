@@ -36,7 +36,7 @@ export default function FacturacionPage() {
             <Ban size={28} className="text-[#FDCB02]" />
             <h3 className="text-xs font-black text-white uppercase tracking-widest">Sin Pago No Hay CFDI</h3>
             <p className="text-[10px] text-neutral-500 font-bold uppercase leading-relaxed">
-              Por cumplimiento legal, las facturas se timbran exclusivamente al confirmar el ingreso en firme a través de OpenPay (Tarjeta, SPEI o Efectivo).
+              Por cumplimiento legal, las facturas se timbran exclusivamente al confirmar el ingreso en firme a través de Stripe (Tarjeta, Transferencia SPEI o Efectivo en OXXO).
             </p>
           </div>
           

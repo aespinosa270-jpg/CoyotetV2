@@ -104,7 +104,8 @@ export default function PrivacyPage() {
       addText("• Datos de Identificación: Nombre completo, denominación o razón social, firma autógrafa o electrónica.");
       addText("• Datos de Contacto: Teléfono fijo o celular, correo electrónico corporativo o personal, dirección física de envío, entrega y facturación.");
       addText("• Datos Fiscales y Patrimoniales: Registro Federal de Contribuyentes (RFC), Constancia de Situación Fiscal, uso de CFDI.");
-      addText("• Datos Financieros: Se recaban datos tokenizados de tarjetas de crédito/débito exclusivamente para el procesamiento de pagos a través de la pasarela segura OpenPay (Certificación PCI DSS). Coyote Textil declara expresamente que NO almacena, no retiene y no tiene acceso a códigos de seguridad (CVV/CVC), NIPs, ni números de cuenta completos en sus servidores o bases de datos locales.");
+      // 🐺 Cambio 1: OpenPay -> Stripe en PDF
+      addText("• Datos Financieros: Se recaban datos tokenizados de tarjetas de crédito/débito exclusivamente para el procesamiento de pagos a través de la pasarela segura Stripe (Certificación PCI DSS). Coyote Textil declara expresamente que NO almacena, no retiene y no tiene acceso a códigos de seguridad (CVV/CVC), NIPs, ni números de cuenta completos en sus servidores o bases de datos locales.");
       addText("• Datos Sensibles: El Responsable le informa que NO recaba ni trata datos personales sensibles (origen racial, estado de salud, creencias religiosas, etc.) bajo ninguna circunstancia.");
 
       addText("3. FINALIDADES DEL TRATAMIENTO (PRIMARIAS Y SECUNDARIAS)", false, true);
@@ -114,14 +115,16 @@ export default function PrivacyPage() {
       addText("• Emisión de comprobantes fiscales (CFDI 4.0) y gestión de cobranza.");
       addText("• Creación y administración del perfil de usuario (Membresías/Accesos B2B) en la plataforma.");
       addText("• Cumplimiento de obligaciones contractuales, gestión de garantías y devoluciones por defectos de fábrica.");
-      addText("• Prevención y detección de fraudes electrónicos en coordinación con OpenPay y autoridades competentes.");
+      // 🐺 Cambio 2: OpenPay -> Stripe en PDF
+      addText("• Prevención y detección de fraudes electrónicos en coordinación con Stripe y autoridades competentes.");
       addText("B. Finalidades Secundarias (Marketing, Publicidad y Prospección Comercial):");
       addText("Al aceptar el presente Aviso de Privacidad y/o al registrarse en nuestra plataforma, El Titular otorga su consentimiento expreso a Coyote Textil para conservar y utilizar sus datos de contacto con el fin de enviarle notificaciones, boletines, promociones exclusivas, ofertas comerciales, encuestas de calidad y material publicitario relacionado con nuestros productos y servicios.");
       addText("Cláusula de Negativa: En caso de que El Titular no desee que sus datos personales sean tratados para estas Finalidades Secundarias, cuenta con un plazo de 5 (cinco) días hábiles desde la aceptación de este aviso para enviar un correo a privacidad@coyotetextil.com manifestando su negativa. La negativa para el uso de sus datos con estos fines no será motivo para negarle la compra de productos o el acceso a la plataforma.");
 
       addText("4. TRANSFERENCIA DE DATOS A TERCEROS", false, true);
       addText("El Titular acepta y autoriza expresamente que Coyote Textil transfiera sus datos personales, dentro y fuera del país, exclusivamente a los siguientes terceros y para los fines jurídicamente justificados:");
-      addText("• OpenPay S.A. de C.V. / Instituciones Bancarias: Con la finalidad de procesar transacciones financieras, ejecutar cobros recurrentes de membresías y realizar validaciones algorítmicas antifraude.");
+      // 🐺 Cambio 3: OpenPay -> Stripe en PDF
+      addText("• Stripe, Inc. / Instituciones Bancarias: Con la finalidad de procesar transacciones financieras, ejecutar cobros recurrentes de membresías y realizar validaciones algorítmicas antifraude.");
       addText("• Proveedores de Logística y Paquetería: Con la finalidad exclusiva de documentar guías de envío y realizar la entrega física de la mercancía.");
       addText("• Autoridades Gubernamentales y Fiscales (SAT): Cuando sea requerido por mandato de ley o para el cumplimiento de obligaciones tributarias y prevención de lavado de dinero.");
       addText("Exención de Responsabilidad Cibernética: Coyote Textil exige a sus proveedores el cumplimiento de la LFPDPPP; sin embargo, La Empresa se deslinda de cualquier responsabilidad legal, civil o penal derivada de vulneraciones, hackeos o mal uso de datos que ocurran en los servidores de terceros (pasarelas de pago o paqueterías) una vez que la información ha sido transferida bajo los protocolos de seguridad correspondientes.");
@@ -228,7 +231,8 @@ export default function PrivacyPage() {
             </li>
             <li className="flex gap-3">
               <span className="text-[#FDCB02] font-black">•</span>
-              <span><strong>Datos Financieros:</strong> Se recaban datos tokenizados de tarjetas de crédito/débito exclusivamente para el procesamiento de pagos a través de la pasarela segura OpenPay (Certificación PCI DSS). Coyote Textil declara expresamente que NO almacena, no retiene y no tiene acceso a códigos de seguridad (CVV/CVC), NIPs, ni números de cuenta completos en sus servidores o bases de datos locales.</span>
+              {/* 🐺 Cambio 4: OpenPay -> Stripe en Web */}
+              <span><strong>Datos Financieros:</strong> Se recaban datos tokenizados de tarjetas de crédito/débito exclusivamente para el procesamiento de pagos a través de la pasarela segura Stripe (Certificación PCI DSS). Coyote Textil declara expresamente que NO almacena, no retiene y no tiene acceso a códigos de seguridad (CVV/CVC), NIPs, ni números de cuenta completos en sus servidores o bases de datos locales.</span>
             </li>
             <li className="flex gap-3">
               <span className="text-[#FDCB02] font-black">•</span>
@@ -252,7 +256,8 @@ export default function PrivacyPage() {
             <li className="flex gap-3"><span className="text-black font-black">•</span><span>Emisión de comprobantes fiscales (CFDI 4.0) y gestión de cobranza.</span></li>
             <li className="flex gap-3"><span className="text-black font-black">•</span><span>Creación y administración del perfil de usuario (Membresías/Accesos B2B) en la plataforma.</span></li>
             <li className="flex gap-3"><span className="text-black font-black">•</span><span>Cumplimiento de obligaciones contractuales, gestión de garantías y devoluciones por defectos de fábrica.</span></li>
-            <li className="flex gap-3"><span className="text-black font-black">•</span><span>Prevención y detección de fraudes electrónicos en coordinación con OpenPay y autoridades competentes.</span></li>
+            {/* 🐺 Cambio 5: OpenPay -> Stripe en Web */}
+            <li className="flex gap-3"><span className="text-black font-black">•</span><span>Prevención y detección de fraudes electrónicos en coordinación con Stripe y autoridades competentes.</span></li>
           </ul>
 
           <h3 className="text-lg font-bold text-black mb-4">B. Finalidades Secundarias (Marketing, Publicidad y Prospección Comercial):</h3>
@@ -276,7 +281,8 @@ export default function PrivacyPage() {
           <ul className="space-y-4 text-sm text-neutral-600 text-justify mb-6">
             <li className="flex gap-3">
               <span className="text-[#FDCB02] font-black">•</span>
-              <span><strong>OpenPay S.A. de C.V. / Instituciones Bancarias:</strong> Con la finalidad de procesar transacciones financieras, ejecutar cobros recurrentes de membresías y realizar validaciones algorítmicas antifraude.</span>
+              {/* 🐺 Cambio 6: OpenPay -> Stripe, Inc. en Web */}
+              <span><strong>Stripe, Inc. / Instituciones Bancarias:</strong> Con la finalidad de procesar transacciones financieras, ejecutar cobros recurrentes de membresías y realizar validaciones algorítmicas antifraude.</span>
             </li>
             <li className="flex gap-3">
               <span className="text-[#FDCB02] font-black">•</span>

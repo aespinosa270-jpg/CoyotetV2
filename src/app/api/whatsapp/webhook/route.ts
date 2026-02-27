@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { Redis } from '@upstash/redis';
+import Stripe from 'stripe'; // 🐺 INYECTAMOS STRIPE
 
 // ==========================================
 // 🔑 LLAVES MAESTRAS
@@ -9,9 +10,11 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-const OPENPAY_ID = process.env.OPENPAY_MERCHANT_ID;
-const OPENPAY_SK = process.env.OPENPAY_PRIVATE_KEY;
-const openpayAuth = Buffer.from(`${OPENPAY_SK}:`).toString('base64');
+// 🐺 STRIPE KEYS EN LUGAR DE OPENPAY
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2024-11-20.acacia" as any,
+});
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
 const FACTURAPI_KEY = process.env.FACTURAPI_KEY;
 const facturapiAuth = Buffer.from(`${FACTURAPI_KEY}:`).toString('base64');
@@ -34,56 +37,29 @@ function getRedis() {
 // ==========================================
 // 🎛️ CONFIGURACIÓN DINÁMICA DE JACK
 // ==========================================
-// Esta estructura contiene TODO lo que Jack puede cambiar globalmente.
-// Se guarda en Redis como 'config_jack' y se aplica a TODOS los clientes.
-
 interface ConfigJack {
-  // IDENTIDAD Y PERSONALIDAD
-  nombreBot: string;               // Nombre del bot (ej: "El Coyote", "Max", "Asistente Coyote")
-  tono: string;                    // Descripción libre del tono general
-  frasesBienvenida: string[];      // Frases de bienvenida para nuevos clientes
-  frasesDesignacionHombre: string[]; // Cómo llamar a hombres (jefe, patrón, etc.)
-  frasesDesignacionMujer: string[]; // Cómo llamar a mujeres (jefa, patrona, etc.)
-  fraseCierre: string;             // Frase de cierre de conversación
-  fraseIncondicional: string;      // Frase final tipo "auuuuu..."
-  emojisPrincipales: string;       // Emojis característicos del bot
-  
-  // RESTRICCIONES Y COMPORTAMIENTOS
-  maximoLineasRespuesta: number;   // Máximo de líneas por respuesta
-  fraseProhibidas: string[];       // Frases que NUNCA debe decir
-  instruccionesEspeciales: string; // Reglas adicionales en texto libre
-
-  // CATÁLOGO DE PRODUCTOS (extensible por Jack)
-  productosExtra: Array<{
-    nombre: string;
-    menudeo: number;
-    mayoreo: number;
-    info: string;
-  }>;
-
-  // DESCUENTOS Y PROMOCIONES ACTIVAS
-  promocionesActivas: Array<{
-    nombre: string;
-    descripcion: string;
-    descuento: string;            // Ej: "10% en rollos de Torneo"
-    vigencia: string;
-  }>;
-
-  // INFORMACIÓN DEL NEGOCIO
-  infoPagos: string;              // Instrucciones extra de pago
-  infoEnvios: string;             // Instrucciones extra de envíos
-  mensajePromoFinal: string;      // Mensaje de promo al cerrar
-
-  // HORARIOS / AVISOS
-  avisoGeneral: string;           // Aviso que se dice a todos (vacaciones, retraso, etc.)
+  nombreBot: string;               
+  tono: string;                    
+  frasesBienvenida: string[];      
+  frasesDesignacionHombre: string[]; 
+  frasesDesignacionMujer: string[]; 
+  fraseCierre: string;             
+  fraseIncondicional: string;      
+  emojisPrincipales: string;       
+  maximoLineasRespuesta: number;   
+  fraseProhibidas: string[];       
+  instruccionesEspeciales: string; 
+  productosExtra: Array<{ nombre: string; menudeo: number; mayoreo: number; info: string; }>;
+  promocionesActivas: Array<{ nombre: string; descripcion: string; descuento: string; vigencia: string; }>;
+  infoPagos: string;              
+  infoEnvios: string;             
+  mensajePromoFinal: string;      
+  avisoGeneral: string;           
   horarioAtencion: string;
-
-  // META
   ultimaActualizacion: string;
   actualizadoPor: string;
 }
 
-// Config base (DEFAULT) — Jack puede sobreescribir cualquier campo
 const CONFIG_DEFAULT: ConfigJack = {
   nombreBot: 'El Coyote',
   tono: 'Listo, rápido, cuate mexicano, informal pero profesional. Directo al grano.',
@@ -124,7 +100,6 @@ async function getConfigJack(redis: Redis): Promise<ConfigJack> {
       await redis.set('config_jack', CONFIG_DEFAULT);
       return CONFIG_DEFAULT;
     }
-    // Merge: si hay campos nuevos en DEFAULT que no están en guardado, los agrega
     return { ...CONFIG_DEFAULT, ...guardado };
   } catch {
     return CONFIG_DEFAULT;
@@ -402,21 +377,32 @@ async function enviarWhatsapp(to: string, body: string) {
 }
 
 // ==========================================
-// 🏦 WEBHOOK OPENPAY
+// 🏦 WEBHOOK STRIPE (Reemplazo de OpenPay)
 // ==========================================
-async function handleOpenpayWebhook(body: any) {
-  console.log('🔔 OPENPAY:', body.type);
-  if (body.type === 'charge.succeeded') {
-    const transaccion = body.transaction;
-    const metadata = transaccion.metadata;
+async function handleStripeWebhook(rawBody: string, signature: string) {
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(rawBody, signature, STRIPE_WEBHOOK_SECRET!);
+  } catch (err: any) {
+    console.error('⚠️ Error verificando firma de Stripe:', err.message);
+    return NextResponse.json({ error: 'Firma inválida' }, { status: 400 });
+  }
+
+  // Escuchamos cuando un Checkout Session se completa con éxito
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const metadata = session.metadata;
+
     if (metadata?.phone) {
       const redis = getRedis();
       const tel = metadata.phone.replace(/\D/g, '');
       const quiereFactura = metadata.req_invoice === 'YES';
-      const monto = transaccion.amount;
+      const monto = (session.amount_total || 0) / 100; // Stripe viene en centavos
       const perfil = await getCliente(redis, tel);
       const saludo = perfil?.nombre ? `¡Qué onda ${perfil.nombre}!` : '¡Qué onda patrón!';
-      let msg = `🐺 ${saludo} El sistema de pagos confirmó que tu pago de *$${monto} MXN* ya cayó. ✅\n\n¡Tu pedido entró a bodega! 📦`;
+      
+      let msg = `🐺 ${saludo} Stripe nos confirmó que tu pago de *$${monto} MXN* ya cayó. ✅\n\n¡Tu pedido entró a bodega! 📦`;
 
       if (quiereFactura && metadata.rfc !== 'NONE') {
         try {
@@ -427,9 +413,10 @@ async function handleOpenpayWebhook(body: any) {
           });
           const clienteSAT = await custRes.json();
           const precioBase = monto / 1.16;
-          let formaPago = "04";
-          if (transaccion.method === 'bank_account') formaPago = "03";
-          if (transaccion.method === 'store') formaPago = "01";
+          
+          let formaPago = "04"; // Tarjeta por defecto
+          if (session.payment_method_types.includes('oxxo')) formaPago = "01";
+          
           const invRes = await fetch('https://www.facturapi.io/v2/invoices', {
             method: 'POST',
             headers: { 'Authorization': `Basic ${facturapiAuth}`, 'Content-Type': 'application/json' },
@@ -448,11 +435,12 @@ async function handleOpenpayWebhook(body: any) {
       }
       await registrarPedido(redis, tel, {
         fecha: new Date().toISOString(), productos: metadata.productos || 'No especificado',
-        monto, metodo: transaccion.method || 'desconocido', conFactura: quiereFactura
+        monto, metodo: session.payment_method_types[0] || 'card', conFactura: quiereFactura
       });
       await enviarWhatsapp(tel, msg);
     }
   }
+  return NextResponse.json({ received: true });
 }
 
 // ==========================================
@@ -620,7 +608,7 @@ ${promocionesTexto}
 1. Gestionar conversaciones, responder inmediato y orientado a acción.
 2. Cotizar y vender telas (ver catálogo abajo).
 3. Calcular envíos con el comando CALCULAR_ENVIO.
-4. Generar cobros con OpenPay.
+4. Generar cobros con Stripe.
 5. Generar reportes, campañas, recordatorios y reactivar clientes.
 6. Personalizar cada interacción según el perfil del cliente.
 
@@ -644,7 +632,7 @@ Blanco, ${COLORES_STOCK}
 Si ya tienes producto + cantidad + CP de envío → USA CALCULAR_ENVIO YA. No esperes.
 
 🚨 PAGOS:
-Solo OpenPay verifica pagos. Si dicen "ya pagué" → "¡Perfecto! En cuanto OpenPay confirme te aviso y tu pedido pasa a bodega. 🐺📦"
+Solo Stripe verifica pagos. Si dicen "ya pagué" → "¡Perfecto! En cuanto Stripe confirme te aviso y tu pedido pasa a bodega. 🐺📦"
 
 🎯 CIERRE DE CONVERSACIÓN:
 "${config.fraseCierre}"
@@ -653,9 +641,9 @@ ${config.mensajePromoFinal ? `Añade también: "${config.mensajePromoFinal}"` : 
 ${infoPagosTexto}
 ${infoEnviosTexto}
 
-💰 COMANDO COBRO:
-GENERAR_COBRO|metodo(tarjeta/spei/tienda)|monto_total|rfc|razon_social|cp_fiscal|regimen|uso
-Sin factura: GENERAR_COBRO|spei|1500|NONE|NONE|NONE|NONE|NONE
+💰 COMANDO COBRO (NUEVO CON STRIPE):
+GENERAR_COBRO|metodo(tarjeta/oxxo)|monto_total|rfc|razon_social|cp_fiscal|regimen|uso
+Sin factura: GENERAR_COBRO|tarjeta|1500|NONE|NONE|NONE|NONE|NONE
 
 🚚 COMANDO ENVÍO:
 CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345
@@ -704,7 +692,7 @@ ${PRECIOS_ACTUALES}
 (Se aplica a TODOS los clientes inmediatamente)
 ═══════════════════════════════════════
 
-Cambiar nombre del bot:           CONFIG|nombreBot|NuevoNombre
+Cambiar nombre del bot:         CONFIG|nombreBot|NuevoNombre
 Cambiar tono/personalidad:        CONFIG|tono|Nueva descripción del tono completa
 Cambiar frases para hombre:       CONFIG|frasesHombre|señor, mi estimado.
 Cambiar frases para mujer:        CONFIG|frasesMujer|señora, mi estimado.
@@ -716,7 +704,7 @@ Agregar frase prohibida:          CONFIG|agregarProhibida|frase que no debe deci
 Quitar frase prohibida:           CONFIG|quitarProhibida|frase a quitar
 Agregar instrucción especial:     CONFIG|instruccionEspecial|Texto de la instrucción
 
-Agregar bienvenida:               BIENVENIDA_ADD|Texto completo de la bienvenida
+Agregar bienvenida:              BIENVENIDA_ADD|Texto completo de la bienvenida
 Reemplazar todas las bienvenidas: BIENVENIDA_REPLACE|Texto único de bienvenida
 
 Añadir promoción activa:          PROMO_ADD|NombrePromo|Descripción|Descuento|Vigencia
@@ -777,7 +765,7 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
   if (matchDatos) {
     respuesta = respuesta.replace(/DATOS_CLIENTE\|.+/g, '').trim();
     const partes = matchDatos[1];
-    const dirM    = partes.match(/direccion:([^|]+)/);
+    const dirM  = partes.match(/direccion:([^|]+)/);
     const cpFiscM = partes.match(/cp_fiscal:([^|]+)/);
     const prodM   = partes.match(/productos:([^|]+)/);
     const notasM  = partes.match(/notas:([^|]+)/);
@@ -1020,52 +1008,36 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       respuesta += `\n🆘 He notificado al equipo. En breve te atenderán.`;
     }
 
-    // Generar cobro
+    // 🐺 Generar cobro (AHORA CON STRIPE)
     const matchCobro = respuesta.match(/GENERAR_COBRO\|(.+?)\|([\d.]+)\|(.+?)\|(.+?)\|(.+?)\|(.+?)\|(.+)/i);
     if (matchCobro) {
       const [, metodo, monto, rfc, razon, cp, regimen, uso] = matchCobro;
       respuesta = respuesta.replace(/GENERAR_COBRO\|.+/g, '').trim();
       const reqInvoice = rfc !== 'NONE' ? 'YES' : 'NO';
-      const metodoOP = metodo.toLowerCase() === 'tarjeta' ? 'card' : metodo.toLowerCase() === 'spei' ? 'bank_account' : 'store';
+      const amountInCents = Math.round(parseFloat(monto) * 100);
+
       try {
-        if (metodoOP === 'card') {
-          const res = await fetch(`https://sandbox-api.openpay.mx/v1/${OPENPAY_ID}/checkouts`, {
-            method: 'POST',
-            headers: { 'Authorization': `Basic ${openpayAuth}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              amount: parseFloat(monto), currency: 'MXN',
-              description: 'Pedido Coyote Textil WhatsApp', order_id: `WA-${Date.now()}`,
-              redirect_url: 'https://wa.me/5215627301525',
-              customer: { name: perfil.nombre || nombreWA || 'Cliente', phone_number: tel, email: `cliente_${tel}@coyotetextil.com` },
-              send_email: false,
-              metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
-            })
-          });
-          const data = await res.json();
-          if (res.ok) respuesta += `\n\n💳 *Paga seguro con tarjeta:*\n${data.checkout_link}\n\n_Blindado por OpenPay. 🐺_`;
-          else respuesta += `\n\n⚠️ Problema al generar el link. El Patrón lo revisa.`;
-        } else {
-          const res = await fetch(`https://sandbox-api.openpay.mx/v1/${OPENPAY_ID}/charges`, {
-            method: 'POST',
-            headers: { 'Authorization': `Basic ${openpayAuth}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              method: metodoOP, amount: parseFloat(monto),
-              description: 'Pedido Coyote Textil WhatsApp',
-              customer: { name: perfil.nombre || nombreWA || 'Cliente', phone_number: tel, email: `cliente_${tel}@coyotetextil.com` },
-              send_email: false,
-              metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
-            })
-          });
-          const data = await res.json();
-          if (res.ok) {
-            if (metodoOP === 'bank_account') respuesta += `\n\n🏦 *Datos SPEI*\nBanco: STP\nCLABE: ${data.payment_method.clabe}\n\n_Te aviso cuando caiga. 🐺_`;
-            else respuesta += `\n\n🏪 *Pago OXXO*\nReferencia: ${data.payment_method.reference}\n\n_Paga en caja y activo tu pedido. 🐺_`;
-          } else {
-            if (data.error_code === 1012) respuesta += `\n\n⚠️ OXXO no acepta más de $29,999. ¿SPEI o tarjeta?`;
-            else respuesta += `\n\n⚠️ Problema con la ficha. El Patrón lo revisa.`;
-          }
-        }
-      } catch (err) { console.error('Error OpenPay:', err); }
+        // Stripe Checkout Session (Soporta Tarjeta y OXXO nativo)
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card', 'oxxo'], 
+          line_items: [{
+            price_data: {
+              currency: 'mxn',
+              product_data: { name: 'Pedido Coyote Textil por WhatsApp' },
+              unit_amount: amountInCents,
+            },
+            quantity: 1,
+          }],
+          mode: 'payment',
+          success_url: 'https://wa.me/5215627301525', // Los regresa al chat de WhatsApp
+          metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
+        });
+
+        respuesta += `\n\n💳 *Link de Pago Seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Tu dinero está blindado por Stripe. 🐺_`;
+      } catch (err) {
+        console.error('Error Stripe:', err);
+        respuesta += `\n\n⚠️ Problema al generar el link. El Patrón lo revisa.`;
+      }
     }
   }
 
@@ -1076,23 +1048,37 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 }
 
 // ==========================================
-// 🚦 ROUTER PRINCIPAL
+// 🚦 ROUTER PRINCIPAL (SEGURIDAD AUMENTADA)
 // ==========================================
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const esOpenpay = typeof body.type === 'string' && body.transaction !== undefined;
+    // 1. Extraemos el cuerpo crudo (Stripe lo exige para validar firmas)
+    const rawBody = await req.text();
+    const signature = req.headers.get('stripe-signature');
+
+    // 2. Si trae la firma de Stripe, lo mandamos al motor de Stripe
+    if (signature) {
+      return await handleStripeWebhook(rawBody, signature);
+    }
+
+    // 3. Si no es Stripe, lo parseamos como JSON normal (Meta/WhatsApp)
+    let body;
+    try { body = JSON.parse(rawBody); } catch (e) { return NextResponse.json({ error: 'JSON Invalido' }, { status: 400 }); }
+
     const esWhatsapp = Array.isArray(body.entry) && body.entry[0]?.changes?.[0]?.value?.messages;
-    if (esOpenpay) await handleOpenpayWebhook(body);
-    else if (esWhatsapp) await handleWhatsappWebhook(body);
-    else console.log('⚠️ Webhook desconocido:', JSON.stringify(body).slice(0, 200));
-    return NextResponse.json({ ok: true }, { status: 200 });
+    if (esWhatsapp) {
+      await handleWhatsappWebhook(body);
+      return NextResponse.json({ ok: true }, { status: 200 });
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('❌ ERROR:', error);
     return new NextResponse('Error procesando webhook', { status: 500 });
   }
 }
 
+// Verificación de META (WhatsApp)
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   if (

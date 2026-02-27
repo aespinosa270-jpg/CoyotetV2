@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation" // 🔥 1. IMPORTAMOS EL DETECTOR DE RUTAS
+import { usePathname } from "next/navigation" 
 import { 
   ShieldCheck, 
   Copyright,
@@ -12,13 +12,15 @@ import {
 } from "lucide-react"
 
 export default function Footer() {
-  const pathname = usePathname(); // 🔥 2. LEEMOS LA RUTA ACTUAL
+  const pathname = usePathname(); 
 
-  // 🔥 3. EL CADENERO: SI ES LA APP DE CHOFERES, ESCONDEMOS EL FOOTER COMPLETO
+  // 🔥 EL CADENERO: SI ES LA APP DE CHOFERES, ESCONDEMOS EL FOOTER COMPLETO
   if (pathname?.startsWith("/flotilla")) return null;
 
   return (
-    <footer className="bg-[#050505] text-white border-t border-white/10 font-sans relative overflow-hidden selection:bg-[#FDCB02] selection:text-black">
+    <>
+      {/* 🔥 SUPERPODER AÑADIDO: mt-auto y w-full para obligarlo a quedarse en el fondo real */}
+      <footer className="mt-auto w-full bg-[#050505] text-white border-t border-white/10 font-sans relative overflow-hidden selection:bg-[#FDCB02] selection:text-black">
       
       {/* Textura de Fondo */}
       <div 
@@ -86,37 +88,44 @@ export default function Footer() {
                     Infraestructura digital para la cadena de suministro textil.
                   </p>
                   
-                  {/* --- AQUÍ AGREGAMOS LOS LOGOS QUE FALTABAN --- */}
+                  {/* --- MÓDULO DE PAGOS FULL TEXTO --- */}
                   <div className="pt-4">
                     <p className="text-[9px] font-black text-neutral-500 uppercase tracking-widest mb-3">
                         Pagos Procesados vía
                     </p>
-                    {/* Contenedor con efecto Grayscale -> Color al Hover */}
-                    <div className="flex flex-wrap items-center gap-5 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
+                    
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 opacity-70 hover:opacity-100 transition-opacity duration-300">
+                        {/* Marca Stripe tipográfica */}
+                        <span className="text-xl font-[1000] tracking-tighter text-white lowercase">
+                            stripe
+                        </span>
                         
-                        {/* Logo OpenPay */}
-                        <img 
-                            src="https://raw.githubusercontent.com/open-pay/openpay-js/master/src/assets/openpay.png" 
-                            alt="OpenPay" 
-                            className="h-6 w-auto brightness-0 invert" 
-                        />
-                        
-                        <div className="h-5 w-px bg-white/20"></div>
+                        <div className="h-4 w-px bg-white/20"></div>
 
-                        {/* Logos Tarjetas (Añadidos) */}
-                        <div className="flex items-center gap-3">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-4 w-auto brightness-0 invert" />
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" className="h-4 w-auto brightness-0 invert" />
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg" alt="Amex" className="h-4 w-auto brightness-0 invert" />
+                        {/* Lista de métodos texto chingón */}
+                        <div className="flex flex-wrap items-center gap-2.5 text-[9px] sm:text-[10px] font-black tracking-widest uppercase text-neutral-400">
+                            <span className="hover:text-white transition-colors cursor-default">Visa</span>
+                            <span className="text-[#FDCB02]/50">•</span>
+                            <span className="hover:text-white transition-colors cursor-default">Mastercard</span>
+                            <span className="text-[#FDCB02]/50">•</span>
+                            <span className="hover:text-white transition-colors cursor-default">Amex</span>
+                            <span className="text-[#FDCB02]/50">•</span>
+                            <span className="hover:text-white transition-colors cursor-default">SPEI</span>
+                            <span className="text-[#FDCB02]/50">•</span>
+                            <span className="hover:text-white transition-colors cursor-default">Apple Pay</span>
+                            <span className="text-[#FDCB02]/50">•</span>
+                            <span className="hover:text-white transition-colors cursor-default">Oxxo</span>
                         </div>
 
-                        <div className="h-5 w-px bg-white/20"></div>
+                        <div className="hidden sm:block h-4 w-px bg-white/20"></div>
 
-                        <div className="flex gap-1.5 text-white items-center">
-                            <Lock size={12} />
-                            <span className="text-[9px] font-bold uppercase">SSL 256-bit</span>
+                        {/* Candado SSL verde */}
+                        <div className="flex gap-1.5 items-center w-full sm:w-auto mt-2 sm:mt-0">
+                            <Lock size={12} className="text-green-500" />
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-green-500">SSL 256-bit</span>
                         </div>
                     </div>
+
                   </div>
               </div>
             </div>
@@ -163,7 +172,6 @@ export default function Footer() {
                       Política de Cookies
                     </Link>
                 </li>
-                {/* AÑADIDO: Transparencia fiscal para emitir CFDI y cumplimiento PROFECO */}
                 <li>
                     <Link href="/facturacion" className="text-xs font-[1000] text-[#FDCB02] uppercase tracking-widest hover:text-white hover:pl-2 transition-all flex items-center gap-2 group mt-2">
                       <FileText size={10} className="text-[#FDCB02] opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -184,7 +192,6 @@ export default function Footer() {
                     55 5542 1527
                   </a>
                 </li>
-                {/* AÑADIDO: Domicilio Fiscal con C.P. y RFC exigidos por el SAT */}
                 <li>
                   <span className="block text-[9px] font-black text-neutral-600 mb-1.5 tracking-widest">DOMICILIO FISCAL & RFC</span>
                   <p className="text-xs font-bold text-neutral-300 leading-relaxed uppercase">
@@ -225,5 +232,6 @@ export default function Footer() {
         </div>
       </div>
     </footer>
+    </>
   )
 }

@@ -1,13 +1,14 @@
 // app/api/app-checkout/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import Stripe from 'stripe'; // 🐺 Inyectamos Stripe
 
 const prisma = new PrismaClient();
 
-const OPENPAY_ID   = process.env.OPENPAY_MERCHANT_ID;
-const OPENPAY_SK   = process.env.OPENPAY_PRIVATE_KEY;
-const openpayAuth  = Buffer.from(`${OPENPAY_SK}:`).toString('base64');
-const OPENPAY_BASE = 'https://sandbox-api.openpay.mx'; // → cambiar a api.openpay.mx en producción
+// 🐺 Inicializamos Stripe con la llave de tu .env.local
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2024-11-20.acacia" as any,
+});
 
 const TARIFA_SERVICIO = 175;
 const KG_POR_ROLLO    = 25;
@@ -81,14 +82,13 @@ export async function POST(req: Request) {
         subtotal: subtotalProductos,
         total: totalFinal,
         status: 'PENDING',
-        logisticsType: 'SKYDROPX_NACIONAL', // 🔥 PON AQUÍ LA PALABRA EXACTA DE TU SCHEMA
+        logisticsType: 'SKYDROPX_NACIONAL',
         customerName: cliente.nombre,
         customerPhone: cliente.telefono,
         customerEmail: cliente.email,
         address: `${cliente.direccion}, CP: ${cliente.cp}`,
         items: {
           create: carrito.map(item => ({
-            // 🔥 Corrección 2: Agregamos productId que Prisma exigía
             productId: item.id, 
             title: item.nombre,
             price: item.precio,
@@ -101,57 +101,37 @@ export async function POST(req: Request) {
 
     console.log(`📱 [APP] Orden interna guardada: ${nuevaOrden.orderNumber}`);
 
-    // ── 2. CREAR CHECKOUT EN OPENPAY ───────────────────────────────
-    const res = await fetch(`${OPENPAY_BASE}/v1/${OPENPAY_ID}/checkouts`, {
-      method:  'POST',
-      headers: { 'Authorization': `Basic ${openpayAuth}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        amount:       totalFinal,
-        currency:     'MXN',
-        description:  `Orden ${nuevaOrden.orderNumber} | Coyote Textil`,
-        order_id:     nuevaOrden.id,
-        redirect_url: 'https://wa.me/5215627301525', 
-        customer: {
-          name:         cliente.nombre,
-          phone_number: `52${cliente.telefono.replace(/\D/g, '')}`,
-          email:        cliente.email,
-        },
-        send_email: false,
-        metadata: {
-          canal:              'app',
-          orden_prisma_id:    nuevaOrden.id,
-          direccion_envio:    cliente.direccion,
-          req_invoice:        cliente.requiereFactura ? 'YES' : 'NO',
-          flete,
-          traslado,
-          iva,
-        },
-      }),
+    // ── 2. CREAR INTENCIÓN DE PAGO EN STRIPE ───────────────────────
+    
+    // Stripe requiere que el monto esté SIEMPRE en centavos (ej: $100.50 MXN = 10050)
+    const amountInCents = Math.round(totalFinal * 100);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: "mxn",
+      description: `Orden ${nuevaOrden.orderNumber} | Coyote Textil`,
+      automatic_payment_methods: { enabled: true },
+      receipt_email: cliente.email, // Stripe le mandará un recibo automático aquí
+      metadata: {
+        orden_prisma_id: nuevaOrden.id,
+        canal: 'app',
+        req_invoice: cliente.requiereFactura ? 'YES' : 'NO',
+        telefono_cliente: cliente.telefono,
+      },
     });
 
-    const data = await res.json();
+    console.log(`✅ [APP] Payment Intent de Stripe generado para orden ${nuevaOrden.orderNumber}`);
 
-    if (!res.ok) {
-      console.error('❌ OpenPay:', JSON.stringify(data));
-      await prisma.order.update({ where: { id: nuevaOrden.id }, data: { status: 'FAILED' }});
-      
-      const msg = data.error_code === 1012
-        ? 'El monto supera el límite permitido. Contáctanos por WhatsApp.'
-        : data.description || 'Error al generar el cobro.';
-      return NextResponse.json({ success: false, message: msg }, { status: 400 });
-    }
-
-    console.log(`✅ [APP] Link OpenPay generado para orden ${nuevaOrden.orderNumber}`);
-
+    // 🐺 Devolvemos el "clientSecret" para que el frontend pueda renderizar el formulario
     return NextResponse.json({
       success: true,
-      link: data.checkout_link,
+      clientSecret: paymentIntent.client_secret, 
       desglose: { productos: subtotalProductos, flete, traslado, tarifa: TARIFA_SERVICIO, iva, total: totalFinal },
     });
 
   } catch (err) {
     console.error('❌ /api/app-checkout:', err);
-    return NextResponse.json({ success: false, message: 'Error interno.' }, { status: 500 });
+    return NextResponse.json({ success: false, message: 'Error interno conectando con pasarela de pagos.' }, { status: 500 });
   }
 }
 
@@ -196,7 +176,7 @@ function calcularFlete(carrito: ItemCarrito[], cpEnvio: string) {
     traslado = 180 + Math.max(0, totalKilos - 5) * 12;
   } else {
     const litros = (distanciaKm * 2 / 100) * 20;      
-    traslado     = Math.round(litros * 27 * 4);         
+    traslado     = Math.round(litros * 27 * 4);        
   }
 
   return { flete: Math.round(flete), traslado: Math.round(traslado) };

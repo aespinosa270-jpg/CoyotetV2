@@ -9,12 +9,17 @@ import {
   Loader2, X, CreditCard, Building2, Store, Lock,
   ChevronRight, ChevronLeft, Check, Sparkles, Crown
 } from 'lucide-react';
-import Script from 'next/script';
+
+// 🐺 1. IMPORTAMOS STRIPE EN LUGAR DE OPENPAY
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+
+// Inicializamos Stripe con tu llave pública
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TIPOS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-declare global { interface Window { OpenPay: any; } }
 
 const fmx = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(n);
@@ -44,7 +49,7 @@ const PLANS = [
   },
   {
     id: 1, key: 'GOLD', name: 'Socio Comercial', price: 499,
-    planId: 'p83a2hxbhkfdqkpouz0h',
+    planId: 'price_gold_id', // 🐺 Reemplaza con tu Price ID de Stripe
     recommended: true,
     // Material: oro 24k con reflejos cálidos
     cardBg: 'linear-gradient(135deg, #ffd700 0%, #fdcb02 25%, #e8a800 55%, #ffd000 75%, #c89000 100%)',
@@ -64,7 +69,7 @@ const PLANS = [
   },
   {
     id: 2, key: 'BLACK', name: 'Socio Ejecutivo', price: 799,
-    planId: 'pkkvsgtvhz2hk8xyqtnp',
+    planId: 'price_black_id', // 🐺 Reemplaza con tu Price ID de Stripe
     // Material: carbono tejido + titanio
     cardBg: 'linear-gradient(135deg, #2a2a2a 0%, #111 40%, #1e1e1e 70%, #0a0a0a 100%)',
     cardSheen: 'linear-gradient(110deg, rgba(255,255,255,0.12) 0%, transparent 40%, rgba(255,255,255,0.05) 100%)',
@@ -84,7 +89,7 @@ const PLANS = [
   },
   {
     id: 3, key: 'ELITE', name: 'Master Partner', price: 1129,
-    planId: 'phlugox3vwsbvbsi1nxf',
+    planId: 'price_elite_id', // 🐺 Reemplaza con tu Price ID de Stripe
     // Material: cerámica con destellos iridiscentes
     cardBg: 'linear-gradient(135deg, #0d1b2a 0%, #1a3a5c 30%, #0d2137 60%, #071420 100%)',
     cardSheen: 'linear-gradient(115deg, rgba(100,220,255,0.25) 0%, transparent 30%, rgba(50,150,255,0.15) 60%, rgba(100,220,255,0.08) 100%)',
@@ -247,214 +252,106 @@ function PremiumCard({
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MODAL DE PAGO — vault de seguridad
+// 🐺 2. NUEVO MODAL DE PAGO — Bóveda de Stripe
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function PaymentVault({
-  plan, price, billing, onClose, onProcess, loading, error, openPayReady,
+function StripeVaultForm({
+  plan, price, billing, onClose
 }: {
-  plan: typeof PLANS[0]; price: number; billing: string;
-  onClose: () => void; onProcess: (method: string, card: any) => void;
-  loading: boolean; error: string; openPayReady: boolean;
+  plan: typeof PLANS[0]; price: number; billing: string; onClose: () => void;
 }) {
-  const [method, setMethod]   = useState<'card' | 'spei' | 'store'>('card');
-  const [card,   setCard]     = useState({ holder:'', number:'', expMonth:'', expYear:'', cvv:'' });
-  const [flip,   setFlip]     = useState(false);
+  const stripe = useStripe();
+  const elements = useElements();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const METHODS = [
-    { id:'card',         label:'Tarjeta', icon:CreditCard },
-    { id:'spei',         label:'SPEI',    icon:Building2 },
-    { id:'store',        label:'Efectivo',icon:Store },
-  ] as const;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
 
-  const formatCardNum = (v: string) => v.replace(/\D/g,'').slice(0,16).replace(/(.{4})/g,'$1 ').trim();
+    setLoading(true);
+    setError(null);
+
+    const { error: submitError } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        // Stripe redirigirá aquí al procesar con éxito la tarjeta
+        return_url: `${window.location.origin}/perfil?status=success&plan=${plan.key}`,
+      },
+    });
+
+    if (submitError) {
+      setError(submitError.message || "Error procesando el pago");
+      setLoading(false);
+    }
+  };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(28px)' }}
-    >
-      {/* Halo del plan seleccionado */}
-      <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden">
-        <motion.div
-          className="w-[800px] h-[800px] rounded-full blur-[200px] opacity-15"
-          style={{ background: plan.ambientColor }}
-          animate={{ scale: [0.8, 1.1, 0.8] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        />
+    <div className="bg-[#080808] rounded-[2rem] overflow-hidden border border-white/[0.07]">
+      {/* Header vault */}
+      <div className="px-7 pt-7 pb-5 border-b border-white/[0.06] flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2.5 mb-1">
+            <Shield size={15} className="text-green-400" />
+            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-white/30">Pago Seguro · Stripe</p>
+          </div>
+          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: '26px', letterSpacing: '0.04em' }} className="text-white leading-none">
+            Plan <span style={{ color: plan.nameColor === '#3d2600' ? '#FDCB02' : plan.nameColor }}>{plan.key}</span>
+          </p>
+          <p className="text-[11px] text-white/30 font-semibold mt-0.5">
+            {fmx(price)} MXN · {billing === 'annual' ? 'anual' : 'mensual'}
+          </p>
+        </div>
+        <button
+          onClick={() => !loading && onClose()}
+          className="w-10 h-10 rounded-full bg-white/[0.05] hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
+        >
+          <X size={16} />
+        </button>
       </div>
 
-      <motion.div
-        initial={{ scale: 0.88, y: 32, filter: 'blur(8px)' }}
-        animate={{ scale: 1, y: 0, filter: 'blur(0px)' }}
-        exit={{ scale: 0.9, y: 16, filter: 'blur(4px)' }}
-        transition={{ type: 'spring', damping: 26, stiffness: 200 }}
-        className="relative w-full max-w-md z-10"
-      >
-        {/* Borde del plan */}
-        <div className="absolute -inset-px rounded-[2rem] pointer-events-none" style={{ background: `linear-gradient(135deg, ${plan.accentLine}, transparent, ${plan.accentLine})`, opacity: 0.4 }} />
-
-        <div className="bg-[#080808] rounded-[2rem] overflow-hidden border border-white/[0.07]">
-
-          {/* Header vault */}
-          <div className="px-7 pt-7 pb-5 border-b border-white/[0.06] flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2.5 mb-1">
-                <Shield size={15} className="text-green-400" />
-                <p className="text-[9px] font-black uppercase tracking-[0.25em] text-white/30">Pago Seguro · OpenPay</p>
-              </div>
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: '26px', letterSpacing: '0.04em' }} className="text-white leading-none">
-                Plan <span style={{ color: plan.nameColor === '#3d2600' ? '#FDCB02' : plan.nameColor }}>{plan.key}</span>
-              </p>
-              <p className="text-[11px] text-white/30 font-semibold mt-0.5">
-                {fmx(price)} MXN · {billing === 'annual' ? 'anual' : 'mensual'}
-              </p>
-            </div>
-            <button
-              onClick={() => !loading && onClose()}
-              className="w-10 h-10 rounded-full bg-white/[0.05] hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
+      <form onSubmit={handleSubmit} className="p-7 space-y-5">
+        
+        {/* Error */}
+        <AnimatePresence>
+          {error && (
+            <motion.div initial={{ height:0, opacity:0 }} animate={{ height:'auto', opacity:1 }} exit={{ height:0, opacity:0 }}
+              className="bg-red-500/[0.08] border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-[10px] font-bold uppercase tracking-wide flex items-center gap-2"
             >
-              <X size={16} />
-            </button>
-          </div>
+              <Zap size={12} />{error}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-          <div className="p-7 space-y-5">
-            {/* Selector de método */}
-            <div className="grid grid-cols-3 gap-1.5 bg-white/[0.03] rounded-2xl p-1.5 border border-white/[0.05]">
-              {METHODS.map(m => (
-                <button key={m.id} type="button" onClick={() => setMethod(m.id)}
-                  className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${method === m.id
-                    ? 'bg-white text-black shadow-lg'
-                    : 'text-white/25 hover:text-white/60'
-                  }`}
-                >
-                  <m.icon size={12} />{m.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Error */}
-            <AnimatePresence>
-              {error && (
-                <motion.div initial={{ height:0, opacity:0 }} animate={{ height:'auto', opacity:1 }} exit={{ height:0, opacity:0 }}
-                  className="bg-red-500/[0.08] border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-[10px] font-bold uppercase tracking-wide flex items-center gap-2"
-                >
-                  <Zap size={12} />{error}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence mode="wait">
-              {method === 'card' && (
-                <motion.div key="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }} className="space-y-3">
-                  {/* Mini preview de tarjeta */}
-                  <div className="relative h-28 rounded-xl overflow-hidden mb-4" style={{ background: plan.cardBg }}>
-                    <div className="absolute inset-0" style={{ background: plan.cardSheen, mixBlendMode: 'overlay' }} />
-                    <div className="absolute inset-0 p-4 flex flex-col justify-between">
-                      <div className="flex justify-between items-start">
-                        <span className="font-black text-[10px] tracking-widest" style={{ color: plan.tagColor }}>COYOTE TEXTIL</span>
-                        <CreditCard size={16} style={{ color: plan.numberColor }} />
-                      </div>
-                      <div>
-                        <p className="font-mono text-sm tracking-[0.18em]" style={{ color: plan.nameColor, fontFamily: 'JetBrains Mono, monospace' }}>
-                          {card.number || '•••• •••• •••• ••••'}
-                        </p>
-                        <div className="flex justify-between mt-1">
-                          <p className="text-[10px] font-bold uppercase" style={{ color: plan.tagColor }}>
-                            {card.holder || 'TITULAR'}
-                          </p>
-                          <p className="text-[10px] font-mono" style={{ color: plan.numberColor }}>
-                            {card.expMonth || 'MM'}/{card.expYear || 'AA'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Campos */}
-                  {[
-                    { placeholder: 'NOMBRE DEL TITULAR', key: 'holder', type:'text', col: 'full', upper: true },
-                  ].map(f => (
-                    <input key={f.key} type={f.type} placeholder={f.placeholder}
-                      value={(card as any)[f.key]}
-                      onChange={e => setCard({ ...card, [f.key]: f.upper ? e.target.value.toUpperCase() : e.target.value })}
-                      className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3.5 text-white font-bold text-sm uppercase placeholder:text-white/15 outline-none focus:border-white/30 transition-colors"
-                    />
-                  ))}
-                  <input
-                    placeholder="0000 0000 0000 0000"
-                    value={card.number}
-                    maxLength={19}
-                    onChange={e => setCard({ ...card, number: formatCardNum(e.target.value) })}
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3.5 text-white font-mono text-lg tracking-widest placeholder:text-white/15 outline-none focus:border-white/30 transition-colors"
-                    style={{ fontFamily: 'JetBrains Mono, monospace' }}
-                  />
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { placeholder:'MM', key:'expMonth', maxLength:2 },
-                      { placeholder:'AA', key:'expYear', maxLength:2 },
-                      { placeholder:'CVV', key:'cvv', maxLength:4, pass:true },
-                    ].map(f => (
-                      <div key={f.key} onFocus={() => f.pass && setFlip(true)} onBlur={() => f.pass && setFlip(false)}>
-                        <input type={f.pass ? 'password' : 'text'} placeholder={f.placeholder} maxLength={f.maxLength}
-                          value={(card as any)[f.key]}
-                          onChange={e => setCard({ ...card, [f.key]: e.target.value })}
-                          className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-3.5 text-white font-mono text-center text-base placeholder:text-white/15 outline-none focus:border-white/30 transition-colors"
-                          style={{ fontFamily: 'JetBrains Mono, monospace' }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-
-              {(method === 'spei' || method === 'store') && (
-                <motion.div key={method} initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }}
-                  className="py-10 flex flex-col items-center text-center"
-                >
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 border"
-                    style={{ background: plan.ambientColor, borderColor: plan.accentLine }}>
-                    {method === 'spei' ? <Building2 size={26} style={{ color: plan.nameColor }} /> : <Store size={26} style={{ color: plan.nameColor }} />}
-                  </div>
-                  <p className="text-white/70 text-sm font-medium max-w-xs leading-relaxed">
-                    {method === 'spei'
-                      ? 'Generaremos una CLABE única. Tu membresía se activa automáticamente al confirmar el depósito.'
-                      : 'Recibirás un código de barras válido por 72h para pagar en OXXO o 7-Eleven.'
-                    }
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* CTA de pago */}
-            <motion.button
-              whileHover={{ scale: 1.012 }}
-              whileTap={{ scale: 0.985 }}
-              onClick={() => onProcess(method, card)}
-              disabled={loading}
-              className="w-full h-14 rounded-2xl font-black uppercase tracking-[0.18em] text-sm flex items-center justify-center gap-2.5 transition-all duration-300 overflow-hidden relative"
-              style={{
-                background: loading ? 'rgba(255,255,255,0.08)' : plan.cardBg,
-                color: plan.nameColor,
-                boxShadow: loading ? 'none' : `0 8px 32px ${plan.ambientColor}`,
-              }}
-            >
-              {!loading && <div className="absolute inset-0" style={{ background: plan.cardSheen, mixBlendMode:'overlay' }} />}
-              <span className="relative flex items-center gap-2.5">
-                {loading ? <><Loader2 size={16} className="animate-spin text-white/50" /><span className="text-white/40">Procesando…</span></> : (
-                  <>{method === 'card' ? <Lock size={14} /> : <Zap size={14} />}
-                  {method === 'card' ? `Pagar ${fmx(price)}` : 'Generar referencia'}</>
-                )}
-              </span>
-            </motion.button>
-
-            <p className="text-center text-[9px] text-white/15 font-black uppercase tracking-[0.22em] flex items-center justify-center gap-2">
-              <Shield size={10} className="text-green-500/40" />PCI-DSS · TLS 1.3 · OpenPay
-            </p>
-          </div>
+        {/* 🐺 COMPONENTE DE TARJETA STRIPE */}
+        <div className="bg-[#111] p-2 rounded-xl">
+          <PaymentElement options={{ layout: 'tabs' }} />
         </div>
-      </motion.div>
-    </motion.div>
+
+        {/* CTA de pago */}
+        <motion.button
+          whileHover={{ scale: 1.012 }}
+          whileTap={{ scale: 0.985 }}
+          disabled={loading || !stripe}
+          className="w-full mt-4 h-14 rounded-2xl font-black uppercase tracking-[0.18em] text-sm flex items-center justify-center gap-2.5 transition-all duration-300 overflow-hidden relative"
+          style={{
+            background: loading || !stripe ? 'rgba(255,255,255,0.08)' : plan.cardBg,
+            color: plan.nameColor,
+            boxShadow: loading || !stripe ? 'none' : `0 8px 32px ${plan.ambientColor}`,
+          }}
+        >
+          {!loading && stripe && <div className="absolute inset-0" style={{ background: plan.cardSheen, mixBlendMode:'overlay' }} />}
+          <span className="relative flex items-center gap-2.5">
+            {loading ? <><Loader2 size={16} className="animate-spin text-white/50" /><span className="text-white/40">Procesando…</span></> : (
+              <><Lock size={14} /> Suscribirme ahora</>
+            )}
+          </span>
+        </motion.button>
+
+        <p className="text-center text-[9px] text-white/15 font-black uppercase tracking-[0.22em] flex items-center justify-center gap-2">
+          <Shield size={10} className="text-green-500/40" />PCI-DSS · TLS 1.3 · STRIPE
+        </p>
+      </form>
+    </div>
   );
 }
 
@@ -470,73 +367,51 @@ export default function MembershipStack() {
   const [mounted,     setMounted]     = useState(false);
   const [loading,     setLoading]     = useState(false);
   const [showVault,   setShowVault]   = useState(false);
-  const [openpayOk,   setOpenpayOk]   = useState(false);
   const [payError,    setPayError]    = useState('');
-  const [sdkStep,     setSdkStep]     = useState(0);
+  
+  // 🐺 Estado para guardar el secreto de Stripe
+  const [clientSecret, setClientSecret] = useState('');
 
   useEffect(() => {
     setMounted(true);
-    const t = setInterval(() => {
-      if (typeof window !== 'undefined' && window.OpenPay?.deviceData) {
-        window.OpenPay.setId(process.env.NEXT_PUBLIC_OPENPAY_MERCHANT_ID);
-        window.OpenPay.setApiKey(process.env.NEXT_PUBLIC_OPENPAY_PUBLIC_KEY);
-        window.OpenPay.setSandboxMode(true);
-        setOpenpayOk(true);
-        setSdkStep(3);
-        clearInterval(t);
-      }
-    }, 300);
-    return () => clearInterval(t);
   }, []);
 
-  const plan   = PLANS[activeIdx];
-  const isAnn  = billing === 'annual';
-  const price  = isAnn ? Math.round(plan.price * 12 * 0.90) : plan.price;
+  const plan  = PLANS[activeIdx];
+  const isAnn = billing === 'annual';
+  const price = isAnn ? Math.round(plan.price * 12 * 0.90) : plan.price;
   const savings = Math.round((plan.price * 12) - price);
 
   const next = useCallback(() => setActiveIdx(p => (p + 1) % PLANS.length), []);
   const prev = useCallback(() => setActiveIdx(p => (p - 1 + PLANS.length) % PLANS.length), []);
 
-  const handleBuy = () => {
+  const handleBuy = async () => {
     if (!session) { router.push('/cuenta?mode=register'); return; }
-    if (plan.price === 0) processCheckout('free', null);
-    else { setPayError(''); setShowVault(true); }
-  };
+    if (plan.price === 0) {
+      router.push('/perfil?status=success');
+      return;
+    }
+    
+    setLoading(true);
+    setPayError('');
 
-  const processCheckout = async (method: string, cardData: any) => {
-    setLoading(true); setPayError('');
     try {
-      let tokenId    = null;
-      let sessionId  = null;
-
-      if (method === 'card') {
-        if (!openpayOk) throw new Error('SDK bancario no disponible. Intenta en un momento.');
-        sessionId = window.OpenPay.deviceData.setup();
-        tokenId   = await new Promise<string>((res, rej) => {
-          window.OpenPay.token.create({
-            card_number:      cardData.number.replace(/\s/g,''),
-            holder_name:      cardData.holder.toUpperCase(),
-            expiration_year:  cardData.expYear,
-            expiration_month: cardData.expMonth,
-            cvv2:             cardData.cvv,
-          }, (r: any) => res(r.data.id), (e: any) => rej(e));
-        });
-      }
-
+      // 🐺 3. LLAMADA AL BACKEND PARA CREAR LA SUSCRIPCIÓN EN STRIPE
       const res  = await fetch('/api/membership/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planKey: plan.key, price, billingCycle: billing, tokenId, deviceSessionId: sessionId, paymentMethod: method }),
+        body: JSON.stringify({ planKey: plan.key, billingCycle: billing }),
       });
       const data = await res.json();
 
-      if (res.ok) {
-        if (data.type === 'payment_reference' && data.payment_info?.url) window.open(data.payment_info.url, '_blank');
-        setShowVault(false);
-        router.push('/perfil?status=success');
-      } else throw new Error(data.error || 'Error en el servidor.');
+      if (res.ok && data.clientSecret) {
+        setClientSecret(data.clientSecret);
+        setShowVault(true);
+      } else {
+        throw new Error(data.error || 'Error al iniciar la bóveda segura.');
+      }
     } catch (e: any) {
-      setPayError(e.data?.description || e.message || 'Error desconocido');
+      setPayError(e.message || 'Error desconocido');
+      alert(`⚠️ ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -556,8 +431,6 @@ export default function MembershipStack() {
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600;700;800&display=swap" />
-      <Script src="https://js.openpay.mx/openpay.v1.min.js" strategy="afterInteractive" />
-      <Script src="https://js.openpay.mx/openpay-data.v1.min.js" strategy="afterInteractive" />
 
       <div
         className="h-screen w-full overflow-hidden flex flex-col lg:flex-row select-none relative"
@@ -749,6 +622,7 @@ export default function MembershipStack() {
                         whileHover={{ scale: 1.04 }}
                         whileTap={{ scale: 0.96 }}
                         onClick={handleBuy}
+                        disabled={loading}
                         className="h-14 px-8 rounded-2xl font-black uppercase text-xs tracking-[0.18em] flex items-center gap-2.5 relative overflow-hidden transition-shadow duration-300"
                         style={{
                           background: plan.cardBg,
@@ -757,8 +631,9 @@ export default function MembershipStack() {
                         }}
                       >
                         <div className="absolute inset-0" style={{ background: plan.cardSheen, mixBlendMode: 'overlay' }} />
-                        <span className="relative">Suscribirme</span>
-                        <ArrowRight size={15} className="relative" />
+                        <span className="relative flex items-center gap-2">
+                           {loading ? <Loader2 size={16} className="animate-spin" /> : <>Suscribirme <ArrowRight size={15} /></>}
+                        </span>
                       </motion.button>
                     </div>
                   </div>
@@ -789,7 +664,7 @@ export default function MembershipStack() {
                   {[
                     { icon: Shield, label: 'PCI-DSS' },
                     { icon: Lock,   label: 'Encriptado' },
-                    { icon: Zap,    label: 'Activación inmediata' },
+                    { icon: Zap,    label: 'Activación Stripe' },
                   ].map(({ icon: Icon, label }) => (
                     <div key={label} className="flex items-center gap-1.5">
                       <Icon size={11} className="text-white/15" />
@@ -803,19 +678,63 @@ export default function MembershipStack() {
         </div>
       </div>
 
-      {/* ── MODAL VAULT ──────────────────────────────────────────── */}
+      {/* ── 4. MODAL VAULT STRIPE (CON DISEÑO ORIGINAL PRESERVADO) ── */}
       <AnimatePresence>
-        {showVault && (
-          <PaymentVault
-            plan={plan}
-            price={price}
-            billing={billing}
-            onClose={() => setShowVault(false)}
-            onProcess={processCheckout}
-            loading={loading}
-            error={payError}
-            openPayReady={openpayOk}
-          />
+        {showVault && clientSecret && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(28px)' }}
+          >
+            {/* Halo del plan seleccionado */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden">
+              <motion.div
+                className="w-[800px] h-[800px] rounded-full blur-[200px] opacity-15"
+                style={{ background: plan.ambientColor }}
+                animate={{ scale: [0.8, 1.1, 0.8] }}
+                transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            </div>
+
+            <motion.div
+              initial={{ scale: 0.88, y: 32, filter: 'blur(8px)' }}
+              animate={{ scale: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ scale: 0.9, y: 16, filter: 'blur(4px)' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 200 }}
+              className="relative w-full max-w-md z-10"
+            >
+              {/* Borde del plan */}
+              <div className="absolute -inset-px rounded-[2rem] pointer-events-none" style={{ background: `linear-gradient(135deg, ${plan.accentLine}, transparent, ${plan.accentLine})`, opacity: 0.4 }} />
+
+              <Elements 
+                stripe={stripePromise} 
+                options={{ 
+                  clientSecret,
+                  appearance: {
+                    theme: 'night',
+                    variables: {
+                      colorPrimary: '#FDCB02',
+                      colorBackground: '#111111',
+                      colorText: '#ffffff',
+                      colorDanger: '#ef4444',
+                      fontFamily: 'system-ui, sans-serif',
+                      borderRadius: '12px',
+                    },
+                    rules: {
+                      '.Input': { border: '1px solid rgba(255,255,255,0.08)', boxShadow: 'none', padding: '12px' },
+                      '.Input:focus': { border: '1px solid rgba(255,255,255,0.3)' },
+                      '.Label': { fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' },
+                      '.Tab': { border: '1px solid rgba(255,255,255,0.05)', backgroundColor: 'rgba(255,255,255,0.02)' },
+                      '.Tab--selected': { borderColor: plan.accentLine, backgroundColor: 'rgba(255,255,255,0.05)' }
+                    }
+                  }
+                }}
+              >
+                <StripeVaultForm plan={plan} price={price} billing={billing} onClose={() => setShowVault(false)} />
+              </Elements>
+
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

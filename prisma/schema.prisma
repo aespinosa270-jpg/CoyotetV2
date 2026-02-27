@@ -120,8 +120,11 @@ model User {
   membershipTier        MembershipTier @default(NONE)
   membershipExpiry      DateTime?
   points                Float          @default(0)
-  openpayCustomerId     String?
-  openpaySubscriptionId String?
+  
+  // 🐺 BÓVEDA STRIPE (Reemplazo de OpenPay)
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  
   ltv                   Float          @default(0)
   rfc                   String?
   taxRegime             String?

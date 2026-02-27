@@ -2,12 +2,18 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import Stripe from "stripe"
 
-// TUS IDS REALES DE OPENPAY
-const OPENPAY_PLANS: Record<string, string> = {
-  'GOLD': 'phlugox3vwsbvbsi1nxf',
-  'BLACK': 'pkkvsgtvhz2hk8xyqtnp',
-  'ELITE': 'p83a2hxbhkfdqkpouz0h'
+// 🐺 Inicializamos Stripe
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2024-11-20.acacia" as any,
+})
+
+// 🔥 TUS NUEVOS IDS DE PRECIOS DE STRIPE (Sustituye por los de tu Dashboard)
+const STRIPE_PRICE_IDS: Record<string, string> = {
+  'GOLD': 'price_1Qxyz...tu_id_gold',
+  'BLACK': 'price_1Qxyz...tu_id_black',
+  'ELITE': 'price_1Qxyz...tu_id_elite'
 }
 
 export async function POST(req: Request) {
@@ -19,71 +25,66 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    // Ahora el frontend nos debe mandar el Token encriptado de la tarjeta
-    const { planKey, tokenId, deviceSessionId } = body
+    const { planKey } = body
 
-    const planId = OPENPAY_PLANS[planKey]
-    if (!planId) return new NextResponse("Plan B2B inválido", { status: 400 })
+    const priceId = STRIPE_PRICE_IDS[planKey]
+    if (!priceId) return new NextResponse("Plan B2B inválido", { status: 400 })
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } })
     if (!user) return new NextResponse("Socio no encontrado", { status: 404 })
 
-    // CONFIGURACIÓN DE SEGURIDAD OPENPAY (Variables de Entorno)
-    const OPENPAY_MERCHANT = process.env.OPENPAY_MERCHANT_ID!
-    const OPENPAY_PRIVATE_KEY = process.env.OPENPAY_PRIVATE_KEY!
-    
-    // NOTA: Usamos sandbox para pruebas. Cuando salgas a producción, quita la palabra "sandbox-"
-    const baseUrl = "https://sandbox-api.openpay.mx/v1" 
-    const authHeader = `Basic ${Buffer.from(`${OPENPAY_PRIVATE_KEY}:`).toString('base64')}`
+    // 1. OBTENER O CREAR CLIENTE EN STRIPE (Usando tu nueva Bóveda)
+    let customerId = user.stripeCustomerId
 
-    // 1. CREAR CLIENTE EN OPENPAY (Para poder suscribirlo)
-    const customerRes = await fetch(`${baseUrl}/${OPENPAY_MERCHANT}/customers`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
-      body: JSON.stringify({
-        name: user.name || "Socio Comercial",
+    if (!customerId) {
+      const customer = await stripe.customers.create({
         email: user.email,
-        requires_account: false
+        name: user.name || "Socio Comercial Coyote",
+        metadata: { userId: user.id },
       })
-    })
-    const customer = await customerRes.json()
-    if (customer.error_code) throw new Error(`OpenPay (Cliente): ${customer.description}`)
+      customerId = customer.id
 
-    // 2. CREAR LA SUSCRIPCIÓN CON TU ID Y EL TOKEN DE LA TARJETA
-    const subRes = await fetch(`${baseUrl}/${OPENPAY_MERCHANT}/customers/${customer.id}/subscriptions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
-      body: JSON.stringify({
-        plan_id: planId,
-        source_id: tokenId, // El token generado en el frontend
-        device_session_id: deviceSessionId
+      // Lo guardamos en el ADN del usuario para futuros cobros
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { stripeCustomerId: customerId },
       })
-    })
-    const subscription = await subRes.json()
-    if (subscription.error_code) throw new Error(`OpenPay (Pago): ${subscription.description}`)
+    }
 
-    // 3. SI EL BANCO APRUEBA, REGISTRAMOS EN POSTGRESQL
-    const order = await prisma.order.create({
-      data: {
+    // 2. CREAR LA SUSCRIPCIÓN EN STRIPE (Estado: "Incompleta" hasta que el banco pase la tarjeta)
+    const subscription = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: priceId }],
+      payment_behavior: 'default_incomplete',
+      payment_settings: { save_default_payment_method: 'on_subscription' },
+      expand: ['latest_invoice.payment_intent'], // Extraemos la llave de cobro de la primera factura
+      metadata: {
         userId: user.id,
-        total: subscription.amount || 0, // El monto real cobrado
-        status: "PAID",
-        paymentId: subscription.id, // ID de la transacción bancaria
-        customerName: user.name || "Socio Comercial",
-        customerEmail: user.email,
-      }
+        planKey: planKey,
+      },
     })
 
-    // 4. ASCENDEMOS DE RANGO AL USUARIO EN EL SISTEMA
+    // Extraemos el "Secreto" para el Frontend
+    const invoice = subscription.latest_invoice as Stripe.Invoice
+    const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent
+
+    // 3. PRE-REGISTRAMOS LA SUSCRIPCIÓN EN POSTGRESQL
+    // 🐺 OJO: No le subimos el nivel (role/membershipTier) todavía. 
+    // Eso lo haremos en cuanto Stripe nos confirme que la tarjeta sí tenía fondos.
     await prisma.user.update({
       where: { id: user.id },
-      data: { role: planKey.toLowerCase() }
+      data: { stripeSubscriptionId: subscription.id },
     })
 
-    return NextResponse.json({ success: true, orderId: order.id })
+    // 4. LE MANDAMOS LA LLAVE AL FRONTEND PARA RENDERIZAR LA TARJETA
+    return NextResponse.json({ 
+      success: true, 
+      clientSecret: paymentIntent.client_secret,
+      subscriptionId: subscription.id 
+    })
 
   } catch (error: any) {
-    console.error("🔥 Error de Transacción:", error.message)
+    console.error("🔥 Error de Transacción en Membresía:", error.message)
     return new NextResponse(error.message, { status: 500 })
   }
 }

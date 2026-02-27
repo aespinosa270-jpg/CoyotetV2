@@ -54,14 +54,15 @@ export default function CookiesPage() {
               </div>
             </div>
 
+            {/* 🐺 EL CAMBIO ESTÁ AQUÍ: ADIÓS OPENPAY, HOLA STRIPE */}
             <div className="flex gap-4 items-start">
               <div className="bg-white p-2 rounded-full border border-neutral-200 shrink-0">
                 <ShieldAlert size={20} className="text-red-600"/>
               </div>
               <div>
-                <h3 className="font-bold text-black uppercase text-sm">Cookies de Seguridad y Antifraude (OpenPay)</h3>
+                <h3 className="font-bold text-black uppercase text-sm">Cookies de Seguridad y Antifraude (Stripe)</h3>
                 <p className="text-sm text-neutral-500 mt-1">
-                  Utilizamos cookies de terceros proporcionadas por <strong>OpenPay S.A. de C.V.</strong> para generar un identificador de dispositivo (Device ID). Este dato es obligatorio para procesar pagos y ayuda a los bancos a detectar y prevenir transacciones fraudulentas o uso indebido de tarjetas. <strong className="text-black">Estas cookies no almacenan datos personales sensibles.</strong>
+                  Utilizamos cookies de terceros proporcionadas por <strong>Stripe, Inc.</strong> para la prevención de fraudes y el procesamiento seguro de pagos en nuestra Bóveda. Estas cookies permiten generar un identificador único de dispositivo y son obligatorias para cumplir con las normativas de seguridad bancaria, ayudando a detectar transacciones fraudulentas. <strong className="text-black">Estas cookies no almacenan datos personales sensibles sin cifrar.</strong>
                 </p>
               </div>
             </div>

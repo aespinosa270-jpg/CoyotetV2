@@ -48,7 +48,7 @@ export default function CookieBanner() {
               Transparencia Digital <ShieldCheck size={12} className="text-green-500"/>
             </h4>
             <p className="text-xs text-neutral-400 leading-relaxed max-w-xl">
-              Utilizamos cookies propias y de terceros (OpenPay) para garantizar la seguridad de tus pagos, prevenir fraudes y mejorar tu experiencia de navegación. Al continuar, aceptas nuestro uso de datos.
+              Utilizamos cookies propias y de terceros (Stripe) para garantizar la seguridad de tus pagos, prevenir fraudes y mejorar tu experiencia de navegación. Al continuar, aceptas nuestro uso de datos.
             </p>
             <div className="flex gap-4 pt-1">
                 <Link href="/cookies" className="text-[10px] font-bold text-white underline decoration-[#FDCB02] decoration-2 underline-offset-4 hover:text-[#FDCB02] transition-colors uppercase">

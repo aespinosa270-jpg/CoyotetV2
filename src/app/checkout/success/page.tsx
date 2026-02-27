@@ -1,17 +1,18 @@
 'use client';
-import { Info } from "lucide-react";
+import { Info, CheckCircle2, Package, Truck, Landmark, Banknote, Clock, ArrowRight } from "lucide-react";
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { CheckCircle2, Package, Truck, ShoppingBag, Landmark, Banknote, Clock, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 function SuccessContent() {
   const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId');
-  const method = searchParams.get('method') || 'card'; // card, bank_account, store
+  const orderId = searchParams.get('orderId') || 'Desconocido';
+  // 🐺 Stripe nos dice cómo quedó el pago
+  const status = searchParams.get('redirect_status'); 
 
-  const isInstantPayment = method === 'card';
+  // Es inmediato si Stripe dice "succeeded"
+  const isInstantPayment = status === 'succeeded';
 
   return (
     <div className="min-h-screen bg-[#fafafa] pt-32 pb-20 px-4 flex flex-col items-center selection:bg-[#FDCB02] selection:text-black">
@@ -22,9 +23,9 @@ function SuccessContent() {
         className="w-full max-w-2xl bg-white p-8 md:p-12 rounded-[2rem] shadow-2xl border border-neutral-100 text-center relative overflow-hidden"
       >
         
-        {/* --- CABECERA DINÁMICA SEGÚN MÉTODO DE PAGO --- */}
+        {/* --- CABECERA DINÁMICA SEGÚN STATUS DE STRIPE --- */}
         {isInstantPayment ? (
-          // PAGO CON TARJETA (INMEDIATO)
+          // ✅ PAGO CON TARJETA / WALLET (INMEDIATO)
           <>
             <div className="absolute top-0 left-0 right-0 h-2 bg-green-500"></div>
             <div className="flex justify-center mb-6">
@@ -37,11 +38,11 @@ function SuccessContent() {
               ¡Pago Autorizado!
             </h1>
             <p className="text-neutral-500 mb-8 max-w-md mx-auto text-sm">
-              Tu tarjeta ha sido procesada con éxito y el pedido <strong>{orderId}</strong> ha pasado directamente al área de almacén para su preparación.
+              Tu método de pago ha sido procesado con éxito y el pedido <strong>{orderId}</strong> ha pasado directamente al área de almacén para su preparación.
             </p>
           </>
         ) : (
-          // PAGO CON OXXO / SPEI (PENDIENTE)
+          // ⏳ PAGO CON OXXO / SPEI (PENDIENTE)
           <>
             <div className="absolute top-0 left-0 right-0 h-2 bg-[#FDCB02]"></div>
             <div className="flex justify-center mb-6">
@@ -56,21 +57,23 @@ function SuccessContent() {
               Hemos apartado el inventario para tu pedido <strong>{orderId}</strong>. Ahora necesitamos que completes el pago.
             </p>
 
-            {/* INSTRUCCIONES DE PAGO */}
+            {/* INSTRUCCIONES DE PAGO OFFLINE */}
             <div className="bg-[#050505] text-left p-6 rounded-2xl mb-8 border border-neutral-800 text-white shadow-xl relative overflow-hidden">
                <div className="absolute right-0 top-0 opacity-10">
-                 {method === 'store' ? <Banknote size={150} className="translate-x-8 -translate-y-8"/> : <Landmark size={150} className="translate-x-8 -translate-y-8"/>}
+                 <Banknote size={150} className="translate-x-8 -translate-y-8"/>
                </div>
                <div className="relative z-10">
                   <h3 className="text-[#FDCB02] font-black uppercase text-sm mb-2 flex items-center gap-2">
-                    {method === 'store' ? <><Banknote size={16}/> Pago en Tienda OXXO</> : <><Landmark size={16}/> Transferencia SPEI</>}
+                    <Banknote size={16}/> Pago Pendiente
                   </h3>
                   <p className="text-neutral-400 text-xs mb-4 leading-relaxed">
-                    Hemos enviado a tu correo electrónico registrado las instrucciones detalladas, el monto exacto y el {method === 'store' ? 'código de barras' : 'número de CLABE interbancaria'} necesario para completar tu compra.
+                    Stripe ha enviado a tu correo electrónico registrado las instrucciones detalladas y el formato oficial para completar tu pago (OXXO o Transferencia).
                   </p>
                   <div className="bg-white/10 p-3 rounded-lg border border-white/5 flex items-start gap-3">
                     <Info size={16} className="text-[#FDCB02] shrink-0 mt-0.5"/>
-                    <p className="text-[10px] text-neutral-300">Una vez que realices el pago, nuestro sistema lo detectará automáticamente y cambiará el estado de tu pedido a "Pagado". No es necesario que nos envíes el comprobante.</p>
+                    <p className="text-[10px] text-neutral-300">
+                      Una vez que realices el pago, nuestro sistema lo detectará automáticamente y te notificaremos por WhatsApp. No es necesario que nos envíes el comprobante.
+                    </p>
                   </div>
                </div>
             </div>

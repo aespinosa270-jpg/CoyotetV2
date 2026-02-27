@@ -4,27 +4,24 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react'; // 🔥 Inyectamos la sesión para leer la membresía
+import { useSession } from 'next-auth/react'; 
 import { useCart } from '@/lib/context/cart-context';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, LinkAuthenticationElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { 
-  ShieldCheck, Lock, CreditCard, User, MapPin, 
-  Phone, Mail, ArrowLeft, ShoppingBag, Truck, Package, 
-  Landmark, Store, Banknote, Info, FileText, CheckCircle2, Factory, Map, ChevronRight, Loader2, Crown
+  User, MapPin, Phone, Mail, ArrowLeft, ShoppingBag, Truck, Package, 
+  Info, FileText, CheckCircle2, Factory, Map, ChevronRight, Loader2, Crown, ShieldCheck,
+  CreditCard, Sparkles, BadgePercent, Landmark, ChevronDown, ExternalLink, Calendar,
+  Zap, Copy, Clock, Smartphone, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-declare global { interface Window { OpenPay: any; } }
+// 🐺 Inicializamos Stripe con tu llave pública
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-const LOGOS = {
-  visa: "https://cdnjs.cloudflare.com/ajax/libs/payment-webfont/1.2.5/logo/visa.svg",
-  mastercard: "https://cdnjs.cloudflare.com/ajax/libs/payment-webfont/1.2.5/logo/mastercard.svg",
-  amex: "https://cdnjs.cloudflare.com/ajax/libs/payment-webfont/1.2.5/logo/amex.svg",
-  oxxo: "https://cdn.iconscout.com/icon/free/png-256/free-oxxo-logo-icon-download-in-svg-png-gif-file-formats--technology-social-media-company-brand-vol-5-pack-logos-icons-2945041.png",
-  seven: "https://cdn.iconscout.com/icon/free/png-256/free-7-eleven-logo-icon-download-in-svg-png-gif-file-formats--technology-social-media-company-brand-vol-1-pack-logos-icons-2944709.png"
-};
-
-type PaymentMethod = 'card' | 'bank_account' | 'store';
 type LogisticsMethod = 'coyote' | 'skydropx';
+type PaymentMethod = 'stripe' | 'financing';
+type FinancingProvider = 'kueski' | 'aplazo' | 'atrato' | 'kapital' | null;
 
 // Configuración Coyote
 const DIESEL_PRICE_PER_LITER = 27.00; 
@@ -33,22 +30,592 @@ const OPERATIONAL_MARKUP = 4;
 const FIXED_SERVICE_FEE = 175;        
 const MAX_ROLLS_PER_VEHICLE = 80;     
 
+// ============================================================================
+// 💳 CONFIGURACIÓN DE PROVEEDORES DE FINANCIAMIENTO
+// ============================================================================
+const FINANCING_PROVIDERS = [
+  {
+    id: 'kueski' as FinancingProvider,
+    name: 'Kueski Pay',
+    tagline: 'Compra ahora, paga después',
+    color: '#7C3AED',
+    accentColor: '#A78BFA',
+    bgGradient: 'from-[#7C3AED]/10 to-[#4C1D95]/5',
+    borderColor: 'border-purple-500/30',
+    activeBorder: 'border-purple-500',
+    activeBg: 'bg-purple-950/30',
+    icon: '🦄',
+    maxInstallments: 12,
+    minAmount: 200,
+    perks: ['Sin tarjeta de crédito', 'Aprobación instantánea', 'Hasta 12 quincenas'],
+    badge: 'Popular',
+    badgeColor: 'bg-purple-500',
+    checkoutUrl: (amount: number, orderId: string) =>
+      `https://checkout.kueskipay.com/checkout?amount=${amount}&order_id=${orderId}&merchant_id=${process.env.NEXT_PUBLIC_KUESKI_MERCHANT_ID}`,
+  },
+  {
+    id: 'aplazo' as FinancingProvider,
+    name: 'Aplazo',
+    tagline: 'Paga en mensualidades sin intereses',
+    color: '#059669',
+    accentColor: '#34D399',
+    bgGradient: 'from-[#059669]/10 to-[#064E3B]/5',
+    borderColor: 'border-emerald-500/30',
+    activeBorder: 'border-emerald-500',
+    activeBg: 'bg-emerald-950/30',
+    icon: '💚',
+    maxInstallments: 24,
+    minAmount: 500,
+    perks: ['0% de interés disponible', 'Meses sin intereses', 'Hasta 24 MSI'],
+    badge: 'MSI',
+    badgeColor: 'bg-emerald-500',
+    checkoutUrl: (amount: number, orderId: string) =>
+      `https://checkout.aplazo.mx/checkout?total=${amount}&order_id=${orderId}&api_key=${process.env.NEXT_PUBLIC_APLAZO_API_KEY}`,
+  },
+  {
+    id: 'atrato' as FinancingProvider,
+    name: 'Atrato',
+    tagline: 'Financia tus compras a tu ritmo',
+    color: '#0284C7',
+    accentColor: '#38BDF8',
+    bgGradient: 'from-[#0284C7]/10 to-[#0C4A6E]/5',
+    borderColor: 'border-sky-500/30',
+    activeBorder: 'border-sky-500',
+    activeBg: 'bg-sky-950/30',
+    icon: '🔵',
+    maxInstallments: 18,
+    minAmount: 300,
+    perks: ['Proceso 100% digital', 'Sin aval ni fiador', 'Hasta 18 meses'],
+    badge: 'Digital',
+    badgeColor: 'bg-sky-500',
+    checkoutUrl: (amount: number, orderId: string) =>
+      `https://checkout.atrato.com/v1/checkout?amount=${amount}&reference=${orderId}&public_key=${process.env.NEXT_PUBLIC_ATRATO_PUBLIC_KEY}`,
+  },
+  {
+    id: 'kapital' as FinancingProvider,
+    name: 'Kapital',
+    tagline: 'Crédito empresarial flexible',
+    color: '#D97706',
+    accentColor: '#FBBF24',
+    bgGradient: 'from-[#D97706]/10 to-[#78350F]/5',
+    borderColor: 'border-amber-500/30',
+    activeBorder: 'border-amber-500',
+    activeBg: 'bg-amber-950/30',
+    icon: '🏦',
+    maxInstallments: 36,
+    minAmount: 5000,
+    perks: ['Para empresas y negocios', 'Línea de crédito revolvente', 'Hasta 36 meses'],
+    badge: 'Empresas',
+    badgeColor: 'bg-amber-600',
+    checkoutUrl: (amount: number, orderId: string) =>
+      `https://app.kapital.mx/checkout?amount=${amount}&order_id=${orderId}&merchant=${process.env.NEXT_PUBLIC_KAPITAL_MERCHANT_ID}`,
+  },
+];
+
+// ============================================================================
+// 🏪 OXXO VOUCHER — pantalla inline (solo aparece cuando el usuario elige OXXO)
+// ============================================================================
+function OxxoVoucher({ voucher, amount, expiresAt }: { voucher: string; amount: number; expiresAt: number }) {
+  const [copied, setCopied] = useState(false);
+  const expDate = new Date(expiresAt * 1000).toLocaleDateString('es-MX', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  });
+  const handleCopy = () => {
+    navigator.clipboard.writeText(voucher);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+  return (
+    <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#fff9e6] border-2 border-[#FDCB02] rounded-3xl overflow-hidden">
+      <div className="bg-[#FDCB02] px-6 py-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">🏪</span>
+          <div>
+            <h3 className="font-[1000] text-black uppercase tracking-tight text-lg">Paga en OXXO</h3>
+            <p className="text-[11px] text-black/60 font-bold uppercase tracking-widest">Referencia generada</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-black/50 font-bold uppercase tracking-widest">Total</p>
+          <p className="text-2xl font-[1000] text-black">${amount.toLocaleString()}</p>
+          <p className="text-[10px] text-black/50 font-bold">MXN</p>
+        </div>
+      </div>
+      <div className="px-6 py-6">
+        <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-black mb-3">Número de referencia</p>
+        <div className="flex items-center gap-3 bg-white rounded-2xl p-4 border-2 border-dashed border-[#FDCB02]">
+          <span className="font-mono text-2xl font-[1000] text-black tracking-[0.15em] flex-1 text-center">{voucher}</span>
+          <button onClick={handleCopy} className="w-10 h-10 bg-[#FDCB02] hover:bg-black hover:text-[#FDCB02] text-black rounded-xl flex items-center justify-center transition-all shrink-0">
+            {copied ? <CheckCircle2 size={18}/> : <Copy size={18}/>}
+          </button>
+        </div>
+        <div className="mt-6 space-y-3">
+          {[
+            'Ve a cualquier tienda OXXO',
+            'Dile al cajero "Pago de servicios"',
+            'Proporciona el número de referencia',
+            `Paga $${amount.toLocaleString()} MXN en efectivo`,
+            'Guarda tu ticket como comprobante',
+          ].map((step, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="w-6 h-6 rounded-full bg-[#FDCB02] flex items-center justify-center text-black text-xs font-[1000] shrink-0">{i + 1}</div>
+              <span className="text-sm text-neutral-700 font-medium">{step}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+          <Clock size={16} className="text-orange-500 shrink-0"/>
+          <p className="text-xs text-orange-700 font-bold">Válido hasta el <span className="capitalize">{expDate}</span>. Pasada esa fecha la referencia expira.</p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ============================================================================
+// 🏦 SPEI — CLABE interbancaria inline
+// ============================================================================
+function SpeiInstructions({ clabe, bankName, amount }: { clabe: string; bankName: string; amount: number }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(clabe);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+  return (
+    <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="bg-gradient-to-br from-blue-950 to-blue-900 border border-blue-700 rounded-3xl overflow-hidden">
+      <div className="px-6 py-5 border-b border-blue-800 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-blue-800 rounded-xl flex items-center justify-center text-2xl">🏦</div>
+          <div>
+            <h3 className="font-[1000] text-white uppercase tracking-tight text-lg">Transferencia SPEI</h3>
+            <p className="text-[11px] text-blue-300 font-bold uppercase tracking-widest">{bankName}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">Monto exacto</p>
+          <p className="text-2xl font-[1000] text-white">${amount.toLocaleString()}</p>
+          <p className="text-[10px] text-blue-400 font-bold">MXN</p>
+        </div>
+      </div>
+      <div className="px-6 py-6">
+        <p className="text-[10px] text-blue-400 uppercase tracking-widest font-black mb-3">CLABE Interbancaria</p>
+        <div className="flex items-center gap-3 bg-black/30 rounded-2xl p-4 border border-blue-700 mb-6">
+          <span className="font-mono text-xl font-[1000] text-white tracking-[0.12em] flex-1 text-center">
+            {clabe.replace(/(\d{4})/g, '$1 ').trim()}
+          </span>
+          <button onClick={handleCopy} className="w-10 h-10 bg-blue-600 hover:bg-[#FDCB02] hover:text-black text-white rounded-xl flex items-center justify-center transition-all shrink-0">
+            {copied ? <CheckCircle2 size={18}/> : <Copy size={18}/>}
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {[
+            ['Banco',    bankName],
+            ['Moneda',   'MXN — Pesos Mexicanos'],
+            ['Concepto', 'Pedido Coyote'],
+            ['Tiempo',   '24–48 horas hábiles'],
+          ].map(([label, value]) => (
+            <div key={label} className="bg-black/20 rounded-xl p-3 border border-blue-800">
+              <p className="text-[9px] text-blue-400 uppercase tracking-widest font-black mb-0.5">{label}</p>
+              <p className="text-xs text-white font-bold">{value}</p>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-start gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+          <AlertCircle size={16} className="text-[#FDCB02] shrink-0 mt-0.5"/>
+          <p className="text-xs text-yellow-200 font-medium">
+            Transfiere el <strong>monto exacto</strong>. Cualquier diferencia puede retrasar la confirmación.
+            Recibirás un correo cuando acreditemos el pago.
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ============================================================================
+// 💳 COMPONENTE: SECCIÓN DE FINANCIAMIENTO
+// ============================================================================
+function FinancingSection({ 
+  total, 
+  orderId, 
+  selectedProvider, 
+  onSelectProvider 
+}: { 
+  total: number; 
+  orderId: string; 
+  selectedProvider: FinancingProvider; 
+  onSelectProvider: (id: FinancingProvider) => void; 
+}) {
+  const [expandedProvider, setExpandedProvider] = useState<FinancingProvider>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  const provider = FINANCING_PROVIDERS.find(p => p.id === selectedProvider);
+
+  const handleFinancingRedirect = async () => {
+    if (!provider || !orderId) return;
+    setIsRedirecting(true);
+    try {
+      await fetch('/api/financing/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, provider: provider.id, amount: total })
+      });
+      window.location.href = provider.checkoutUrl(total, orderId);
+    } catch (error) {
+      console.error('Error al iniciar financiamiento:', error);
+      setIsRedirecting(false);
+    }
+  };
+
+  const getInstallmentPreview = (providerData: typeof FINANCING_PROVIDERS[0]) => {
+    const options = [3, 6, 12].filter(m => m <= providerData.maxInstallments);
+    return options.map(months => ({
+      months,
+      amount: Math.ceil(total / months),
+    }));
+  };
+
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Sparkles size={20} className="text-[#FDCB02]" />
+          <h3 className="text-base font-[1000] uppercase tracking-tight text-white">Elige tu Financiador</h3>
+        </div>
+        <span className="text-[10px] text-neutral-400 uppercase tracking-widest font-bold">
+          {FINANCING_PROVIDERS.length} opciones disponibles
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3">
+        {FINANCING_PROVIDERS.map((p) => {
+          const isSelected = selectedProvider === p.id;
+          const isExpanded = expandedProvider === p.id;
+          const installments = getInstallmentPreview(p);
+
+          return (
+            <div
+              key={p.id}
+              className={`rounded-2xl border-2 transition-all duration-300 overflow-hidden cursor-pointer
+                ${isSelected 
+                  ? `${p.activeBorder} ${p.activeBg}` 
+                  : `${p.borderColor} bg-white/5 hover:bg-white/8`
+                }`}
+              onClick={() => {
+                onSelectProvider(p.id);
+                setExpandedProvider(isExpanded ? null : p.id);
+              }}
+            >
+              <div className="p-4 flex items-center gap-4">
+                <div 
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0 font-bold transition-all"
+                  style={{ backgroundColor: isSelected ? p.color : '#1a1a1a' }}
+                >
+                  {p.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="font-[1000] text-white text-sm uppercase tracking-tight">{p.name}</span>
+                    <span className={`text-[9px] font-black uppercase tracking-widest text-white px-2 py-0.5 rounded-full ${p.badgeColor}`}>
+                      {p.badge}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400 truncate">{p.tagline}</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    {installments.slice(0, 2).map(({ months, amount }) => (
+                      <span 
+                        key={months} 
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ 
+                          backgroundColor: isSelected ? `${p.color}30` : '#ffffff10',
+                          color: isSelected ? p.accentColor : '#9ca3af'
+                        }}
+                      >
+                        {months}x ${amount.toLocaleString()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isSelected && (
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: p.color }}>
+                      <CheckCircle2 size={12} className="text-white" />
+                    </div>
+                  )}
+                  <ChevronDown size={16} className={`text-neutral-500 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}/>
+                </div>
+              </div>
+
+              <AnimatePresence>
+                {isExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 pb-4 pt-1 border-t border-white/5">
+                      <div className="mb-4">
+                        <p className="text-[9px] text-neutral-500 uppercase tracking-widest font-black mb-2">Tabla de pagos</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {getInstallmentPreview(p).concat(
+                            p.maxInstallments > 12 
+                              ? [{ months: p.maxInstallments, amount: Math.ceil(total / p.maxInstallments) }] 
+                              : []
+                          ).map(({ months, amount }) => (
+                            <div key={months} className="rounded-xl p-3 text-center" style={{ backgroundColor: `${p.color}20` }}>
+                              <div className="text-lg font-[1000] leading-none" style={{ color: p.accentColor }}>{months}</div>
+                              <div className="text-[9px] text-neutral-500 font-bold uppercase mt-0.5">cuotas</div>
+                              <div className="text-white text-xs font-bold mt-1">${amount.toLocaleString()}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[9px] text-neutral-600 text-center mt-2">
+                          * Sujeto a aprobación. Los intereses varían según el plan seleccionado.
+                        </p>
+                      </div>
+                      <div className="space-y-1.5 mb-4">
+                        {p.perks.map((perk) => (
+                          <div key={perk} className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: p.accentColor }}/>
+                            <span className="text-[11px] text-neutral-300">{perk}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+      </div>
+
+      <AnimatePresence>
+        {selectedProvider && provider && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}>
+            <button
+              onClick={handleFinancingRedirect}
+              disabled={isRedirecting || !orderId}
+              className="w-full h-16 rounded-2xl font-[1000] uppercase text-sm tracking-[0.15em] transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-50"
+              style={{ backgroundColor: provider.color, color: 'white' }}
+            >
+              {isRedirecting ? (
+                <>Conectando con {provider.name}... <Loader2 size={18} className="animate-spin"/></>
+              ) : (
+                <><span>{provider.icon}</span>Continuar con {provider.name}<ExternalLink size={16} /></>
+              )}
+            </button>
+            {!orderId && (
+              <p className="text-center text-[10px] text-neutral-500 mt-2 uppercase tracking-wider">
+                Completa los pasos anteriores para activar el financiamiento
+              </p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex items-center justify-center gap-4 pt-2">
+        <div className="flex items-center gap-1.5 text-neutral-600">
+          <ShieldCheck size={12}/>
+          <span className="text-[9px] uppercase tracking-widest font-bold">Transacción Segura</span>
+        </div>
+        <div className="w-1 h-1 bg-neutral-700 rounded-full"/>
+        <div className="flex items-center gap-1.5 text-neutral-600">
+          <Landmark size={12}/>
+          <span className="text-[9px] uppercase tracking-widest font-bold">Regulado por CNBV</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// 🐺 COMPONENTE HIJO: EL FORMULARIO SEGURO DE STRIPE
+// ============================================================================
+type AsyncPaymentState =
+  | { type: 'idle' }
+  | { type: 'oxxo';    voucher: string; amount: number; expiresAt: number }
+  | { type: 'spei';    clabe: string;   bankName: string; amount: number }
+  | { type: 'success' };
+
+function StripeCheckoutForm({ amount, orderId, clearCart }: { amount: number, orderId: string, clearCart: () => void }) {
+  const stripe   = useStripe();
+  const elements = useElements();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [asyncState,   setAsyncState]   = useState<AsyncPaymentState>({ type: 'idle' });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+
+    setIsProcessing(true);
+    setErrorMessage(null);
+
+    const { error: submitError } = await elements.submit();
+    if (submitError) {
+      setErrorMessage(submitError.message || 'Error al validar el formulario.');
+      setIsProcessing(false);
+      return;
+    }
+
+    const { error, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: `${window.location.origin}/checkout/success?orderId=${orderId}`,
+      },
+      redirect: 'if_required',
+    });
+
+    if (error) {
+      setErrorMessage(error.message || 'Ocurrió un error al procesar el pago.');
+      setIsProcessing(false);
+      return;
+    }
+
+    if (paymentIntent?.status === 'succeeded') {
+      clearCart();
+      setAsyncState({ type: 'success' });
+    } else if (paymentIntent?.status === 'requires_action') {
+      const action = paymentIntent.next_action;
+
+      if (action?.type === 'oxxo_display_details') {
+        const oxxoDetails = (action as unknown as { oxxo_display_details: { number: string; expires_after: number } }).oxxo_display_details;
+        clearCart();
+        setAsyncState({
+          type:      'oxxo',
+          voucher:   oxxoDetails.number,
+          amount,
+          expiresAt: oxxoDetails.expires_after,
+        });
+      } else if (action?.type === 'display_bank_transfer_instructions') {
+        type SpeiInstructions = { reference?: string; financial_addresses?: Array<{ spei?: { clabe: string; bank_name?: string } }> };
+        const bt = (action as unknown as { display_bank_transfer_instructions: SpeiInstructions }).display_bank_transfer_instructions!;
+        const mx = bt.financial_addresses?.[0]?.spei ?? null;
+        clearCart();
+        setAsyncState({
+          type:     'spei',
+          clabe:    mx?.clabe ?? bt.reference ?? '—',
+          bankName: mx?.bank_name ?? 'STP',
+          amount,
+        });
+      } else {
+        setErrorMessage('Se requiere una acción adicional. Por favor sigue las instrucciones.');
+      }
+    } else if (paymentIntent?.status === 'processing') {
+      clearCart();
+      setAsyncState({ type: 'success' });
+    }
+
+    setIsProcessing(false);
+  };
+
+  // ── Pantalla de éxito ────────────────────────────────────────────────────
+  if (asyncState.type === 'success') {
+    return (
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center py-6">
+        <div className="w-20 h-20 bg-[#FDCB02] rounded-full flex items-center justify-center mb-4 shadow-xl shadow-yellow-500/30">
+          <CheckCircle2 size={40} className="text-black"/>
+        </div>
+        <h3 className="text-2xl font-[1000] uppercase text-white tracking-tight mb-2">¡Pago Confirmado!</h3>
+        <p className="text-neutral-400 text-sm mb-6">
+          Tu pedido <span className="text-[#FDCB02] font-bold">{orderId.slice(-8).toUpperCase()}</span> está en proceso.
+        </p>
+        <Link href="/" className="bg-[#FDCB02] text-black font-[1000] uppercase text-xs tracking-widest px-8 py-4 rounded-2xl hover:bg-white transition-all">
+          Volver al catálogo
+        </Link>
+      </motion.div>
+    );
+  }
+
+  // ── Voucher OXXO ─────────────────────────────────────────────────────────
+  if (asyncState.type === 'oxxo') return <OxxoVoucher {...asyncState}/>;
+
+  // ── CLABE SPEI ───────────────────────────────────────────────────────────
+  if (asyncState.type === 'spei') return <SpeiInstructions {...asyncState}/>;
+
+  // ── Formulario de pago ───────────────────────────────────────────────────
+  return (
+    <form onSubmit={handleSubmit} className="animate-in fade-in slide-in-from-top-2 duration-300">
+      <div className="flex justify-between items-center mb-5">
+        <h2 className="text-xl font-[1000] uppercase text-white tracking-tighter flex items-center gap-2">
+          <ShieldCheck size={24} className="text-[#FDCB02]"/> Bóveda Segura
+        </h2>
+        {/* Badges de métodos aceptados */}
+        <div className="flex items-center gap-1.5">
+          {['💳', '🍎', '🔵', '🏪', '🏦', '🔗'].map((icon, i) => (
+            <span key={i} title={['Tarjeta','Apple Pay','Google Pay','OXXO','SPEI','Link'][i]}
+              className="text-base w-7 h-7 bg-white/5 rounded-lg flex items-center justify-center">{icon}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Link Authentication — activa autocompletado de Stripe Link */}
+      <div className="mb-3 bg-[#0a0a0a] rounded-xl p-1">
+        <LinkAuthenticationElement options={{ defaultValues: { email: '' } }}/>
+      </div>
+
+      {/* Payment Element — Aquí es donde Stripe inyecta los verdaderos botones interactivos */}
+      <div className="bg-[#0a0a0a] p-1 rounded-xl">
+        <PaymentElement
+          options={{
+            layout: { type: 'tabs', defaultCollapsed: false, radios: false, spacedAccordionItems: false },
+            wallets: {
+              applePay:  'auto',
+              googlePay: 'auto',
+            },
+          }}
+        />
+      </div>
+
+      {/* 🐺 ELIMINAMOS EL CÓDIGO FALSO ("Info contextual") PARA QUE SOLO SE VEAN LAS PESTAÑAS REALES DE STRIPE ARRIBA */}
+
+      {errorMessage && (
+        <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs font-bold uppercase tracking-wider text-center flex items-center gap-2 justify-center">
+          <AlertCircle size={14}/> {errorMessage}
+        </div>
+      )}
+
+      <button 
+        disabled={isProcessing || !stripe} 
+        className="w-full mt-6 bg-[#FDCB02] hover:bg-white text-black h-16 rounded-2xl font-[1000] uppercase text-sm tracking-[0.2em] transition-all shadow-xl hover:shadow-yellow-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        {isProcessing ? (<>Procesando... <Loader2 size={18} className="animate-spin"/></>) : (`Pagar $${amount.toLocaleString()} MXN`)}
+      </button>
+
+      <p className="text-center text-[9px] text-neutral-600 mt-3 uppercase tracking-wider font-bold">
+        Transacción cifrada TLS 1.3 · PCI-DSS Nivel 1
+      </p>
+    </form>
+  );
+}
+
+// ============================================================================
+// 🐺 PÁGINA PRINCIPAL DE CHECKOUT
+// ============================================================================
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, clearCart } = useCart();
-  const { data: session } = useSession(); // 🔥 Leemos al usuario
+  const { data: session } = useSession(); 
   
-  // Extraemos el nivel de membresía
   const role = (session?.user as any)?.membershipTier || 'NONE';
 
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState(1); 
   
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isSdkReady, setIsSdkReady] = useState(false);
-  const [deviceSessionId, setDeviceSessionId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   
+  // 🐺 Variables para Stripe
+  const [clientSecret, setClientSecret] = useState('');
+  const [currentOrderId, setCurrentOrderId] = useState('');
+
+  // 💳 Variables para Financiamiento
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('stripe');
+  const [selectedFinancingProvider, setSelectedFinancingProvider] = useState<FinancingProvider>(null);
+
   const [selectedLogistics, setSelectedLogistics] = useState<LogisticsMethod>('coyote');
   const [coyoteDistanceKm, setCoyoteDistanceKm] = useState<number>(0); 
   const [isLocalZone, setIsLocalZone] = useState(false); 
@@ -69,71 +636,18 @@ export default function CheckoutPage() {
   const [fiscalData, setFiscalData] = useState({
     rfc: '', razonSocial: '', regimen: '', usoCFDI: '', cpFiscal: ''
   });
-  
-  const [cardData, setCardData] = useState({ 
-    holder: '', number: '', expYear: '', expMonth: '', cvv: '' 
-  });
 
-  const setupOpenPay = () => {
-    if (typeof window !== 'undefined' && window.OpenPay && window.OpenPay.deviceData) {
-      try {
-        window.OpenPay.setId(process.env.NEXT_PUBLIC_OPENPAY_MERCHANT_ID);
-        window.OpenPay.setApiKey(process.env.NEXT_PUBLIC_OPENPAY_PUBLIC_KEY);
-        window.OpenPay.setSandboxMode(process.env.NODE_ENV !== 'production');
-        setDeviceSessionId(window.OpenPay.deviceData.setup());
-        setIsSdkReady(true);
-      } catch (error) { 
-        console.error("Error OpenPay:", error); 
-      }
-    } else {
-      setTimeout(setupOpenPay, 200);
-    }
-  };
-
-  useEffect(() => { 
-    setMounted(true); 
-
-    const loadOpenPayScripts = async () => {
-      const loadScript = (src: string) => {
-        return new Promise((resolve, reject) => {
-          if (document.querySelector(`script[src="${src}"]`)) {
-            resolve(true);
-            return;
-          }
-          const script = document.createElement('script');
-          script.src = src;
-          script.async = false;
-          script.onload = resolve;
-          script.onerror = reject;
-          document.body.appendChild(script);
-        });
-      };
-
-      try {
-        await loadScript("https://js.openpay.mx/openpay.v1.min.js");
-        setTimeout(async () => {
-          await loadScript("https://js.openpay.mx/openpay-data.v1.min.js");
-          setupOpenPay();
-        }, 100);
-      } catch (error) {
-        console.error("Fallo al inyectar scripts de OpenPay", error);
-      }
-    };
-
-    loadOpenPayScripts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   const getLogisticsInfo = (zipCode: string) => {
     const cp = parseInt(zipCode, 10);
     if (isNaN(cp) || zipCode.length < 5) return { type: 'PENDING', distance: 0 };
-
     const prefix2 = Math.floor(cp / 1000); 
 
     if (prefix2 >= 1 && prefix2 <= 16) {
         let dist = 15; 
-        if ([15, 6, 8].includes(prefix2)) dist = 5;       
-        if ([7, 9, 3].includes(prefix2)) dist = 12;       
+        if ([15, 6, 8].includes(prefix2)) dist = 5;        
+        if ([7, 9, 3].includes(prefix2)) dist = 12;        
         if ([2, 4, 11].includes(prefix2)) dist = 18;      
         if ([1, 5, 10, 12, 13, 14, 16].includes(prefix2)) dist = 28; 
         return { type: 'COYOTE_LOCAL', distance: dist };
@@ -157,7 +671,6 @@ export default function CheckoutPage() {
     return { type: 'SKYDROPX_NACIONAL', distance: 0 };
   };
 
-  // 🔥 CEREBRO LOGÍSTICO Y FINANCIERO (CON BENEFICIOS ELITE)
   const { freightCost, shippingCost, originalShippingCost, isFreeShipping, vehiclesNeeded, serviceFee, taxIVA, total, totalWeight, totalRolls } = useMemo(() => {
     let rollCount = 0;
     let weight = 0;
@@ -192,103 +705,27 @@ export default function CheckoutPage() {
         const totalDistanceRoundTrip = coyoteDistanceKm * 2;
         const litersNeededPerVehicle = (totalDistanceRoundTrip / 100) * LITERS_PER_100KM;
         const fuelCostPerVehicle = litersNeededPerVehicle * DIESEL_PRICE_PER_LITER;
-        const costPerVehicle = fuelCostPerVehicle * OPERATIONAL_MARKUP;
-        originalEnvio = costPerVehicle * requiredVehicles;
+        originalEnvio = fuelCostPerVehicle * OPERATIONAL_MARKUP * requiredVehicles;
     } else {
         originalEnvio = skydropxRate;
     }
 
-    // 🔥 APLICACIÓN DE BENEFICIO ELITE (ENVÍO GRATIS)
     const isFreeShipping = role === 'ELITE';
     const envio = isFreeShipping ? 0 : originalEnvio;
-
     const fee = FIXED_SERVICE_FEE; 
     const baseTotal = subtotal + flete + envio + fee;
     const iva = wantsInvoice ? baseTotal * 0.16 : 0;
 
     return {
-        freightCost: flete,
-        shippingCost: envio,
-        originalShippingCost: originalEnvio, // Guardamos el costo real para tacharlo en la UI
-        isFreeShipping,
-        vehiclesNeeded: requiredVehicles,
-        serviceFee: fee,
-        taxIVA: iva,
-        total: baseTotal + iva,
-        totalWeight: weight,
-        totalRolls: rollCount
+        freightCost: flete, shippingCost: envio, originalShippingCost: originalEnvio, 
+        isFreeShipping, vehiclesNeeded: requiredVehicles, serviceFee: fee, 
+        taxIVA: iva, total: baseTotal + iva, totalWeight: weight, totalRolls: rollCount
     };
   }, [items, subtotal, wantsInvoice, selectedLogistics, coyoteDistanceKm, skydropxRate, role]); 
 
-  const handleTransaction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsProcessing(true);
-
-    try {
-      if (!isSdkReady && paymentMethod === 'card') throw new Error("Conexión segura aún no establecida. Espera unos segundos e intenta de nuevo.");
-      
-      let token = null;
-      if (paymentMethod === 'card') {
-        token = await new Promise<string>((resolve, reject) => {
-          window.OpenPay.token.create({
-              "card_number": cardData.number.replace(/\s/g, ''),
-              "holder_name": cardData.holder,
-              "expiration_year": cardData.expYear,
-              "expiration_month": cardData.expMonth,
-              "cvv2": cardData.cvv,
-            },
-            (res: any) => resolve(res.data.id),
-            (err: any) => reject(err)
-          );
-        });
-      }
-
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          method: paymentMethod,
-          token,
-          deviceSessionId: deviceSessionId || window.OpenPay?.deviceData?.setup(),
-          amount: total, 
-          description: `Pedido Coyote - ${totalWeight}kg ${wantsInvoice ? '(Con Factura)' : ''}`,
-          items,
-          customer: customerData,
-          metadata: {
-             weight_kg: totalWeight,
-             freight_cost: freightCost,
-             shipping_cost: shippingCost,
-             service_fee: FIXED_SERVICE_FEE,
-             tax_iva: taxIVA,
-             req_invoice: wantsInvoice ? 'YES' : 'NO',
-             fiscal_data: wantsInvoice ? fiscalData : null,
-             logistics_type: selectedLogistics,
-             vehicles_used: vehiclesNeeded,
-             distance_km: selectedLogistics === 'coyote' ? coyoteDistanceKm : 0,
-             carrier_name: selectedLogistics === 'skydropx' ? skydropxCarrier : 'Coyote Local'
-          }
-        })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        clearCart();
-        router.push(`/checkout/success?orderId=${data.orderId}&method=${paymentMethod}`);
-      } else {
-        throw new Error(data.error || "No se pudo procesar el pedido.");
-      }
-
-    } catch (error: any) {
-      console.error(error);
-      alert(`⚠️ ${error.data?.description || error.message || "Error desconocido"}`);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   const validateStep1 = async () => {
     if (!customerData.name || !customerData.email || !customerData.street || !customerData.state || !customerData.city || !customerData.neighborhood || customerData.zip.length < 5) {
-      alert("Por favor completa todos los campos de dirección. SkydropX los requiere exactos para cotizar.");
+      alert("Por favor completa todos los campos de dirección.");
       return;
     }
     
@@ -299,11 +736,8 @@ export default function CheckoutPage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-                zip_to: customerData.zip, 
-                state_to: customerData.state,
-                city_to: customerData.city,
-                neighborhood_to: customerData.neighborhood,
-                weight: totalWeight 
+                zip_to: customerData.zip, state_to: customerData.state, city_to: customerData.city,
+                neighborhood_to: customerData.neighborhood, weight: totalWeight 
             })
         });
         const data = await res.json();
@@ -338,12 +772,51 @@ export default function CheckoutPage() {
     }
   };
 
-  const validateStep3 = () => {
+  // 🐺 CREA LA ORDEN EN EL BACKEND (sirve tanto para Stripe como para financiamiento)
+  const preparePayment = async (method: PaymentMethod = 'stripe') => {
     if (wantsInvoice && (!fiscalData.rfc || !fiscalData.razonSocial || !fiscalData.cpFiscal)) {
       alert("Por favor completa los datos fiscales obligatorios para la factura.");
       return;
     }
-    setStep(4);
+    
+    setIsProcessing(true);
+    
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: total, 
+          description: `Pedido Coyote - ${totalWeight}kg ${wantsInvoice ? '(Con Factura)' : ''}`,
+          items,
+          customer: customerData,
+          paymentMethod: method,
+          metadata: {
+             freight_cost: freightCost, shipping_cost: shippingCost, service_fee: FIXED_SERVICE_FEE, tax_iva: taxIVA,
+             req_invoice: wantsInvoice ? 'YES' : 'NO', fiscal_data: wantsInvoice ? fiscalData : null, logistics_type: selectedLogistics,
+             vehicles_used: vehiclesNeeded
+          }
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setCurrentOrderId(data.orderId);
+        
+        if (method === 'stripe' && data.clientSecret) {
+          setClientSecret(data.clientSecret);
+        }
+        
+        setPaymentMethod(method);
+        setStep(4);
+      } else {
+        throw new Error(data.error || "No se pudo preparar el pago.");
+      }
+    } catch (error: any) {
+      alert(`⚠️ ${error.message || "Error al conectar con la bóveda de pagos."}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (!mounted) return null;
@@ -352,14 +825,10 @@ export default function CheckoutPage() {
     return (
         <div className="min-h-screen bg-[#fafafa] flex flex-col items-center justify-center">
             <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-12 rounded-3xl shadow-xl flex flex-col items-center text-center max-w-sm">
-              <div className="w-24 h-24 bg-neutral-100 rounded-full flex items-center justify-center mb-6">
-                <ShoppingBag size={40} className="text-neutral-300" />
-              </div>
+              <div className="w-24 h-24 bg-neutral-100 rounded-full flex items-center justify-center mb-6"><ShoppingBag size={40} className="text-neutral-300" /></div>
               <h1 className="text-2xl font-black uppercase text-black tracking-tight mb-2">Caja vacía</h1>
               <p className="text-neutral-500 text-sm mb-8">Aún no has agregado tela a tu pedido. Explora el catálogo para comenzar.</p>
-              <Link href="/" className="w-full bg-[#FDCB02] hover:bg-black hover:text-white text-black font-black uppercase text-xs tracking-widest py-4 rounded-xl transition-all">
-                Ir al catálogo
-              </Link>
+              <Link href="/" className="w-full bg-[#FDCB02] hover:bg-black hover:text-white text-black font-black uppercase text-xs tracking-widest py-4 rounded-xl transition-all">Ir al catálogo</Link>
             </motion.div>
         </div>
     );
@@ -369,24 +838,21 @@ export default function CheckoutPage() {
     <div className="min-h-screen bg-[#f3f4f6] pt-24 pb-20 px-4 sm:px-6 font-sans selection:bg-[#FDCB02] selection:text-black">
       <div className="container mx-auto max-w-[1100px]">
         <div className="flex items-center gap-4 mb-8">
-            <Link href="/" className="w-10 h-10 bg-white hover:bg-neutral-200 rounded-full flex items-center justify-center transition-colors text-black shadow-sm">
-                <ArrowLeft size={18} />
-            </Link>
+            <Link href="/" className="w-10 h-10 bg-white hover:bg-neutral-200 rounded-full flex items-center justify-center transition-colors text-black shadow-sm"><ArrowLeft size={18} /></Link>
             <h1 className="text-3xl font-[1000] uppercase text-black tracking-tighter">Finalizar Pedido</h1>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
           
-          {/* ================= COLUMNA IZQUIERDA ================= */}
           <div className="lg:col-span-7 space-y-6">
-            
+            {/* Progress Bar */}
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-neutral-100 mb-2">
               <div className="flex justify-between items-center relative z-10">
                 {[
                   { num: 1, label: 'Destino', icon: MapPin },
                   { num: 2, label: 'Logística', icon: Truck },
                   { num: 3, label: 'Factura', icon: FileText },
-                  { num: 4, label: 'Pago', icon: CreditCard }
+                  { num: 4, label: 'Pago', icon: ShieldCheck }
                 ].map((s) => (
                   <div key={s.num} className="flex flex-col items-center gap-3 bg-white px-2">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-500 ${step === s.num ? 'bg-black text-[#FDCB02] shadow-lg scale-110' : step > s.num ? 'bg-[#FDCB02] text-black' : 'bg-neutral-100 text-neutral-400'}`}>
@@ -404,8 +870,9 @@ export default function CheckoutPage() {
             </div>
 
             <AnimatePresence mode="wait">
+              {/* ── PASO 1: Datos de Contacto ── */}
               {step === 1 && (
-                <motion.div key="step1" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="bg-white p-8 rounded-3xl border border-neutral-100 shadow-sm">
+                <motion.div key="step1" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-white p-8 rounded-3xl border border-neutral-100 shadow-sm">
                     <div className="flex items-center gap-3 mb-8">
                       <div className="w-8 h-8 bg-[#FDCB02] rounded-lg flex items-center justify-center text-black"><User size={16} strokeWidth={2.5}/></div>
                       <h2 className="text-xl font-[1000] uppercase tracking-tight text-black">Datos de Contacto</h2>
@@ -443,21 +910,17 @@ export default function CheckoutPage() {
                     </div>
 
                     <button 
-                      onClick={validateStep1} 
-                      disabled={isQuoting}
-                      className="w-full mt-8 bg-black hover:bg-[#FDCB02] text-white hover:text-black h-16 rounded-2xl font-[1000] uppercase text-sm tracking-[0.2em] transition-all duration-300 flex items-center justify-center gap-2 group shadow-xl hover:shadow-yellow-500/20 disabled:opacity-70 disabled:cursor-wait"
+                      onClick={validateStep1} disabled={isQuoting}
+                      className="w-full mt-8 bg-black hover:bg-[#FDCB02] text-white hover:text-black h-16 rounded-2xl font-[1000] uppercase text-sm tracking-[0.2em] transition-all shadow-xl disabled:opacity-70 flex justify-center items-center gap-2 group"
                     >
-                      {isQuoting ? (
-                        <>Cotizando en Vivo... <Loader2 size={18} className="animate-spin"/></>
-                      ) : (
-                        <>Configurar Envío <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform"/></>
-                      )}
+                      {isQuoting ? (<>Cotizando en Vivo... <Loader2 size={18} className="animate-spin"/></>) : (<>Configurar Envío <ChevronRight size={18} className="group-hover:translate-x-1"/></>)}
                     </button>
                 </motion.div>
               )}
 
+              {/* ── PASO 2: Logística ── */}
               {step === 2 && (
-                <motion.div key="step2" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="bg-white p-8 rounded-3xl border border-neutral-100 shadow-sm">
+                <motion.div key="step2" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-white p-8 rounded-3xl border border-neutral-100 shadow-sm">
                     <div className="flex items-center gap-3 mb-8">
                       <div className="w-8 h-8 bg-[#FDCB02] rounded-lg flex items-center justify-center text-black"><Truck size={16} strokeWidth={2.5}/></div>
                       <h2 className="text-xl font-[1000] uppercase tracking-tight text-black">Logística y Despacho</h2>
@@ -505,7 +968,7 @@ export default function CheckoutPage() {
                           
                           <div className="bg-white rounded-2xl p-5 shadow-sm border border-neutral-100 flex items-center justify-between gap-4">
                             <div className="flex-1">
-                              <label className="block text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-2">Distancia de Ruta (Ida)</label>
+                              <label className="block text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-2">Distancia (Ida)</label>
                               <div className="flex items-baseline gap-1">
                                 <span className="font-mono text-3xl font-[1000] text-black tracking-tighter">{coyoteDistanceKm}</span>
                                 <span className="text-sm font-bold text-neutral-400">KM</span>
@@ -513,7 +976,6 @@ export default function CheckoutPage() {
                             </div>
                             <div className="w-px h-12 bg-neutral-100 hidden md:block"></div>
                             
-                            {/* 🔥 MOSTRANDO EL BENEFICIO ELITE (FLOTILLA) */}
                             <div className="flex-1 text-right">
                                 <span className="block text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-1">Inversión Logística</span>
                                 {isFreeShipping ? (
@@ -551,8 +1013,6 @@ export default function CheckoutPage() {
                               <p className="text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-1">Peso Bruto</p>
                               <p className="text-lg font-bold text-black">{totalWeight} <span className="text-sm text-neutral-400">KG</span></p>
                             </div>
-
-                            {/* 🔥 MOSTRANDO EL BENEFICIO ELITE (SKYDROPX) */}
                             <div className="text-right">
                                 <span className="block text-[10px] uppercase tracking-widest font-black text-neutral-400 mb-1">Mejor Tarifa: {skydropxCarrier}</span>
                                 {isFreeShipping ? (
@@ -571,13 +1031,14 @@ export default function CheckoutPage() {
 
                     <div className="flex gap-4 mt-8">
                       <button onClick={() => setStep(1)} className="px-6 py-4 font-bold text-neutral-500 uppercase tracking-widest hover:bg-neutral-100 rounded-2xl transition-colors">Volver</button>
-                      <button onClick={() => setStep(3)} className="flex-1 bg-black text-white py-4 rounded-2xl font-[1000] text-sm uppercase tracking-widest hover:bg-[#FDCB02] hover:text-black transition-all shadow-lg hover:shadow-yellow-500/20">Guardar Logística</button>
+                      <button onClick={() => setStep(3)} className="flex-1 bg-black text-white py-4 rounded-2xl font-[1000] text-sm uppercase tracking-widest hover:bg-[#FDCB02] hover:text-black transition-all shadow-lg">Guardar Logística</button>
                     </div>
                 </motion.div>
               )}
 
+              {/* ── PASO 3: Facturación ── */}
               {step === 3 && (
-                <motion.div key="step3" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="bg-white p-8 rounded-3xl border border-neutral-100 shadow-sm">
+                <motion.div key="step3" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-white p-8 rounded-3xl border border-neutral-100 shadow-sm">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="w-8 h-8 bg-[#FDCB02] rounded-lg flex items-center justify-center text-black"><FileText size={16} strokeWidth={2.5}/></div>
                       <h2 className="text-xl font-[1000] uppercase tracking-tight text-black">Facturación</h2>
@@ -620,75 +1081,126 @@ export default function CheckoutPage() {
 
                     <div className="flex gap-4">
                       <button onClick={() => setStep(2)} className="px-6 py-4 font-bold text-neutral-500 uppercase tracking-widest hover:bg-neutral-100 rounded-2xl transition-colors">Volver</button>
-                      <button onClick={validateStep3} className="flex-1 bg-black text-white py-4 rounded-2xl font-[1000] text-sm uppercase tracking-widest hover:bg-[#FDCB02] hover:text-black transition-all shadow-lg hover:shadow-yellow-500/20">Ir a la Bóveda de Pago</button>
+                      <button onClick={() => preparePayment('stripe')} disabled={isProcessing} className="flex-1 bg-black text-white py-4 rounded-2xl font-[1000] text-sm uppercase tracking-widest hover:bg-[#FDCB02] hover:text-black transition-all shadow-lg disabled:opacity-50 flex justify-center items-center gap-2">
+                        {isProcessing ? (<>Conectando... <Loader2 size={18} className="animate-spin"/></>) : ("Ir a la Bóveda de Pago")}
+                      </button>
                     </div>
                 </motion.div>
               )}
 
+              {/* ── PASO 4: PAGO (Stripe + Financiamiento) ── */}
               {step === 4 && (
-                <motion.div key="step4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="bg-white rounded-3xl border border-neutral-100 shadow-sm overflow-hidden">
-                    <div className="flex bg-neutral-50 p-2 border-b border-neutral-100">
-                        <button onClick={() => setPaymentMethod('card')} className={`flex-1 py-4 px-2 rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${paymentMethod === 'card' ? 'bg-white shadow-sm text-black ring-1 ring-black/5' : 'text-neutral-400 hover:text-black hover:bg-neutral-100'}`}><CreditCard size={16}/> Tarjeta</button>
-                        <button onClick={() => setPaymentMethod('bank_account')} className={`flex-1 py-4 px-2 rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${paymentMethod === 'bank_account' ? 'bg-white shadow-sm text-black ring-1 ring-black/5' : 'text-neutral-400 hover:text-black hover:bg-neutral-100'}`}><Landmark size={16}/> SPEI</button>
-                        <button onClick={() => setPaymentMethod('store')} className={`flex-1 py-4 px-2 rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${paymentMethod === 'store' ? 'bg-white shadow-sm text-black ring-1 ring-black/5' : 'text-neutral-400 hover:text-black hover:bg-neutral-100'}`}><Store size={16}/> OXXO</button>
+                <motion.div key="step4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                  
+                  {/* ── SECCIÓN STRIPE ── */}
+                  {clientSecret && (
+                    <div className="bg-[#111] p-8 rounded-3xl border border-neutral-800 shadow-2xl">
+                      <Elements 
+                        stripe={stripePromise} 
+                        options={{ 
+                          clientSecret,
+                          appearance: {
+                            theme: 'night',
+                            variables: {
+                              colorPrimary: '#FDCB02',
+                              colorBackground: '#050505',
+                              colorText: '#ffffff',
+                              colorDanger: '#ef4444',
+                              fontFamily: 'system-ui, sans-serif',
+                              borderRadius: '12px',
+                            },
+                            rules: {
+                              '.Input': { border: '1px solid #333', boxShadow: 'none' },
+                              '.Input:focus': { border: '1px solid #FDCB02' },
+                              '.Label': { fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#888' },
+                              '.Tab': { border: '1px solid #333', backgroundColor: '#111' },
+                              '.Tab:hover': { backgroundColor: '#1a1a1a' },
+                              '.Tab--selected': { border: '1px solid #FDCB02', backgroundColor: '#1a1000' },
+                            }
+                          }
+                        }}
+                      >
+                        <StripeCheckoutForm amount={total} orderId={currentOrderId} clearCart={clearCart} />
+                      </Elements>
                     </div>
-                    <div className="p-8">
-                        {paymentMethod === 'card' && (
-                            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                                <div className="flex justify-between items-center mb-8">
-                                    <h2 className="text-xl font-[1000] uppercase text-black">Tarjeta de Crédito / Débito</h2>
-                                    <div className="flex gap-3 opacity-60">
-                                        <img src={LOGOS.visa} alt="Visa" className="h-5"/>
-                                        <img src={LOGOS.mastercard} alt="MC" className="h-5"/>
-                                        <img src={LOGOS.amex} alt="Amex" className="h-5"/>
-                                    </div>
-                                </div>
-                                <div className="space-y-4">
-                                    <input placeholder="NOMBRE DEL TITULAR" className="checkout-input-premium font-bold uppercase" onChange={e => setCardData({...cardData, holder: e.target.value})}/>
-                                    <div className="relative">
-                                        <input placeholder="0000 0000 0000 0000" maxLength={16} className="checkout-input-premium font-mono text-xl tracking-widest" onChange={e => setCardData({...cardData, number: e.target.value})}/>
-                                        <Lock size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-300"/>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <input placeholder="MM" maxLength={2} className="checkout-input-premium text-center font-mono" onChange={e => setCardData({...cardData, expMonth: e.target.value})}/>
-                                        <input placeholder="AA" maxLength={2} className="checkout-input-premium text-center font-mono" onChange={e => setCardData({...cardData, expYear: e.target.value})}/>
-                                        <input placeholder="CVV" type="password" maxLength={4} className="checkout-input-premium text-center font-mono tracking-widest" onChange={e => setCardData({...cardData, cvv: e.target.value})}/>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {paymentMethod === 'bank_account' && (
-                            <div className="animate-in fade-in slide-in-from-top-2 duration-300 text-center py-6">
-                                <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6"><Landmark size={36}/></div>
-                                <h2 className="text-xl font-[1000] uppercase mb-2">Transferencia Electrónica</h2>
-                                <p className="text-sm text-neutral-500 mb-8 max-w-sm mx-auto leading-relaxed">Generaremos una <strong>CLABE interbancaria única y segura</strong> para tu empresa.</p>
-                            </div>
-                        )}
-                        {paymentMethod === 'store' && (
-                            <div className="animate-in fade-in slide-in-from-top-2 duration-300 text-center py-6">
-                                  <div className="w-20 h-20 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6"><Banknote size={36}/></div>
-                                <h2 className="text-xl font-[1000] uppercase mb-4">Efectivo en Tiendas</h2>
-                                <div className="flex justify-center gap-8 mb-8 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
-                                    <img src={LOGOS.oxxo} alt="Oxxo" className="h-8 object-contain"/>
-                                    <img src={LOGOS.seven} alt="7-Eleven" className="h-8 object-contain"/>
-                                </div>
-                                <p className="text-sm text-neutral-500 max-w-sm mx-auto">Generaremos un código de barras para pago en ventanilla.</p>
-                            </div>
-                        )}
+                  )}
 
-                        <div className="pt-8 mt-4 border-t border-neutral-100 flex gap-4">
-                            <button onClick={() => setStep(3)} className="px-6 py-4 font-bold text-neutral-500 uppercase tracking-widest hover:bg-neutral-100 rounded-2xl transition-colors">Volver</button>
-                            <button onClick={handleTransaction} disabled={isProcessing || (paymentMethod === 'card' && !isSdkReady)} className={`flex-1 font-[1000] uppercase py-4 rounded-2xl text-sm tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 ${isProcessing ? 'bg-neutral-800 text-neutral-400 cursor-wait' : 'bg-[#FDCB02] hover:bg-black hover:text-white text-black hover:shadow-yellow-500/20'}`}>
-                                {isProcessing ? (<>Procesando... <Loader2 size={18} className="animate-spin"/></>) : (<><span>{paymentMethod === 'card' ? 'Pagar de forma segura' : 'Generar Ficha'}</span></>)}
-                            </button>
-                        </div>
+                  {/* ══ SEPARADOR FINANCIAMIENTO ══ */}
+                  <div className="relative flex items-center gap-4 py-2">
+                    <div className="flex-1 h-px bg-neutral-300"></div>
+                    <div className="flex items-center gap-2 bg-white border-2 border-dashed border-neutral-300 rounded-full px-4 py-2 shrink-0">
+                      <Zap size={14} className="text-[#FDCB02] fill-[#FDCB02]"/>
+                      <span className="text-[11px] font-[1000] uppercase tracking-widest text-neutral-500">
+                        O paga con financiamiento
+                      </span>
+                      <Zap size={14} className="text-[#FDCB02] fill-[#FDCB02]"/>
                     </div>
+                    <div className="flex-1 h-px bg-neutral-300"></div>
+                  </div>
+
+                  {/* Financing Banner */}
+                  <div className="bg-gradient-to-br from-[#0a0a0a] to-[#111827] rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
+                    <div className="p-6 pb-0">
+                      <div className="flex items-start justify-between mb-6">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <BadgePercent size={20} className="text-[#FDCB02]"/>
+                            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-[#FDCB02]">
+                              Financiamiento Disponible
+                            </span>
+                          </div>
+                          <h2 className="text-2xl font-[1000] uppercase text-white tracking-tighter leading-tight">
+                            Divide tu pago<br/>
+                            <span className="text-[#FDCB02]">hasta en 36 cuotas</span>
+                          </h2>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-right shrink-0">
+                          <p className="text-[9px] text-neutral-500 uppercase tracking-widest font-bold mb-1 flex items-center gap-1 justify-end">
+                            <Calendar size={10}/> Desde
+                          </p>
+                          <p className="text-2xl font-[1000] text-white leading-none">
+                            ${Math.ceil(total / 12).toLocaleString()}
+                          </p>
+                          <p className="text-[9px] text-neutral-400 mt-0.5">/ mes · 12 cuotas</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 pb-5 border-b border-white/5">
+                        {FINANCING_PROVIDERS.map(p => (
+                          <div 
+                            key={p.id}
+                            className="flex-1 h-9 rounded-xl flex items-center justify-center text-xs font-black uppercase tracking-tight transition-all"
+                            style={{ 
+                              backgroundColor: selectedFinancingProvider === p.id ? p.color : '#1a1a1a',
+                              color: selectedFinancingProvider === p.id ? 'white' : '#555'
+                            }}
+                          >
+                            {p.icon} <span className="ml-1.5 hidden sm:inline">{p.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="p-6">
+                      <FinancingSection 
+                        total={total}
+                        orderId={currentOrderId}
+                        selectedProvider={selectedFinancingProvider}
+                        onSelectProvider={setSelectedFinancingProvider}
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={() => setStep(3)} 
+                    className="text-neutral-500 text-sm font-bold uppercase tracking-widest hover:text-black transition-colors flex items-center gap-2 pt-2"
+                  >
+                    <ArrowLeft size={14}/> Cambiar datos de factura
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          {/* ================= COLUMNA DERECHA (RESUMEN) ================= */}
+          {/* ── SIDEBAR: Resumen de Orden ── */}
           <div className="lg:col-span-5">
              <div className="bg-[#0a0a0a] text-white p-8 rounded-3xl shadow-2xl sticky top-28 border border-white/10">
                 <div className="flex items-center justify-between mb-8 pb-6 border-b border-white/10">
@@ -726,7 +1238,6 @@ export default function CheckoutPage() {
                         <span className="font-bold text-white">${freightCost.toLocaleString()}</span>
                     </div>
 
-                    {/* 🔥 RESUMEN LOGÍSTICO (BENEFICIO ELITE) */}
                     <div className="flex justify-between text-sm items-center">
                         <span className="text-neutral-400 flex items-center gap-2">
                           {selectedLogistics === 'coyote' ? <Factory size={14} className="text-[#FDCB02]"/> : <Map size={14} className="text-blue-400"/>}
@@ -765,6 +1276,31 @@ export default function CheckoutPage() {
                         </div>
                         <span className="font-[1000] text-4xl leading-none text-[#FDCB02] drop-shadow-[0_0_15px_rgba(253,203,2,0.2)]">${total.toLocaleString()}</span>
                     </div>
+
+                    <AnimatePresence>
+                      {step === 4 && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }} 
+                          animate={{ opacity: 1, height: 'auto' }} 
+                          exit={{ opacity: 0, height: 0 }}
+                          className="pt-4 border-t border-white/5"
+                        >
+                          <p className="text-[9px] text-neutral-600 uppercase tracking-widest font-black mb-3 flex items-center gap-1">
+                            <Sparkles size={10} className="text-[#FDCB02]"/> Opciones de financiamiento
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[3, 6, 12, 24].map(months => (
+                              <div key={months} className="bg-white/5 rounded-xl px-3 py-2 text-center border border-white/5">
+                                <div className="text-[#FDCB02] font-[1000] text-base leading-none">{months}x</div>
+                                <div className="text-white text-xs font-bold mt-0.5">${Math.ceil(total / months).toLocaleString()}</div>
+                                <div className="text-neutral-600 text-[9px] font-bold uppercase">mes</div>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[8px] text-neutral-700 text-center mt-2">Sujeto a aprobación. Términos según proveedor.</p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                 </div>
              </div>
           </div>
