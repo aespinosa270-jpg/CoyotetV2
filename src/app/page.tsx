@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation"; 
 import { motion, AnimatePresence } from "framer-motion"; 
 import { products } from "@/lib/products"; 
 import { useCart } from "@/lib/context/cart-context"; 
 import { useSession } from "next-auth/react"; 
+import { useState } from "react";
 import { 
   Plus, Minus, Check, ArrowRight, 
   Flag, 
@@ -127,8 +128,7 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
     <div 
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      // 🐺 INYECCIÓN: shrink-0 añadido para evitar que las tarjetas se aplasten en el carrusel
-      className={`shrink-0 min-w-[320px] w-[320px] bg-[#050505] border border-white/10 hover:border-[#FDCB02]/50 transition-all duration-300 relative flex flex-col snap-center group overflow-hidden rounded-xl shadow-2xl ${className}`}
+      className={`min-w-[320px] w-[320px] bg-[#050505] border border-white/10 hover:border-[#FDCB02]/50 transition-all duration-300 relative flex flex-col snap-center md:snap-align-none group overflow-hidden rounded-xl shadow-2xl ${className}`}
     >
       {hasDiscount && (
         <div className="absolute top-4 right-4 z-20 bg-[#FDCB02] text-black text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded shadow-lg flex items-center gap-1">
@@ -261,12 +261,9 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
   );
 };
 
-// 2. PRODUCT RAIL (AHORA SOPORTA CARRUSEL INFINITO)
-const ProductRail = ({ id, title, items, icon: Icon, isNational = false, titleAlign = 'left', isCarousel = false }: { id: string, title: string, items: any[], icon?: any, isNational?: boolean, titleAlign?: 'left' | 'right', isCarousel?: boolean }) => {
-  // Si es carrusel muestra TODOS, si no, limita a 4
-  const displayItems = isCarousel ? items : items.slice(0, 4);
-
-  if (!displayItems || displayItems.length === 0) return null;
+// 2. PRODUCT RAIL — grid normal, sin carrusel
+const ProductRail = ({ id, title, items, icon: Icon, isNational = false, titleAlign = 'left' }: { id: string, title: string, items: any[], icon?: any, isNational?: boolean, titleAlign?: 'left' | 'right' }) => {
+  if (!items || items.length === 0) return null;
 
   const isRight = titleAlign === 'right';
 
@@ -286,17 +283,15 @@ const ProductRail = ({ id, title, items, icon: Icon, isNational = false, titleAl
         </div>
       </div>
 
-      {/* 🐺 INYECCIÓN: Lógica dinámica de contenedor Flex-Wrap vs Carrusel nativo con Snap */}
-      <div className={
-        isCarousel 
-          ? "flex overflow-x-auto gap-6 pb-8 pt-4 snap-x snap-mandatory items-stretch [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" 
-          : "flex flex-wrap justify-center gap-6 py-4"
-      }>
-        {displayItems.map((product, i) => <ProductCard key={product.id || i} product={product} />)}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+        {items.map((product, i) => (
+          <ProductCard key={product.id || i} product={product} className="!w-full !min-w-0" />
+        ))}
       </div>
     </section>
   );
 };
+
 
 export default function CoyoteMarketplace() {
   useEffect(() => {
@@ -306,20 +301,14 @@ export default function CoyoteMarketplace() {
     return () => lenis.destroy();
   }, []);
 
+  const byCategory = (cat: string) => products.filter((p: any) => p.category === cat);
+
   const categories = [
-    { id: "telas-para-sublimar", title: "Telas para Sublimar", items: products.filter((p: any) => p.title.toLowerCase().includes('sublimar') || p.title.toLowerCase().includes('poliester')), icon: Package },
-    { id: "telas-escolares", title: "Telas Escolares", items: products.filter((p: any) => p.title.toLowerCase().includes('escolar') || p.title.toLowerCase().includes('pique') || p.title.toLowerCase().includes('deportivo')), icon: Package },
-    { id: "licras", title: "Licras", items: products.filter((p: any) => p.title.toLowerCase().includes('licra') || p.title.toLowerCase().includes('spandex')), icon: Package },
-    { id: "telas-nacionales", title: "Telas Nacionales", items: products.filter((p: any) => p.title.toLowerCase().includes('nacional') || p.id.includes('apolo')), icon: Flag, isNational: true },
-    { id: "telas-para-decoracion", title: "Telas para Decoración", items: products.filter((p: any) => p.title.toLowerCase().includes('decoracion') || p.title.toLowerCase().includes('tapiceria')), icon: Package },
-    { id: "telas-invierno", title: "Telas Invierno", items: products.filter((p: any) => p.title.toLowerCase().includes('invierno') || p.title.toLowerCase().includes('polar') || p.title.toLowerCase().includes('felpa')), icon: Package },
-    { id: "telas-de-temporada", title: "Telas de Temporada", items: products.filter((p: any) => p.title.toLowerCase().includes('temporada') || p.title.toLowerCase().includes('terry')), icon: Package },
-    { id: "forros", title: "Forros", items: products.filter((p: any) => p.title.toLowerCase().includes('forro') || p.title.toLowerCase().includes('tafeta') || p.title.toLowerCase().includes('cartera')), icon: Package },
-    { id: "gabardinas", title: "Gabardinas", items: products.filter((p: any) => p.title.toLowerCase().includes('gabardina')), icon: Package },
-    { id: "mezclilla", title: "Mezclilla", items: products.filter((p: any) => p.title.toLowerCase().includes('mezclilla') || p.title.toLowerCase().includes('denim')), icon: Package },
-    { id: "telas-para-campana", title: "Telas para Campaña", items: products.filter((p: any) => p.title.toLowerCase().includes('campaña') || p.title.toLowerCase().includes('bandera') || p.title.toLowerCase().includes('tafeta')), icon: Package },
-    { id: "telas-para-maratones", title: "Telas para Maratones", items: products.filter((p: any) => p.title.toLowerCase().includes('maraton') || p.title.toLowerCase().includes('mesh') || p.title.toLowerCase().includes('dry')), icon: Zap },
-    { id: "repelentes", title: "Repelentes", items: products.filter((p: any) => p.title.toLowerCase().includes('repelente') || p.title.toLowerCase().includes('impermeable')), icon: Package }
+    { id: "telas-para-sublimar",    title: "Telas para Sublimar",   items: byCategory("Deportivas / Sublimación"), icon: Zap },
+    { id: "licras",                 title: "Licras",                items: byCategory("Deportivo / Licra"),           icon: Package },
+    { id: "telas-escolares",        title: "Telas Escolares",       items: byCategory("Escolar / Deportivo"),         icon: Package },
+    { id: "telas-invierno",         title: "Línea Invernal",           items: byCategory("Línea Invernal"),              icon: Package },
+    { id: "telas-tecnicas",         title: "Telas Técnicas",          items: byCategory("Telas Técnicas"),              icon: Package },
   ];
 
   return (
@@ -358,16 +347,13 @@ export default function CoyoteMarketplace() {
       <main className="container mx-auto px-4 md:px-6 py-10 md:py-16 relative z-10">
         <div className="space-y-24 animate-in fade-in duration-700">
           
-          {/* 🐺 INYECCIÓN: El Carrusel Deportivo
-              Aquí llamamos a TODAS las telas de la categoría y activamos isCarousel={true}
-          */}
+          {/* Potencia en cada fibra — todas las telas Deportivas / Sublimación */}
           <ProductRail
             id="telas-deportivas"
             title="Potencia en cada fibra"
-            items={products.filter((p: any) => p.category?.includes('Deportiva') || p.category?.includes('Licra'))} 
+            items={byCategory("Deportivas / Sublimación")}
             icon={BicepsFlexed}
             titleAlign="left"
-            isCarousel={true}
           />
 
           {/* Resto de categorías — título a la derecha */}
@@ -380,7 +366,6 @@ export default function CoyoteMarketplace() {
               icon={cat.icon}
               isNational={cat.isNational}
               titleAlign="right"
-              // Las demás categorías se quedan normal limitadas a 4
             />
           ))}
 
