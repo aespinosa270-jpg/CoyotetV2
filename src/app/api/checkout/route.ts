@@ -1,16 +1,14 @@
-// src/app/api/checkout/route.ts
+// 🔥 FIX: Obligamos a Vercel a no pre-renderizar este archivo en build-time
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma'; // 🐺 Usamos la instancia global segura
 import Stripe from 'stripe';
 
 // 🐺 Inicializamos Stripe de forma segura
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-11-20.acacia" as any,
 });
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 export async function POST(request: Request) {
   try {
