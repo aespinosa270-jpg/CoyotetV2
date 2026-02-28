@@ -11,8 +11,9 @@ import {
   Timer, Coffee, PlayCircle, LogOut, Calendar, History, BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Softphone from './Softphone';
+import ZadarmaWidget from '@/components/ui/ZadarmaWidget';
 import InteractionForm from './components/InteractionForm';
+
 // --- TIPOS ---
 type OrderItem = { id: string; title: string; quantity: number; unit: string; color: string };
 type Order = { id: string; orderNumber: string; total: number; status: string; date: string };
@@ -637,8 +638,8 @@ export default function ClientDashboard({
         )}
       </AnimatePresence>
 
-      {/* Softphone */}
-      <Softphone />
+      {/* ☎️ Teléfono Virtual Zadarma */}
+      <ZadarmaWidget />
 
       <style jsx global>{`
         .crm-root { font-family: 'DM Sans', 'Helvetica Neue', sans-serif; }
