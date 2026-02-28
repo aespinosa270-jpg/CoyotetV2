@@ -65,7 +65,6 @@ export async function POST(request: Request) {
       payment_method_types: [
         'card',             // Tarjetas (Kapital, Nu, Banamex, etc.)
         'customer_balance', // 🔥 SPEI Directo (Ideal para B2B con Kapital Bank)
-        'aplazo',           // 🔥 BNPL Autorizado
         'oxxo'              // Solo para compras < 10k
       ],
       
