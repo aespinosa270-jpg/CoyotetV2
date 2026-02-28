@@ -1,11 +1,12 @@
-// 🔥 FIX: Obligamos a Vercel a no pre-renderizar este archivo en build-time
+// src/app/api/checkout/route.ts
+
+// 🔥 FIX: Blindaje total para el build de Vercel
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma'; // 🐺 Usamos la instancia global segura
+import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
 
-// 🐺 Inicializamos Stripe de forma segura
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-11-20.acacia" as any,
 });
@@ -15,18 +16,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { customer, amount, description, items, metadata } = body;
 
-    if (!amount || !description || !items) {
-      return NextResponse.json(
-        { error: 'Faltan datos requeridos en el payload.' },
-        { status: 400 }
-      );
-    }
-
-    const fullAddress = `${customer.street} ${customer.number} ${customer.unit ? 'Int ' + customer.unit : ''}, ${customer.neighborhood}, CP ${customer.zip}, ${customer.city}, ${customer.state}`;
-    const dbLogisticsType = metadata.logistics_type === 'coyote' ? 'COYOTE_LOCAL' : 'SKYDROPX_NACIONAL';
-    const subtotalCalc = amount - metadata.freight_cost - metadata.shipping_cost - metadata.service_fee - metadata.tax_iva;
-
-    // 1. CREAR ORDEN EN PRISMA (ESTADO: PENDING)
+    // 1. CREAR ORDEN EN PRISMA (Para el CRM de Huup)
     const newOrder = await prisma.order.create({
       data: {
         user: {
@@ -45,76 +35,62 @@ export async function POST(request: Request) {
             }
           }
         },
-        subtotal: subtotalCalc,
-        freightCost: metadata.freight_cost,
-        shippingCost: metadata.shipping_cost,
-        serviceFee: metadata.service_fee,
-        taxIVA: metadata.tax_iva,
         total: amount,
         status: 'PENDING',
-        paymentMethod: 'card',
-        logisticsType: dbLogisticsType,
-        vehiclesNeeded: metadata.vehicles_used,
+        paymentMethod: 'stripe_custom',
         customerName: `${customer.name} ${customer.lastName}`.trim(),
         customerEmail: customer.email,
-        customerPhone: customer.phone,
-        address: fullAddress,
-        wantsInvoice: metadata.req_invoice === 'YES',
-        invoiceStatus: metadata.req_invoice === 'YES' ? 'PENDING' : null,
+        address: `${customer.street}, CP ${customer.zip}`,
         items: {
           create: items.map((item: any) => ({
             productId: item.id || item.productId,
             title: item.title,
             price: Number(item.price),
             quantity: Number(item.quantity),
-            unit: item.unit || 'Pieza',
-            color: item.meta?.color ? String(item.meta.color) : null
           }))
         }
       }
     });
 
-    console.log(`✅ Orden web creada: ${newOrder.id}. Solicitando Payment Intent a Stripe...`);
-
-    const amountInCents = Math.round(amount * 100);
-
-    // 2. SOLICITAR PAYMENT INTENT
-    // 🔥 Dejamos que Stripe gestione automáticamente qué mostrar según tu Dashboard.
-    // Ocultará OXXO por su cuenta si pasas de los $10,000 MXN y mostrará SPEI sin errores.
+    // 2. CONFIGURAR PASARELA (SOLO FINANCIERAS APROBADAS)
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountInCents,
+      amount: Math.round(amount * 100),
       currency: 'mxn',
       description: description,
       receipt_email: customer.email,
-      automatic_payment_methods: {
-        enabled: true, 
+      
+      // 🐺 FILTRO DE MÉTODOS: Aquí es donde mandamos a los demás alv.
+      // 'customer_balance' es el canal para que Kapital Bank transfiera vía SPEI.
+      // 'aplazo' es tu BNPL aprobado.
+      payment_method_types: [
+        'card',             // Tarjetas (Kapital, Nu, Banamex, etc.)
+        'customer_balance', // 🔥 SPEI Directo (Ideal para B2B con Kapital Bank)
+        'aplazo',           // 🔥 BNPL Autorizado
+        'oxxo'              // Solo para compras < 10k
+      ],
+      
+      payment_method_options: {
+        customer_balance: {
+          funding_type: 'bank_transfer',
+          bank_transfer: { type: 'mx_bank_transfer' },
+        },
       },
+
       metadata: {
         order_id: newOrder.id,
-        req_invoice: metadata.req_invoice === 'YES' ? 'YES' : 'NO',
-        fiscal_data: metadata.fiscal_data ? JSON.stringify(metadata.fiscal_data) : '',
-        total_logistica: String(
-          (metadata.freight_cost || 0) +
-          (metadata.shipping_cost || 0) +
-          (metadata.service_fee || 0)
-        )
+        canal: 'web_b2b',
+        socio: 'Coyote Textil'
       }
     });
 
     return NextResponse.json({
       success: true,
       clientSecret: paymentIntent.client_secret,
-      orderId: newOrder.id,
-      // Se lo seguimos mandando al frontend por si lo usas en algún texto, 
-      // aunque Stripe ya hace el bloqueo duro.
-      oxxoAvailable: amount <= 10000, 
+      orderId: newOrder.id
     });
 
   } catch (error: any) {
-    console.error('❌ Error en Checkout Web:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Error procesando la transacción B2B' },
-      { status: 500 }
-    );
+    console.error('❌ Error Checkout:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
