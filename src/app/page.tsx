@@ -303,7 +303,7 @@ export default function CoyoteMarketplace() {
 
   const byCategory = (cat: string) => products.filter((p: any) => p.category === cat);
 
-  const categories = [
+  const categories: { id: string; title: string; items: any[]; icon: any; isNational?: boolean }[] = [
     { id: "telas-para-sublimar",    title: "Telas para Sublimar",   items: byCategory("Deportivas / Sublimación"), icon: Zap },
     { id: "licras",                 title: "Licras",                items: byCategory("Deportivo / Licra"),           icon: Package },
     { id: "telas-escolares",        title: "Telas Escolares",       items: byCategory("Escolar / Deportivo"),         icon: Package },
