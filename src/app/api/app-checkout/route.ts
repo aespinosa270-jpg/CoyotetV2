@@ -1,9 +1,11 @@
 // app/api/app-checkout/route.ts
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import Stripe from 'stripe'; // 🐺 Inyectamos Stripe
 
-const prisma = new PrismaClient();
+// 🔥 FIX: Obligamos a Vercel a no pre-renderizar este archivo en build-time
+export const dynamic = 'force-dynamic';
+
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma'; // 🐺 Importamos la instancia segura
+import Stripe from 'stripe';
 
 // 🐺 Inicializamos Stripe con la llave de tu .env.local
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
