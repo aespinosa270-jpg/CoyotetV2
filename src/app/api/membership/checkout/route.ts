@@ -66,7 +66,8 @@ export async function POST(req: Request) {
 
     // Extraemos el "Secreto" para el Frontend
     const invoice = subscription.latest_invoice as Stripe.Invoice
-    const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent
+    // 🐺 AQUÍ ESTÁ LA MAGIA: Forzamos el tipo con (invoice as any) para que Vercel no llore
+    const paymentIntent = (invoice as any).payment_intent as Stripe.PaymentIntent
 
     // 3. PRE-REGISTRAMOS LA SUSCRIPCIÓN EN POSTGRESQL
     // 🐺 OJO: No le subimos el nivel (role/membershipTier) todavía. 

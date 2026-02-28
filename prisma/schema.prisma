@@ -109,41 +109,42 @@ enum RouteOrderStatus {
 // 1. USUARIO / CLIENTE
 // ==========================================================
 model User {
-  id                    String         @id @default(cuid())
-  hashId                String         @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
-  name                  String?
-  email                 String         @unique
-  password              String
-  image                 String?
-  phone                 String?
-  role                  String         @default("USER")
-  membershipTier        MembershipTier @default(NONE)
-  membershipExpiry      DateTime?
-  points                Float          @default(0)
+  id                     String         @id @default(cuid())
+  hashId                 String         @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
+  name                   String?
+  email                  String         @unique
+  password               String
+  image                  String?
+  phone                  String?
+  role                   String         @default("USER")
+  membershipTier         MembershipTier @default(NONE)
+  membershipExpiry       DateTime?
+  points                 Float          @default(0)
   
   // 🐺 BÓVEDA STRIPE (Reemplazo de OpenPay)
-  stripeCustomerId      String?
-  stripeSubscriptionId  String?
+  stripeCustomerId         String?
+  stripeSubscriptionId     String?
+  stripeSubscriptionStatus String?      // 🔥 LÍNEA AÑADIDA PARA EL WEBHOOK
   
-  ltv                   Float          @default(0)
-  rfc                   String?
-  taxRegime             String?
-  cfdiUse               String?
-  street                String?
-  neighborhood          String?
-  zipCode               String?
-  city                  String?
-  state                 String?
-  optedIn               Boolean        @default(false)
-  suppressed            Boolean        @default(false)
-  consentDate           DateTime?
-  optOutDate            DateTime?
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
+  ltv                    Float          @default(0)
+  rfc                    String?
+  taxRegime              String?
+  cfdiUse                String?
+  street                 String?
+  neighborhood           String?
+  zipCode                String?
+  city                   String?
+  state                  String?
+  optedIn                Boolean        @default(false)
+  suppressed             Boolean        @default(false)
+  consentDate            DateTime?
+  optOutDate             DateTime?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
 
-  orders                Order[]
-  interactions          Interaction[]
-  tickets               Ticket[]
+  orders                 Order[]
+  interactions           Interaction[]
+  tickets                Ticket[]
 }
 
 // ==========================================================
@@ -290,7 +291,7 @@ model Ticket {
 }
 
 // ==========================================================
-// 5. MÓDULO DE FLOTILLA AVANZADA Y RUTAS
+// 5. MÓDULOS DE FLOTILLA AVANZADA Y RUTAS
 // ==========================================================
 
 model Vehicle {
