@@ -14,7 +14,10 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 export async function POST(req: Request) {
   // Extraemos el cuerpo crudo de la petición (Stripe lo exige así por seguridad)
   const body = await req.text()
-  const signature = headers().get("Stripe-Signature") as string
+  
+  // 🔥 FIX PARA NEXT.JS 15+: Esperamos la promesa de headers()
+  const reqHeaders = await headers()
+  const signature = reqHeaders.get("Stripe-Signature") as string
 
   let event: Stripe.Event
 
