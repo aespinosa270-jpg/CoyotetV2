@@ -52,16 +52,31 @@ export async function POST(request: Request) {
       }
     });
 
+    // 🔥 FIX PARA SPEI: Buscar o crear el Customer en Stripe primero
+    let stripeCustomerId: string;
+    const existingCustomers = await stripe.customers.list({ email: customer.email, limit: 1 });
+    
+    if (existingCustomers.data.length > 0) {
+      stripeCustomerId = existingCustomers.data[0].id;
+    } else {
+      const newStripeCustomer = await stripe.customers.create({
+        email: customer.email,
+        name: `${customer.name} ${customer.lastName}`.trim(),
+        phone: customer.phone,
+      });
+      stripeCustomerId = newStripeCustomer.id;
+    }
+
     // 2. CONFIGURAR PASARELA (SOLO FINANCIERAS APROBADAS)
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency: 'mxn',
+      customer: stripeCustomerId, // 🐺 AQUÍ ESTÁ LA LLAVE QUE DESBLOQUEA EL SPEI
       description: description,
       receipt_email: customer.email,
       
       // 🐺 FILTRO DE MÉTODOS: Aquí es donde mandamos a los demás alv.
       // 'customer_balance' es el canal para que Kapital Bank transfiera vía SPEI.
-      // 'aplazo' es tu BNPL aprobado.
       payment_method_types: [
         'card',             // Tarjetas (Kapital, Nu, Banamex, etc.)
         'customer_balance', // 🔥 SPEI Directo (Ideal para B2B con Kapital Bank)
@@ -78,7 +93,8 @@ export async function POST(request: Request) {
       metadata: {
         order_id: newOrder.id,
         canal: 'web_b2b',
-        socio: 'Coyote Textil'
+        socio: 'Coyote Textil',
+        ...metadata // Por si pasas metadata extra desde el frontend
       }
     });
 
