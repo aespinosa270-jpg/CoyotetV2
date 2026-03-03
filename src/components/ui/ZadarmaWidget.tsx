@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Phone, Delete, X, PhoneOff, Mic, MicOff, 
-  Clock, Grid3X3, Pause, ArrowRightLeft, PhoneIncoming, Play 
+  Clock, Grid3X3, Pause, ArrowRightLeft, Power
 } from 'lucide-react';
 
 const padButtons = [
@@ -16,27 +16,63 @@ const padButtons = [
 ];
 
 export default function ZadarmaWidget() {
+  // --- Estados Core ---
   const [webrtcKey, setWebrtcKey] = useState<string | null>(null);
+  const [isPbxActive, setIsPbxActive] = useState(false); // Fix del Autoplay
   
+  // --- Estados de UI ---
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'keypad' | 'history'>('keypad');
   const [dialNumber, setDialNumber] = useState("");
   const [callStatus, setCallStatus] = useState<'idle' | 'incoming' | 'calling' | 'connected'>('idle');
-  
   const [isMuted, setIsMuted] = useState(false);
   const [isOnHold, setIsOnHold] = useState(false);
 
+  // 1. Pedir la llave
   useEffect(() => {
     fetch('/api/zadarma-webrtc')
       .then(res => res.json())
       .then(data => { if (data.key) setWebrtcKey(data.key); })
-      .catch(err => console.error("Error pidiendo llave:", err));
+      .catch(err => console.error("Error llave:", err));
   }, []);
 
-  // 🔥 EL FIX DEL PATRÓN (Con Closures corregidas)
+  // 2. Interceptor Inmune a Closures (Escucha el script crudo)
   useEffect(() => {
-    if (!webrtcKey) return;
+    const handleCoyoteLog = (e: any) => {
+      const args = e.detail;
+      if (!args || typeof args[0] !== 'string') return;
+      
+      const action = args[0].trim().toLowerCase();
+      const payload = args[1];
 
+      // 📨 ENTRANTE
+      if (action === 'incoming') {
+        console.log("🐺 ¡CAZADO! Llamada entrante detectada");
+        setCallStatus('incoming');
+        setDialNumber(payload?.caller || payload?.calledDid || "Desconocido");
+        setIsOpen(true);
+      } 
+      // ✅ CONECTADA (Validamos que no sea el "connected undefined" del inicio del socket)
+      else if (action === 'answered' || (action === 'connected' && payload)) {
+        setCallStatus(prev => (prev === 'incoming' || prev === 'calling') ? 'connected' : prev);
+      } 
+      // ❌ COLGADA / CANCELADA
+      else if (action === 'canceled' || action === 'hangup' || action === 'ended' || action === 'declined') {
+        setCallStatus('idle');
+        setDialNumber("");
+        setIsMuted(false);
+        setIsOnHold(false);
+      }
+    };
+
+    window.addEventListener('CoyoteLog', handleCoyoteLog);
+    return () => window.removeEventListener('CoyoteLog', handleCoyoteLog);
+  }, []);
+
+  // 3. Inicializar Widget (SOLO después de que el usuario dio clic)
+  useEffect(() => {
+    if (!webrtcKey || !isPbxActive) return;
+    
     const initWidget = () => {
       const w = window as any;
       if (w.zadarmaWidgetFn && w.zdrmWebrtcPhoneInterface) {
@@ -48,49 +84,9 @@ export default function ZadarmaWidget() {
         setTimeout(initWidget, 300);
       }
     };
-    
     initWidget();
+  }, [webrtcKey, isPbxActive]);
 
-    // NUEVO HANDLER MEJORADO
-    const handleZadarmaEvents = (event: MessageEvent) => {
-      console.log('📨 Zadarma Message recibido:', event.data); // ← PARA DEBUG
-      
-      let payload = event.data;
-      if (typeof payload === 'string') {
-        try { payload = JSON.parse(payload); } catch (_) {}
-      }
-      
-      if (!payload || typeof payload !== 'object') return;
-      
-      const str = JSON.stringify(payload).toLowerCase();
-      console.log('🔍 Payload procesado:', payload);
-
-      if (payload.caller || str.includes('incoming') || str.includes('ringing')) {
-        console.log('✅ INCOMING DETECTADO - Abriendo UI custom');
-        setCallStatus('incoming');
-        setIsOpen(true);
-        setDialNumber(payload.caller || payload.callername || "Llamada Entrante");
-      } 
-      else if (str.includes('connected') || str.includes('answered') || str.includes('up')) {
-        console.log('✅ LLAMADA CONECTADA');
-        setCallStatus('connected');
-      } 
-      else if (str.includes('canceled') || str.includes('hangup') || str.includes('ended')) {
-        console.log('❌ LLAMADA CANCELADA');
-        // Usamos los setters directo para evitar dependencias de funciones externas
-        setCallStatus('idle');
-        setDialNumber("");
-        setIsMuted(false);
-        setIsOnHold(false);
-      }
-    };
-
-    window.addEventListener('message', handleZadarmaEvents);
-    
-    return () => {
-      window.removeEventListener('message', handleZadarmaEvents);
-    };
-  }, [webrtcKey]); // solo depende de la key
 
   // --- CONTROLES DE API REALES ---
   const handlePadClick = (val: string) => {
@@ -100,7 +96,6 @@ export default function ZadarmaWidget() {
       try { w.zdrmWebrtcPhoneInterface.sendDTMF(val); } catch(e) {}
     }
   };
-  
   const handleDelete = () => setDialNumber(prev => prev.slice(0, -1));
 
   const handleCall = () => {
@@ -127,18 +122,14 @@ export default function ZadarmaWidget() {
     if (w.zdrmWebrtcPhoneInterface) {
       try { w.zdrmWebrtcPhoneInterface.hangup(); } catch (e) {}
     }
-    setCallStatus('idle');
-    setDialNumber("");
-    setIsMuted(false);
-    setIsOnHold(false);
+    setCallStatus('idle'); setDialNumber(""); setIsMuted(false); setIsOnHold(false);
   };
 
   const handleToggleMute = () => {
     const w = window as any;
     if (w.zdrmWebrtcPhoneInterface) {
       try {
-        if (!isMuted) w.zdrmWebrtcPhoneInterface.mute();
-        else w.zdrmWebrtcPhoneInterface.unmute();
+        if (!isMuted) w.zdrmWebrtcPhoneInterface.mute(); else w.zdrmWebrtcPhoneInterface.unmute();
         setIsMuted(!isMuted);
       } catch(e) { setIsMuted(!isMuted); }
     }
@@ -148,26 +139,9 @@ export default function ZadarmaWidget() {
     const w = window as any;
     if (w.zdrmWebrtcPhoneInterface) {
       try {
-        if (!isOnHold) {
-          w.zdrmWebrtcPhoneInterface.hold();
-          setIsOnHold(true);
-        } else {
-          w.zdrmWebrtcPhoneInterface.unhold();
-          setIsOnHold(false);
-        }
+        if (!isOnHold) w.zdrmWebrtcPhoneInterface.hold(); else w.zdrmWebrtcPhoneInterface.unhold();
+        setIsOnHold(!isOnHold);
       } catch(e) {}
-    }
-  };
-
-  const handleTransfer = () => {
-    const targetExt = prompt("Ingresa la extensión para transferir (ej. 101):");
-    if (!targetExt) return;
-    const w = window as any;
-    if (w.zdrmWebrtcPhoneInterface) {
-      try {
-        w.zdrmWebrtcPhoneInterface.transfer(targetExt);
-        handleHangup(); // Limpia la UI local al aventar la llamada
-      } catch (e) { alert("Error de red al transferir."); }
     }
   };
 
@@ -175,6 +149,20 @@ export default function ZadarmaWidget() {
 
   return (
     <>
+      {/* EL HACK MAESTRO: Un script que se ejecuta ANTES que React y Zadarma. 
+        Secuestra el log y despacha un CustomEvent nativo al navegador.
+      */}
+      <script dangerouslySetInnerHTML={{__html: `
+        if (!window.coyoteLogPatched) {
+          window.coyoteLogPatched = true;
+          const oldLog = console.log;
+          console.log = function(...args) {
+            oldLog.apply(console, args);
+            try { window.dispatchEvent(new CustomEvent('CoyoteLog', { detail: args })); } catch(e) {}
+          };
+        }
+      `}} />
+
       <style dangerouslySetInnerHTML={{__html: `
         iframe[src*="my.zadarma.com"], div[id*="zdrm"], div[class*="zdrm"],
         #zadarma-webphone-widget, .zadarma-widget-webrtc {
@@ -183,18 +171,23 @@ export default function ZadarmaWidget() {
         }
       `}} />
 
-      <Script src="https://my.zadarma.com/webphoneWebRTCWidget/v9/js/loader-phone-lib.js?sub_v=1" strategy="afterInteractive" />
-      <Script src="https://my.zadarma.com/webphoneWebRTCWidget/v9/js/loader-phone-fn.js?sub_v=1" strategy="afterInteractive" />
+      {/* Solo cargamos los scripts SI el usuario ya dio clic, evitando el bloqueo de Autoplay */}
+      {isPbxActive && (
+        <>
+          <Script src="https://my.zadarma.com/webphoneWebRTCWidget/v9/js/loader-phone-lib.js?sub_v=1" strategy="afterInteractive" />
+          <Script src="https://my.zadarma.com/webphoneWebRTCWidget/v9/js/loader-phone-fn.js?sub_v=1" strategy="afterInteractive" />
+        </>
+      )}
 
       <div className="fixed bottom-6 right-6 z-[2147483647] flex flex-col items-end">
+        
         <AnimatePresence>
-          {isOpen && (
+          {isOpen && isPbxActive && (
             <motion.div 
-              initial={{ opacity: 0, y: 50, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 50, scale: 0.9 }}
+              initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 50, scale: 0.9 }}
               className="bg-[#000000] border border-white/20 rounded-[40px] shadow-2xl overflow-hidden w-[320px] h-[650px] flex flex-col relative"
             >
+              {/* HEADER ZADARMA */}
               <div className="flex justify-between items-center px-6 pt-4 pb-2 z-10">
                 <span className="text-[10px] font-bold text-emerald-500 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Zadarma PBX
@@ -204,14 +197,15 @@ export default function ZadarmaWidget() {
                 </button>
               </div>
 
+              {/* VISTA LLAMADA */}
               {callStatus !== 'idle' ? (
                 <div className="flex-1 flex flex-col items-center justify-between pb-12 pt-8 px-6 bg-gradient-to-b from-[#1a1a1a] to-[#000000]">
                   <div className="text-center w-full">
                     <p className={`text-sm font-mono uppercase tracking-widest mb-1 ${callStatus === 'incoming' ? 'text-[#FDCB02] animate-pulse' : 'text-emerald-500'}`}>
-                      {callStatus === 'incoming' ? 'Entrante...' : callStatus === 'calling' ? 'Conectando...' : isOnHold ? 'En Espera' : 'Llamada Segura'}
+                      {callStatus === 'incoming' ? 'Entrante...' : callStatus === 'calling' ? 'Conectando...' : 'En Llamada'}
                     </p>
                     <h2 className="text-white text-3xl font-light tracking-wider break-all leading-tight mt-2">
-                      {dialNumber || "Número Oculto"}
+                      {dialNumber}
                     </h2>
                   </div>
 
@@ -221,44 +215,20 @@ export default function ZadarmaWidget() {
                         <button onClick={handleHangup} className="w-16 h-16 bg-[#FF3B30] rounded-full flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg shadow-red-500/20">
                           <PhoneOff size={28} />
                         </button>
-                        <span className="text-white text-[10px] font-bold">RECHAZAR</span>
                       </div>
                       <div className="flex flex-col items-center gap-2">
                         <button onClick={handleAcceptIncoming} className="w-16 h-16 bg-[#34C759] rounded-full flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg shadow-green-500/20 animate-bounce">
                           <Phone size={28} fill="currentColor" />
                         </button>
-                        <span className="text-white text-[10px] font-bold">ACEPTAR</span>
                       </div>
                     </div>
                   ) : (
                     <div className="w-full flex flex-col gap-10 items-center">
                       <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full px-2">
-                        <div className="flex flex-col items-center gap-2">
-                          <button onClick={handleToggleMute} className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${isMuted ? 'bg-white text-black' : 'bg-[#333333] text-white'}`}>
-                            {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
-                          </button>
-                          <span className="text-white text-[10px] font-bold">MUTE</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-2">
-                          <button className="w-16 h-16 rounded-full bg-[#333333] flex items-center justify-center text-white">
-                            <Grid3X3 size={24} />
-                          </button>
-                          <span className="text-white text-[10px] font-bold">PAD</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-2">
-                          <button onClick={handleToggleHold} className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${isOnHold ? 'bg-[#FDCB02] text-black shadow-[0_0_15px_rgba(253,203,2,0.4)]' : 'bg-[#333333] text-white'}`}>
-                            {isOnHold ? <Play size={24} fill="currentColor" /> : <Pause size={24} />}
-                          </button>
-                          <span className="text-white text-[10px] font-bold">{isOnHold ? 'REANUDAR' : 'ESPERA'}</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-2 col-start-2">
-                          <button onClick={handleTransfer} className="w-16 h-16 rounded-full bg-[#333333] flex items-center justify-center text-white active:bg-white/30">
-                            <ArrowRightLeft size={24} />
-                          </button>
-                          <span className="text-white text-[10px] font-bold">TRANSFERIR</span>
-                        </div>
+                        <button onClick={handleToggleMute} className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${isMuted ? 'bg-white text-black' : 'bg-[#333333] text-white'}`}><MicOff size={24} /></button>
+                        <button className="w-16 h-16 rounded-full bg-[#333333] flex items-center justify-center text-white"><Grid3X3 size={24} /></button>
+                        <button onClick={handleToggleHold} className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${isOnHold ? 'bg-[#FDCB02] text-black' : 'bg-[#333333] text-white'}`}><Pause size={24} /></button>
                       </div>
-
                       <button onClick={handleHangup} className="w-16 h-16 bg-[#FF3B30] rounded-full flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg shadow-red-500/20">
                         <PhoneOff size={28} />
                       </button>
@@ -268,79 +238,50 @@ export default function ZadarmaWidget() {
 
               ) : (
 
+              // VISTA KEYPAD
               <div className="flex-1 flex flex-col bg-[#000000]">
-                {activeTab === 'keypad' && (
-                  <div className="flex-1 flex flex-col pt-6">
-                    <div className="h-20 flex items-center justify-center px-6 relative">
-                      <span className="text-4xl font-light tracking-wider text-white truncate max-w-full">
-                        {dialNumber}
-                      </span>
-                      {dialNumber && (
-                        <button onClick={handleDelete} className="absolute right-6 text-neutral-400 hover:text-white active:scale-90 transition-all">
-                          <Delete size={24} />
+                <div className="flex-1 flex flex-col pt-6">
+                  <div className="h-20 flex items-center justify-center px-6 relative">
+                    <span className="text-4xl font-light tracking-wider text-white truncate max-w-full">{dialNumber}</span>
+                    {dialNumber && <button onClick={handleDelete} className="absolute right-6 text-neutral-400 hover:text-white"><Delete size={24} /></button>}
+                  </div>
+                  <div className="flex-1 px-8 pt-4">
+                    <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+                      {padButtons.map((btn) => (
+                        <button key={btn.num} onClick={() => handlePadClick(btn.num)} className="bg-[#333333] rounded-full aspect-square flex flex-col items-center justify-center active:bg-[#555555]">
+                          <span className="text-[32px] font-normal leading-none text-white">{btn.num}</span>
                         </button>
-                      )}
+                      ))}
                     </div>
-
-                    <div className="flex-1 px-8 pt-4">
-                      <div className="grid grid-cols-3 gap-x-4 gap-y-3">
-                        {padButtons.map((btn) => (
-                          <button 
-                            key={btn.num} onClick={() => handlePadClick(btn.num)}
-                            className="bg-[#333333] rounded-full aspect-square flex flex-col items-center justify-center active:bg-[#555555] transition-colors"
-                          >
-                            <span className="text-[32px] font-normal leading-none text-white">{btn.num}</span>
-                            <span className="text-[10px] font-bold tracking-widest text-neutral-400 h-3 uppercase">{btn.let}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="flex justify-center mt-6">
-                        <button onClick={handleCall} className="w-[72px] h-[72px] bg-[#34C759] rounded-full flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg shadow-green-500/20">
-                          <Phone size={36} fill="currentColor" />
-                        </button>
-                      </div>
+                    <div className="flex justify-center mt-6">
+                      <button onClick={handleCall} className="w-[72px] h-[72px] bg-[#34C759] rounded-full flex items-center justify-center text-white shadow-lg shadow-green-500/20"><Phone size={36} fill="currentColor" /></button>
                     </div>
                   </div>
-                )}
-
-                {activeTab === 'history' && (
-                  <div className="flex-1 flex flex-col bg-[#000000]">
-                    <h2 className="text-3xl font-bold text-white px-6 py-4">Registro</h2>
-                    <div className="flex-1 flex items-center justify-center px-6">
-                      <p className="text-neutral-600 text-xs font-mono text-center">
-                        Historial sincronizado con CRM de red. <br/> (Esperando consultas SQL)
-                      </p>
-                    </div>
-                  </div>
-               )}
-                
-                <div className="h-20 bg-[#111111]/90 backdrop-blur-xl border-t border-[#333333] flex justify-around items-center px-4 pb-4">
-                  <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 ${activeTab === 'history' ? 'text-[#FDCB02]' : 'text-neutral-500'}`}>
-                    <Clock size={24} fill={activeTab === 'history' ? "currentColor" : "none"} />
-                    <span className="text-[10px] font-medium">Historial</span>
-                  </button>
-                  <button onClick={() => setActiveTab('keypad')} className={`flex flex-col items-center gap-1 ${activeTab === 'keypad' ? 'text-[#FDCB02]' : 'text-neutral-500'}`}>
-                    <Grid3X3 size={24} />
-                    <span className="text-[10px] font-medium">Teclado</span>
-                  </button>
                 </div>
               </div>
-
               )}
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* BOTÓN FLOTANTE: Cambia si la línea está apagada o encendida */}
         {!isOpen && (
           <motion.button 
-            initial={{ scale: 0 }} animate={{ scale: 1 }} onClick={() => setIsOpen(true)}
-            className="w-16 h-16 bg-[#34C759] border-2 border-[#030303] rounded-full flex items-center justify-center text-white hover:bg-green-600 transition-colors shadow-[0_0_20px_rgba(52,199,89,0.3)]"
+            initial={{ scale: 0 }} animate={{ scale: 1 }} 
+            onClick={() => {
+              if (!isPbxActive) setIsPbxActive(true);
+              setIsOpen(true);
+            }}
+            className={`flex items-center gap-3 px-4 h-14 border-2 rounded-full text-white transition-all shadow-xl font-bold uppercase tracking-widest text-xs
+              ${isPbxActive 
+                ? 'bg-[#111] border-[#030303] hover:border-[#FDCB02] hover:text-[#FDCB02] w-14 justify-center px-0' 
+                : 'bg-[#FDCB02] border-[#FDCB02] text-black shadow-[0_0_20px_rgba(253,203,2,0.4)] animate-pulse'
+              }
+            `}
           >
-            <Phone size={28} fill="currentColor" />
+            {isPbxActive ? <Phone size={24} /> : <><Power size={20} /> Conectar PBX</>}
           </motion.button>
         )}
-        
       </div>
     </>
   );
