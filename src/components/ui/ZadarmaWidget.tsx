@@ -27,12 +27,12 @@ export default function ZadarmaWidget() {
           onLoad={() => {
             if (typeof window !== 'undefined' && (window as any).zadarmaWidgetFn) {
               (window as any).zadarmaWidgetFn(
-                'YOUR_KEY',  // 👈 PEGA TU LLAVE AQUÍ
-                'YOUR_SIP',  // 👈 PEGA TU EXTENSIÓN SIP AQUÍ (Ej: '123456-100')
-                'square',    
-                'es',        
-                true,        
-                { right: '24px', bottom: '24px', zIndex: '9999' } // Agregué un zIndex por si algo del CRM lo tapa
+                'f388006ebe099c2ba400',  // 👈 Tu Llave (Key)
+                '267018-100',            // 👈 Tu extensión SIP de la centralita
+                'square',                // Diseño del widget
+                'es',                    // Idioma
+                true,                    // Habilitar llamadas desde el navegador
+                { right: '24px', bottom: '24px', zIndex: '9999' } // Ajustes visuales
               );
               console.log("✅ Teléfono Zadarma inicializado con éxito.");
             }
