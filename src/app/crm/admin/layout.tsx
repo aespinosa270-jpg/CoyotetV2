@@ -1,8 +1,9 @@
 "use client"
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "next-auth/react"; // 🔥 Importamos la extracción táctica
 import { 
   LayoutDashboard, Users, Target, Ticket, 
   MessageSquare, Clock, BarChart, Settings, 
@@ -38,7 +39,8 @@ const menuItems = [
     ]
   },
   { name: "Base de Clientes", icon: Users, href: "/crm/admin/clientes" },
-  { name: "Inventario / Stock", icon: Package, href: "/crm/admin/inventario" },
+  // 🔥 CORREGÍ LA RUTA PARA QUE VAYA AL CATÁLOGO QUE ACABAMOS DE ARMAR
+  { name: "Catálogo / Bodega", icon: Package, href: "/crm/admin/productos" }, 
   { 
     name: "Horarios", icon: Clock, href: "/crm/admin/horarios",
     submenus: [
@@ -52,18 +54,19 @@ const menuItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  // 👇 EL FIX DE HIDRATACIÓN
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
   const toggleSubmenu = (name: string) => {
     setOpenSubmenu(openSubmenu === name ? null : name);
+  };
+
+  // 🔥 FUNCIÓN DE CIERRE DE SESIÓN
+  const handleLogout = async () => {
+    // Si usas NextAuth:
+    await signOut({ callbackUrl: '/login' });
   };
 
   return (
@@ -71,8 +74,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       
       {/* 1. SIDEBAR IZQUIERDA */}
       <AnimatePresence>
-        {/* 👇 Solo dibujamos la sidebar si ya montamos el cliente para no asustar a Next.js */}
-        {isMounted && (isMobileOpen || window.innerWidth >= 768) && (
+        {(isMobileOpen || (typeof window !== 'undefined' && window.innerWidth >= 768)) && (
           <motion.aside 
             initial={{ x: -300 }}
             animate={{ x: 0 }}
@@ -103,7 +105,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   return (
                     <div key={item.name}>
                       <button 
-                        onClick={() => hasSubmenu ? toggleSubmenu(item.name) : window.location.assign(item.href)}
+                        onClick={() => hasSubmenu ? toggleSubmenu(item.name) : router.push(item.href)}
                         className={`w-full flex items-center justify-between px-3 py-3 rounded-lg font-bold text-xs uppercase tracking-wider transition-all ${isActive && !hasSubmenu ? 'bg-[#FDCB02] text-black' : 'text-neutral-400 hover:text-white hover:bg-white/5'}`}
                       >
                         <div className="flex items-center gap-3">
@@ -207,7 +209,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <Link href="/crm/admin/perfil" className="flex items-center gap-3 px-4 py-2.5 text-xs text-neutral-400 hover:text-white hover:bg-white/5 font-bold uppercase tracking-widest transition-colors">
                       <User size={14} /> Mi Perfil
                     </Link>
-                    <button className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-rose-500 hover:bg-rose-500/10 font-bold uppercase tracking-widest transition-colors border-t border-white/5 mt-1">
+                    {/* 🔥 BOTÓN CONECTADO AL LOGOUT REAL */}
+                    <button 
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-rose-500 hover:bg-rose-500/10 font-bold uppercase tracking-widest transition-colors border-t border-white/5 mt-1"
+                    >
                       <LogOut size={14} /> Cerrar Sesión
                     </button>
                   </motion.div>

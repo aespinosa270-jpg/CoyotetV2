@@ -1,40 +1,60 @@
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs'; // Usamos bcryptjs porque es el que está en tu API
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  console.log('🐺 Forjando credenciales para Valeria...');
+// ==========================================
+  // 1. CREDENCIALES DE ACCESO (SEGURIDAD INDIVIDUAL)
+  // ==========================================
+  console.log('🔒 Forjando llaves maestras únicas para el equipo...');
   
-  // 1. Encriptamos la contraseña
-  const hashedPassword = await bcrypt.hash('coyote01', 10);
-  
-  // 2. Usamos prisma.employee (¡La tabla correcta!)
-  const empleado = await prisma.employee.upsert({
-    where: { email: 'valeria@coyotetextil.com' },
-    update: {
-      password: hashedPassword,
-      isActive: true, // ¡Vital! Tu API exige que esté activa
-    },
-    create: {
-      email: 'valeria@coyotetextil.com',
-      name: 'Valeria', 
-      password: hashedPassword,
-      role: 'ADMIN', // Asegúrate de que este rol exista en tu schema (puede ser 'ADMIN', 'VENDEDOR', 'black', etc.)
-      isActive: true,
-    },
-  });
-  
-  console.log('✅ ¡Misión cumplida! El empleado ha sido registrado exitosamente.');
-  console.log(`👤 Usuario: ${empleado.email}`);
-}
+  // 👑 LOS JEFES (ADMIN)
+  // Nota: Estas son contraseñas temporales para el seed. 
+  // Podrán cambiarlas después desde el sistema.
+  const admins = [
+    { email: 'jackrizk@coyotetextil.com', name: 'Jack Rizk', pass: 'JackCoyote2026!' },
+    { email: 'stephanyrizk@coyotetextil.com', name: 'Stephany Rizk', pass: 'StephanyCoyote2026!' }
+  ];
 
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (e) => {
-    console.error('❌ Error de sistema:', e);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+  for (const admin of admins) {
+    // Hasheamos la contraseña ESPECÍFICA de este admin
+    const hashedPassword = await bcrypt.hash(admin.pass, 10);
+
+    await prisma.employee.upsert({
+      where: { email: admin.email },
+      update: { password: hashedPassword, isActive: true, role: 'ADMIN' },
+      create: {
+        email: admin.email,
+        name: admin.name,
+        password: hashedPassword,
+        role: 'ADMIN',
+        isActive: true,
+      },
+    });
+    console.log(`👑 Admin listo: ${admin.name} | Pass temporal: ${admin.pass}`);
+  }
+
+  // 💼 LAS VENDEDORAS (Operación - Sin acceso a /admin)
+  const vendedoras = [
+    { email: 'valeria@coyotetextil.com', name: 'Valeria', pass: 'ValeriaVentas01' },
+    { email: 'paula@coyotetextil.com', name: 'Paula', pass: 'PaulaVentas02' },
+    { email: 'katia@coyotetextil.com', name: 'Katia', pass: 'KatiaVentas03' }
+  ];
+
+  for (const vendedora of vendedoras) {
+    // Hasheamos la contraseña ESPECÍFICA de esta vendedora
+    const hashedPassword = await bcrypt.hash(vendedora.pass, 10);
+
+    await prisma.employee.upsert({
+      where: { email: vendedora.email },
+      update: { password: hashedPassword, isActive: true, role: 'VENDEDORA' },
+      create: {
+        email: vendedora.email,
+        name: vendedora.name,
+        password: hashedPassword,
+        role: 'VENDEDORA',
+        isActive: true,
+      },
+    });
+    console.log(`✅ Vendedora en posición: ${vendedora.name} | Pass temporal: ${vendedora.pass}`);
+  }
