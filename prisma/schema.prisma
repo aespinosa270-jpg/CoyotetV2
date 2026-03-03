@@ -6,11 +6,11 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  directUrl = env("DIRECT_URL") // Exclusivo y necesario para Supabase
 }
 
 // ==========================================================
-// ENUMS
+// ENUMS GLOBALES
 // ==========================================================
 
 enum EmployeeRole {
@@ -90,11 +90,11 @@ enum VehicleLogType {
 }
 
 enum RouteOrderType {
-  RECOLECCION          // Recolección en domicilio de cliente
-  RESTOCK_INTERNO      // Transferencia Plomo 203 ↔ Guatemala 97
-  RESTOCK_PROVEEDOR    // Recolección en ubicación de proveedor externo
-  ENTREGA_PAQUETERIA   // Drop-off en sucursal de paquetería
-  ENTREGA_DOMICILIO    // Entrega directa al cliente
+  RECOLECCION        
+  RESTOCK_INTERNO    
+  RESTOCK_PROVEEDOR  
+  ENTREGA_PAQUETERIA 
+  ENTREGA_DOMICILIO  
 }
 
 enum RouteOrderStatus {
@@ -105,56 +105,63 @@ enum RouteOrderStatus {
   CANCELADA
 }
 
-// ==========================================================
-// 1. USUARIO / CLIENTE
-// ==========================================================
-model User {
-  id                     String         @id @default(cuid())
-  hashId                 String         @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
-  name                   String?
-  email                  String         @unique
-  password               String
-  image                  String?
-  phone                  String?
-  role                   String         @default("USER")
-  membershipTier         MembershipTier @default(NONE)
-  membershipExpiry       DateTime?
-  points                 Float          @default(0)
-  
-  // 🐺 BÓVEDA STRIPE (Reemplazo de OpenPay)
-  stripeCustomerId         String?
-  stripeSubscriptionId     String?
-  stripeSubscriptionStatus String?      // 🔥 LÍNEA AÑADIDA PARA EL WEBHOOK
-  
-  ltv                    Float          @default(0)
-  rfc                    String?
-  taxRegime              String?
-  cfdiUse                String?
-  street                 String?
-  neighborhood           String?
-  zipCode                String?
-  city                   String?
-  state                  String?
-  optedIn                Boolean        @default(false)
-  suppressed             Boolean        @default(false)
-  consentDate            DateTime?
-  optOutDate             DateTime?
-  createdAt              DateTime       @default(now())
-  updatedAt              DateTime       @updatedAt
-
-  orders                 Order[]
-  interactions           Interaction[]
-  tickets                Ticket[]
+enum UnitType {
+  KILO
+  METRO
+  PIEZA
 }
 
 // ==========================================================
-// 2. EQUIPO INTERNO
+// 1. USUARIO / CLIENTE (B2B & B2C)
+// ==========================================================
+model User {
+  id                       String         @id @default(cuid())
+  hashId                   String         @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
+  name                     String?
+  email                    String         @unique
+  password                 String
+  image                    String?
+  phone                    String?
+  role                     String         @default("USER")
+  membershipTier           MembershipTier @default(NONE)
+  membershipExpiry         DateTime?
+  points                   Float          @default(0)
+  
+  // 🐺 BÓVEDA STRIPE
+  stripeCustomerId         String?
+  stripeSubscriptionId     String?
+  stripeSubscriptionStatus String?      
+  
+  ltv                      Float          @default(0)
+  rfc                      String?
+  taxRegime                String?
+  cfdiUse                  String?
+  street                   String?
+  neighborhood             String?
+  zipCode                  String?
+  city                     String?
+  state                    String?
+  optedIn                  Boolean        @default(false)
+  suppressed               Boolean        @default(false)
+  consentDate              DateTime?
+  optOutDate               DateTime?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  orders                   Order[]
+  interactions             Interaction[]
+  tickets                  Ticket[]
+  deals                    Deal[]         // Relación con el CRM
+}
+
+// ==========================================================
+// 2. LA JAURÍA (EQUIPO INTERNO)
 // ==========================================================
 model Employee {
   id              String        @id @default(cuid())
   name            String
   email           String        @unique
-  password        String        // Unificado para acceso administrativo y móvil
+  password        String        
   role            EmployeeRole  @default(VENDEDORA)
   isActive        Boolean       @default(true)
   createdAt       DateTime      @default(now())
@@ -164,24 +171,111 @@ model Employee {
   attendances     Attendance[]
   interactions    Interaction[]
   assignedTickets Ticket[]
-  telemetry       Telemetry[]    // Historial GPS
-  routeOrders     RouteOrder[]   // Órdenes de ruta asignadas
+  telemetry       Telemetry[]   
+  routeOrders     RouteOrder[]  
+  deals           Deal[]        // Tratos asignados en el Pipeline
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  timestamp  DateTime @default(now())
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id])
-  action     String
-  resourceId String?
-  ipAddress  String?
-  userAgent  String?
-  metadata   Json?
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  action      String
+  resourceId  String?
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
 }
 
 // ==========================================================
-// 3. E-COMMERCE & LOGÍSTICA
+// 3. CATÁLOGO CENTRAL & INVENTARIO FÍSICO (NUEVO E INTEGRADO)
+// ==========================================================
+model Product {
+  id               String         @id @default(cuid()) // Ej. prod_diablo
+  sku              String         @unique
+  title            String
+  unit             UnitType       @default(KILO)
+  thumbnail        String?
+  description      String?
+  composicion      String?
+  gramaje          String?
+  ancho            String?
+  rendimiento      Float?
+  priceMenudeo     Float
+  priceMayoreo     Float
+  hasRollo         Boolean        @default(true)
+  unidadesPorRollo Float?
+  singleColor      Boolean        @default(true)
+  origin           String?
+  category         String
+  isActive         Boolean        @default(true)
+  
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  colors           ProductColor[]
+  inventory        Inventory[]
+  orderItems       OrderItem[]
+  deals            Deal[]
+}
+
+model ProductColor {
+  id          String      @id @default(cuid())
+  productId   String
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name        String      // Ej. "Azul Rey"
+  hex         String      // Ej. "#1434A4"
+  imageUrl    String?
+
+  inventory   Inventory[]
+}
+
+model Inventory {
+  id          String         @id @default(cuid())
+  productId   String
+  product     Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  colorId     String?
+  color       ProductColor?  @relation(fields: [colorId], references: [id])
+  
+  location    PickupLocation // PLOMO_203 o GUATEMALA_97
+  quantity    Float          // Metraje o Kilaje total disponible
+  rollCount   Int            // Rollos físicos en la bodega
+
+  updatedAt   DateTime       @updatedAt
+
+  // Un producto + un color no puede repetirse en la misma sucursal (se actualiza la cantidad)
+  @@unique([productId, colorId, location])
+}
+
+// ==========================================================
+// 4. CRM: PIPELINE & VENTAS MAYORISTAS (NUEVO)
+// ==========================================================
+model Deal {
+  id          String         @id @default(cuid())
+  title       String         // Ej. "Lote 10,000m Mezclilla"
+  company     String
+  
+  userId      String?        // Cliente asociado (si ya está registrado)
+  user        User?          @relation(fields: [userId], references: [id])
+  
+  employeeId  String         // Agente asignado (Closer)
+  employee    Employee       @relation(fields: [employeeId], references: [id])
+  
+  productId   String
+  product     Product        @relation(fields: [productId], references: [id])
+  
+  color       String?        // Color solicitado
+  quantity    Float          // Cantidad solicitada
+  value       Float          // Monto total proyectado/cerrado
+  status      PipelineStatus @default(PROSPECTO)
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+// ==========================================================
+// 5. E-COMMERCE & LOGÍSTICA DE COMPRA
 // ==========================================================
 model Order {
   id             String         @id @default(cuid())
@@ -222,22 +316,25 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String
-  title     String
-  sku       String?
-  price     Float
-  quantity  Float
-  unit      String?
-  color     String?
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  // 🔥 Integrado con el catálogo real
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  
+  title       String
+  sku         String?
+  price       Float
+  quantity    Float
+  unit        String?
+  color       String?
 }
 
 // ==========================================================
-// 4. ERP: MÓDULOS EXISTENTES
+// 6. ERP & OPERACIÓN INTERNA
 // ==========================================================
-
 model Attendance {
   id              String    @id @default(cuid())
   employeeId      String
@@ -291,9 +388,8 @@ model Ticket {
 }
 
 // ==========================================================
-// 5. MÓDULOS DE FLOTILLA AVANZADA Y RUTAS
+// 7. FLOTILLA AVANZADA Y RUTAS
 // ==========================================================
-
 model Vehicle {
   id              String        @id @default(cuid())
   plate           String        @unique
@@ -335,33 +431,26 @@ model RouteOrder {
   type                 RouteOrderType
   status               RouteOrderStatus @default(PENDIENTE)
 
-  // Cliente / Contacto
   contactName          String
   contactPhone         String?
   contactEmail         String?
 
-  // Dirección y Ubicación
   address              String
   addressLat           Float?
   addressLng           Float?
 
-  // Planificación
   scheduledAt          DateTime
   notes                String?
 
-  // Asignación
   assignedTo           String?          
   employee             Employee?        @relation(fields: [assignedTo], references: [id])
 
-  // Restock Interno
-  originLocation       String?          // PLOMO_203 | GUATEMALA_97
+  originLocation       String?          
   destLocation         String?          
   
-  // Paquetería
   carrier              String?          
   sucursalNombre       String?          
 
-  // Evidencia y Cierre
   signatureOrigin      String?
   signatureDestination String?
   photoDropoff         String[]
