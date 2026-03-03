@@ -33,9 +33,10 @@ export default function ZadarmaWidget() {
       .catch(err => console.error("Error pidiendo llave:", err));
   }, []);
 
+  // 🔥 EL FIX DEL PATRÓN (Con Closures corregidas)
   useEffect(() => {
     if (!webrtcKey) return;
-    
+
     const initWidget = () => {
       const w = window as any;
       if (w.zadarmaWidgetFn && w.zdrmWebrtcPhoneInterface) {
@@ -44,66 +45,52 @@ export default function ZadarmaWidget() {
           { right: '-9999px', bottom: '-9999px', zIndex: '-9999' }
         );
       } else {
-        setTimeout(initWidget, 500);
+        setTimeout(initWidget, 300);
       }
     };
+    
     initWidget();
 
-    // 👇 EL FIX DEFINITIVO: Lector Universal de Eventos Zadarma
+    // NUEVO HANDLER MEJORADO
     const handleZadarmaEvents = (event: MessageEvent) => {
-      try {
-        let payload = event.data;
-        
-        // 1. Si Zadarma manda un texto plano o un JSON convertido en string
-        if (typeof payload === 'string') {
-          // Detectar palabras clave directas
-          if (payload === 'incoming' || payload === 'ringing') {
-            setCallStatus('incoming'); setIsOpen(true); return;
-          }
-          if (payload === 'connected' || payload === 'answered') {
-            setCallStatus('connected'); return;
-          }
-          if (payload === 'canceled' || payload === 'hangup' || payload === 'ended') {
-            handleHangupState(); return;
-          }
-          // Intentar convertir de texto a objeto
-          try { payload = JSON.parse(payload); } catch (e) {}
-        }
+      console.log('📨 Zadarma Message recibido:', event.data); // ← PARA DEBUG
+      
+      let payload = event.data;
+      if (typeof payload === 'string') {
+        try { payload = JSON.parse(payload); } catch (_) {}
+      }
+      
+      if (!payload || typeof payload !== 'object') return;
+      
+      const str = JSON.stringify(payload).toLowerCase();
+      console.log('🔍 Payload procesado:', payload);
 
-        // 2. Si el payload es un Objeto (Como vimos en tus logs: caller: "+52...")
-        if (payload && typeof payload === 'object') {
-          const payloadStr = JSON.stringify(payload).toLowerCase();
-
-          // --- DETECTAR ENTRANTE ---
-          if (payload.action === 'incoming' || payload.event === 'incoming' || payloadStr.includes('incoming') || payload.caller) {
-            setCallStatus('incoming');
-            setIsOpen(true); // ¡PUM! Abre el teléfono
-            
-            // Atrapamos el número real de tus logs
-            const incomingNumber = payload.caller || payload.callername || payload.calledDid;
-            if (incomingNumber) {
-              setDialNumber(incomingNumber);
-            } else {
-              setDialNumber("Llamada Entrante");
-            }
-          }
-          // --- DETECTAR CONECTADA ---
-          else if (payloadStr.includes('connected') || payloadStr.includes('answered') || payloadStr.includes('up')) {
-            setCallStatus('connected');
-          }
-          // --- DETECTAR CANCELADA / COLGADA ---
-          else if (payloadStr.includes('canceled') || payloadStr.includes('hangup') || payloadStr.includes('ended')) {
-            handleHangupState();
-          }
-        }
-      } catch (error) {
-        // Silenciamos errores de parseo para no ensuciar tu consola
+      if (payload.caller || str.includes('incoming') || str.includes('ringing')) {
+        console.log('✅ INCOMING DETECTADO - Abriendo UI custom');
+        setCallStatus('incoming');
+        setIsOpen(true);
+        setDialNumber(payload.caller || payload.callername || "Llamada Entrante");
+      } 
+      else if (str.includes('connected') || str.includes('answered') || str.includes('up')) {
+        console.log('✅ LLAMADA CONECTADA');
+        setCallStatus('connected');
+      } 
+      else if (str.includes('canceled') || str.includes('hangup') || str.includes('ended')) {
+        console.log('❌ LLAMADA CANCELADA');
+        // Usamos los setters directo para evitar dependencias de funciones externas
+        setCallStatus('idle');
+        setDialNumber("");
+        setIsMuted(false);
+        setIsOnHold(false);
       }
     };
 
     window.addEventListener('message', handleZadarmaEvents);
-    return () => window.removeEventListener('message', handleZadarmaEvents);
-  }, [webrtcKey]);
+    
+    return () => {
+      window.removeEventListener('message', handleZadarmaEvents);
+    };
+  }, [webrtcKey]); // solo depende de la key
 
   // --- CONTROLES DE API REALES ---
   const handlePadClick = (val: string) => {
@@ -121,11 +108,7 @@ export default function ZadarmaWidget() {
     setCallStatus('calling'); 
     const w = window as any;
     if (w.zdrmWebrtcPhoneInterface) {
-      try { 
-        w.zdrmWebrtcPhoneInterface.call(dialNumber); 
-      } catch (e) {
-        setCallStatus('idle');
-      }
+      try { w.zdrmWebrtcPhoneInterface.call(dialNumber); } catch (e) { setCallStatus('idle'); }
     }
   };
 
@@ -135,17 +118,8 @@ export default function ZadarmaWidget() {
       try { 
         w.zdrmWebrtcPhoneInterface.answer(); 
         setCallStatus('connected');
-      } catch (e) {
-        console.error("Fallo al contestar", e);
-      }
+      } catch (e) { console.error("Fallo al contestar", e); }
     }
-  };
-
-  const handleHangupState = () => {
-    setCallStatus('idle');
-    setDialNumber("");
-    setIsMuted(false);
-    setIsOnHold(false);
   };
 
   const handleHangup = () => {
@@ -153,7 +127,10 @@ export default function ZadarmaWidget() {
     if (w.zdrmWebrtcPhoneInterface) {
       try { w.zdrmWebrtcPhoneInterface.hangup(); } catch (e) {}
     }
-    handleHangupState();
+    setCallStatus('idle');
+    setDialNumber("");
+    setIsMuted(false);
+    setIsOnHold(false);
   };
 
   const handleToggleMute = () => {
@@ -163,9 +140,7 @@ export default function ZadarmaWidget() {
         if (!isMuted) w.zdrmWebrtcPhoneInterface.mute();
         else w.zdrmWebrtcPhoneInterface.unmute();
         setIsMuted(!isMuted);
-      } catch(e) {
-        setIsMuted(!isMuted); 
-      }
+      } catch(e) { setIsMuted(!isMuted); }
     }
   };
 
@@ -191,10 +166,8 @@ export default function ZadarmaWidget() {
     if (w.zdrmWebrtcPhoneInterface) {
       try {
         w.zdrmWebrtcPhoneInterface.transfer(targetExt);
-        handleHangupState();
-      } catch (e) {
-        alert("Error de red al transferir.");
-      }
+        handleHangup(); // Limpia la UI local al aventar la llamada
+      } catch (e) { alert("Error de red al transferir."); }
     }
   };
 
