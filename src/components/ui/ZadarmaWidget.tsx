@@ -1,20 +1,19 @@
 "use client"
 
 import Script from 'next/script';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Phone, Delete, X, PhoneOff, Mic, MicOff, 
   Clock, Grid3X3, Pause, ArrowRightLeft, Power
 } from 'lucide-react';
 
-// 👇 1. EL SECUESTRO ABSOLUTO (Fuera de React, ejecución instantánea)
+// SECUESTRO GLOBAL INMUNE A DOBLE RENDER
 if (typeof window !== 'undefined' && !(window as any)._coyotePatched) {
   (window as any)._coyotePatched = true;
   const originalLog = console.log;
   console.log = function(...args) {
-    originalLog.apply(console, args); // Dejamos que imprima en consola para que lo veas
-    // Si nuestro interceptor de React está listo, le pasamos los datos
+    originalLog.apply(console, args); 
     if (typeof (window as any)._coyoteHandler === 'function') {
       try { (window as any)._coyoteHandler(args); } catch (e) {}
     }
@@ -40,10 +39,6 @@ export default function ZadarmaWidget() {
   const [isMuted, setIsMuted] = useState(false);
   const [isOnHold, setIsOnHold] = useState(false);
 
-  // Escudo contra el doble render de React Strict Mode
-  const widgetInjected = useRef(false);
-
-  // 1. Pedir la llave
   useEffect(() => {
     fetch('/api/zadarma-webrtc')
       .then(res => res.json())
@@ -51,7 +46,7 @@ export default function ZadarmaWidget() {
       .catch(err => console.error("Error pidiendo llave:", err));
   }, []);
 
-  // 2. Conectar el componente de React con nuestro secuestrador global
+  // RECEPTOR DE ESTADOS
   useEffect(() => {
     (window as any)._coyoteHandler = (args: any[]) => {
       const eventName = args[0];
@@ -59,26 +54,17 @@ export default function ZadarmaWidget() {
 
       if (typeof eventName === 'string') {
         const action = eventName.toLowerCase();
-
-        // 📨 ENTRANTE
         if (action === 'incoming') {
-          console.log("🐺 INCOMING ATRAPADO POR COYOTE");
+          console.log("🐺 INCOMING ATRAPADO");
           setCallStatus('incoming');
           setIsOpen(true);
-          if (payload && payload.caller) {
-            setDialNumber(payload.caller);
-          } else {
-            setDialNumber("Llamada Entrante");
-          }
+          setDialNumber(payload?.caller || payload?.calledDid || "Entrante");
         } 
-        // ✅ CONECTADA
         else if (action === 'answered' || action === 'connected') {
-          // Aseguramos que solo reaccione si estábamos en proceso de llamada
           setCallStatus(prev => (prev === 'incoming' || prev === 'calling') ? 'connected' : prev);
         } 
-        // ❌ COLGADA / CANCELADA
-        else if (action === 'canceled' || action === 'hangup' || action === 'ended') {
-          console.log("🐺 LLAMADA CERRADA POR COYOTE");
+        else if (action === 'canceled' || action === 'hangup' || action === 'ended' || action === 'declined') {
+          console.log("🐺 LLAMADA CERRADA");
           setCallStatus('idle');
           setDialNumber("");
           setIsMuted(false);
@@ -86,20 +72,21 @@ export default function ZadarmaWidget() {
         }
       }
     };
-    
-    return () => {
-      (window as any)._coyoteHandler = null; // Limpiar al desmontar
-    };
-  }, []); // Setters de useState son estables, no causan stale closures aquí
+    return () => { (window as any)._coyoteHandler = null; };
+  }, []); 
 
-  // 3. Inyectar Zadarma (Protegido contra doble carga)
+  // INYECTOR CON ESCUDO ANTI-CLONES
   useEffect(() => {
-    if (!webrtcKey || !isPbxActive || widgetInjected.current) return;
+    if (!webrtcKey || !isPbxActive) return;
+    const w = window as any;
     
+    // 👇 ESCUDO ABSOLUTO: Si ya se inyectó, abortamos cualquier segundo intento.
+    if (w.__zadarmaInjected) return; 
+
     const initWidget = () => {
-      const w = window as any;
       if (w.zadarmaWidgetFn && w.zdrmWebrtcPhoneInterface) {
-        widgetInjected.current = true; // Bloqueamos futuras cargas
+        w.__zadarmaInjected = true; // Cerramos la puerta
+        console.log("🚀 CONECTANDO MOTOR ZADARMA (1 SOLA VEZ)");
         w.zadarmaWidgetFn(
           webrtcKey, '554386-100', 'square', 'es', true,
           { right: '-9999px', bottom: '-9999px', zIndex: '-9999' }
@@ -112,61 +99,80 @@ export default function ZadarmaWidget() {
   }, [webrtcKey, isPbxActive]);
 
 
-  // --- CONTROLES DE API REALES ---
+  // --- DISPARADOR DE COMANDOS (NIVEL DIOS) ---
+  const sendZadarmaCmd = (action: string, value?: string) => {
+    console.log(`🚀 Ejecutando: ${action} ${value || ''}`);
+    const w = window as any;
+    
+    // 1. Intentar por la API oficial
+    try {
+      if (w.zdrmWebrtcPhoneInterface) {
+        if (action === 'call') w.zdrmWebrtcPhoneInterface.call(value);
+        else if (action === 'answer') w.zdrmWebrtcPhoneInterface.answer();
+        else if (action === 'hangup') w.zdrmWebrtcPhoneInterface.hangup();
+        else if (action === 'hold') w.zdrmWebrtcPhoneInterface.hold();
+        else if (action === 'unhold') w.zdrmWebrtcPhoneInterface.unhold();
+        else if (action === 'mute') w.zdrmWebrtcPhoneInterface.mute();
+        else if (action === 'unmute') w.zdrmWebrtcPhoneInterface.unmute();
+        else if (action === 'transfer') w.zdrmWebrtcPhoneInterface.transfer(value);
+        else if (action === 'sendDTMF') w.zdrmWebrtcPhoneInterface.sendDTMF(value);
+      }
+    } catch (e) { console.error(`API Error en ${action}:`, e); }
+
+    // 2. Intentar por Inyección Directa (PostMessage) al Iframe
+    try {
+      const iframe = document.querySelector('iframe[src*="my.zadarma.com"]') as HTMLIFrameElement;
+      if (iframe && iframe.contentWindow) {
+        const payload: any = { action: action };
+        if (value && action === 'call') payload.phone = value;
+        if (value && action === 'transfer') payload.phone = value;
+        if (value && action === 'sendDTMF') payload.digit = value;
+        iframe.contentWindow.postMessage(payload, '*');
+      }
+    } catch (e) {}
+  };
+
+  // --- CONTROLES DE UI ---
   const handlePadClick = (val: string) => {
     setDialNumber(prev => prev + val);
-    const w = window as any;
-    if (callStatus === 'connected' && w.zdrmWebrtcPhoneInterface) {
-      try { w.zdrmWebrtcPhoneInterface.sendDTMF(val); } catch(e) {}
-    }
+    if (callStatus === 'connected') sendZadarmaCmd('sendDTMF', val);
   };
+  
   const handleDelete = () => setDialNumber(prev => prev.slice(0, -1));
 
   const handleCall = () => {
     if (!dialNumber) return;
     setCallStatus('calling'); 
-    const w = window as any;
-    if (w.zdrmWebrtcPhoneInterface) {
-      try { w.zdrmWebrtcPhoneInterface.call(dialNumber); } catch (e) { setCallStatus('idle'); }
-    }
+    sendZadarmaCmd('call', dialNumber);
   };
 
   const handleAcceptIncoming = () => {
-    const w = window as any;
-    if (w.zdrmWebrtcPhoneInterface) {
-      try { 
-        w.zdrmWebrtcPhoneInterface.answer(); 
-        setCallStatus('connected');
-      } catch (e) {}
-    }
+    console.log("🟢 CLICK EN ACEPTAR");
+    sendZadarmaCmd('answer');
+    setCallStatus('connected');
   };
 
   const handleHangup = () => {
-    const w = window as any;
-    if (w.zdrmWebrtcPhoneInterface) {
-      try { w.zdrmWebrtcPhoneInterface.hangup(); } catch (e) {}
-    }
+    console.log("🔴 CLICK EN COLGAR");
+    sendZadarmaCmd('hangup');
     setCallStatus('idle'); setDialNumber(""); setIsMuted(false); setIsOnHold(false);
   };
 
   const handleToggleMute = () => {
-    const w = window as any;
-    if (w.zdrmWebrtcPhoneInterface) {
-      try {
-        if (!isMuted) w.zdrmWebrtcPhoneInterface.mute(); else w.zdrmWebrtcPhoneInterface.unmute();
-        setIsMuted(!isMuted);
-      } catch(e) { setIsMuted(!isMuted); }
-    }
+    sendZadarmaCmd(isMuted ? 'unmute' : 'mute');
+    setIsMuted(!isMuted);
   };
 
   const handleToggleHold = () => {
-    const w = window as any;
-    if (w.zdrmWebrtcPhoneInterface) {
-      try {
-        if (!isOnHold) w.zdrmWebrtcPhoneInterface.hold(); else w.zdrmWebrtcPhoneInterface.unhold();
-        setIsOnHold(!isOnHold);
-      } catch(e) {}
-    }
+    sendZadarmaCmd(isOnHold ? 'unhold' : 'hold');
+    setIsOnHold(!isOnHold);
+  };
+
+  const handleTransfer = () => {
+    const targetExt = prompt("Ingresa la extensión para transferir (ej. 101):");
+    if (!targetExt) return;
+    sendZadarmaCmd('transfer', targetExt);
+    handleHangup();
   };
 
   if (!webrtcKey) return null;
@@ -189,7 +195,6 @@ export default function ZadarmaWidget() {
       )}
 
       <div className="fixed bottom-6 right-6 z-[2147483647] flex flex-col items-end">
-        
         <AnimatePresence>
           {isOpen && isPbxActive && (
             <motion.div 
@@ -242,27 +247,48 @@ export default function ZadarmaWidget() {
                     </div>
                   )}
                 </div>
-
               ) : (
-
               <div className="flex-1 flex flex-col bg-[#000000]">
-                <div className="flex-1 flex flex-col pt-6">
-                  <div className="h-20 flex items-center justify-center px-6 relative">
-                    <span className="text-4xl font-light tracking-wider text-white truncate max-w-full">{dialNumber}</span>
-                    {dialNumber && <button onClick={handleDelete} className="absolute right-6 text-neutral-400 hover:text-white"><Delete size={24} /></button>}
-                  </div>
-                  <div className="flex-1 px-8 pt-4">
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-3">
-                      {padButtons.map((btn) => (
-                        <button key={btn.num} onClick={() => handlePadClick(btn.num)} className="bg-[#333333] rounded-full aspect-square flex flex-col items-center justify-center active:bg-[#555555]">
-                          <span className="text-[32px] font-normal leading-none text-white">{btn.num}</span>
-                        </button>
-                      ))}
+                {/* Las vistas de KEYPAD y HISTORY se mantienen igual de limpias */}
+                {activeTab === 'keypad' && (
+                  <div className="flex-1 flex flex-col pt-6">
+                    <div className="h-20 flex items-center justify-center px-6 relative">
+                      <span className="text-4xl font-light tracking-wider text-white truncate max-w-full">{dialNumber}</span>
+                      {dialNumber && <button onClick={handleDelete} className="absolute right-6 text-neutral-400 hover:text-white"><Delete size={24} /></button>}
                     </div>
-                    <div className="flex justify-center mt-6">
-                      <button onClick={handleCall} className="w-[72px] h-[72px] bg-[#34C759] rounded-full flex items-center justify-center text-white shadow-lg shadow-green-500/20"><Phone size={36} fill="currentColor" /></button>
+                    <div className="flex-1 px-8 pt-4">
+                      <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+                        {padButtons.map((btn) => (
+                          <button key={btn.num} onClick={() => handlePadClick(btn.num)} className="bg-[#333333] rounded-full aspect-square flex flex-col items-center justify-center active:bg-[#555555]">
+                            <span className="text-[32px] font-normal leading-none text-white">{btn.num}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex justify-center mt-6">
+                        <button onClick={handleCall} className="w-[72px] h-[72px] bg-[#34C759] rounded-full flex items-center justify-center text-white shadow-lg shadow-green-500/20"><Phone size={36} fill="currentColor" /></button>
+                      </div>
                     </div>
                   </div>
+                )}
+                {activeTab === 'history' && (
+                  <div className="flex-1 flex flex-col bg-[#000000]">
+                    <h2 className="text-3xl font-bold text-white px-6 py-4">Registro</h2>
+                    <div className="flex-1 flex items-center justify-center px-6">
+                      <p className="text-neutral-600 text-xs font-mono text-center">
+                        Historial sincronizado con CRM de red.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                <div className="h-20 bg-[#111111]/90 backdrop-blur-xl border-t border-[#333333] flex justify-around items-center px-4 pb-4">
+                  <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 ${activeTab === 'history' ? 'text-[#FDCB02]' : 'text-neutral-500'}`}>
+                    <Clock size={24} fill={activeTab === 'history' ? "currentColor" : "none"} />
+                    <span className="text-[10px] font-medium">Historial</span>
+                  </button>
+                  <button onClick={() => setActiveTab('keypad')} className={`flex flex-col items-center gap-1 ${activeTab === 'keypad' ? 'text-[#FDCB02]' : 'text-neutral-500'}`}>
+                    <Grid3X3 size={24} />
+                    <span className="text-[10px] font-medium">Teclado</span>
+                  </button>
                 </div>
               </div>
               )}
@@ -273,10 +299,7 @@ export default function ZadarmaWidget() {
         {!isOpen && (
           <motion.button 
             initial={{ scale: 0 }} animate={{ scale: 1 }} 
-            onClick={() => {
-              if (!isPbxActive) setIsPbxActive(true);
-              setIsOpen(true);
-            }}
+            onClick={() => { if (!isPbxActive) setIsPbxActive(true); setIsOpen(true); }}
             className={`flex items-center gap-3 px-4 h-14 border-2 rounded-full text-white transition-all shadow-xl font-bold uppercase tracking-widest text-xs
               ${isPbxActive 
                 ? 'bg-[#111] border-[#030303] hover:border-[#FDCB02] hover:text-[#FDCB02] w-14 justify-center px-0' 
