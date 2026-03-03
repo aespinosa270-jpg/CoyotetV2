@@ -1,12 +1,25 @@
 "use client"
 
 import Script from 'next/script';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Phone, Delete, X, PhoneOff, Mic, MicOff, 
   Clock, Grid3X3, Pause, ArrowRightLeft, Power
 } from 'lucide-react';
+
+// 👇 1. EL SECUESTRO ABSOLUTO (Fuera de React, ejecución instantánea)
+if (typeof window !== 'undefined' && !(window as any)._coyotePatched) {
+  (window as any)._coyotePatched = true;
+  const originalLog = console.log;
+  console.log = function(...args) {
+    originalLog.apply(console, args); // Dejamos que imprima en consola para que lo veas
+    // Si nuestro interceptor de React está listo, le pasamos los datos
+    if (typeof (window as any)._coyoteHandler === 'function') {
+      try { (window as any)._coyoteHandler(args); } catch (e) {}
+    }
+  };
+}
 
 const padButtons = [
   { num: '1', let: '' }, { num: '2', let: 'ABC' }, { num: '3', let: 'DEF' },
@@ -16,66 +29,77 @@ const padButtons = [
 ];
 
 export default function ZadarmaWidget() {
-  // --- Estados Core ---
   const [webrtcKey, setWebrtcKey] = useState<string | null>(null);
-  const [isPbxActive, setIsPbxActive] = useState(false); // Fix del Autoplay
+  const [isPbxActive, setIsPbxActive] = useState(false); 
   
-  // --- Estados de UI ---
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'keypad' | 'history'>('keypad');
   const [dialNumber, setDialNumber] = useState("");
   const [callStatus, setCallStatus] = useState<'idle' | 'incoming' | 'calling' | 'connected'>('idle');
+  
   const [isMuted, setIsMuted] = useState(false);
   const [isOnHold, setIsOnHold] = useState(false);
+
+  // Escudo contra el doble render de React Strict Mode
+  const widgetInjected = useRef(false);
 
   // 1. Pedir la llave
   useEffect(() => {
     fetch('/api/zadarma-webrtc')
       .then(res => res.json())
       .then(data => { if (data.key) setWebrtcKey(data.key); })
-      .catch(err => console.error("Error llave:", err));
+      .catch(err => console.error("Error pidiendo llave:", err));
   }, []);
 
-  // 2. Interceptor Inmune a Closures (Escucha el script crudo)
+  // 2. Conectar el componente de React con nuestro secuestrador global
   useEffect(() => {
-    const handleCoyoteLog = (e: any) => {
-      const args = e.detail;
-      if (!args || typeof args[0] !== 'string') return;
-      
-      const action = args[0].trim().toLowerCase();
+    (window as any)._coyoteHandler = (args: any[]) => {
+      const eventName = args[0];
       const payload = args[1];
 
-      // 📨 ENTRANTE
-      if (action === 'incoming') {
-        console.log("🐺 ¡CAZADO! Llamada entrante detectada");
-        setCallStatus('incoming');
-        setDialNumber(payload?.caller || payload?.calledDid || "Desconocido");
-        setIsOpen(true);
-      } 
-      // ✅ CONECTADA (Validamos que no sea el "connected undefined" del inicio del socket)
-      else if (action === 'answered' || (action === 'connected' && payload)) {
-        setCallStatus(prev => (prev === 'incoming' || prev === 'calling') ? 'connected' : prev);
-      } 
-      // ❌ COLGADA / CANCELADA
-      else if (action === 'canceled' || action === 'hangup' || action === 'ended' || action === 'declined') {
-        setCallStatus('idle');
-        setDialNumber("");
-        setIsMuted(false);
-        setIsOnHold(false);
+      if (typeof eventName === 'string') {
+        const action = eventName.toLowerCase();
+
+        // 📨 ENTRANTE
+        if (action === 'incoming') {
+          console.log("🐺 INCOMING ATRAPADO POR COYOTE");
+          setCallStatus('incoming');
+          setIsOpen(true);
+          if (payload && payload.caller) {
+            setDialNumber(payload.caller);
+          } else {
+            setDialNumber("Llamada Entrante");
+          }
+        } 
+        // ✅ CONECTADA
+        else if (action === 'answered' || action === 'connected') {
+          // Aseguramos que solo reaccione si estábamos en proceso de llamada
+          setCallStatus(prev => (prev === 'incoming' || prev === 'calling') ? 'connected' : prev);
+        } 
+        // ❌ COLGADA / CANCELADA
+        else if (action === 'canceled' || action === 'hangup' || action === 'ended') {
+          console.log("🐺 LLAMADA CERRADA POR COYOTE");
+          setCallStatus('idle');
+          setDialNumber("");
+          setIsMuted(false);
+          setIsOnHold(false);
+        }
       }
     };
+    
+    return () => {
+      (window as any)._coyoteHandler = null; // Limpiar al desmontar
+    };
+  }, []); // Setters de useState son estables, no causan stale closures aquí
 
-    window.addEventListener('CoyoteLog', handleCoyoteLog);
-    return () => window.removeEventListener('CoyoteLog', handleCoyoteLog);
-  }, []);
-
-  // 3. Inicializar Widget (SOLO después de que el usuario dio clic)
+  // 3. Inyectar Zadarma (Protegido contra doble carga)
   useEffect(() => {
-    if (!webrtcKey || !isPbxActive) return;
+    if (!webrtcKey || !isPbxActive || widgetInjected.current) return;
     
     const initWidget = () => {
       const w = window as any;
       if (w.zadarmaWidgetFn && w.zdrmWebrtcPhoneInterface) {
+        widgetInjected.current = true; // Bloqueamos futuras cargas
         w.zadarmaWidgetFn(
           webrtcKey, '554386-100', 'square', 'es', true,
           { right: '-9999px', bottom: '-9999px', zIndex: '-9999' }
@@ -113,7 +137,7 @@ export default function ZadarmaWidget() {
       try { 
         w.zdrmWebrtcPhoneInterface.answer(); 
         setCallStatus('connected');
-      } catch (e) { console.error("Fallo al contestar", e); }
+      } catch (e) {}
     }
   };
 
@@ -149,20 +173,6 @@ export default function ZadarmaWidget() {
 
   return (
     <>
-      {/* EL HACK MAESTRO: Un script que se ejecuta ANTES que React y Zadarma. 
-        Secuestra el log y despacha un CustomEvent nativo al navegador.
-      */}
-      <script dangerouslySetInnerHTML={{__html: `
-        if (!window.coyoteLogPatched) {
-          window.coyoteLogPatched = true;
-          const oldLog = console.log;
-          console.log = function(...args) {
-            oldLog.apply(console, args);
-            try { window.dispatchEvent(new CustomEvent('CoyoteLog', { detail: args })); } catch(e) {}
-          };
-        }
-      `}} />
-
       <style dangerouslySetInnerHTML={{__html: `
         iframe[src*="my.zadarma.com"], div[id*="zdrm"], div[class*="zdrm"],
         #zadarma-webphone-widget, .zadarma-widget-webrtc {
@@ -171,7 +181,6 @@ export default function ZadarmaWidget() {
         }
       `}} />
 
-      {/* Solo cargamos los scripts SI el usuario ya dio clic, evitando el bloqueo de Autoplay */}
       {isPbxActive && (
         <>
           <Script src="https://my.zadarma.com/webphoneWebRTCWidget/v9/js/loader-phone-lib.js?sub_v=1" strategy="afterInteractive" />
@@ -187,7 +196,6 @@ export default function ZadarmaWidget() {
               initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 50, scale: 0.9 }}
               className="bg-[#000000] border border-white/20 rounded-[40px] shadow-2xl overflow-hidden w-[320px] h-[650px] flex flex-col relative"
             >
-              {/* HEADER ZADARMA */}
               <div className="flex justify-between items-center px-6 pt-4 pb-2 z-10">
                 <span className="text-[10px] font-bold text-emerald-500 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Zadarma PBX
@@ -197,7 +205,6 @@ export default function ZadarmaWidget() {
                 </button>
               </div>
 
-              {/* VISTA LLAMADA */}
               {callStatus !== 'idle' ? (
                 <div className="flex-1 flex flex-col items-center justify-between pb-12 pt-8 px-6 bg-gradient-to-b from-[#1a1a1a] to-[#000000]">
                   <div className="text-center w-full">
@@ -238,7 +245,6 @@ export default function ZadarmaWidget() {
 
               ) : (
 
-              // VISTA KEYPAD
               <div className="flex-1 flex flex-col bg-[#000000]">
                 <div className="flex-1 flex flex-col pt-6">
                   <div className="h-20 flex items-center justify-center px-6 relative">
@@ -264,7 +270,6 @@ export default function ZadarmaWidget() {
           )}
         </AnimatePresence>
 
-        {/* BOTÓN FLOTANTE: Cambia si la línea está apagada o encendida */}
         {!isOpen && (
           <motion.button 
             initial={{ scale: 0 }} animate={{ scale: 1 }} 
