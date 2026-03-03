@@ -2,15 +2,18 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 export async function GET() {
-  // Tus credenciales maestras seguras
-  const KEY = "f388006ebe099c2ba400";
-  const SECRET = "d4a098d54bdd10cf1042";
-  const sip = "554386-100"; // 👈 El SIP real de tu centralita
+  // Jalamos las variables de tu .env de forma dinámica y segura
+  const KEY = process.env.ZADARMA_KEY || "";
+  const SECRET = process.env.ZADARMA_SECRET || "";
+  const sip = process.env.SIP || "";
+
+  if (!KEY || !SECRET || !sip) {
+    return NextResponse.json({ error: "Faltan variables de entorno en Vercel" }, { status: 500 });
+  }
 
   const method = "/v1/webrtc/get_key/";
   const params = `sip=${sip}`;
 
-  // Algoritmo de seguridad estricto que pide Zadarma
   const md5 = crypto.createHash('md5').update(params).digest('hex');
   const dataToSign = method + params + md5;
   const hmac = crypto.createHmac('sha1', SECRET).update(dataToSign).digest('hex');
@@ -21,7 +24,7 @@ export async function GET() {
       headers: {
         'Authorization': `${KEY}:${signature}`
       },
-      cache: 'no-store' // Obligamos a que siempre traiga una llave nueva
+      cache: 'no-store' 
     });
 
     const data = await response.json();
