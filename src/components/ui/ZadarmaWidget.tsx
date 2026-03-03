@@ -33,7 +33,6 @@ export default function ZadarmaWidget() {
       .catch(err => console.error("Error pidiendo llave:", err));
   }, []);
 
-  // Inyección e Interceptor Corregido
   useEffect(() => {
     if (!webrtcKey) return;
     
@@ -50,38 +49,55 @@ export default function ZadarmaWidget() {
     };
     initWidget();
 
-    // 👇 EL FIX MÁGICO: Lector de objetos de Zadarma
+    // 👇 EL FIX DEFINITIVO: Lector Universal de Eventos Zadarma
     const handleZadarmaEvents = (event: MessageEvent) => {
-      const data = event.data;
-      
-      // Asegurarnos de que el evento venga de un widget (evitar basura de React DevTools)
-      if (data && typeof data === 'object') {
+      try {
+        let payload = event.data;
         
-        // Convertimos todo el objeto a un string temporal solo para buscar palabras clave rápido
-        const dataString = JSON.stringify(data).toLowerCase();
+        // 1. Si Zadarma manda un texto plano o un JSON convertido en string
+        if (typeof payload === 'string') {
+          // Detectar palabras clave directas
+          if (payload === 'incoming' || payload === 'ringing') {
+            setCallStatus('incoming'); setIsOpen(true); return;
+          }
+          if (payload === 'connected' || payload === 'answered') {
+            setCallStatus('connected'); return;
+          }
+          if (payload === 'canceled' || payload === 'hangup' || payload === 'ended') {
+            handleHangupState(); return;
+          }
+          // Intentar convertir de texto a objeto
+          try { payload = JSON.parse(payload); } catch (e) {}
+        }
 
-        // Detectar si Zadarma nos habla
-        if (dataString.includes('zadarma') || dataString.includes('webrtc') || dataString.includes('incoming')) {
-          
-          // 1. LLAMADA ENTRANTE (Ringing)
-          if (dataString.includes('incoming') || dataString.includes('ringing')) {
+        // 2. Si el payload es un Objeto (Como vimos en tus logs: caller: "+52...")
+        if (payload && typeof payload === 'object') {
+          const payloadStr = JSON.stringify(payload).toLowerCase();
+
+          // --- DETECTAR ENTRANTE ---
+          if (payload.action === 'incoming' || payload.event === 'incoming' || payloadStr.includes('incoming') || payload.caller) {
             setCallStatus('incoming');
-            setIsOpen(true); // Se abre la interfaz de golpe
+            setIsOpen(true); // ¡PUM! Abre el teléfono
             
-            // Intentar extraer el número si viene en el payload
-            if (data.phone || data.caller) {
-              setDialNumber(data.phone || data.caller);
+            // Atrapamos el número real de tus logs
+            const incomingNumber = payload.caller || payload.callername || payload.calledDid;
+            if (incomingNumber) {
+              setDialNumber(incomingNumber);
+            } else {
+              setDialNumber("Llamada Entrante");
             }
           }
-          // 2. LLAMADA CONECTADA (Answered)
-          else if (dataString.includes('answered') || dataString.includes('connected') || dataString.includes('up')) {
+          // --- DETECTAR CONECTADA ---
+          else if (payloadStr.includes('connected') || payloadStr.includes('answered') || payloadStr.includes('up')) {
             setCallStatus('connected');
           }
-          // 3. LLAMADA TERMINADA (Hangup)
-          else if (dataString.includes('hangup') || dataString.includes('ended') || dataString.includes('closed')) {
+          // --- DETECTAR CANCELADA / COLGADA ---
+          else if (payloadStr.includes('canceled') || payloadStr.includes('hangup') || payloadStr.includes('ended')) {
             handleHangupState();
           }
         }
+      } catch (error) {
+        // Silenciamos errores de parseo para no ensuciar tu consola
       }
     };
 
