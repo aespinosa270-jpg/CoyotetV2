@@ -1,4 +1,3 @@
-// src/app/api/flotilla/mis-ordenes/route.ts
 import { NextResponse } from "next/server";
 import { getFlotillaSession } from "@/lib/flotilla-auth";
 import { prisma } from "@/lib/prisma";
@@ -28,7 +27,7 @@ export async function GET() {
   const [ordenes, entregasDelMes] = await Promise.all([
     prisma.routeOrder.findMany({
       where: {
-        assignedTo: employee.id,
+        employeeId: employee.id,   // ✅ era assignedTo
         scheduledAt: { gte: hoy, lt: manana },
         status: { not: "CANCELADA" },
       },
@@ -37,7 +36,7 @@ export async function GET() {
     }),
     prisma.routeOrder.count({
       where: {
-        assignedTo: employee.id,
+        employeeId: employee.id,   // ✅ era assignedTo
         status: "COMPLETADA",
         completedAt: { gte: startOfMonth },
       },

@@ -1,4 +1,3 @@
-// src/components/admin/ModalNuevaOrdenRuta.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -12,14 +11,12 @@ interface Chofer { id: string; name: string; }
 interface Props { onClose: () => void; onCreated: () => void; }
 
 const TIPOS = [
-  
   {
     id: "RESTOCK_INTERNO",
     label: "Restock Interno",
     desc: "Plomo 203 ↔ Guatemala 97",
     icon: Store,
     active: "bg-purple-600 text-white border-purple-600",
-    idle:   "bg-purple-50 text-purple-700 border-purple-200",
   },
   {
     id: "RESTOCK_PROVEEDOR",
@@ -27,7 +24,6 @@ const TIPOS = [
     desc: "Recolección en proveedor externo",
     icon: Truck,
     active: "bg-orange-500 text-white border-orange-500",
-    idle:   "bg-orange-50 text-orange-700 border-orange-200",
   },
   {
     id: "ENTREGA_PAQUETERIA",
@@ -35,7 +31,6 @@ const TIPOS = [
     desc: "Llevar a sucursal de envíos",
     icon: ShoppingBag,
     active: "bg-sky-600 text-white border-sky-600",
-    idle:   "bg-sky-50 text-sky-700 border-sky-200",
   },
   {
     id: "ENTREGA_DOMICILIO",
@@ -43,22 +38,21 @@ const TIPOS = [
     desc: "Directo al cliente con horario",
     icon: Home,
     active: "bg-green-600 text-white border-green-600",
-    idle:   "bg-green-50 text-green-700 border-green-200",
   },
 ];
 
 const UBICACIONES = [
-  { id: "GUATEMALA_97", label: "Guatemala 97 — Centro"        },
-  { id: "PLOMO_203",    label: "Plomo 203 — Valle Gómez"      },
+  { id: "GUATEMALA_97", label: "Guatemala 97 — Centro"   },
+  { id: "PLOMO_203",    label: "Plomo 203 — Valle Gómez" },
 ];
 
 const CARRIERS = ["ESTAFETA", "FEDEX", "DHL", "J&T", "REDPACK", "OTRO"];
 
 export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
-  const [tipo, setTipo]       = useState("RECOLECCION");
+  const [tipo,     setTipo]     = useState("RECOLECCION");
   const [choferes, setChoferes] = useState<Chofer[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [success,  setSuccess]  = useState(false);
 
   const [form, setForm] = useState({
     contactName:    "",
@@ -69,7 +63,7 @@ export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
     addressLng:     "",
     scheduledAt:    "",
     notes:          "",
-    assignedTo:     "",
+    employeeId:     "",   // ✅ era assignedTo
     originLocation: "PLOMO_203",
     destLocation:   "GUATEMALA_97",
     carrier:        "ESTAFETA",
@@ -98,13 +92,13 @@ export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
           contactPhone:   form.contactPhone   || null,
           contactEmail:   form.contactEmail   || null,
           address:        form.address,
-          addressLat:     form.addressLat     ? parseFloat(form.addressLat)  : null,
-          addressLng:     form.addressLng     ? parseFloat(form.addressLng)  : null,
+          addressLat:     form.addressLat     ? parseFloat(form.addressLat) : null,
+          addressLng:     form.addressLng     ? parseFloat(form.addressLng) : null,
           scheduledAt:    form.scheduledAt,
           notes:          form.notes          || null,
-          assignedTo:     form.assignedTo     || null,
-          originLocation: tipo === "RESTOCK_INTERNO" ? form.originLocation : null,
-          destLocation:   tipo === "RESTOCK_INTERNO" ? form.destLocation   : null,
+          employeeId:     form.employeeId     || null,  // ✅ era assignedTo
+          originLocation: tipo === "RESTOCK_INTERNO"    ? form.originLocation : null,
+          destLocation:   tipo === "RESTOCK_INTERNO"    ? form.destLocation   : null,
           carrier:        tipo === "ENTREGA_PAQUETERIA" ? form.carrier        : null,
           sucursalNombre: tipo === "ENTREGA_PAQUETERIA" ? form.sucursalNombre : null,
         }),
@@ -118,8 +112,6 @@ export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
       setLoading(false);
     }
   };
-
-  const tipoActual = TIPOS.find(t => t.id === tipo)!;
 
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
@@ -145,44 +137,40 @@ export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1">
           <div className="px-8 py-6 space-y-6">
 
-            {/* ── Tipo de orden (grid 3+2) ────────────────────────────────── */}
+            {/* Tipo de orden */}
             <div>
               <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block mb-3">
                 Tipo de Orden
               </label>
-              {/* Fila 1: 3 tipos */}
               <div className="grid grid-cols-3 gap-2 mb-2">
                 {TIPOS.slice(0, 3).map(t => {
                   const Icon = t.icon;
                   const isActive = tipo === t.id;
                   return (
                     <button key={t.id} type="button" onClick={() => setTipo(t.id)}
-                      className={`p-3 rounded-2xl border-2 text-left transition-all ${isActive ? t.active : `bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-neutral-300`}`}>
+                      className={`p-3 rounded-2xl border-2 text-left transition-all ${isActive ? t.active : "bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-neutral-300"}`}>
                       <Icon size={18} strokeWidth={2.5} className="mb-1.5" />
                       <p className="text-[10px] font-[900] uppercase tracking-tight leading-none mb-0.5">{t.label}</p>
-                      <p className={`text-[9px] font-bold leading-tight ${isActive ? "opacity-80" : "text-neutral-400"}`}>{t.desc}</p>
                     </button>
                   );
                 })}
               </div>
-              {/* Fila 2: 2 tipos */}
               <div className="grid grid-cols-2 gap-2">
                 {TIPOS.slice(3).map(t => {
                   const Icon = t.icon;
                   const isActive = tipo === t.id;
                   return (
                     <button key={t.id} type="button" onClick={() => setTipo(t.id)}
-                      className={`p-3 rounded-2xl border-2 text-left transition-all ${isActive ? t.active : `bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-neutral-300`}`}>
+                      className={`p-3 rounded-2xl border-2 text-left transition-all ${isActive ? t.active : "bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-neutral-300"}`}>
                       <Icon size={18} strokeWidth={2.5} className="mb-1.5" />
                       <p className="text-[10px] font-[900] uppercase tracking-tight leading-none mb-0.5">{t.label}</p>
-                      <p className={`text-[9px] font-bold leading-tight ${isActive ? "opacity-80" : "text-neutral-400"}`}>{t.desc}</p>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* ── RESTOCK INTERNO: selector origen → destino ──────────────── */}
+            {/* Restock Interno */}
             {tipo === "RESTOCK_INTERNO" && (
               <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4">
                 <label className="text-[10px] font-black text-purple-600 uppercase tracking-widest block mb-3">
@@ -202,7 +190,7 @@ export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
               </div>
             )}
 
-            {/* ── ENTREGA PAQUETERÍA: carrier + sucursal ───────────────────── */}
+            {/* Entrega Paquetería */}
             {tipo === "ENTREGA_PAQUETERIA" && (
               <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 space-y-3">
                 <label className="text-[10px] font-black text-sky-600 uppercase tracking-widest block">
@@ -218,24 +206,21 @@ export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
                   </div>
                   <div>
                     <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest block mb-1.5">Nombre Sucursal</label>
-                    <input
-                      value={form.sucursalNombre}
-                      onChange={e => set("sucursalNombre", e.target.value)}
+                    <input value={form.sucursalNombre} onChange={e => set("sucursalNombre", e.target.value)}
                       placeholder="Ej: Estafeta Tepito"
-                      className="w-full bg-white border border-sky-200 rounded-xl px-3 py-2.5 text-sm font-bold text-black placeholder:text-neutral-300 focus:outline-none focus:border-sky-500"
-                    />
+                      className="w-full bg-white border border-sky-200 rounded-xl px-3 py-2.5 text-sm font-bold text-black placeholder:text-neutral-300 focus:outline-none focus:border-sky-500" />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* ── Datos del contacto ───────────────────────────────────────── */}
+            {/* Contacto */}
             <div>
               <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block mb-3">
-                {tipo === "RESTOCK_INTERNO"    ? "Responsable"  :
-                 tipo === "RESTOCK_PROVEEDOR"  ? "Proveedor"    :
-                 tipo === "ENTREGA_PAQUETERIA" ? "Referencia"   :
-                 tipo === "ENTREGA_DOMICILIO"  ? "Cliente"      : "Cliente / Contacto"}
+                {tipo === "RESTOCK_INTERNO"    ? "Responsable"
+                : tipo === "RESTOCK_PROVEEDOR" ? "Proveedor"
+                : tipo === "ENTREGA_PAQUETERIA"? "Referencia"
+                : "Cliente / Contacto"}
               </label>
               <div className="space-y-3">
                 <div className="relative">
@@ -261,7 +246,7 @@ export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
               </div>
             </div>
 
-            {/* ── Dirección ───────────────────────────────────────────────── */}
+            {/* Dirección */}
             <div>
               <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block mb-3">
                 {tipo === "ENTREGA_PAQUETERIA" ? "Dirección de la Sucursal" : "Dirección de Recolección / Entrega"}
@@ -282,12 +267,12 @@ export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
                     className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm font-mono text-black placeholder:text-neutral-400 focus:outline-none focus:border-black transition-colors" />
                 </div>
                 <p className="text-[10px] text-neutral-400 font-bold">
-                  💡 Google Maps → clic derecho en la ubicación → copiar coordenadas
+                  💡 Google Maps → clic derecho → copiar coordenadas
                 </p>
               </div>
             </div>
 
-            {/* ── Horario ─────────────────────────────────────────────────── */}
+            {/* Horario */}
             <div>
               <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block mb-3">
                 {tipo === "ENTREGA_DOMICILIO" ? "Horario Pactado con el Cliente" : "Horario de Recolección"}
@@ -300,14 +285,16 @@ export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
               </div>
             </div>
 
-            {/* ── Asignar chofer ───────────────────────────────────────────── */}
+            {/* Asignar chofer */}
             <div>
               <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block mb-3">
                 Asignar Chofer
               </label>
               <div className="relative">
                 <Truck size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" />
-                <select value={form.assignedTo} onChange={e => set("assignedTo", e.target.value)}
+                <select
+                  value={form.employeeId}                              // ✅ era assignedTo
+                  onChange={e => set("employeeId", e.target.value)}   // ✅ era assignedTo
                   className="w-full bg-neutral-50 border border-neutral-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-black focus:outline-none focus:border-black transition-colors appearance-none">
                   <option value="">Sin asignar (queda pendiente)</option>
                   {choferes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -315,7 +302,7 @@ export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
               </div>
             </div>
 
-            {/* ── Notas ───────────────────────────────────────────────────── */}
+            {/* Notas */}
             <div>
               <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block mb-3">
                 Notas Adicionales
@@ -335,9 +322,9 @@ export default function ModalNuevaOrdenRuta({ onClose, onCreated }: Props) {
           <div className="px-8 py-5 border-t border-neutral-100 bg-neutral-50/50 shrink-0">
             <button type="submit" disabled={loading || success}
               className="w-full bg-black hover:bg-neutral-800 disabled:opacity-50 text-[#FDCB02] h-14 rounded-2xl font-[900] uppercase text-sm tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.98]">
-              {success  ? <><CheckCircle2 size={20} /> Orden Creada</>    :
-               loading  ? <><Loader2 size={20} className="animate-spin" /> Creando...</> :
-                          <>Crear Orden de Ruta <ArrowRight size={18} /></>}
+              {success ? <><CheckCircle2 size={20} /> Orden Creada</>
+              : loading ? <><Loader2 size={20} className="animate-spin" /> Creando...</>
+              : <>Crear Orden de Ruta <ArrowRight size={18} /></>}
             </button>
           </div>
         </form>

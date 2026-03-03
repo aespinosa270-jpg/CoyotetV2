@@ -1,8 +1,6 @@
-// src/app/api/admin/route-orders/route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// GET: listar órdenes de ruta
 export async function GET() {
   const orders = await prisma.routeOrder.findMany({
     orderBy: { scheduledAt: "asc" },
@@ -11,15 +9,16 @@ export async function GET() {
   return NextResponse.json(orders);
 }
 
-// POST: crear nueva orden de ruta
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const {
       type, contactName, contactPhone, contactEmail,
       address, addressLat, addressLng,
-      scheduledAt, notes, assignedTo,
+      scheduledAt, notes,
+      employeeId,        // ✅ era assignedTo
       originLocation, destLocation,
+      carrier, sucursalNombre,
     } = body;
 
     if (!type || !contactName || !address || !scheduledAt) {
@@ -28,13 +27,20 @@ export async function POST(req: Request) {
 
     const order = await prisma.routeOrder.create({
       data: {
-        type, contactName, contactPhone, contactEmail,
-        address, addressLat: addressLat ?? null, addressLng: addressLng ?? null,
-        scheduledAt: new Date(scheduledAt),
-        notes: notes ?? null,
-        assignedTo: assignedTo ?? null,
+        type,
+        contactName,
+        contactPhone:   contactPhone   ?? null,
+        contactEmail:   contactEmail   ?? null,
+        address,
+        addressLat:     addressLat     ?? null,
+        addressLng:     addressLng     ?? null,
+        scheduledAt:    new Date(scheduledAt),
+        notes:          notes          ?? null,
+        employeeId:     employeeId     ?? null,  // ✅ era assignedTo
         originLocation: originLocation ?? null,
-        destLocation: destLocation ?? null,
+        destLocation:   destLocation   ?? null,
+        carrier:        carrier        ?? null,
+        sucursalNombre: sucursalNombre ?? null,
       },
       include: { employee: { select: { id: true, name: true } } },
     });
