@@ -1,47 +1,56 @@
 "use client"
 
 import Script from 'next/script';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function ZadarmaWidget() {
+  const [webrtcKey, setWebrtcKey] = useState<string | null>(null);
 
   useEffect(() => {
-    // Función que "vigila" hasta que Zadarma esté 100% listo en la ventana
+    // 1. Pedimos la llave segura a nuestro servidor interno
+    fetch('/api/zadarma-webrtc')
+      .then(res => res.json())
+      .then(data => {
+        if (data.key) {
+          setWebrtcKey(data.key);
+        } else {
+          console.error("Zadarma rebotó la petición de la llave:", data);
+        }
+      })
+      .catch(err => console.error("Error pidiendo llave:", err));
+  }, []);
+
+  useEffect(() => {
+    if (!webrtcKey) return; // No intentamos cargar nada si no hay llave
+
+    // 2. Vigilamos que los scripts de Zadarma estén listos en el navegador
     const initWidget = () => {
       const w = window as any;
-
-      // Verificamos que AMBAS librerías maestras existan en el navegador
       if (w.zadarmaWidgetFn && w.zdrmWebrtcPhoneInterface) {
-        console.log("✅ Motores de Zadarma listos. Inyectando teléfono...");
+        console.log("✅ Llave dinámica obtenida. Inyectando teléfono...");
         w.zadarmaWidgetFn(
-          'f388006ebe099c2ba400',  // Tu Key
-          '267018-100',            // Tu SIP
+          webrtcKey,      // 👈 Se inyecta la llave dinámica generada
+          '267018-100',   // 👈 Tu SIP con extensión
           'square',
           'es',
           true,
           { right: '24px', bottom: '24px', zIndex: '9999' }
         );
       } else {
-        // Si todavía no carga, vuelve a checar en 500 milisegundos (medio segundo)
         setTimeout(initWidget, 500);
       }
     };
 
-    // Empezamos la vigilancia en cuanto el componente se monta
     initWidget();
-  }, []);
+  }, [webrtcKey]);
+
+  // Mientras no tengamos la llave, no cargamos ni los scripts visuales
+  if (!webrtcKey) return null;
 
   return (
     <>
-      {/* Soltamos los scripts para que Next.js los descargue a su ritmo */}
-      <Script 
-        src="https://my.zadarma.com/webphoneWebRTCWidget/v9/js/loader-phone-lib.js?sub_v=1" 
-        strategy="afterInteractive" 
-      />
-      <Script 
-        src="https://my.zadarma.com/webphoneWebRTCWidget/v9/js/loader-phone-fn.js?sub_v=1" 
-        strategy="afterInteractive" 
-      />
+      <Script src="https://my.zadarma.com/webphoneWebRTCWidget/v9/js/loader-phone-lib.js?sub_v=1" strategy="afterInteractive" />
+      <Script src="https://my.zadarma.com/webphoneWebRTCWidget/v9/js/loader-phone-fn.js?sub_v=1" strategy="afterInteractive" />
     </>
   );
 }
