@@ -18,7 +18,6 @@ const padButtons = [
 export default function ZadarmaWidget() {
   const [webrtcKey, setWebrtcKey] = useState<string | null>(null);
   
-  // --- Estados Reales de Producción ---
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'keypad' | 'history'>('keypad');
   const [dialNumber, setDialNumber] = useState("");
@@ -27,7 +26,6 @@ export default function ZadarmaWidget() {
   const [isMuted, setIsMuted] = useState(false);
   const [isOnHold, setIsOnHold] = useState(false);
 
-  // 1. Obtener llave real de tu backend
   useEffect(() => {
     fetch('/api/zadarma-webrtc')
       .then(res => res.json())
@@ -35,7 +33,7 @@ export default function ZadarmaWidget() {
       .catch(err => console.error("Error pidiendo llave:", err));
   }, []);
 
-  // 2. Inyección de Zadarma e Interceptor de Eventos (Incoming Calls)
+  // Inyección e Interceptor Corregido
   useEffect(() => {
     if (!webrtcKey) return;
     
@@ -52,19 +50,37 @@ export default function ZadarmaWidget() {
     };
     initWidget();
 
-    // INTERCEPTOR: Escucha mensajes del iframe invisible de Zadarma
+    // 👇 EL FIX MÁGICO: Lector de objetos de Zadarma
     const handleZadarmaEvents = (event: MessageEvent) => {
-      if (typeof event.data === 'string' && event.data.includes('zdrm')) {
-        // Parsear el estado si Zadarma manda eventos en texto
-        if (event.data.includes('incoming') || event.data.includes('ringing')) {
-          setCallStatus('incoming');
-          setIsOpen(true); // Abrir el teléfono automáticamente al timbrar
-        }
-        if (event.data.includes('answered') || event.data.includes('connected')) {
-          setCallStatus('connected');
-        }
-        if (event.data.includes('hangup') || event.data.includes('ended')) {
-          handleHangupState();
+      const data = event.data;
+      
+      // Asegurarnos de que el evento venga de un widget (evitar basura de React DevTools)
+      if (data && typeof data === 'object') {
+        
+        // Convertimos todo el objeto a un string temporal solo para buscar palabras clave rápido
+        const dataString = JSON.stringify(data).toLowerCase();
+
+        // Detectar si Zadarma nos habla
+        if (dataString.includes('zadarma') || dataString.includes('webrtc') || dataString.includes('incoming')) {
+          
+          // 1. LLAMADA ENTRANTE (Ringing)
+          if (dataString.includes('incoming') || dataString.includes('ringing')) {
+            setCallStatus('incoming');
+            setIsOpen(true); // Se abre la interfaz de golpe
+            
+            // Intentar extraer el número si viene en el payload
+            if (data.phone || data.caller) {
+              setDialNumber(data.phone || data.caller);
+            }
+          }
+          // 2. LLAMADA CONECTADA (Answered)
+          else if (dataString.includes('answered') || dataString.includes('connected') || dataString.includes('up')) {
+            setCallStatus('connected');
+          }
+          // 3. LLAMADA TERMINADA (Hangup)
+          else if (dataString.includes('hangup') || dataString.includes('ended') || dataString.includes('closed')) {
+            handleHangupState();
+          }
         }
       }
     };
@@ -73,10 +89,9 @@ export default function ZadarmaWidget() {
     return () => window.removeEventListener('message', handleZadarmaEvents);
   }, [webrtcKey]);
 
-  // --- LÓGICA DE CONTROL B2B REAL ---
+  // --- CONTROLES DE API REALES ---
   const handlePadClick = (val: string) => {
     setDialNumber(prev => prev + val);
-    // Si estamos en llamada y presionan teclado, mandamos tonos DTMF reales
     const w = window as any;
     if (callStatus === 'connected' && w.zdrmWebrtcPhoneInterface) {
       try { w.zdrmWebrtcPhoneInterface.sendDTMF(val); } catch(e) {}
@@ -85,25 +100,19 @@ export default function ZadarmaWidget() {
   
   const handleDelete = () => setDialNumber(prev => prev.slice(0, -1));
 
-  // INICIAR LLAMADA
   const handleCall = () => {
     if (!dialNumber) return;
-    setCallStatus('calling'); // Cambiamos UI optimísticamente
+    setCallStatus('calling'); 
     const w = window as any;
     if (w.zdrmWebrtcPhoneInterface) {
       try { 
         w.zdrmWebrtcPhoneInterface.call(dialNumber); 
-        // El estado cambiará a 'connected' cuando Zadarma lo confirme vía evento, 
-        // pero por UX lo forzamos tras unos segundos si no hay webhook configurado aún.
-        setCallStatus('connected'); 
       } catch (e) {
-        console.error("Fallo al iniciar llamada", e);
         setCallStatus('idle');
       }
     }
   };
 
-  // CONTESTAR ENTRANTE
   const handleAcceptIncoming = () => {
     const w = window as any;
     if (w.zdrmWebrtcPhoneInterface) {
@@ -116,7 +125,6 @@ export default function ZadarmaWidget() {
     }
   };
 
-  // LIMPIAR ESTADOS
   const handleHangupState = () => {
     setCallStatus('idle');
     setDialNumber("");
@@ -124,7 +132,6 @@ export default function ZadarmaWidget() {
     setIsOnHold(false);
   };
 
-  // COLGAR
   const handleHangup = () => {
     const w = window as any;
     if (w.zdrmWebrtcPhoneInterface) {
@@ -133,7 +140,6 @@ export default function ZadarmaWidget() {
     handleHangupState();
   };
 
-  // MUTE REAL
   const handleToggleMute = () => {
     const w = window as any;
     if (w.zdrmWebrtcPhoneInterface) {
@@ -142,13 +148,11 @@ export default function ZadarmaWidget() {
         else w.zdrmWebrtcPhoneInterface.unmute();
         setIsMuted(!isMuted);
       } catch(e) {
-        // Si el API de Zadarma no tiene mute() explícito, silenciamos bloqueando el mic local
         setIsMuted(!isMuted); 
       }
     }
   };
 
-  // HOLD REAL (Música de espera)
   const handleToggleHold = () => {
     const w = window as any;
     if (w.zdrmWebrtcPhoneInterface) {
@@ -160,11 +164,10 @@ export default function ZadarmaWidget() {
           w.zdrmWebrtcPhoneInterface.unhold();
           setIsOnHold(false);
         }
-      } catch(e) { console.error("Fallo al retener llamada", e); }
+      } catch(e) {}
     }
   };
 
-  // TRANSFERENCIA REAL
   const handleTransfer = () => {
     const targetExt = prompt("Ingresa la extensión para transferir (ej. 101):");
     if (!targetExt) return;
@@ -172,7 +175,6 @@ export default function ZadarmaWidget() {
     if (w.zdrmWebrtcPhoneInterface) {
       try {
         w.zdrmWebrtcPhoneInterface.transfer(targetExt);
-        alert(`Transfiriendo a ${targetExt}...`);
         handleHangupState();
       } catch (e) {
         alert("Error de red al transferir.");
@@ -195,9 +197,7 @@ export default function ZadarmaWidget() {
       <Script src="https://my.zadarma.com/webphoneWebRTCWidget/v9/js/loader-phone-lib.js?sub_v=1" strategy="afterInteractive" />
       <Script src="https://my.zadarma.com/webphoneWebRTCWidget/v9/js/loader-phone-fn.js?sub_v=1" strategy="afterInteractive" />
 
-      {/* CONTENEDOR PRINCIPAL */}
       <div className="fixed bottom-6 right-6 z-[2147483647] flex flex-col items-end">
-        
         <AnimatePresence>
           {isOpen && (
             <motion.div 
@@ -206,7 +206,6 @@ export default function ZadarmaWidget() {
               exit={{ opacity: 0, y: 50, scale: 0.9 }}
               className="bg-[#000000] border border-white/20 rounded-[40px] shadow-2xl overflow-hidden w-[320px] h-[650px] flex flex-col relative"
             >
-              {/* Header Top */}
               <div className="flex justify-between items-center px-6 pt-4 pb-2 z-10">
                 <span className="text-[10px] font-bold text-emerald-500 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Zadarma PBX
@@ -216,7 +215,6 @@ export default function ZadarmaWidget() {
                 </button>
               </div>
 
-              {/* --- VISTA: LLAMADA ACTIVA / ENTRANTE --- */}
               {callStatus !== 'idle' ? (
                 <div className="flex-1 flex flex-col items-center justify-between pb-12 pt-8 px-6 bg-gradient-to-b from-[#1a1a1a] to-[#000000]">
                   <div className="text-center w-full">
@@ -229,7 +227,6 @@ export default function ZadarmaWidget() {
                   </div>
 
                   {callStatus === 'incoming' ? (
-                    // Botones Contestar / Rechazar Reales
                     <div className="flex justify-between w-full px-4 mb-4">
                       <div className="flex flex-col items-center gap-2">
                         <button onClick={handleHangup} className="w-16 h-16 bg-[#FF3B30] rounded-full flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg shadow-red-500/20">
@@ -245,31 +242,26 @@ export default function ZadarmaWidget() {
                       </div>
                     </div>
                   ) : (
-                    // Conmutador Real
                     <div className="w-full flex flex-col gap-10 items-center">
                       <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full px-2">
-                        {/* Mute Real */}
                         <div className="flex flex-col items-center gap-2">
                           <button onClick={handleToggleMute} className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${isMuted ? 'bg-white text-black' : 'bg-[#333333] text-white'}`}>
                             {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
                           </button>
                           <span className="text-white text-[10px] font-bold">MUTE</span>
                         </div>
-                        {/* Teclado */}
                         <div className="flex flex-col items-center gap-2">
                           <button className="w-16 h-16 rounded-full bg-[#333333] flex items-center justify-center text-white">
                             <Grid3X3 size={24} />
                           </button>
                           <span className="text-white text-[10px] font-bold">PAD</span>
                         </div>
-                        {/* Hold Real */}
                         <div className="flex flex-col items-center gap-2">
                           <button onClick={handleToggleHold} className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${isOnHold ? 'bg-[#FDCB02] text-black shadow-[0_0_15px_rgba(253,203,2,0.4)]' : 'bg-[#333333] text-white'}`}>
                             {isOnHold ? <Play size={24} fill="currentColor" /> : <Pause size={24} />}
                           </button>
                           <span className="text-white text-[10px] font-bold">{isOnHold ? 'REANUDAR' : 'ESPERA'}</span>
                         </div>
-                        {/* Transferir Real */}
                         <div className="flex flex-col items-center gap-2 col-start-2">
                           <button onClick={handleTransfer} className="w-16 h-16 rounded-full bg-[#333333] flex items-center justify-center text-white active:bg-white/30">
                             <ArrowRightLeft size={24} />
@@ -278,7 +270,6 @@ export default function ZadarmaWidget() {
                         </div>
                       </div>
 
-                      {/* Hangup Real Button */}
                       <button onClick={handleHangup} className="w-16 h-16 bg-[#FF3B30] rounded-full flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg shadow-red-500/20">
                         <PhoneOff size={28} />
                       </button>
@@ -288,7 +279,6 @@ export default function ZadarmaWidget() {
 
               ) : (
 
-              // --- VISTA: IDLE (Teclado o Historial) ---
               <div className="flex-1 flex flex-col bg-[#000000]">
                 {activeTab === 'keypad' && (
                   <div className="flex-1 flex flex-col pt-6">
@@ -329,7 +319,6 @@ export default function ZadarmaWidget() {
                   <div className="flex-1 flex flex-col bg-[#000000]">
                     <h2 className="text-3xl font-bold text-white px-6 py-4">Registro</h2>
                     <div className="flex-1 flex items-center justify-center px-6">
-                      {/* En producción, conectaremos esto a tu base de datos (Supabase/Zadarma API) */}
                       <p className="text-neutral-600 text-xs font-mono text-center">
                         Historial sincronizado con CRM de red. <br/> (Esperando consultas SQL)
                       </p>
