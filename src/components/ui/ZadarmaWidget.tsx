@@ -30,7 +30,7 @@ export default function ZadarmaWidget() {
         console.log("✅ Llave dinámica obtenida. Inyectando teléfono...");
         w.zadarmaWidgetFn(
           webrtcKey,      // 👈 Se inyecta la llave dinámica generada
-          '267018-100',   // 👈 Tu SIP con extensión
+          '554386-100',   // 👈 Tu SIP real con extensión
           'square',
           'es',
           true,

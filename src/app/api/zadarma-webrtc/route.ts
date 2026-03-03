@@ -5,7 +5,7 @@ export async function GET() {
   // Tus credenciales maestras seguras
   const KEY = "f388006ebe099c2ba400";
   const SECRET = "d4a098d54bdd10cf1042";
-  const sip = "267018-100"; // Tu base + tu extensión
+  const sip = "554386-100"; // 👈 El SIP real de tu centralita
 
   const method = "/v1/webrtc/get_key/";
   const params = `sip=${sip}`;
