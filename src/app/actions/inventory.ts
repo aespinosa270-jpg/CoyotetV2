@@ -1,75 +1,175 @@
-"use server"
+"use server";
 
-import { prisma } from '@/lib/prisma'
-import { PickupLocation, MovementType } from '@prisma/client'
-import { revalidatePath } from 'next/cache'
+import { prisma } from "@/lib/prisma";
+import { PickupLocation, MovementType } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 
-export async function registerMovementAction(formData: FormData) {
+export type RegisterMovementInput = {
+  type: MovementType;
+  productId: string;
+  colorId?: string;
+  location: PickupLocation;
+  quantity: number;
+  rollCount: number;
+  provider?: string;
+  authorizedBy: string;
+  notes?: string;
+  orderId?: string;
+};
+
+export type MovementResult =
+  | { success: true; movementId: string }
+  | { success: false; error: string };
+
+export async function registerMovementAction(
+  input: RegisterMovementInput
+): Promise<MovementResult> {
+  const {
+    type, productId, colorId, location,
+    quantity, rollCount, provider, authorizedBy, notes, orderId,
+  } = input;
+
+  if (!productId)          return { success: false, error: "Producto requerido." };
+  if (!authorizedBy?.trim()) return { success: false, error: "Debes indicar quién autoriza." };
+  if (quantity <= 0)       return { success: false, error: "La cantidad debe ser mayor a 0." };
+  if (rollCount < 0)       return { success: false, error: "Rollos no puede ser negativo." };
+
+  // FIX: Prisma no acepta `string | null` directamente en el unique compuesto.
+  // Hay que construir el where condicionalmente según si colorId existe o no.
+  // Cuando colorId es null, usamos un raw where con AND para evitar el type error.
+  const inventoryWhere = colorId
+    ? { productId_colorId_location: { productId, colorId, location } }
+    : { productId_colorId_location: { productId, colorId: null as unknown as string, location } };
+  //                                                     ↑ workaround tipado de Prisma
+
+  // Alternativa más limpia si la anterior te sigue dando problemas en strict mode:
+  // usar findFirst en lugar del unique compuesto
+  // const inventoryWhere = { productId, colorId: colorId ?? null, location };
+
   try {
-    const type = formData.get('type') as MovementType;
-    const productId = formData.get('productId') as string;
-    const colorId = formData.get('colorId') as string;
-    const location = formData.get('location') as PickupLocation;
-    const provider = formData.get('provider') as string;
-    const authorizedBy = formData.get('authorizedBy') as string;
-    const quantity = parseFloat(formData.get('quantity') as string);
-    const rollCount = parseInt(formData.get('rollCount') as string);
-    const notes = formData.get('notes') as string;
-
-    // Usamos una Transacción de Prisma para asegurar que ambas cosas pasen juntas
-    await prisma.$transaction(async (tx) => {
-      
-      // 1. Dejar el registro en el Kardex (Auditoría)
-      await tx.inventoryMovement.create({
-        data: {
-          type, productId, colorId, location, provider, authorizedBy,
-          quantity, rollCount, notes
-        }
-      });
-
-      // 2. Actualizar el Stock Físico en la Bodega correspondiente
-      const currentStock = await tx.inventory.findUnique({
+    // Validación de stock (solo SALIDA)
+    if (type === "SALIDA") {
+      const stock = await prisma.inventory.findFirst({
         where: {
-          productId_colorId_location: { productId, colorId, location }
-        }
+          productId,
+          colorId: colorId ?? null,
+          location,
+        },
       });
 
-      const multiplier = type === 'ENTRADA' ? 1 : -1;
+      if (!stock) {
+        return {
+          success: false,
+          error: `No hay inventario para este producto en ${location}.`,
+        };
+      }
+      if (stock.quantity < quantity) {
+        return {
+          success: false,
+          error: `Stock insuficiente en ${location}. Disponible: ${stock.quantity.toFixed(2)} — Solicitado: ${quantity.toFixed(2)}.`,
+        };
+      }
+      if (stock.rollCount < rollCount) {
+        return {
+          success: false,
+          error: `Rollos insuficientes en ${location}. Disponibles: ${stock.rollCount} — Solicitados: ${rollCount}.`,
+        };
+      }
+    }
 
-      if (currentStock) {
-        // Si ya hay mercancía, sumamos o restamos
+    const result = await prisma.$transaction(async (tx) => {
+      // PASO 1 — Kardex inmutable
+      const movement = await tx.inventoryMovement.create({
+        data: {
+          type,
+          productId,
+          colorId: colorId ?? null,
+          location,
+          quantity,
+          rollCount,
+          provider:     provider     ?? null,
+          authorizedBy,
+          notes:        notes        ?? null,
+          orderId:      orderId      ?? null,
+        },
+      });
+
+      const delta     = type === "ENTRADA" ?  quantity  : -quantity;
+      const rollDelta = type === "ENTRADA" ?  rollCount : -rollCount;
+
+      // PASO 2 — Upsert de stock
+      // FIX: usamos updateMany + create por separado para evitar el problema
+      // de tipos en el where del upsert con colorId nullable.
+      const existing = await tx.inventory.findFirst({
+        where: { productId, colorId: colorId ?? null, location },
+      });
+
+      if (existing) {
         await tx.inventory.update({
-          where: { id: currentStock.id },
+          where: { id: existing.id }, // ← usamos el PK, sin ambigüedad de tipos
           data: {
-            quantity: currentStock.quantity + (quantity * multiplier),
-            rollCount: currentStock.rollCount + (rollCount * multiplier)
-          }
-        });
-      } else if (type === 'ENTRADA') {
-        // Si no hay y es entrada, creamos el registro en esa sucursal
-        await tx.inventory.create({
-          data: {
-            productId, colorId, location,
-            quantity, rollCount
-          }
+            quantity:  { increment: delta },
+            rollCount: { increment: rollDelta },
+          },
         });
       } else {
-        throw new Error("No puedes dar salida a un producto que no tiene stock registrado.");
+        await tx.inventory.create({
+          data: {
+            productId,
+            colorId:  colorId ?? null,
+            location,
+            quantity: delta,
+            rollCount: rollDelta,
+          },
+        });
       }
+
+      return movement;
     });
 
-    revalidatePath('/crm/admin/bodega');
-    return { success: true };
-  } catch (error: any) {
-    console.error("Error en movimiento de inventario:", error);
-    return { success: false, error: error.message || "Fallo crítico en el Kardex." };
+    revalidatePath("/crm/admin/inventario");
+    revalidatePath("/crm/admin/inventario/historial");
+
+    return { success: true, movementId: result.id };
+  } catch (err) {
+    console.error("[registerMovementAction]", err);
+    return { success: false, error: "Error interno. Intenta de nuevo." };
   }
 }
 
-// Función auxiliar para cargar productos en el formulario
-export async function getProductsForInventory() {
-  return await prisma.product.findMany({
-    include: { colors: true },
-    where: { isActive: true }
+// ─── QUERIES ────────────────────────────────────────────────────────────────
+
+export async function getProductsWithColors() {
+  return prisma.product.findMany({
+    where: { isActive: true },
+    select: {
+      id: true,
+      title: true,
+      sku: true,
+      unit: true,
+      colors: { select: { id: true, name: true, hex: true } },
+    },
+    orderBy: { title: "asc" },
+  });
+}
+
+export async function getInventoryDashboard() {
+  return prisma.inventory.findMany({
+    include: {
+      product: { select: { title: true, sku: true, unit: true } },
+      color:   { select: { name: true, hex: true } },
+    },
+    orderBy: [{ product: { title: "asc" } }, { location: "asc" }],
+  });
+}
+
+export async function getMovementHistory(limit = 100) {
+  return prisma.inventoryMovement.findMany({
+    take: limit,
+    include: {
+      product: { select: { title: true, sku: true } },
+      color:   { select: { name: true, hex: true } },
+    },
+    orderBy: { createdAt: "desc" },
   });
 }
