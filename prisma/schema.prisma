@@ -6,7 +6,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") // Exclusivo y necesario para Supabase
+  directUrl = env("DIRECT_URL")
 }
 
 // ==========================================================
@@ -90,11 +90,11 @@ enum VehicleLogType {
 }
 
 enum RouteOrderType {
-  RECOLECCION        
-  RESTOCK_INTERNO    
-  RESTOCK_PROVEEDOR  
-  ENTREGA_PAQUETERIA 
-  ENTREGA_DOMICILIO  
+  RECOLECCION
+  RESTOCK_INTERNO
+  RESTOCK_PROVEEDOR
+  ENTREGA_PAQUETERIA
+  ENTREGA_DOMICILIO
 }
 
 enum RouteOrderStatus {
@@ -111,6 +111,12 @@ enum UnitType {
   PIEZA
 }
 
+enum MovementType {
+  ENTRADA
+  SALIDA
+  AJUSTE
+}
+
 // ==========================================================
 // 1. USUARIO / CLIENTE (B2B & B2C)
 // ==========================================================
@@ -125,13 +131,14 @@ model User {
   role                     String         @default("USER")
   membershipTier           MembershipTier @default(NONE)
   membershipExpiry         DateTime?
-  points                   Float          @default(0)
-  
-  // 🐺 BÓVEDA STRIPE
+
+  // FIX #7: Int en vez de Float — evita errores de punto flotante en puntos de lealtad
+  points                   Int            @default(0)
+
   stripeCustomerId         String?
   stripeSubscriptionId     String?
-  stripeSubscriptionStatus String?      
-  
+  stripeSubscriptionStatus String?
+
   ltv                      Float          @default(0)
   rfc                      String?
   taxRegime                String?
@@ -151,17 +158,17 @@ model User {
   orders                   Order[]
   interactions             Interaction[]
   tickets                  Ticket[]
-  deals                    Deal[]         // Relación con el CRM
+  deals                    Deal[]
 }
 
 // ==========================================================
-// 2. LA JAURÍA (EQUIPO INTERNO)
+// 2. LA JAURIA (EQUIPO INTERNO)
 // ==========================================================
 model Employee {
   id              String        @id @default(cuid())
   name            String
   email           String        @unique
-  password        String        
+  password        String
   role            EmployeeRole  @default(VENDEDORA)
   isActive        Boolean       @default(true)
   createdAt       DateTime      @default(now())
@@ -171,31 +178,31 @@ model Employee {
   attendances     Attendance[]
   interactions    Interaction[]
   assignedTickets Ticket[]
-  telemetry       Telemetry[]   
-  routeOrders     RouteOrder[]  
-  deals           Deal[]        // Tratos asignados en el Pipeline
+  telemetry       Telemetry[]
+  routeOrders     RouteOrder[]
+  deals           Deal[]
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  timestamp   DateTime @default(now())
-  employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id])
-  action      String
-  resourceId  String?
-  ipAddress   String?
-  userAgent   String?
-  metadata    Json?
+  id         String   @id @default(cuid())
+  timestamp  DateTime @default(now())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  action     String
+  resourceId String?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
 }
 
 // ==========================================================
-// 3. CATÁLOGO CENTRAL & INVENTARIO FÍSICO (NUEVO E INTEGRADO)
+// 3. CATALOGO CENTRAL & INVENTARIO FISICO
 // ==========================================================
 model Product {
-  id               String         @id @default(cuid()) // Ej. prod_diablo
-  sku              String         @unique
+  id               String              @id @default(cuid())
+  sku              String              @unique
   title            String
-  unit             UnitType       @default(KILO)
+  unit             UnitType            @default(KILO)
   thumbnail        String?
   description      String?
   composicion      String?
@@ -204,78 +211,114 @@ model Product {
   rendimiento      Float?
   priceMenudeo     Float
   priceMayoreo     Float
-  hasRollo         Boolean        @default(true)
+  hasRollo         Boolean             @default(true)
   unidadesPorRollo Float?
-  singleColor      Boolean        @default(true)
+  singleColor      Boolean             @default(true)
   origin           String?
   category         String
-  isActive         Boolean        @default(true)
-  
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  isActive         Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
 
   colors           ProductColor[]
   inventory        Inventory[]
   orderItems       OrderItem[]
   deals            Deal[]
+  movements        InventoryMovement[]
 }
 
 model ProductColor {
-  id          String      @id @default(cuid())
-  productId   String
-  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name        String      // Ej. "Azul Rey"
-  hex         String      // Ej. "#1434A4"
-  imageUrl    String?
+  id        String              @id @default(cuid())
+  productId String
+  product   Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  hex       String
+  imageUrl  String?
 
-  inventory   Inventory[]
+  inventory Inventory[]
+  movements InventoryMovement[]
 }
 
 model Inventory {
-  id          String         @id @default(cuid())
-  productId   String
-  product     Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  colorId     String?
-  color       ProductColor?  @relation(fields: [colorId], references: [id])
-  
-  location    PickupLocation // PLOMO_203 o GUATEMALA_97
-  quantity    Float          // Metraje o Kilaje total disponible
-  rollCount   Int            // Rollos físicos en la bodega
+  id        String         @id @default(cuid())
+  productId String
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  updatedAt   DateTime       @updatedAt
+  // FIX #2: El @@unique con colorId nullable no es suficiente en PostgreSQL —
+  // dos NULLs no son iguales en un indice UNIQUE, lo que permite duplicados silenciosos
+  // para productos sin color en la misma sucursal.
+  // ACCION REQUERIDA: Despues de migrar, corre este SQL manualmente en Supabase:
+  //
+  //   CREATE UNIQUE INDEX inventory_no_color_unique
+  //   ON "Inventory"("productId", "location")
+  //   WHERE "colorId" IS NULL;
+  //
+  colorId   String?
+  color     ProductColor?  @relation(fields: [colorId], references: [id])
 
-  // Un producto + un color no puede repetirse en la misma sucursal (se actualiza la cantidad)
+  location  PickupLocation
+  quantity  Float
+  rollCount Int            @default(0)
+  updatedAt DateTime       @updatedAt
+
   @@unique([productId, colorId, location])
 }
 
-// ==========================================================
-// 4. CRM: PIPELINE & VENTAS MAYORISTAS (NUEVO)
-// ==========================================================
-model Deal {
-  id          String         @id @default(cuid())
-  title       String         // Ej. "Lote 10,000m Mezclilla"
-  company     String
-  
-  userId      String?        // Cliente asociado (si ya está registrado)
-  user        User?          @relation(fields: [userId], references: [id])
-  
-  employeeId  String         // Agente asignado (Closer)
-  employee    Employee       @relation(fields: [employeeId], references: [id])
-  
-  productId   String
-  product     Product        @relation(fields: [productId], references: [id])
-  
-  color       String?        // Color solicitado
-  quantity    Float          // Cantidad solicitada
-  value       Float          // Monto total proyectado/cerrado
-  status      PipelineStatus @default(PROSPECTO)
-  
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+// KARDEX — cerebro del control de inventario
+model InventoryMovement {
+  id           String         @id @default(cuid())
+  productId    String
+  product      Product        @relation(fields: [productId], references: [id])
+  colorId      String?
+  color        ProductColor?  @relation(fields: [colorId], references: [id])
+
+  location     PickupLocation
+  type         MovementType
+
+  quantity     Float
+  // FIX #3: @default(0) — evita crash si el form no envia rollCount
+  rollCount    Int            @default(0)
+
+  provider     String?
+  authorizedBy String
+  notes        String?
+
+  // FIX #6: Trazabilidad — vincula movimiento a la orden que lo origino
+  orderId      String?
+  order        Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  createdAt    DateTime       @default(now())
 }
 
 // ==========================================================
-// 5. E-COMMERCE & LOGÍSTICA DE COMPRA
+// 4. CRM: PIPELINE & VENTAS MAYORISTAS
+// ==========================================================
+model Deal {
+  id         String         @id @default(cuid())
+  title      String
+  company    String
+
+  userId     String?
+  user       User?          @relation(fields: [userId], references: [id])
+
+  employeeId String
+  employee   Employee       @relation(fields: [employeeId], references: [id])
+
+  // FIX #4: productId ahora es opcional — en PROSPECTO puede no saberse el producto aun
+  productId  String?
+  product    Product?       @relation(fields: [productId], references: [id])
+
+  color      String?
+  quantity   Float?
+  value      Float          @default(0)
+  status     PipelineStatus @default(PROSPECTO)
+
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
+// ==========================================================
+// 5. E-COMMERCE & LOGISTICA DE COMPRA
 // ==========================================================
 model Order {
   id             String         @id @default(cuid())
@@ -310,30 +353,30 @@ model Order {
 
   items          OrderItem[]
   tickets        Ticket[]
+  // FIX #6: relacion inversa con el Kardex
+  movements      InventoryMovement[]
 
+  // FIX #5: onDelete SetNull — borrar un Vehicle no rompe ordenes historicas
   vehicleId      String?
-  vehicle        Vehicle?       @relation(fields: [vehicleId], references: [id])
+  vehicle        Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 }
 
 model OrderItem {
-  id          String   @id @default(cuid())
-  orderId     String
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  
-  // 🔥 Integrado con el catálogo real
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id])
-  
-  title       String
-  sku         String?
-  price       Float
-  quantity    Float
-  unit        String?
-  color       String?
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  title     String
+  sku       String?
+  price     Float
+  quantity  Float
+  unit      String?
+  color     String?
 }
 
 // ==========================================================
-// 6. ERP & OPERACIÓN INTERNA
+// 6. ERP & OPERACION INTERNA
 // ==========================================================
 model Attendance {
   id              String    @id @default(cuid())
@@ -442,14 +485,15 @@ model RouteOrder {
   scheduledAt          DateTime
   notes                String?
 
-  assignedTo           String?          
-  employee             Employee?        @relation(fields: [assignedTo], references: [id])
+  // FIX: renombrado de `assignedTo` a `employeeId` — consistente con todo el schema
+  employeeId           String?
+  employee             Employee?        @relation(fields: [employeeId], references: [id])
 
-  originLocation       String?          
-  destLocation         String?          
-  
-  carrier              String?          
-  sucursalNombre       String?          
+  originLocation       String?
+  destLocation         String?
+
+  carrier              String?
+  sucursalNombre       String?
 
   signatureOrigin      String?
   signatureDestination String?
@@ -469,10 +513,10 @@ model RouteOrderItem {
   id            String     @id @default(cuid())
   routeOrderId  String
   routeOrder    RouteOrder @relation(fields: [routeOrderId], references: [id], onDelete: Cascade)
-  tag           String     
-  description   String?    
-  qtyDispatched Int        
-  qtyDelivered  Int?       
+  tag           String
+  description   String?
+  qtyDispatched Int
+  qtyDelivered  Int?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 }

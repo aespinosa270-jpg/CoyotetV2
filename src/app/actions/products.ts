@@ -4,10 +4,11 @@ import { UnitType } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 
-// 1. Obtener todas las telas (Para la tabla principal)
+// 1. Obtener telas ACTIVAS
 export async function getProducts() {
   try {
     return await prisma.product.findMany({
+      where: { isActive: true }, // 🔥 SOLO TRAE LAS QUE NO ESTÁN BORRADAS
       orderBy: { createdAt: 'desc' }
     });
   } catch (error) {
@@ -16,7 +17,7 @@ export async function getProducts() {
   }
 }
 
-// 2. Crear una tela nueva (Para la vista de /nuevo)
+// 2. Crear
 export async function createProductAction(formData: FormData) {
   try {
     const sku = formData.get('sku') as string;
@@ -41,16 +42,14 @@ export async function createProductAction(formData: FormData) {
       }
     });
 
-    // Limpiamos caché de la ruta dedicada
     revalidatePath('/crm/admin/productos');
     return { success: true, productId: newProduct.id };
   } catch (error) {
-    console.error("Error al crear producto:", error);
     return { success: false, error: "Fallo crítico al guardar en BD." };
   }
 }
 
-// 3. Obtener UNA sola tela por ID (Para cargar los datos en la vista de /editar)
+// 3. Traer uno solo (Para Editar)
 export async function getProductById(id: string) {
   try {
     return await prisma.product.findUnique({
@@ -58,12 +57,11 @@ export async function getProductById(id: string) {
       include: { colors: true }
     });
   } catch (error) {
-    console.error("Error obteniendo producto:", error);
     return null;
   }
 }
 
-// 4. Actualizar una tela existente (Para el botón de guardar en /editar)
+// 4. Actualizar
 export async function updateProductAction(id: string, formData: FormData) {
   try {
     const data = {
@@ -78,18 +76,25 @@ export async function updateProductAction(id: string, formData: FormData) {
       ancho: formData.get('ancho') as string,
     };
 
-    await prisma.product.update({
-      where: { id },
-      data
-    });
-
-    // Limpiamos caché de la tabla y de la vista de edición
+    await prisma.product.update({ where: { id }, data });
     revalidatePath('/crm/admin/productos');
     revalidatePath(`/crm/admin/productos/${id}/editar`);
-    
     return { success: true };
   } catch (error) {
-    console.error("Error al actualizar:", error);
-    return { success: false, error: "No se pudo actualizar la tela." };
+    return { success: false, error: "No se pudo actualizar." };
+  }
+}
+
+// 5. 🔥 NUEVO: ELIMINAR (Soft Delete / Archivar)
+export async function deleteProductAction(id: string) {
+  try {
+    await prisma.product.update({
+      where: { id },
+      data: { isActive: false } // Lo ocultamos del catálogo
+    });
+    revalidatePath('/crm/admin/productos');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: "No se pudo eliminar la tela." };
   }
 }
