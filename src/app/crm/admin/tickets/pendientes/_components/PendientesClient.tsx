@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { motion } from "framer-motion";
-import { Search, Clock, ArrowRight, MoreVertical } from "lucide-react";
+import { Search, Clock, ArrowRight } from "lucide-react";
 import { TicketPriority } from "@prisma/client";
 import { updateTicketStatusAction, resolveTicketAction } from "@/app/actions/tickets";
 
@@ -30,8 +30,8 @@ export default function PendientesClient({ tickets }: { tickets: Ticket[] }) {
       t.subject.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleReopen  = (id: string) => startTransition(() => updateTicketStatusAction(id, "ABIERTO"));
-  const handleResolve = (id: string) => startTransition(() => resolveTicketAction(id));
+  const handleReopen  = (id: string) => startTransition(async () => { await updateTicketStatusAction(id, "ABIERTO"); });
+  const handleResolve = (id: string) => startTransition(async () => { await resolveTicketAction(id); });
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden">

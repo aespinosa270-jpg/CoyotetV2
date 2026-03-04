@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { motion } from "framer-motion";
-import { Search, Plus, Clock, CheckCircle2, User } from "lucide-react";
+import { Search, Plus, Clock } from "lucide-react";
 import { TicketPriority } from "@prisma/client";
 import { resolveTicketAction, updateTicketStatusAction } from "@/app/actions/tickets";
 
@@ -15,10 +15,10 @@ type Ticket = {
 };
 
 const PRIORITY_CFG: Record<TicketPriority, { label: string; cls: string; clockCls: string }> = {
-  URGENTE: { label: "Urgente", cls: "bg-red-500/10 text-red-400 border-red-500/30",        clockCls: "text-red-400"    },
-  ALTA:    { label: "Alta",    cls: "bg-orange-500/10 text-orange-400 border-orange-500/30",clockCls: "text-orange-400" },
-  MEDIA:   { label: "Media",   cls: "bg-amber-500/10 text-amber-400 border-amber-500/30",  clockCls: "text-zinc-500"   },
-  BAJA:    { label: "Baja",    cls: "bg-zinc-800 text-zinc-500 border-zinc-700",            clockCls: "text-zinc-600"   },
+  URGENTE: { label: "Urgente", cls: "bg-red-500/10 text-red-400 border-red-500/30",         clockCls: "text-red-400"    },
+  ALTA:    { label: "Alta",    cls: "bg-orange-500/10 text-orange-400 border-orange-500/30", clockCls: "text-orange-400" },
+  MEDIA:   { label: "Media",   cls: "bg-amber-500/10 text-amber-400 border-amber-500/30",   clockCls: "text-zinc-500"   },
+  BAJA:    { label: "Baja",    cls: "bg-zinc-800 text-zinc-500 border-zinc-700",             clockCls: "text-zinc-600"   },
 };
 
 function timeOpen(iso: string) {
@@ -28,8 +28,8 @@ function timeOpen(iso: string) {
 }
 
 export default function AbiertosClient({ tickets }: { tickets: Ticket[] }) {
-  const [search,  setSearch]  = useState("");
-  const [, startTransition]   = useTransition();
+  const [search, setSearch]  = useState("");
+  const [, startTransition]  = useTransition();
 
   const filtered = (tickets ?? []).filter(
     (t) =>
@@ -38,8 +38,8 @@ export default function AbiertosClient({ tickets }: { tickets: Ticket[] }) {
       t.description.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleResolve  = (id: string) => startTransition(() => resolveTicketAction(id));
-  const handleRevision = (id: string) => startTransition(() => updateTicketStatusAction(id, "EN_REVISION"));
+  const handleResolve  = (id: string) => startTransition(async () => { await resolveTicketAction(id); });
+  const handleRevision = (id: string) => startTransition(async () => { await updateTicketStatusAction(id, "EN_REVISION"); });
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden">
