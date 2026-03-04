@@ -19,7 +19,7 @@ type Employee = {
   name:  string;
   email: string;
   role:  EmployeeRole;
-} | null;
+};
 
 // ─── Menú ─────────────────────────────────────────────────────────────────────
 const menuItems = [
@@ -224,8 +224,7 @@ export default function AdminLayoutClient({
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const handleLogout = () => signOut({ callbackUrl: "/login" });
-
+  const handleLogout = () => signOut({ callbackUrl: "/crm/login" });
   // Cerrar dropdown profile al click fuera
   useEffect(() => {
     const handler = (e: MouseEvent) => {

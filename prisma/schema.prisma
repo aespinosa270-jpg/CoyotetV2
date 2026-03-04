@@ -117,6 +117,23 @@ enum MovementType {
   AJUSTE
 }
 
+enum CommissionStatus {
+  PENDIENTE
+  APROBADA
+  PAGADA
+  RECHAZADA
+}
+
+enum WaMessageRole {
+  AGENT
+  CLIENT
+}
+
+enum BreakType {
+  BANO
+  LUNCH
+}
+
 // ==========================================================
 // 1. USUARIO / CLIENTE (B2B & B2C)
 // ==========================================================
@@ -131,14 +148,10 @@ model User {
   role                     String         @default("USER")
   membershipTier           MembershipTier @default(NONE)
   membershipExpiry         DateTime?
-
-  // FIX #7: Int en vez de Float — evita errores de punto flotante en puntos de lealtad
   points                   Int            @default(0)
-
   stripeCustomerId         String?
   stripeSubscriptionId     String?
   stripeSubscriptionStatus String?
-
   ltv                      Float          @default(0)
   rfc                      String?
   taxRegime                String?
@@ -148,6 +161,8 @@ model User {
   zipCode                  String?
   city                     String?
   state                    String?
+  company                  String?
+  notes                    String?
   optedIn                  Boolean        @default(false)
   suppressed               Boolean        @default(false)
   consentDate              DateTime?
@@ -159,20 +174,22 @@ model User {
   interactions             Interaction[]
   tickets                  Ticket[]
   deals                    Deal[]
+  waConversations          WaConversation[]
 }
 
 // ==========================================================
 // 2. LA JAURIA (EQUIPO INTERNO)
 // ==========================================================
 model Employee {
-  id              String        @id @default(cuid())
+  id              String         @id @default(cuid())
   name            String
-  email           String        @unique
+  email           String         @unique
   password        String
-  role            EmployeeRole  @default(VENDEDORA)
-  isActive        Boolean       @default(true)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  role            EmployeeRole   @default(VENDEDORA)
+  isActive        Boolean        @default(true)
+  commissionRate  Float          @default(0.03)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   logs            AuditLog[]
   attendances     Attendance[]
@@ -181,6 +198,8 @@ model Employee {
   telemetry       Telemetry[]
   routeOrders     RouteOrder[]
   deals           Deal[]
+  commissions     Commission[]
+  waConversations WaConversation[]
 }
 
 model AuditLog {
@@ -243,19 +262,8 @@ model Inventory {
   id        String         @id @default(cuid())
   productId String
   product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  // FIX #2: El @@unique con colorId nullable no es suficiente en PostgreSQL —
-  // dos NULLs no son iguales en un indice UNIQUE, lo que permite duplicados silenciosos
-  // para productos sin color en la misma sucursal.
-  // ACCION REQUERIDA: Despues de migrar, corre este SQL manualmente en Supabase:
-  //
-  //   CREATE UNIQUE INDEX inventory_no_color_unique
-  //   ON "Inventory"("productId", "location")
-  //   WHERE "colorId" IS NULL;
-  //
   colorId   String?
   color     ProductColor?  @relation(fields: [colorId], references: [id])
-
   location  PickupLocation
   quantity  Float
   rollCount Int            @default(0)
@@ -264,29 +272,21 @@ model Inventory {
   @@unique([productId, colorId, location])
 }
 
-// KARDEX — cerebro del control de inventario
 model InventoryMovement {
   id           String         @id @default(cuid())
   productId    String
   product      Product        @relation(fields: [productId], references: [id])
   colorId      String?
   color        ProductColor?  @relation(fields: [colorId], references: [id])
-
   location     PickupLocation
   type         MovementType
-
   quantity     Float
-  // FIX #3: @default(0) — evita crash si el form no envia rollCount
   rollCount    Int            @default(0)
-
   provider     String?
   authorizedBy String
   notes        String?
-
-  // FIX #6: Trazabilidad — vincula movimiento a la orden que lo origino
   orderId      String?
   order        Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
-
   createdAt    DateTime       @default(now())
 }
 
@@ -297,24 +297,41 @@ model Deal {
   id         String         @id @default(cuid())
   title      String
   company    String
-
   userId     String?
   user       User?          @relation(fields: [userId], references: [id])
-
   employeeId String
   employee   Employee       @relation(fields: [employeeId], references: [id])
-
-  // FIX #4: productId ahora es opcional — en PROSPECTO puede no saberse el producto aun
   productId  String?
   product    Product?       @relation(fields: [productId], references: [id])
-
   color      String?
   quantity   Float?
   value      Float          @default(0)
   status     PipelineStatus @default(PROSPECTO)
-
+  notes      String?
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
+
+  commission Commission?
+}
+
+// ==========================================================
+// 4b. COMISIONES
+// ==========================================================
+model Commission {
+  id         String           @id @default(cuid())
+  employeeId String
+  employee   Employee         @relation(fields: [employeeId], references: [id])
+  dealId     String           @unique
+  deal       Deal             @relation(fields: [dealId], references: [id])
+  amount     Float
+  rate       Float
+  status     CommissionStatus @default(PENDIENTE)
+  approvedBy String?
+  approvedAt DateTime?
+  paidAt     DateTime?
+  notes      String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
 }
 
 // ==========================================================
@@ -353,10 +370,7 @@ model Order {
 
   items          OrderItem[]
   tickets        Ticket[]
-  // FIX #6: relacion inversa con el Kardex
   movements      InventoryMovement[]
-
-  // FIX #5: onDelete SetNull — borrar un Vehicle no rompe ordenes historicas
   vehicleId      String?
   vehicle        Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 }
@@ -379,16 +393,33 @@ model OrderItem {
 // 6. ERP & OPERACION INTERNA
 // ==========================================================
 model Attendance {
-  id              String    @id @default(cuid())
+  id              String             @id @default(cuid())
   employeeId      String
-  employee        Employee  @relation(fields: [employeeId], references: [id])
-  checkIn         DateTime  @default(now())
+  employee        Employee           @relation(fields: [employeeId], references: [id])
+  checkIn         DateTime           @default(now())
   checkOut        DateTime?
   horasTrabajadas Float?
   ipAddress       String?
   location        String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  lat             Float?
+  lng             Float?
+  checkOutLat     Float?
+  checkOutLng     Float?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  breaks          AttendanceBreak[]
+}
+
+model AttendanceBreak {
+  id           String     @id @default(cuid())
+  attendanceId String
+  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  type         BreakType
+  startAt      DateTime   @default(now())
+  endAt        DateTime?
+  duration     Float?     // minutos
+  createdAt    DateTime   @default(now())
 }
 
 model Interaction {
@@ -473,35 +504,26 @@ model RouteOrder {
   id                   String           @id @default(cuid())
   type                 RouteOrderType
   status               RouteOrderStatus @default(PENDIENTE)
-
   contactName          String
   contactPhone         String?
   contactEmail         String?
-
   address              String
   addressLat           Float?
   addressLng           Float?
-
   scheduledAt          DateTime
   notes                String?
-
-  // FIX: renombrado de `assignedTo` a `employeeId` — consistente con todo el schema
   employeeId           String?
   employee             Employee?        @relation(fields: [employeeId], references: [id])
-
   originLocation       String?
   destLocation         String?
-
   carrier              String?
   sucursalNombre       String?
-
   signatureOrigin      String?
   signatureDestination String?
   photoDropoff         String[]
   completedAt          DateTime?
   deliveryLat          Float?
   deliveryLng          Float?
-
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
@@ -528,4 +550,37 @@ model IssueLog {
   note         String
   hasDelta     Boolean    @default(false)
   createdAt    DateTime   @default(now())
+}
+
+// ==========================================================
+// 8. WHATSAPP CHAT (SIMULADO / API-READY)
+// ==========================================================
+model WaConversation {
+  id            String      @id @default(cuid())
+  employeeId    String
+  employee      Employee    @relation(fields: [employeeId], references: [id])
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id])
+  contactName   String?
+  contactPhone  String?
+  isOpen        Boolean     @default(true)
+  lastMessage   String?
+  lastMessageAt DateTime?
+  unreadCount   Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  messages      WaMessage[]
+}
+
+model WaMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   WaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           WaMessageRole
+  body           String
+  mediaUrl       String?
+  mediaType      String?
+  isRead         Boolean        @default(false)
+  sentAt         DateTime       @default(now())
 }
