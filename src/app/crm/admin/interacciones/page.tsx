@@ -1,26 +1,15 @@
 import { prisma } from "@/lib/prisma";
-import { BarChart3 } from "lucide-react";
 import InteraccionesClient from "./_components/InteraccionesClient";
 
 async function getInteraccionesData() {
-  const [interactions, stats] = await Promise.all([
-    prisma.interaction.findMany({
-      include: {
-        employee: { select: { id: true, name: true } },
-        user:     { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { date: "desc" },
-      take: 200,
-    }),
-
-    prisma.interaction.groupBy({
-      by: ["type"],
-      _count: { id: true },
-      where: {
-        date: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
-      },
-    }),
-  ]);
+  const interactions = await prisma.interaction.findMany({
+    include: {
+      employee: { select: { id: true, name: true } },
+      user:     { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { date: "desc" },
+    take: 200,
+  });
 
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
@@ -34,8 +23,12 @@ async function getInteraccionesData() {
   return {
     interactions: interactions.map((i) => ({
       ...i,
-      date:        i.date.toISOString(),
+      date:         i.date.toISOString(),
       nextFollowUp: i.nextFollowUp?.toISOString() ?? null,
+      user: {
+        ...i.user,
+        name: i.user.name ?? i.user.email,
+      },
     })),
     totalHoy,
     tasaResp,
@@ -47,6 +40,7 @@ export default async function InteraccionesPage() {
 
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
+
       {/* Header */}
       <div className="flex items-end justify-between shrink-0">
         <div>
@@ -60,11 +54,10 @@ export default async function InteraccionesPage() {
       {/* KPIs */}
       <div className="grid grid-cols-4 gap-3 shrink-0">
         {[
-          { label: "Interacciones Hoy", value: totalHoy,              color: "text-white"       },
-          { label: "Total Registradas", value: interactions.length,   color: "text-[#FDCB02]"  },
-          { label: "Tasa de Seguimiento", value: `${tasaResp}%`,      color: "text-emerald-400" },
-          { label: "Con Follow-Up",
-            value: interactions.filter((i) => i.nextFollowUp).length, color: "text-blue-400"    },
+          { label: "Interacciones Hoy",   value: totalHoy,                                          color: "text-white"       },
+          { label: "Total Registradas",   value: interactions.length,                               color: "text-[#FDCB02]"  },
+          { label: "Tasa de Seguimiento", value: `${tasaResp}%`,                                    color: "text-emerald-400" },
+          { label: "Con Follow-Up",       value: interactions.filter((i) => i.nextFollowUp).length, color: "text-blue-400"    },
         ].map((s) => (
           <div key={s.label} className="bg-[#0a0a0a] border border-white/[0.03] p-4 rounded-2xl">
             <p className="text-[8px] uppercase font-black tracking-widest text-zinc-600 mb-1">{s.label}</p>
