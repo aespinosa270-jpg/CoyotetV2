@@ -84,17 +84,3 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(results);
 }
-```
-
----
-
-Estructura:
-```
-src/app/crm/admin/
-  layout.tsx                          ← Server — carga sesión, employee, notifCount
-  _components/
-    AdminLayoutClient.tsx             ← "use client" — sidebar, navbar, búsqueda
-    LogoutButton.tsx                  ← (ya existente, puede eliminarse)
-  
-src/app/api/admin/search/
-  route.ts                            ← GET ?q= — busca tickets, clientes, deals, productos
