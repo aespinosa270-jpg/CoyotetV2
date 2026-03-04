@@ -7,9 +7,7 @@ import MisPedidosClient from "./_components/MisPedidosClient";
 async function getMisPedidos(employeeId: string) {
   const orders = await prisma.routeOrder.findMany({
     where:   { employeeId },
-    include: {
-      items: true,
-    },
+    include: { items: true },
     orderBy: { scheduledAt: "desc" },
   });
 
@@ -22,8 +20,14 @@ async function getMisPedidos(employeeId: string) {
     orders: orders.map((o) => ({
       ...o,
       scheduledAt: o.scheduledAt?.toISOString() ?? null,
+      completedAt: o.completedAt?.toISOString() ?? null,
       createdAt:   o.createdAt.toISOString(),
       updatedAt:   o.updatedAt.toISOString(),
+      items:       o.items.map((i) => ({
+        ...i,
+        createdAt: i.createdAt.toISOString(),
+        updatedAt: i.updatedAt.toISOString(),
+      })),
     })),
     kpis: { pendientes, enCamino, completadas, canceladas },
   };
