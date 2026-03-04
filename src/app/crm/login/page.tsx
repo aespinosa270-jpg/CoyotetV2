@@ -3,6 +3,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react'; // <-- IMPORTANTE: Importamos signIn
 import { Lock, ShieldAlert, Loader2 } from 'lucide-react';
 
 export default function CRMLogin() {
@@ -18,20 +19,21 @@ export default function CRMLogin() {
     setError('');
 
     try {
-      const res = await fetch('/api/auth/crm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+      // Usamos signIn de NextAuth en lugar de un fetch manual
+      const result = await signIn('credentials', {
+        email: email,
+        password: password,
+        redirect: false, // Evita que NextAuth recargue la página a la fuerza si hay error
       });
 
-      const data = await res.json();
-
-      if (res.ok) {
-        router.push('/crm'); 
-        router.refresh();   
-      } else {
-        setError(data.error || 'Credenciales inválidas');
+      if (result?.error) {
+        // NextAuth devuelve "CredentialsSignin" si falla. Lo hacemos más amigable.
+        setError('Credenciales inválidas o acceso denegado.');
         setLoading(false);
+      } else {
+        // Si todo sale bien, lo empujamos al admin y dejamos que el middleware decida
+        router.push('/crm/admin'); 
+        router.refresh();   
       }
     } catch (err) {
       setError('Error de conexión al servidor seguro.');

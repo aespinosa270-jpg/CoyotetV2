@@ -1,43 +1,75 @@
-import { PrismaClient } from '@prisma/client'
-import * as bcrypt from 'bcrypt'
+import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
-const prismaSeedClient = new PrismaClient()
+const prisma = new PrismaClient();
 
 async function main() {
-  const passwordHash = await bcrypt.hash('123', 10)
+  // ==========================================
+  // 1. CREDENCIALES DE ACCESO (SEGURIDAD INDIVIDUAL)
+  // ==========================================
+  console.log('🔒 Forjando llaves maestras únicas para el equipo...');
+  
+  // 👑 LOS JEFES (ADMIN)
+  // Nota: Estas son contraseñas temporales para el seed. 
+  // Podrán cambiarlas después desde el sistema.
+  const admins = [
+    { email: 'jackrizk@coyotetextil.com', name: 'Jack Rizk', pass: 'JackCoyote2026!' },
+    { email: 'stephanyrizk@coyotetextil.com', name: 'Stephany Rizk', pass: 'StephanyCoyote2026!' }
+  ];
 
-  // 1. Crear Distribuidor (Black)
-  await prismaSeedClient.user.upsert({
-    where: { email: 'admin@coyote.com' },
-    update: {},
-    create: {
-      email: 'admin@coyote.com',
-      name: 'Jefe Coyote',
-      password: passwordHash,
-      role: 'black',
-    },
-  })
+  for (const admin of admins) {
+    // Hasheamos la contraseña ESPECÍFICA de este admin
+    const hashedPassword = await bcrypt.hash(admin.pass, 10);
 
-  // 2. Crear Socio (Gold)
-  await prismaSeedClient.user.upsert({
-    where: { email: 'socio@coyote.com' },
-    update: {},
-    create: {
-      email: 'socio@coyote.com',
-      name: 'Cliente Gold',
-      password: passwordHash,
-      role: 'gold',
-    },
-  })
+    await prisma.employee.upsert({
+      where: { email: admin.email },
+      update: { password: hashedPassword, isActive: true, role: 'ADMIN' },
+      create: {
+        email: admin.email,
+        name: admin.name,
+        password: hashedPassword,
+        role: 'ADMIN',
+        isActive: true,
+      },
+    });
+    console.log(`👑 Admin listo: ${admin.name} | Pass temporal: ${admin.pass}`);
+  }
 
-  console.log("🌱 Semilla ejecutada con éxito")
+  // 💼 LAS VENDEDORAS (Operación - Sin acceso a /admin)
+  const vendedoras = [
+    { email: 'valeria@coyotetextil.com', name: 'Valeria', pass: 'ValeriaVentas01' },
+    { email: 'paula@coyotetextil.com', name: 'Paula', pass: 'PaulaVentas02' },
+    { email: 'katia@coyotetextil.com', name: 'Katia', pass: 'KatiaVentas03' }
+  ];
+
+  for (const vendedora of vendedoras) {
+    // Hasheamos la contraseña ESPECÍFICA de esta vendedora
+    const hashedPassword = await bcrypt.hash(vendedora.pass, 10);
+
+    await prisma.employee.upsert({
+      where: { email: vendedora.email },
+      update: { password: hashedPassword, isActive: true, role: 'VENDEDORA' },
+      create: {
+        email: vendedora.email,
+        name: vendedora.name,
+        password: hashedPassword,
+        role: 'VENDEDORA',
+        isActive: true,
+      },
+    });
+    console.log(`✅ Vendedora en posición: ${vendedora.name} | Pass temporal: ${vendedora.pass}`);
+  }
 }
 
+// Ejecutamos la función principal y cerramos la conexión limpiamente
 main()
-  .catch((e) => {
-    console.error(e)
-    process.exit(1)
+  .then(async () => {
+    console.log("🌱 Semilla ejecutada con éxito. La Jauría está en Supabase.");
+    await prisma.$disconnect();
   })
-  .finally(async () => {
-    await prismaSeedClient.$disconnect()
-  })
+  .catch(async (e) => {
+    console.error("❌ Error al plantar la semilla:");
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
+  });
