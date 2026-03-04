@@ -1,4 +1,3 @@
-// src/lib/auth-options.ts
 import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
@@ -28,33 +27,43 @@ export const authOptions: NextAuthOptions = {
           throw new Error("SYSTEM_ERROR: Credenciales incompletas.");
         }
 
-        const user = await prisma.user.findUnique({
+        // 1. Buscamos primero en LA JAURIA (Tabla Employee)
+        let account: any = await prisma.employee.findUnique({
           where: { email: credentials.email }
         });
+        let isEmployee = true;
 
-        if (!user || !user.password) {
+        // 2. Si no es del equipo interno, buscamos en CLIENTES (Tabla User)
+        if (!account) {
+          account = await prisma.user.findUnique({
+            where: { email: credentials.email }
+          });
+          isEmployee = false;
+        }
+
+        if (!account || !account.password) {
           console.log("❌ ERROR: Nodo no localizado.");
           throw new Error("SYSTEM_ERROR: Nodo no localizado.");
         }
 
-        const isValid = await bcrypt.compare(credentials.password, user.password);
+        const isValid = await bcrypt.compare(credentials.password, account.password);
         
         if (!isValid) {
           console.log("⛔ ERROR: Cifrado incorrecto.");
           throw new Error("SYSTEM_ERROR: Cifrado incorrecto.");
         }
 
-        console.log(`✅ ACCESO CONCEDIDO: ${user.name} | TIER: ${user.membershipTier} | PTS: ${user.points}`);
+        console.log(`✅ ACCESO CONCEDIDO: ${account.name} | ROL: ${account.role}`);
 
-        // 🔥 RETORNAMOS TODO EL ADN DEL SOCIO (TIER Y PUNTOS)
+        // 3. Retornamos todo el ADN unificado (Socio o Cliente)
         return {
-          id: user.id,
-          name: user.name,
-          email: user.email!, 
-          image: user.image,
-          role: user.role, 
-          membershipTier: user.membershipTier as any,
-          points: user.points, // 💳 BÓVEDA DE PUNTOS
+          id: account.id,
+          name: account.name,
+          email: account.email!, 
+          image: account.image || null,
+          role: account.role, 
+          membershipTier: isEmployee ? "NONE" : account.membershipTier as any,
+          points: isEmployee ? 0 : account.points, 
         }
       }
     })
@@ -63,36 +72,35 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     // 🔄 MOTOR DE SINCRONIZACIÓN DE TOKEN
     async jwt({ token, user, trigger, session }) {
-      // 1. Manejo de actualización manual (Vital para activar beneficios tras compra)
       if (trigger === "update" && session) {
         console.log("🔄 REFRESCANDO ADN DE SESIÓN...");
         return { ...token, ...session };
       }
 
-      // 2. Inyección inicial al loguearse
+      // Inyección inicial al loguearse
       if (user) {
         token.id = user.id;
         token.role = (user as any).role; 
         token.membershipTier = (user as any).membershipTier;
-        token.points = (user as any).points; // 🔥 PUNTOS ALMACENADOS EN EL TOKEN
+        token.points = (user as any).points;
       }
       return token;
     },
 
-    // 🌍 EXPOSICIÓN DE DATOS AL FRONTEND (PERFIL Y CATÁLOGO)
+    // 🌍 EXPOSICIÓN DE DATOS AL FRONTEND
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role; 
-        (session.user as any).membershipTier = token.membershipTier; // 🏷️ DESCUENTOS ACTIVOS
-        (session.user as any).points = token.points; // 💳 WALLET VISIBLE
+        (session.user as any).membershipTier = token.membershipTier; 
+        (session.user as any).points = token.points; 
       }
       return session;
     }
   },
 
   pages: {
-    signIn: '/cuenta', 
+    signIn: '/cuenta', // Esto se queda igual para manejar a los clientes normales
     error: '/cuenta',  
   },
 

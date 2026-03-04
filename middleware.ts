@@ -3,35 +3,30 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export async function middleware(req: NextRequest) {
-  // Extraemos el token directamente para saber si hay sesión
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-  
   const url = req.nextUrl;
 
-  // 1. PROTEGER RUTAS DEL CRM
-  // Si alguien intenta entrar a /crm/admin (o cualquier subruta) y NO tiene sesión...
-  if (url.pathname.startsWith("/crm/admin") && !token) {
-    // Lo rebotamos al login del CRM, no a /cuenta
+  // 1. PROTEGER TODO EL CRM
+  // Si intentan entrar a cualquier ruta del CRM (excepto el login) sin token, rebotan al login.
+  if (url.pathname.startsWith("/crm") && !url.pathname.startsWith("/crm/login") && !token) {
     return NextResponse.redirect(new URL("/crm/login", req.url));
   }
 
-  // 2. VALIDAR ROLES (Opcional pero recomendado)
-  // Si tiene sesión, pero no es ADMIN ni de la Jauría, lo sacamos del CRM
+  // 2. DEFENSA DE LA RUTA ADMIN (Solo para Jack y Stephany)
   if (url.pathname.startsWith("/crm/admin") && token) {
-    if (token.role === "USER") {
-      // Un cliente normal intentando entrar al CRM -> Pa' fuera
-      return NextResponse.redirect(new URL("/cuenta", req.url));
+    // Si el rol NO es "ADMIN" (es decir, si es una VENDEDORA o un USER)
+    if (token.role !== "ADMIN") {
+      // Mandamos a las vendedoras a su ruta operativa designada
+      return NextResponse.redirect(new URL("/crm/ventas", req.url)); 
     }
   }
 
-  // Si todo está bien, lo dejamos pasar
   return NextResponse.next();
 }
 
-// Aquí le decimos al middleware en qué rutas debe ejecutarse para no hacer lenta tu app
+// Ejecutar el middleware solo en rutas del CRM para no afectar el rendimiento de la tienda
 export const config = {
   matcher: [
-    "/crm/admin/:path*", 
-    // Puedes agregar más rutas aquí si lo necesitas
+    "/crm/:path*", 
   ],
 };
