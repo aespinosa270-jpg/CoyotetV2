@@ -12,6 +12,10 @@ export default async function AbiertosPage() {
     ...t,
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
+    user: {
+      ...t.user,
+      name: t.user.name ?? t.user.email,
+    },
   }));
 
   return (
