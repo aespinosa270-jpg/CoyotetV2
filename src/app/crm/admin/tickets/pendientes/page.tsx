@@ -12,6 +12,11 @@ export default async function PendientesPage() {
     ...t,
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
+    // Aquí está el FIX para que TypeScript no llore por el null:
+    user: {
+      ...t.user,
+      name: t.user.name || 'Sin nombre', 
+    }
   }));
 
   return (
