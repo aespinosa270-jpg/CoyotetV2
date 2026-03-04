@@ -1,12 +1,39 @@
-export default function ClientesPage() {
+import ClientesClient from './_components/ClientesClient';
+import { prisma } from '@/lib/prisma';
+
+// Le decimos a Next.js que siempre traiga datos frescos, nada de cachés viejos
+export const dynamic = 'force-dynamic';
+
+export default async function ClientesPage() {
+  // 1. FETCH A LA BASE DE DATOS
+  // Traemos a todos los usuarios ordenados por los más nuevos primero
+  const rawClients = await prisma.user.findMany({
+    orderBy: {
+      createdAt: 'desc'
+    }
+  });
+
+  // 2. SERIALIZACIÓN
+  // Formateamos las fechas y nos aseguramos de no pasar objetos complejos al cliente
+  const formattedClients = rawClients.map((client) => ({
+    id: client.id,
+    hashId: client.hashId,
+    name: client.name || 'Sin nombre',
+    email: client.email,
+    phone: client.phone || 'Sin teléfono',
+    rfc: client.rfc || 'Público General',
+    ltv: client.ltv,
+    points: client.points,
+    membershipTier: client.membershipTier,
+    createdAt: new Intl.DateTimeFormat('es-MX', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    }).format(client.createdAt),
+  }));
+
+  // 3. RENDERIZAMOS EL CLIENTE CON LOS DATOS
   return (
-    <div className="animate-in fade-in duration-500">
-      <h2 className="text-3xl font-[900] uppercase text-white tracking-tighter mb-6">
-        Base de Clientes
-      </h2>
-      <div className="bg-[#111] border border-white/10 rounded-xl p-8 flex items-center justify-center h-64 text-neutral-500 font-mono text-sm">
-        Aquí conectaremos tu base de datos de PostgreSQL para ver el directorio B2B...
-      </div>
-    </div>
+    <ClientesClient initialData={formattedClients} />
   );
 }
