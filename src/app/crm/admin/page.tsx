@@ -134,11 +134,11 @@ export default async function AdminDashboardPage() {
               Sistema Activo
             </span>
           </div>
-          {rutasHoy > 0 && (
+          {d.rutasHoy > 0 && (
             <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-800 px-4 py-2 rounded-lg">
               <Truck size={12} className="text-blue-400" />
               <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">
-                {rutasHoy} Ruta{rutasHoy !== 1 ? "s" : ""} Hoy
+                {d.rutasHoy} Ruta{d.rutasHoy !== 1 ? "s" : ""} Hoy
               </span>
             </div>
           )}
@@ -219,9 +219,9 @@ export default async function AdminDashboardPage() {
           {/* Accesos rápidos */}
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Registrar Movimiento", href: "/crm/admin/inventario/movimiento", icon: Warehouse, accent: "#FDCB02"  },
-              { label: "Catálogo de Telas",    href: "/crm/admin/productos",             icon: Package,   accent: "#38bdf8"  },
-              { label: "Rutas del Día",        href: "/crm/admin/flotilla/rutas",        icon: Truck,     accent: "#a78bfa"  },
+              { label: "Registrar Movimiento", href: "/crm/admin/inventario/movimiento", icon: Warehouse, accent: "#FDCB02" },
+              { label: "Catálogo de Telas",    href: "/crm/admin/productos",             icon: Package,   accent: "#38bdf8" },
+              { label: "Rutas del Día",        href: "/crm/admin/flotilla/rutas",        icon: Truck,     accent: "#a78bfa" },
             ].map((a) => (
               <Link key={a.href} href={a.href}
                 className="bg-[#0a0a0a] border border-white/[0.05] hover:border-white/10 p-4 rounded-2xl flex flex-col gap-3 group transition-all"
