@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { Download, TrendingUp, Package, User } from "lucide-react";
+import { Download, TrendingUp } from "lucide-react";
 import CerradosClient from "@/app/crm/admin/leads/cerrados/_components/CerradosClient";
 
 async function getCerradosData() {
   const [ganados, perdidos] = await Promise.all([
     prisma.deal.findMany({
-      where: { status: "CERRADO_GANADO" },
+      where:   { status: "CERRADO_GANADO" },
       include: {
         employee: { select: { id: true, name: true } },
         product:  { select: { id: true, title: true, sku: true, unit: true } },
@@ -14,7 +14,7 @@ async function getCerradosData() {
       orderBy: { updatedAt: "desc" },
     }),
     prisma.deal.findMany({
-      where: { status: "CERRADO_PERDIDO" },
+      where:   { status: "CERRADO_PERDIDO" },
       include: {
         employee: { select: { id: true, name: true } },
         product:  { select: { id: true, title: true, sku: true, unit: true } },
@@ -24,10 +24,16 @@ async function getCerradosData() {
     }),
   ]);
 
+  const serialize = (deals: typeof ganados) =>
+    deals.map((d) => ({
+      ...d,
+      createdAt: d.createdAt.toISOString(),
+      updatedAt: d.updatedAt.toISOString(),
+    }));
+
   const totalRevenue = ganados.reduce((s, d) => s + d.value, 0);
   const totalVolumen = ganados.reduce((s, d) => s + (d.quantity ?? 0), 0);
 
-  // Top closer — agente con más valor ganado
   const porAgente = ganados.reduce<Record<string, { name: string; value: number }>>((acc, d) => {
     if (!acc[d.employeeId]) acc[d.employeeId] = { name: d.employee.name, value: 0 };
     acc[d.employeeId].value += d.value;
@@ -40,7 +46,14 @@ async function getCerradosData() {
       ? Math.round((ganados.length / (ganados.length + perdidos.length)) * 100)
       : 0;
 
-  return { ganados, perdidos, totalRevenue, totalVolumen, topCloser, winRate };
+  return {
+    ganados:      serialize(ganados),
+    perdidos:     serialize(perdidos),
+    totalRevenue,
+    totalVolumen,
+    topCloser,
+    winRate,
+  };
 }
 
 export default async function CerradosPage() {
@@ -53,7 +66,6 @@ export default async function CerradosPage() {
 
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div>
           <p className="text-[9px] tracking-[0.3em] text-zinc-500 uppercase mb-0.5">CRM / Pipeline</p>
@@ -66,7 +78,6 @@ export default async function CerradosPage() {
         </button>
       </div>
 
-      {/* KPIs reales */}
       <div className="grid grid-cols-4 gap-3 shrink-0">
         <div className="bg-emerald-500/10 border border-emerald-500/20 p-5 rounded-2xl relative overflow-hidden">
           <TrendingUp className="absolute -right-2 -bottom-2 text-emerald-500/10" size={72} />
@@ -76,7 +87,8 @@ export default async function CerradosPage() {
         <div className="bg-[#0a0a0a] border border-white/[0.03] p-5 rounded-2xl">
           <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 mb-2">Volumen Total</p>
           <p className="text-2xl font-mono font-bold text-zinc-200">
-            {data.totalVolumen.toLocaleString("es-MX")} <span className="text-xs text-zinc-600 font-sans">uds</span>
+            {data.totalVolumen.toLocaleString("es-MX")}
+            <span className="text-xs text-zinc-600 font-sans ml-1">uds</span>
           </p>
         </div>
         <div className="bg-[#0a0a0a] border border-white/[0.03] p-5 rounded-2xl">
@@ -94,7 +106,6 @@ export default async function CerradosPage() {
         </div>
       </div>
 
-      {/* Tabla */}
       <CerradosClient ganados={data.ganados} perdidos={data.perdidos} />
     </div>
   );
