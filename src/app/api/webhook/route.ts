@@ -8,8 +8,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-11-20.acacia" as any,
 })
 
-// El secreto de firma de tu Webhook (el que empieza con whsec_ en tu dashboard)
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
+// 🔥 CAMBIO APLICADO: Usamos el nuevo secreto exclusivo para las membresías
+const webhookSecret = process.env.STRIPE_MEMBERSHIP_WEBHOOK_SECRET!
 
 export async function POST(req: Request) {
   // Extraemos el cuerpo crudo de la petición (Stripe lo exige así por seguridad)
