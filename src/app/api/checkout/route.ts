@@ -217,6 +217,13 @@ export async function POST(request: Request) {
       )
     }
 
+    // ─── ARREGLO DINÁMICO DE MÉTODOS DE PAGO ─────────────────────────────────
+    // OXXO solo se permite si el total cobrado es <= 10,000 MXN
+    const paymentMethodTypes = ["card", "customer_balance"]
+    if (totalCobrado <= 10000) {
+      paymentMethodTypes.push("oxxo")
+    }
+
     // Convertir y forzar toda metadata externa a strings
     const safeClientMetadata = Object.fromEntries(
       Object.entries(metadata).map(([k, v]) => [k, String(v)])
@@ -228,7 +235,7 @@ export async function POST(request: Request) {
       customer:      stripeCustomerId,
       description,
       receipt_email: customer.email,
-      payment_method_types: ["card", "customer_balance", "oxxo"],
+      payment_method_types: paymentMethodTypes, // Se inyecta el arreglo dinámico aquí
       payment_method_options: {
         customer_balance: {
           funding_type:  "bank_transfer",
