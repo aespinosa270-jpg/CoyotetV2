@@ -107,7 +107,11 @@ export async function POST(request: Request) {
     const puntosGanados = calcularPuntosGanados(subtotalMercancia, tier)
 
     // ── 6. Total final que Stripe cobra ──────────────────────────────────────
-    const totalCobrado = Math.max(0, amount - descuentoPuntosMXN)
+    // El frontend manda `amount` = total ya con descuento de puntos aplicado.
+    // El servidor recalcula el descuento internamente para validar puntos en BD,
+    // pero usa el `amount` del frontend como base del cobro para evitar doble descuento.
+    // Garantizamos el mínimo de Stripe: $100 MXN (10000 centavos).
+    const totalCobrado = Math.max(100, amount)
 
     // ── 7. Colocaciones del mes ───────────────────────────────────────────────
     const colocacionesTotal     = getColocacionesGratis(tier)
@@ -216,8 +220,18 @@ export async function POST(request: Request) {
     }
 
     // ── 11. PaymentIntent ─────────────────────────────────────────────────────
+    // Stripe requiere mínimo $100 MXN (10000 centavos). Nunca debería ocurrir
+    // con totalCobrado = Math.max(100, amount), pero lo verificamos por si acaso.
+    const amountCentavos = Math.round(totalCobrado * 100)
+    if (amountCentavos < 10000) {
+      return NextResponse.json(
+        { success: false, error: `El monto mínimo para procesar un pago es $100 MXN. Total calculado: $${totalCobrado}` },
+        { status: 400 }
+      )
+    }
+
     const paymentIntent = await stripe.paymentIntents.create({
-      amount:        Math.round(totalCobrado * 100), // centavos
+      amount:        amountCentavos,
       currency:      "mxn",
       customer:      stripeCustomerId,
       description,
