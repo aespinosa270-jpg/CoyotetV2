@@ -148,7 +148,7 @@ model User {
   role                         String         @default("USER")
   membershipTier               MembershipTier @default(NONE)
   membershipExpiry             DateTime?
-  membershipColocacionesUsadas Int            @default(0) // ← colocaciones a paquetería usadas en el mes actual; se resetea en cada renovación via webhook
+  membershipColocacionesUsadas Int            @default(0)
   points                       Int            @default(0)
   stripeCustomerId             String?
   stripeSubscriptionId         String?
@@ -376,12 +376,16 @@ model Order {
   vehicle        Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 }
 
+// ── CAMBIO: productId String? (opcional) para evitar FK violation ─────────────
+// cuando el carrito manda un id que no existe en Product.
+// Migración requerida:
+//   npx prisma migrate dev --name make_orderitem_productid_optional
 model OrderItem {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
   title     String
   sku       String?
   price     Float
@@ -419,7 +423,7 @@ model AttendanceBreak {
   type         BreakType
   startAt      DateTime   @default(now())
   endAt        DateTime?
-  duration     Float?     // minutos
+  duration     Float?
   createdAt    DateTime   @default(now())
 }
 

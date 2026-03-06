@@ -115,7 +115,29 @@ export async function POST(request: Request) {
     const colocacionesRestantes = Math.max(0, colocacionesTotal - colocacionesUsadas)
     const usaColocacionGratis   = colocacionesRestantes > 0
 
-    // ── 8. Crear orden ────────────────────────────────────────────────────────
+    // ── 8. Resolver productId real para cada item ─────────────────────────────
+    // El carrito puede traer item.id (id local del carrito) o item.productId.
+    // Verificamos que el productId exista en Product; si no, buscamos por SKU.
+    const resolvedItems = await Promise.all(
+      items.map(async (item: any) => {
+        const candidateId = item.productId || item.id
+        if (candidateId) {
+          const found = await prisma.product.findUnique({
+            where: { id: candidateId }, select: { id: true }
+          })
+          if (found) return { ...item, resolvedProductId: found.id }
+        }
+        if (item.sku) {
+          const bySku = await prisma.product.findUnique({
+            where: { sku: item.sku }, select: { id: true }
+          })
+          if (bySku) return { ...item, resolvedProductId: bySku.id }
+        }
+        return { ...item, resolvedProductId: null }
+      })
+    )
+
+    // ── 9. Crear orden ────────────────────────────────────────────────────────
     const newOrder = await prisma.order.create({
       data: {
         user: {
@@ -143,14 +165,14 @@ export async function POST(request: Request) {
         customerEmail: customer.email,
         address:       `${customer.street} ${customer.number || ""}, CP ${customer.zip}`.trim(),
         items: {
-          create: items.map((item: any) => ({
-            productId: item.productId || item.id,
-            title:     item.title,
-            price:     Number(item.price),
-            quantity:  Number(item.quantity),
-            unit:      item.unit        || null,
-            color:     item.meta?.color || null,
-            sku:       item.sku         || null,
+          create: resolvedItems.map((item: any) => ({
+            ...(item.resolvedProductId ? { product: { connect: { id: item.resolvedProductId } } } : {}),
+            title:    item.title,
+            price:    Number(item.price),
+            quantity: Number(item.quantity),
+            unit:     item.unit        || null,
+            color:    item.meta?.color || null,
+            sku:      item.sku         || null,
           })),
         },
       },
