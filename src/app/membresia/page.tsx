@@ -4,22 +4,24 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { MEMBERSHIP_PLANS, getBeneficiosActivos } from "@/lib/membership-benefits";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 const fmx = (n: number) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 0 }).format(n);
 
 // ─────────────────────────────────────────────────────────────────────
-// PLANES — metals 100% sólidos, sin ningún transparent en brushed
+// PLANES — features derivados de membership-benefits.ts (fuente de verdad)
+// planId eliminado: los Price IDs viven en .env, los lee el route
 // ─────────────────────────────────────────────────────────────────────
 const PLANS = [
   {
     id: 0, key: "BASE", tier: "Estándar", name: "Acceso Inicial", price: 0,
-    planId: null as null | string,
+    // Beneficios activos del tier base (NONE)
+    features: getBeneficiosActivos("NONE").map(b => b.label),
     metal: {
-      solid:   "#b4b4b4",  // color base opaco absoluto
+      solid:   "#b4b4b4",
       face:    "linear-gradient(152deg, #efefef 0%, #c4c4c4 18%, #e0e0e0 34%, #9c9c9c 52%, #cecece 68%, #868686 83%, #c0c0c0 100%)",
-      // brushed: todos los stops son colores sólidos, cero transparent
       brushed: "repeating-linear-gradient(91deg, #b8b8b8 0px, #cccccc 0.8px, #b4b4b4 1.6px, #acacac 3px, #b8b8b8 4.2px)",
       hilight: "#f4f4f4",
       shadow:  "#282828",
@@ -31,11 +33,10 @@ const PLANS = [
       accent:  "#848484",
     },
     tag: "ALUMINIO", recommended: false,
-    features: ["0.5 pts / $100 MXN", "Catálogo completo", "Panel de historial", "Sin apartados"],
   },
   {
-    id: 1, key: "GOLD", tier: "Priority", name: "Socio Comercial", price: 499,
-    planId: "price_gold_id",
+    id: 1, key: "GOLD", tier: "Priority", name: "Socio Comercial", price: MEMBERSHIP_PLANS.GOLD.priceMonthly!,
+    features: getBeneficiosActivos("GOLD").map(b => b.label),
     metal: {
       solid:   "#b87800",
       face:    "linear-gradient(152deg, #fff3a0 0%, #fdc800 16%, #e49000 32%, #ffd800 50%, #ac6c00 68%, #fcc800 82%, #bc7c00 100%)",
@@ -50,11 +51,10 @@ const PLANS = [
       accent:  "#bc7000",
     },
     tag: "ORO 24K", recommended: true,
-    features: ["10% dto en textiles", "7 días de apartado", "3 colocaciones/mes", "1 pto / $100 MXN"],
   },
   {
-    id: 2, key: "BLACK", tier: "Ejecutivo", name: "Socio Ejecutivo", price: 799,
-    planId: "price_black_id",
+    id: 2, key: "BLACK", tier: "Ejecutivo", name: "Socio Ejecutivo", price: MEMBERSHIP_PLANS.BLACK.priceMonthly!,
+    features: getBeneficiosActivos("BLACK").map(b => b.label),
     metal: {
       solid:   "#0c0c0c",
       face:    "linear-gradient(152deg, #2c2c2c 0%, #161616 18%, #242424 34%, #0c0c0c 52%, #1e1e1e 68%, #080808 83%, #181818 100%)",
@@ -69,11 +69,10 @@ const PLANS = [
       accent:  "#969696",
     },
     tag: "CARBONO", recommended: false,
-    features: ["15% dto en textiles", "6 colocaciones/mes", "2 ptos / $100 MXN", "Prioridad en paquetería", "Muestrarios gratis"],
   },
   {
-    id: 3, key: "ELITE", tier: "Master", name: "Master Partner", price: 1129,
-    planId: "price_elite_id",
+    id: 3, key: "ELITE", tier: "Master", name: "Master Partner", price: MEMBERSHIP_PLANS.ELITE.priceMonthly!,
+    features: getBeneficiosActivos("ELITE").map(b => b.label),
     metal: {
       solid:   "#07111f",
       face:    "linear-gradient(152deg, #469acc 0%, #183c78 16%, #1e5cb8 32%, #0c1e4c 52%, #164ea4 68%, #071e3c 83%, #2468c8 100%)",
@@ -88,14 +87,13 @@ const PLANS = [
       accent:  "#56a8e0",
     },
     tag: "ZAFIRO", recommended: false,
-    features: ["15% dto + envío local gratis", "15 días de apartado", "4 ptos / $100 MXN", "Acceso anticipado 30 días", "Gerente de cuenta"],
   },
 ] as const;
 
 type Plan = typeof PLANS[number];
 
 // ─────────────────────────────────────────────────────────────────────
-// SHOWROOM CANVAS — reflectores industriales full animados
+// SHOWROOM CANVAS
 // ─────────────────────────────────────────────────────────────────────
 function ShowroomBG({ glowRgb }: { glowRgb: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -121,7 +119,6 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
       { ox: 0.53, sweep: 0.10, speed: 0.00200, phase: 5.80, r: 0.18, bright: 0.38 },
     ];
 
-    // Partículas de polvo
     const DUST = Array.from({ length: 140 }, () => ({
       x: Math.random(), y: Math.random() * 0.7,
       r: Math.random() * 1.0 + 0.2,
@@ -140,11 +137,9 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
       ctx.fillStyle = "#040404";
       ctx.fillRect(0, 0, W, H);
 
-      // ── Piso en perspectiva ──
       const HY  = H * 0.695;
       const vpX = W * 0.50;
 
-      // Líneas de fuga del piso
       ctx.lineWidth = 0.5;
       for (let i = -14; i <= 14; i++) {
         const alpha = Math.max(0, 0.055 - Math.abs(i) * 0.003);
@@ -154,7 +149,6 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
         ctx.lineTo(vpX + i * W * 2.2, H * 1.5);
         ctx.stroke();
       }
-      // Líneas horizontales
       for (let j = 0; j <= 9; j++) {
         const fy  = HY + (j / 9) * (H - HY) * 1.1;
         const sp  = 0.45 + j * 0.30;
@@ -166,40 +160,34 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
         ctx.stroke();
       }
 
-      // Riel de horizonte con brillo
       const rail = ctx.createLinearGradient(0, HY, W, HY);
-      rail.addColorStop(0,   "rgba(0,0,0,0)");
-      rail.addColorStop(0.15,`rgba(${rgb},0.08)`);
-      rail.addColorStop(0.50,`rgba(${rgb},0.20)`);
-      rail.addColorStop(0.85,`rgba(${rgb},0.08)`);
-      rail.addColorStop(1,   "rgba(0,0,0,0)");
+      rail.addColorStop(0,    "rgba(0,0,0,0)");
+      rail.addColorStop(0.15, `rgba(${rgb},0.08)`);
+      rail.addColorStop(0.50, `rgba(${rgb},0.20)`);
+      rail.addColorStop(0.85, `rgba(${rgb},0.08)`);
+      rail.addColorStop(1,    "rgba(0,0,0,0)");
       ctx.strokeStyle = rail; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(0, HY); ctx.lineTo(W, HY); ctx.stroke();
 
-      // Reflejos en suelo (manchas especulares)
       for (let s = 0; s < 3; s++) {
         const sx   = W * (0.2 + s * 0.3);
         const refl = ctx.createRadialGradient(sx, HY, 0, sx, HY + 10, 180);
-        refl.addColorStop(0,   `rgba(${rgb},0.06)`);
-        refl.addColorStop(1,   "rgba(0,0,0,0)");
+        refl.addColorStop(0, `rgba(${rgb},0.06)`);
+        refl.addColorStop(1, "rgba(0,0,0,0)");
         ctx.fillStyle = refl;
         ctx.fillRect(sx - 200, HY, 400, 120);
       }
 
-      // ── Vigas del techo ──
       ctx.strokeStyle = `rgba(${rgb},0.055)`; ctx.lineWidth = 1;
-      const beams = [0.10, 0.36, 0.64, 0.90];
-      beams.forEach(bx => {
+      [0.10, 0.36, 0.64, 0.90].forEach(bx => {
         ctx.beginPath();
         ctx.moveTo(bx * W, 0); ctx.lineTo(bx * W, H * 0.055);
         ctx.stroke();
       });
-      // Viga horizontal del techo
       ctx.strokeStyle = `rgba(${rgb},0.04)`; ctx.lineWidth = 0.8;
       ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(W, 2); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, H * 0.055); ctx.lineTo(W, H * 0.055); ctx.stroke();
 
-      // ── Reflectores ──
       SPOTS.forEach(sp => {
         const angle = 0.5 + Math.sin(t * sp.speed + sp.phase) * sp.sweep;
         const ox    = sp.ox * W;
@@ -216,7 +204,6 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
         const rx = ox + Math.sin((angle - 0.5 + hw) * Math.PI * 1.5) * reach * 1.1;
         const ry = oy + Math.abs(Math.cos((angle - 0.5 + hw) * Math.PI * 0.6)) * reach * 0.88 + reach * 0.50;
 
-        // Cono de luz
         const cone = ctx.createRadialGradient(ox, oy, 0, tx, ty, reach * 0.42);
         cone.addColorStop(0,    `rgba(${rgb},${sp.bright * 0.22})`);
         cone.addColorStop(0.30, `rgba(${rgb},${sp.bright * 0.10})`);
@@ -231,7 +218,6 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
         ctx.closePath();
         ctx.fill();
 
-        // Núcleo del haz
         const beam = ctx.createLinearGradient(ox, oy, tx, Math.min(ty, H * 0.9));
         beam.addColorStop(0,   `rgba(${rgb},${sp.bright * 0.40})`);
         beam.addColorStop(0.4, `rgba(${rgb},${sp.bright * 0.14})`);
@@ -240,7 +226,6 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
         ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(tx, Math.min(ty, H * 0.9)); ctx.stroke();
         ctx.restore();
 
-        // Mancha de impacto en suelo
         const groundY = Math.min(ty, H * 0.88);
         const spot    = ctx.createRadialGradient(tx, groundY, 0, tx, groundY, reach * 0.17);
         spot.addColorStop(0,   `rgba(${rgb},${sp.bright * 0.32})`);
@@ -253,20 +238,18 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
         ctx.fill();
         ctx.restore();
 
-        // Fixture (punto brillante en techo)
         const head = ctx.createRadialGradient(ox, oy, 0, ox, oy, 22);
-        head.addColorStop(0,   `rgba(${rgb},0.98)`);
-        head.addColorStop(0.25,`rgba(${rgb},0.45)`);
-        head.addColorStop(0.6, `rgba(${rgb},0.10)`);
-        head.addColorStop(1,   "rgba(0,0,0,0)");
+        head.addColorStop(0,    `rgba(${rgb},0.98)`);
+        head.addColorStop(0.25, `rgba(${rgb},0.45)`);
+        head.addColorStop(0.6,  `rgba(${rgb},0.10)`);
+        head.addColorStop(1,    "rgba(0,0,0,0)");
         ctx.save(); ctx.fillStyle = head;
         ctx.beginPath(); ctx.arc(ox, oy, 22, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       });
 
-      // ── Polvo flotante ──
       DUST.forEach(d => {
-        d.x  = (d.x + d.vx + 1) % 1;
-        d.y  = (d.y + d.vy + 1) % 0.7;
+        d.x   = (d.x + d.vx + 1) % 1;
+        d.y   = (d.y + d.vy + 1) % 0.7;
         d.phi += d.dphi;
         const a = d.base * (0.4 + 0.6 * Math.abs(Math.sin(d.phi)));
         ctx.save();
@@ -276,7 +259,6 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
         ctx.restore();
       });
 
-      // Viñeta fuerte
       const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.22, W / 2, H / 2, H * 0.85);
       vig.addColorStop(0, "rgba(0,0,0,0)");
       vig.addColorStop(1, "rgba(0,0,0,0.86)");
@@ -315,7 +297,7 @@ function ScanLine({ color }: { color: string }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// CORNER GLEAM — destello en esquina animado
+// CORNER GLEAM
 // ─────────────────────────────────────────────────────────────────────
 function CornerGleam({ color }: { color: string }) {
   return (
@@ -335,7 +317,7 @@ function CornerGleam({ color }: { color: string }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// TARJETA METÁLICA — completamente opaca, sin transparencias
+// TARJETA METÁLICA
 // ─────────────────────────────────────────────────────────────────────
 function MetalCard({
   plan, isActive, offset, onClick,
@@ -347,7 +329,6 @@ function MetalCard({
   const my  = useMotionValue(0);
   const rx  = useSpring(useTransform(my, [-0.5, 0.5], ["20deg", "-20deg"]), { stiffness: 420, damping: 36 });
   const ry  = useSpring(useTransform(mx, [-0.5, 0.5], ["-20deg", "20deg"]), { stiffness: 420, damping: 36 });
-  // Sheen x/y en porcentaje para radial-gradient
   const shX = useTransform(mx, [-0.5, 0.5], ["5%", "95%"]);
   const shY = useTransform(my, [-0.5, 0.5], ["5%", "95%"]);
 
@@ -376,13 +357,12 @@ function MetalCard({
         rotateX: isActive ? rx : (22 + Math.abs(offset) * 5) as any,
         rotateY: isActive ? ry : 0,
         cursor:  isActive ? "default" : "pointer",
-        opacity: 1, // Garantizamos opacidad al 100%
+        opacity: 1,
       }}
       animate={{ x: tx, y: ty, scale: sc, filter: isActive ? "brightness(1)" : "brightness(0.28) blur(2px)" }}
       transition={{ type: "spring", stiffness: 72, damping: 20 }}
       whileHover={!isActive ? { scale: sc + 0.05, filter: "brightness(0.53) blur(2px)" } : {}}
     >
-      {/* Sombra proyectada */}
       {isActive && (
         <motion.div
           animate={{ opacity: [0.4, 0.7, 0.4], scaleX: [1, 1.08, 1] }}
@@ -395,74 +375,32 @@ function MetalCard({
         />
       )}
 
-      {/* ── CUERPO — backgroundColor sólido como "suelo" garantizado ── */}
       <div
         style={{
           width: 458, height: 286, borderRadius: 18,
           position: "relative", overflow: "hidden",
-          isolation: "isolate",       // 🔥 FIX: Aísla la tarjeta para evitar perforaciones de WebKit
-          transform: "translateZ(0)", // 🔥 FIX: Obliga a renderizar la tarjeta en un layer plano separado
-          // Primer: color sólido de fondo absoluto
+          isolation: "isolate",
+          transform: "translateZ(0)",
           backgroundColor: m.solid,
-          // Segundo: face gradient encima (cubre todo, también opaco)
           background: m.face,
-          // Sombras externas
           boxShadow: isActive
-            ? [
-                `0 65px 120px #000`,
-                `0 32px 55px rgba(0,0,0,0.72)`,
-                `inset 0 2px 0 ${m.hilight}`,
-                `inset 0 -1px 0 ${m.shadow}`,
-                `0 0 0 1.5px ${m.shadow}`,
-              ].join(", ")
+            ? [`0 65px 120px #000`, `0 32px 55px rgba(0,0,0,0.72)`, `inset 0 2px 0 ${m.hilight}`, `inset 0 -1px 0 ${m.shadow}`, `0 0 0 1.5px ${m.shadow}`].join(", ")
             : `0 20px 40px rgba(0,0,0,0.75), inset 0 1px 0 ${m.hilight}22`,
         }}
       >
-        {/* 1. Brushed metal — 100% sólido, cero transparent */}
-        <div style={{
-          position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none",
-          backgroundImage: m.brushed,
-        }} />
-
-        {/* 2. Reflejo especular fijo en esquina superior-izquierda */}
-        <div style={{
-          position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none",
-          background: `radial-gradient(ellipse 62% 48% at 22% 20%, ${m.hilight}62 0%, ${m.solid}00 58%)`,
-        }} />
-
-        {/* 3. Bisel / chamfer edge */}
-        <div style={{
-          position: "absolute", inset: 0, borderRadius: 18, zIndex: 3, pointerEvents: "none",
-          background: `linear-gradient(152deg, ${m.hilight}50 0%, ${m.solid}00 24%, ${m.solid}00 76%, ${m.shadow}60 100%)`,
-        }} />
-
-        {/* 4. Sheen dinámico de cursor sin mixBlendMode para evitar bugs de WebKit */}
+        <div style={{ position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none", backgroundImage: m.brushed }} />
+        <div style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none", background: `radial-gradient(ellipse 62% 48% at 22% 20%, ${m.hilight}62 0%, ${m.solid}00 58%)` }} />
+        <div style={{ position: "absolute", inset: 0, borderRadius: 18, zIndex: 3, pointerEvents: "none", background: `linear-gradient(152deg, ${m.hilight}50 0%, ${m.solid}00 24%, ${m.solid}00 76%, ${m.shadow}60 100%)` }} />
         {isActive && (
-          <motion.div style={{
-            position: "absolute", inset: 0, zIndex: 4, pointerEvents: "none",
-            background: `radial-gradient(ellipse 40% 40% at ${shX} ${shY}, ${m.hilight}50 0%, transparent 62%)`,
-          }} />
+          <motion.div style={{ position: "absolute", inset: 0, zIndex: 4, pointerEvents: "none", background: `radial-gradient(ellipse 40% 40% at ${shX} ${shY}, ${m.hilight}50 0%, transparent 62%)` }} />
         )}
-
-        {/* 5. Scan line */}
         {isActive && <ScanLine color={m.accent} />}
-
-        {/* 6. Corner gleam animado */}
         {isActive && <CornerGleam color={m.hilight} />}
 
-        {/* ── CONTENIDO ── */}
         <div style={{ position: "relative", zIndex: 5, height: "100%", padding: "24px 28px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-
-          {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{
-                width: 37, height: 37, borderRadius: 8,
-                backgroundColor: m.shadow,
-                border: `1.5px solid ${m.accent}60`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: `inset 0 1px 0 ${m.hilight}22, 0 2px 4px ${m.shadow}80`,
-              }}>
+              <div style={{ width: 37, height: 37, borderRadius: 8, backgroundColor: m.shadow, border: `1.5px solid ${m.accent}60`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `inset 0 1px 0 ${m.hilight}22, 0 2px 4px ${m.shadow}80` }}>
                 <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 10, color: m.hilight, letterSpacing: "0.06em" }}>CY</span>
               </div>
               <div>
@@ -470,29 +408,21 @@ function MetalCard({
                 <p style={{ fontFamily: "monospace", fontSize: 7, color: m.accent, margin: 0, letterSpacing: "0.14em" }}>INFRAESTRUCTURA NACIONAL</p>
               </div>
             </div>
-            <div style={{
-              borderRadius: 4, padding: "3px 9px",
-              backgroundColor: m.shadow,
-              border: `1px solid ${m.accent}60`,
-              boxShadow: `inset 0 1px 0 ${m.hilight}16`,
-            }}>
+            <div style={{ borderRadius: 4, padding: "3px 9px", backgroundColor: m.shadow, border: `1px solid ${m.accent}60`, boxShadow: `inset 0 1px 0 ${m.hilight}16` }}>
               <span style={{ fontFamily: "monospace", fontSize: 7, color: m.subtext, fontWeight: 700, letterSpacing: "0.18em" }}>{plan.tag}</span>
             </div>
           </div>
 
-          {/* KEY grabado metálico (sin filtro de drop-shadow para evitar perforación en WebKit) */}
           <div style={{ textAlign: "center", lineHeight: 1 }}>
             <span style={{
               fontFamily: "monospace", fontWeight: 700, fontSize: 92, letterSpacing: "0.08em",
               color: "transparent",
               backgroundImage: `linear-gradient(172deg, ${m.hilight} 0%, ${m.mid} 44%, ${m.shadow} 100%)`,
               backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-              display: "block",
-              userSelect: "none",
+              display: "block", userSelect: "none",
             }}>{plan.key}</span>
           </div>
 
-          {/* Footer (Sin el chip EMV) */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
             <div>
               <p style={{ fontFamily: "monospace", fontSize: 7, color: m.accent, letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: 4, fontWeight: 700 }}>CREDENCIAL DE ACCESO</p>
@@ -501,10 +431,7 @@ function MetalCard({
           </div>
         </div>
 
-        {/* Borde interior en relieve */}
         <div style={{ position: "absolute", inset: 2, borderRadius: 16, border: `1px solid ${m.hilight}16`, zIndex: 6, pointerEvents: "none" }} />
-
-        {/* Corner lights — chamfer óptico */}
         {[
           { top: 0,    left:  0,    background: `linear-gradient(135deg, ${m.hilight}48 0%, ${m.solid}00 52%)`, borderRadius: "18px 0 0 0" },
           { top: 0,    right: 0,    background: `linear-gradient(225deg, ${m.hilight}28 0%, ${m.solid}00 52%)`, borderRadius: "0 18px 0 0" },
@@ -591,9 +518,10 @@ export default function MembershipPage() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  const plan    = PLANS[activeIdx];
-  const m       = plan.metal;
-  const isAnn   = billing === "annual";
+  const plan  = PLANS[activeIdx];
+  const m     = plan.metal;
+  const isAnn = billing === "annual";
+  // Precio anual con 10% de descuento, mostrado como equivalente mensual
   const price   = isAnn ? Math.round(plan.price * 12 * 0.9) : plan.price;
   const savings = Math.round(plan.price * 12 - price);
 
@@ -601,15 +529,28 @@ export default function MembershipPage() {
   const prev = useCallback(() => setActiveIdx(p => (p - 1 + PLANS.length) % PLANS.length), []);
 
   const handleBuy = async () => {
+    // BASE no requiere pago
     if (plan.price === 0) { window.location.href = "/perfil?status=success"; return; }
     setLoading(true);
     try {
-      const res  = await fetch("/api/membership/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ planKey: plan.key, billingCycle: billing }) });
+      const res  = await fetch("/api/membership/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // planKey es "GOLD" | "BLACK" | "ELITE" — coincide exactamente con el route
+        body: JSON.stringify({ planKey: plan.key, billingCycle: billing }),
+      });
       const data = await res.json();
-      if (res.ok && data.clientSecret) { setClientSecret(data.clientSecret); setShowVault(true); }
-      else throw new Error(data.error || "Error al iniciar el pago");
-    } catch (e: any) { alert(`Error: ${e.message}`); }
-    finally { setLoading(false); }
+      if (res.ok && data.clientSecret) {
+        setClientSecret(data.clientSecret);
+        setShowVault(true);
+      } else {
+        throw new Error(data.error || "Error al iniciar el pago");
+      }
+    } catch (e: any) {
+      alert(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!mounted) return null;
@@ -627,7 +568,6 @@ export default function MembershipPage() {
 
       <div style={{ width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#040404", display: "flex", position: "relative" }}>
 
-        {/* ── SHOWROOM BG — se rehace al cambiar de plan ── */}
         <AnimatePresence mode="wait">
           <motion.div
             key={`bg-${activeIdx}`}
@@ -639,19 +579,15 @@ export default function MembershipPage() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Grid industrial */}
         <div style={{
           position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none",
           backgroundImage: "linear-gradient(rgba(255,255,255,0.011) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.011) 1px, transparent 1px)",
           backgroundSize: "80px 80px",
         }} />
 
-        {/* ── IZQUIERDA ── */}
-        {/* 🔥 FIX: Eliminado transformStyle: preserve-3d del contenedor padre que causaba que las tarjetas se perforaran entre ellas */}
+        {/* ── IZQUIERDA — tarjetas 3D ── */}
         <div style={{ width: "52%", height: "100%", position: "relative", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", perspective: "2800px" }}>
-
-          {/* Nav buttons */}
-          {([["left", prev, "‹"], ["right", next, "›"]] as const).map(([side, fn, sym]) => (
+          {(([["left", prev, "‹"], ["right", next, "›"]] as const)).map(([side, fn, sym]) => (
             <motion.button
               key={side} onClick={fn}
               whileHover={{ scale: 1.14, borderColor: m.glow, color: m.glow } as any}
@@ -659,8 +595,7 @@ export default function MembershipPage() {
               style={{
                 position: "absolute", [side]: 22, top: "50%", transform: "translateY(-50%)",
                 zIndex: 20, width: 42, height: 42, borderRadius: "50%",
-                backgroundColor: "#080808",
-                border: "1px solid rgba(255,255,255,0.10)",
+                backgroundColor: "#080808", border: "1px solid rgba(255,255,255,0.10)",
                 color: "rgba(255,255,255,0.30)", fontSize: 22,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 cursor: "pointer", fontFamily: "monospace",
@@ -669,7 +604,6 @@ export default function MembershipPage() {
             >{sym}</motion.button>
           ))}
 
-          {/* Stack 3D */}
           <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <AnimatePresence mode="popLayout">
               {visible.map(({ plan: p, index, offset }) => (
@@ -678,7 +612,6 @@ export default function MembershipPage() {
             </AnimatePresence>
           </div>
 
-          {/* Dots */}
           <div style={{ position: "absolute", bottom: 30, display: "flex", gap: 8, zIndex: 20 }}>
             {PLANS.map((_, i) => (
               <motion.button
@@ -697,10 +630,9 @@ export default function MembershipPage() {
         {/* Divisor */}
         <div style={{ width: 1, alignSelf: "stretch", margin: "52px 0", flexShrink: 0, zIndex: 10, background: "linear-gradient(to bottom, transparent, rgba(255,255,255,0.06) 22%, rgba(255,255,255,0.06) 78%, transparent)" }} />
 
-        {/* ── DERECHA ── */}
+        {/* ── DERECHA — info + CTA ── */}
         <div style={{ flex: 1, height: "100%", position: "relative", zIndex: 10, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 52px", overflow: "hidden" }}>
 
-          {/* Número gigante de fondo */}
           <AnimatePresence mode="wait">
             <motion.div
               key={`bgn-${activeIdx}`}
@@ -719,7 +651,7 @@ export default function MembershipPage() {
               transition={{ type: "spring", damping: 28, stiffness: 175 }}
               style={{ position: "relative", zIndex: 1, maxWidth: 400 }}
             >
-              {/* Tier + dot pulsante */}
+              {/* Tier + dot */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                 <motion.div
                   animate={{ opacity: [0.5, 1, 0.5], boxShadow: [`0 0 4px ${m.glow}`, `0 0 16px ${m.glow}`, `0 0 4px ${m.glow}`] }}
@@ -735,8 +667,7 @@ export default function MembershipPage() {
                     style={{
                       fontFamily: "monospace", fontSize: 7, letterSpacing: "0.18em", textTransform: "uppercase",
                       padding: "2px 8px", borderRadius: 3,
-                      background: m.face,
-                      color: m.text, fontWeight: 700,
+                      background: m.face, color: m.text, fontWeight: 700,
                       boxShadow: `0 0 14px ${m.glow}55`,
                     }}
                   >RECOMENDADO</motion.span>
@@ -755,14 +686,13 @@ export default function MembershipPage() {
                 COYOTE TEXTIL · MEMBRESÍA {plan.key}
               </p>
 
-              {/* Línea animada */}
               <motion.div
                 initial={{ scaleX: 0 }} animate={{ scaleX: 1 }}
                 transition={{ delay: 0.07, duration: 0.5 }}
                 style={{ height: 1, marginBottom: 20, background: `linear-gradient(90deg, ${m.glow}90, ${m.glow}22, transparent)`, transformOrigin: "left" }}
               />
 
-              {/* Features */}
+              {/* Features — beneficios reales de membership-benefits.ts */}
               <div style={{ marginBottom: 26 }}>
                 {plan.features.map((feat, i) => (
                   <motion.div key={feat}
@@ -819,10 +749,8 @@ export default function MembershipPage() {
                       )}
                     </div>
 
-                    {/* CTA */}
                     <motion.button
-                      whileHover={{ scale: 1.06 }}
-                      whileTap={{ scale: 0.96 }}
+                      whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.96 }}
                       onClick={handleBuy} disabled={loading}
                       style={{
                         height: 50, paddingInline: 28, borderRadius: 10, cursor: loading ? "wait" : "pointer",

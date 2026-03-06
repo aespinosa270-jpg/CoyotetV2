@@ -138,43 +138,44 @@ enum BreakType {
 // 1. USUARIO / CLIENTE (B2B & B2C)
 // ==========================================================
 model User {
-  id                       String         @id @default(cuid())
-  hashId                   String         @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
-  name                     String?
-  email                    String         @unique
-  password                 String
-  image                    String?
-  phone                    String?
-  role                     String         @default("USER")
-  membershipTier           MembershipTier @default(NONE)
-  membershipExpiry         DateTime?
-  points                   Int            @default(0)
-  stripeCustomerId         String?
-  stripeSubscriptionId     String?
-  stripeSubscriptionStatus String?
-  ltv                      Float          @default(0)
-  rfc                      String?
-  taxRegime                String?
-  cfdiUse                  String?
-  street                   String?
-  neighborhood             String?
-  zipCode                  String?
-  city                     String?
-  state                    String?
-  company                  String?
-  notes                    String?
-  optedIn                  Boolean        @default(false)
-  suppressed               Boolean        @default(false)
-  consentDate              DateTime?
-  optOutDate               DateTime?
-  createdAt                DateTime       @default(now())
-  updatedAt                DateTime       @updatedAt
+  id                           String         @id @default(cuid())
+  hashId                       String         @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
+  name                         String?
+  email                        String         @unique
+  password                     String
+  image                        String?
+  phone                        String?
+  role                         String         @default("USER")
+  membershipTier               MembershipTier @default(NONE)
+  membershipExpiry             DateTime?
+  membershipColocacionesUsadas Int            @default(0) // ← colocaciones a paquetería usadas en el mes actual; se resetea en cada renovación via webhook
+  points                       Int            @default(0)
+  stripeCustomerId             String?
+  stripeSubscriptionId         String?
+  stripeSubscriptionStatus     String?
+  ltv                          Float          @default(0)
+  rfc                          String?
+  taxRegime                    String?
+  cfdiUse                      String?
+  street                       String?
+  neighborhood                 String?
+  zipCode                      String?
+  city                         String?
+  state                        String?
+  company                      String?
+  notes                        String?
+  optedIn                      Boolean        @default(false)
+  suppressed                   Boolean        @default(false)
+  consentDate                  DateTime?
+  optOutDate                   DateTime?
+  createdAt                    DateTime       @default(now())
+  updatedAt                    DateTime       @updatedAt
 
-  orders                   Order[]
-  interactions             Interaction[]
-  tickets                  Ticket[]
-  deals                    Deal[]
-  waConversations          WaConversation[]
+  orders                       Order[]
+  interactions                 Interaction[]
+  tickets                      Ticket[]
+  deals                        Deal[]
+  waConversations              WaConversation[]
 }
 
 // ==========================================================

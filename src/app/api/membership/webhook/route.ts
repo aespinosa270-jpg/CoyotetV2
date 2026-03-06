@@ -1,107 +1,190 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
-import { prisma } from "@/lib/prisma"
-import { NextResponse } from "next/server"
+// src/app/api/membership/webhook/route.ts
+// Stripe webhook — sincroniza estado de suscripción con PostgreSQL
+//
+// Eventos a registrar en Stripe Dashboard → Developers → Webhooks:
+//   customer.subscription.updated
+//   customer.subscription.deleted
+//   customer.subscription.paused
+//   invoice.payment_succeeded
+//   invoice.payment_failed
+import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
+import { prisma } from "@/lib/prisma"
+import { MembershipTier } from "@prisma/client" // ✅ Enum real de Prisma
 
-// 🐺 Inicializamos Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-11-20.acacia" as any,
 })
 
-// 🔥 PRECIOS DINÁMICOS DESDE LAS VARIABLES DE ENTORNO (.env)
-const STRIPE_PRICE_IDS: Record<string, { monthly: string; annual: string }> = {
-  'GOLD':  { 
-    monthly: process.env.STRIPE_PRICE_GOLD_MONTHLY!, 
-    annual: process.env.STRIPE_PRICE_GOLD_ANNUAL! 
-  },
-  'BLACK': { 
-    monthly: process.env.STRIPE_PRICE_BLACK_MONTHLY!, 
-    annual: process.env.STRIPE_PRICE_BLACK_ANNUAL! 
-  },
-  'ELITE': { 
-    monthly: process.env.STRIPE_PRICE_ELITE_MONTHLY!, 
-    annual: process.env.STRIPE_PRICE_ELITE_ANNUAL! 
-  }
+// Valores válidos del enum MembershipTier del schema:
+// NONE | GOLD | BLACK | ELITE
+// "BASICA" NO existe en el schema — el default es NONE
+type PlanKey = "GOLD" | "BLACK" | "ELITE"
+const VALID_PLANS: PlanKey[] = ["GOLD", "BLACK", "ELITE"]
+
+function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+  // Stripe typings can vary by version; subscription may be missing from the Invoice type.
+  const subscription = (invoice as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null })
+    .subscription
+
+  if (!subscription) return null
+  return typeof subscription === "string" ? subscription : subscription.id
 }
 
-export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
-  
-  if (!session?.user?.email) {
-    return new NextResponse("Acceso denegado: Inicia sesión primero", { status: 401 })
+function unwrapStripeResponse<T>(res: Stripe.Response<T> | T): T {
+  return ((res as any).data ?? res) as T
+}
+
+function getSubscriptionPeriodEnd(sub: Stripe.Subscription): Date | null {
+  // Some Stripe API versions/previews rename/remove `current_period_end`.
+  const endSeconds =
+    (sub as any).current_period_end ??
+    (sub as any).current_period?.end ??
+    (sub as any).current_period_end_at
+
+  return typeof endSeconds === "number" ? new Date(endSeconds * 1000) : null
+}
+
+export async function POST(req: NextRequest) {
+  const body = await req.text()
+  const sig  = req.headers.get("stripe-signature")
+
+  if (!sig) {
+    return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 })
+  }
+
+  let event: Stripe.Event
+
+  try {
+    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
+  } catch (err: any) {
+    console.error("❌ Webhook signature verification failed:", err.message)
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
   try {
-    const body = await req.json()
-    // 🐺 Extraemos el plan y el ciclo de facturación que manda tu frontend
-    const { planKey, billingCycle = 'monthly' } = body
+    switch (event.type) {
 
-    // Seleccionamos el precio exacto según el ciclo de facturación
-    const priceId = STRIPE_PRICE_IDS[planKey]?.[billingCycle as 'monthly' | 'annual']
-    
-    if (!priceId) {
-      console.error(`❌ Faltan los IDs de precio en el .env para ${planKey} - ${billingCycle}`);
-      return new NextResponse("Plan o ciclo de facturación inválido o no configurado", { status: 400 })
+      // ── Pago confirmado — AQUÍ se activa la membresía ──────────────────────
+      // Se dispara en el primer cobro y en cada renovación mensual/anual
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as Stripe.Invoice
+        const subscriptionId = getInvoiceSubscriptionId(invoice)
+        if (!subscriptionId) break
+
+        const sub = unwrapStripeResponse(await stripe.subscriptions.retrieve(subscriptionId))
+        const userId  = sub.metadata?.userId
+        const planKey = sub.metadata?.planKey as PlanKey | undefined
+        const expiry  = getSubscriptionPeriodEnd(sub)
+
+        if (!userId || !planKey || !VALID_PLANS.includes(planKey)) {
+          console.warn("⚠️ invoice.payment_succeeded sin userId o planKey válido:", sub.id)
+          break
+        }
+
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            membershipTier:           MembershipTier[planKey], // GOLD | BLACK | ELITE
+            stripeSubscriptionId:     sub.id,
+            stripeSubscriptionStatus: sub.status,             // "active"
+            membershipExpiry:         expiry, // ✅ campo real del schema (nullable)
+          },
+        })
+
+        console.log(`✅ Membresía activada: ${planKey} → usuario ${userId}`)
+        break
+      }
+
+      // ── Suscripción actualizada (reactivación, cambio de estado) ───────────
+      case "customer.subscription.updated": {
+        const sub     = event.data.object as Stripe.Subscription
+        const userId  = sub.metadata?.userId
+        const planKey = sub.metadata?.planKey as PlanKey | undefined
+
+        if (!userId) break
+
+        if ((sub.status === "active" || sub.status === "trialing") && planKey && VALID_PLANS.includes(planKey)) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: {
+              membershipTier:           MembershipTier[planKey],
+              stripeSubscriptionStatus: sub.status,
+              membershipExpiry:         getSubscriptionPeriodEnd(sub),
+            },
+          })
+          console.log(`✅ Suscripción actualizada: ${planKey} → usuario ${userId}`)
+
+        } else if (sub.status === "past_due" || sub.status === "unpaid") {
+          // Pago fallido: marcamos el status sin bajar el tier todavía
+          // (Stripe reintentará el cobro — solo bajamos si llega subscription.deleted)
+          await prisma.user.update({
+            where: { id: userId },
+            data: { stripeSubscriptionStatus: sub.status },
+          })
+          console.warn(`⚠️ Pago fallido para usuario ${userId}: ${sub.status}`)
+
+        } else if (sub.status === "canceled" || sub.status === "paused") {
+          // Cancelación desde el portal de Stripe — también limpiamos
+          await deactivateMembership(userId)
+        }
+
+        break
+      }
+
+      // ── Suscripción cancelada o pausada explícitamente ─────────────────────
+      case "customer.subscription.deleted":
+      case "customer.subscription.paused": {
+        const sub    = event.data.object as Stripe.Subscription
+        const userId = sub.metadata?.userId
+        if (!userId) break
+
+        await deactivateMembership(userId)
+        console.log(`🔻 Membresía cancelada → usuario ${userId} vuelve a NONE`)
+        break
+      }
+
+      // ── Pago fallido después de reintentos ─────────────────────────────────
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice
+        const subscriptionId = getInvoiceSubscriptionId(invoice)
+        if (!subscriptionId) break
+
+        const sub    = unwrapStripeResponse(await stripe.subscriptions.retrieve(subscriptionId))
+        const userId = sub.metadata?.userId
+        if (!userId) break
+
+        // Solo actualizamos el status — no bajamos el tier hasta que Stripe cancele
+        await prisma.user.update({
+          where: { id: userId },
+          data: { stripeSubscriptionStatus: "past_due" },
+        })
+        console.warn(`⚠️ Pago fallido en invoice ${invoice.id} → usuario ${userId}`)
+        break
+      }
+
+      default:
+        break
     }
-
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-    if (!user) return new NextResponse("Socio no encontrado", { status: 404 })
-
-    // 1. OBTENER O CREAR CLIENTE EN STRIPE (Usando tu nueva Bóveda)
-    let customerId = user.stripeCustomerId
-
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: user.name || "Socio Comercial Coyote",
-        metadata: { userId: user.id },
-      })
-      customerId = customer.id
-
-      // Lo guardamos en el ADN del usuario para futuros cobros
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { stripeCustomerId: customerId },
-      })
-    }
-
-    // 2. CREAR LA SUSCRIPCIÓN EN STRIPE (Estado: "Incompleta" hasta que el banco pase la tarjeta)
-    const subscription = await stripe.subscriptions.create({
-      customer: customerId,
-      items: [{ price: priceId }],
-      payment_behavior: 'default_incomplete',
-      payment_settings: { save_default_payment_method: 'on_subscription' },
-      expand: ['latest_invoice.payment_intent'], // Extraemos la llave de cobro de la primera factura
-      metadata: {
-        userId: user.id,
-        planKey: planKey,
-        billingCycle: billingCycle, // Guardamos el dato por si lo necesitas auditar después
-      },
-    })
-
-    // Extraemos el "Secreto" para el Frontend
-    const invoice = subscription.latest_invoice as Stripe.Invoice
-    // 🐺 AQUÍ ESTÁ LA MAGIA: Forzamos el tipo con (invoice as any) para que Vercel no llore
-    const paymentIntent = (invoice as any).payment_intent as Stripe.PaymentIntent
-
-    // 3. PRE-REGISTRAMOS LA SUSCRIPCIÓN EN POSTGRESQL
-    // OJO: No le subimos el nivel (role/membershipTier) todavía. 
-    // Eso lo hará el Webhook en cuanto Stripe confirme el pago.
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { stripeSubscriptionId: subscription.id },
-    })
-
-    // 4. LE MANDAMOS LA LLAVE AL FRONTEND PARA RENDERIZAR LA TARJETA EN LA BÓVEDA
-    return NextResponse.json({ 
-      success: true, 
-      clientSecret: paymentIntent.client_secret,
-      subscriptionId: subscription.id 
-    })
-
-  } catch (error: any) {
-    console.error("🔥 Error de Transacción en Membresía:", error.message)
-    return new NextResponse(error.message, { status: 500 })
+  } catch (err: any) {
+    console.error(`🔥 Error procesando evento ${event.type}:`, err.message)
+    // Retornamos 200 para que Stripe no reintente en bucle
+    // Los errores críticos quedan en los logs del servidor
+    return NextResponse.json({ received: true, warning: err.message })
   }
+
+  return NextResponse.json({ received: true })
+}
+
+// ─── Helper: revertir a estado base ───────────────────────────────────────────
+async function deactivateMembership(userId: string) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      membershipTier:           MembershipTier.NONE, // ✅ default real del schema
+      stripeSubscriptionId:     null,
+      stripeSubscriptionStatus: "canceled",
+      membershipExpiry:         null,
+    },
+  })
 }
