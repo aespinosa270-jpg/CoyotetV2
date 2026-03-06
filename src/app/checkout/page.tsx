@@ -15,6 +15,8 @@ import {
   Zap, Copy, Clock, Smartphone, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+// ─── PUNTOS [1/4]: importar panel y helpers ───────────────────────────────────
+import PointsPanel, { calcularPuntosGanados, calcularDescuentoPuntos } from '@/components/checkout/points-panel';
 
 // 🐺 Inicializamos Stripe con tu llave pública
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
@@ -23,6 +25,7 @@ type LogisticsMethod = 'coyote' | 'skydropx';
 type PaymentMethod = 'stripe' | 'financing';
 // 🔥 ACTUALIZADO: Solo financieras aprobadas
 type FinancingProvider = 'aplazo' | 'kapital' | null;
+type MembershipTier = 'NONE' | 'GOLD' | 'BLACK' | 'ELITE';
 
 // Configuración Coyote
 const DIESEL_PRICE_PER_LITER = 27.00; 
@@ -548,6 +551,10 @@ export default function CheckoutPage() {
   
   const role = (session?.user as any)?.membershipTier || 'NONE';
 
+  // ─── PUNTOS [2/4]: leer tier y puntos del usuario ─────────────────────────
+  const tier              = role as MembershipTier;
+  const puntosDisponibles = (session?.user as any)?.points ?? 0;
+
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState(1); 
   
@@ -557,6 +564,12 @@ export default function CheckoutPage() {
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('stripe');
   const [selectedFinancingProvider, setSelectedFinancingProvider] = useState<FinancingProvider>(null);
+
+  // ─── PUNTOS [3/4]: estado del panel ──────────────────────────────────────
+  const [puntosUsados, setPuntosUsados] = useState(0);
+  const handleTogglePuntos = (usar: boolean, cantidad: number) => {
+    setPuntosUsados(usar ? cantidad : 0);
+  };
 
   const [selectedLogistics, setSelectedLogistics] = useState<LogisticsMethod>('coyote');
   const [coyoteDistanceKm, setCoyoteDistanceKm] = useState<number>(0); 
@@ -665,6 +678,11 @@ export default function CheckoutPage() {
     };
   }, [items, subtotal, wantsInvoice, selectedLogistics, coyoteDistanceKm, skydropxRate, role]); 
 
+  // ─── PUNTOS [3b/4]: descuento y total final ───────────────────────────────
+  const descuentoPuntosMXN     = Math.floor(puntosUsados * 0.50);
+  const totalConPuntos         = Math.max(0, total - descuentoPuntosMXN);
+  const puntosGanadosEnCompra  = calcularPuntosGanados(subtotal, tier);
+
   const validateStep1 = async () => {
     if (!customerData.name || !customerData.email || !customerData.street || !customerData.state || !customerData.city || !customerData.neighborhood || customerData.zip.length < 5) {
       alert("Por favor completa todos los campos de dirección.");
@@ -720,11 +738,12 @@ export default function CheckoutPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: total, 
+          amount: totalConPuntos,  // ← total ya con descuento de puntos aplicado
           description: `Pedido Coyote - ${totalWeight}kg ${wantsInvoice ? '(Con Factura)' : ''}`,
           items,
           customer: customerData,
           paymentMethod: method,
+          puntosUsados,            // ← para que el servidor descuente de BD
           metadata: {
              freight_cost: freightCost, shipping_cost: shippingCost, service_fee: FIXED_SERVICE_FEE, tax_iva: taxIVA,
              req_invoice: wantsInvoice ? 'YES' : 'NO', fiscal_data: wantsInvoice ? fiscalData : null, logistics_type: selectedLogistics,
@@ -981,7 +1000,8 @@ export default function CheckoutPage() {
                           }
                         }}
                       >
-                        <StripeCheckoutForm amount={total} orderId={currentOrderId} clearCart={clearCart} />
+                        {/* totalConPuntos = total ya descontado por puntos canjeados */}
+                        <StripeCheckoutForm amount={totalConPuntos} orderId={currentOrderId} clearCart={clearCart} />
                       </Elements>
                     </div>
                   )}
@@ -1070,8 +1090,61 @@ export default function CheckoutPage() {
                         <span className="font-bold text-white">${serviceFee.toLocaleString()}</span>
                     </div>
 
+                    {/* ─── PUNTOS [4/4]: panel + descuento + total reactivo ─── */}
+                    {session && (
+                      <div className="pt-2">
+                        <PointsPanel
+                          tier={tier}
+                          puntosDisponibles={puntosDisponibles}
+                          subtotal={subtotal}
+                          total={total}
+                          puntosUsados={puntosUsados}
+                          onToggle={handleTogglePuntos}
+                        />
+                      </div>
+                    )}
+
+                    <AnimatePresence>
+                      {puntosUsados > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="flex justify-between text-sm items-center bg-[#FDCB02]/10 border border-[#FDCB02]/30 rounded-xl px-3 py-2"
+                        >
+                          <span className="text-[#FDCB02] font-black text-xs uppercase tracking-wider flex items-center gap-1.5">
+                            <Zap size={12} fill="currentColor"/> Descuento {puntosUsados} pts
+                          </span>
+                          <span className="font-[1000] text-[#FDCB02]">−${descuentoPuntosMXN.toLocaleString()}</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
                     <div className="flex justify-between items-end pt-6 border-t border-white/10 mt-4">
-                        <span className="font-[1000] text-4xl text-[#FDCB02]">${total.toLocaleString()}</span>
+                      <div>
+                        <p className="text-[9px] text-neutral-500 uppercase tracking-widest font-black mb-1">Total a Pagar</p>
+                        <AnimatePresence mode="wait">
+                          <motion.span
+                            key={totalConPuntos}
+                            initial={{ y: -6, opacity: 0 }}
+                            animate={{ y: 0,  opacity: 1 }}
+                            exit={{   y:  6, opacity: 0 }}
+                            className="font-[1000] text-4xl text-[#FDCB02] block"
+                          >
+                            ${totalConPuntos.toLocaleString()}
+                          </motion.span>
+                        </AnimatePresence>
+                      </div>
+                      {session && (
+                        <div className="text-right">
+                          <p className="text-[9px] text-neutral-500 uppercase tracking-widest font-black mb-1">Ganarás</p>
+                          <div className="flex items-baseline gap-1 justify-end">
+                            <span className="text-lg font-[1000] text-[#FDCB02]">+{puntosGanadosEnCompra}</span>
+                            <span className="text-[10px] text-neutral-500 font-bold">pts</span>
+                          </div>
+                          <p className="text-[9px] text-neutral-600">${calcularDescuentoPuntos(puntosGanadosEnCompra)} MXN futuros</p>
+                        </div>
+                      )}
                     </div>
 
                     <AnimatePresence>
