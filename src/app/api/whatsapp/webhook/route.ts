@@ -404,7 +404,10 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
       const perfil = await getCliente(redis, tel);
       const saludo = perfil?.nombre ? `¡Qué onda ${perfil.nombre}!` : '¡Qué onda patrón!';
       
-      let msg = `🐺 ${saludo} Stripe nos confirmó que tu pago de *$${monto} MXN* ya cayó. ✅\n\n¡Tu pedido entró a bodega! 📦`;
+      // 🎫 AQUÍ GENERAMOS LA URL DEL TICKET AUTOMÁTICAMENTE
+      const urlTicket = `https://www.coyotetextil.com/ticket/${session.id}`;
+
+      let msg = `🐺 ${saludo} Stripe nos confirmó que tu pago de *$${monto} MXN* ya cayó. ✅\n\n🎫 *Aquí tienes tu Ticket Digital:*\n${urlTicket}\n\n¡Tu pedido entró a bodega! 📦`;
 
       if (quiereFactura && metadata.rfc !== 'NONE') {
         try {

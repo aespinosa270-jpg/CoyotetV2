@@ -1,5 +1,5 @@
 'use client';
-import { Info, CheckCircle2, Package, Truck, Landmark, Banknote, Clock, ArrowRight } from "lucide-react";
+import { Info, CheckCircle2, Package, Truck, Banknote, Clock, ArrowRight, Receipt } from "lucide-react";
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -7,12 +7,16 @@ import { motion } from 'framer-motion';
 
 function SuccessContent() {
   const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId') || 'Desconocido';
+  
+  // Capturamos tanto el orderId como el session_id nativo de Stripe
+  const orderId = searchParams.get('orderId') || searchParams.get('session_id') || 'Desconocido';
+  const sessionId = searchParams.get('session_id') || searchParams.get('orderId');
+  
   // 🐺 Stripe nos dice cómo quedó el pago
   const status = searchParams.get('redirect_status'); 
 
-  // Es inmediato si Stripe dice "succeeded"
-  const isInstantPayment = status === 'succeeded';
+  // Es inmediato si Stripe dice "succeeded" (o si no hay status pero hay sessionId, depende de tu config)
+  const isInstantPayment = status === 'succeeded' || !status;
 
   return (
     <div className="min-h-screen bg-[#fafafa] pt-32 pb-20 px-4 flex flex-col items-center selection:bg-[#FDCB02] selection:text-black">
@@ -38,7 +42,7 @@ function SuccessContent() {
               ¡Pago Autorizado!
             </h1>
             <p className="text-neutral-500 mb-8 max-w-md mx-auto text-sm">
-              Tu método de pago ha sido procesado con éxito y el pedido <strong>{orderId}</strong> ha pasado directamente al área de almacén para su preparación.
+              Tu método de pago ha sido procesado con éxito y el pedido <strong>{orderId.slice(-8).toUpperCase()}</strong> ha pasado directamente al área de almacén para su preparación.
             </p>
           </>
         ) : (
@@ -54,7 +58,7 @@ function SuccessContent() {
               Pedido Reservado
             </h1>
             <p className="text-neutral-500 mb-8 max-w-md mx-auto text-sm">
-              Hemos apartado el inventario para tu pedido <strong>{orderId}</strong>. Ahora necesitamos que completes el pago.
+              Hemos apartado el inventario para tu pedido <strong>{orderId.slice(-8).toUpperCase()}</strong>. Ahora necesitamos que completes el pago.
             </p>
 
             {/* INSTRUCCIONES DE PAGO OFFLINE */}
@@ -84,7 +88,7 @@ function SuccessContent() {
         <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-6 mb-10 text-left">
           <div className="flex justify-between items-center border-b border-neutral-200 pb-4 mb-4">
             <span className="text-[10px] font-black uppercase text-neutral-400 tracking-widest">Referencia Interna</span>
-            <span className="font-mono font-bold text-black text-sm">{orderId}</span>
+            <span className="font-mono font-bold text-black text-sm">{orderId.slice(-12).toUpperCase()}</span>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -112,20 +116,23 @@ function SuccessContent() {
           </div>
         </div>
 
-        {/* --- BOTONES DE ACCIÓN --- */}
+        {/* --- BOTONES DE ACCIÓN (AQUÍ INYECTAMOS EL TICKET) --- */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          {sessionId && (
+            <Link 
+              href={`/ticket/${sessionId}`}
+              target="_blank"
+              className="flex-1 bg-[#FDCB02] hover:bg-yellow-400 text-black h-14 rounded-xl font-[1000] uppercase text-xs tracking-widest transition-all duration-300 flex items-center justify-center gap-2 shadow-lg border border-yellow-500/20"
+            >
+              <Receipt size={18} /> Ver Ticket Digital
+            </Link>
+          )}
           <Link 
             href="/" 
-            className="flex-1 bg-black hover:bg-[#FDCB02] text-white hover:text-black h-14 rounded-xl font-[1000] uppercase text-xs tracking-widest transition-all duration-300 flex items-center justify-center gap-2 shadow-lg"
+            className="flex-1 bg-black hover:bg-neutral-800 text-white h-14 rounded-xl font-[1000] uppercase text-xs tracking-widest transition-all duration-300 flex items-center justify-center gap-2 shadow-lg"
           >
             Volver al Catálogo <ArrowRight size={16} />
           </Link>
-          <button 
-            onClick={() => window.print()}
-            className="sm:w-1/3 bg-white border-2 border-neutral-200 hover:border-black text-black h-14 rounded-xl font-bold uppercase text-xs tracking-widest transition-all"
-          >
-            Imprimir Recibo
-          </button>
         </div>
 
         <div className="mt-10 pt-6 border-t border-neutral-100">
