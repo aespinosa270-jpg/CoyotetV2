@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { prisma } from "@/lib/prisma"
 import { MembershipTier } from "@prisma/client" // ✅ Enum real de Prisma
+import { sendMembresiaEmail } from "@/lib/zeptomail" // ✅ Importamos el servicio de correo
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-11-20.acacia" as any,
@@ -82,6 +83,16 @@ export async function POST(req: NextRequest) {
           break
         }
 
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true, name: true }
+        })
+
+        if (!user) {
+          console.warn(`⚠️ Usuario no encontrado en BD para userId: ${userId}`)
+          break
+        }
+
         await prisma.user.update({
           where: { id: userId },
           data: {
@@ -93,10 +104,23 @@ export async function POST(req: NextRequest) {
         })
 
         console.log(`✅ Membresía activada: ${planKey} → usuario ${userId}`)
+
+        // ── INYECCIÓN DEL CORREO DE ZEPTOMAIL ────────────────────────────────
+        // Generamos el memberId cortito (ej. "A4F2") usando el ID de Postgres
+        const memberId = userId.substring(0, 4).toUpperCase()
+        
+        await sendMembresiaEmail(
+          user.email!, 
+          user.name || "Socio Comercial", 
+          memberId, 
+          planKey // Pasamos "GOLD", "BLACK" o "ELITE" para pintar la tarjeta dinámicamente
+        ).catch(err => console.error("Fallo el envío de ZeptoMail en el webhook:", err))
+        
+        console.log(`✉️ Correo de membresía ${planKey} enviado a ${user.email}`)
         break
       }
 
-      // ── Suscripción actualizada (reactivación, cambio de estado) ───────────
+      // ... resto de tu webhook (updated, deleted, paused, payment_failed) intacto ...
       case "customer.subscription.updated": {
         const sub     = event.data.object as Stripe.Subscription
         const userId  = sub.metadata?.userId
@@ -116,8 +140,6 @@ export async function POST(req: NextRequest) {
           console.log(`✅ Suscripción actualizada: ${planKey} → usuario ${userId}`)
 
         } else if (sub.status === "past_due" || sub.status === "unpaid") {
-          // Pago fallido: marcamos el status sin bajar el tier todavía
-          // (Stripe reintentará el cobro — solo bajamos si llega subscription.deleted)
           await prisma.user.update({
             where: { id: userId },
             data: { stripeSubscriptionStatus: sub.status },
@@ -125,14 +147,12 @@ export async function POST(req: NextRequest) {
           console.warn(`⚠️ Pago fallido para usuario ${userId}: ${sub.status}`)
 
         } else if (sub.status === "canceled" || sub.status === "paused") {
-          // Cancelación desde el portal de Stripe — también limpiamos
           await deactivateMembership(userId)
         }
 
         break
       }
 
-      // ── Suscripción cancelada o pausada explícitamente ─────────────────────
       case "customer.subscription.deleted":
       case "customer.subscription.paused": {
         const sub    = event.data.object as Stripe.Subscription
@@ -144,7 +164,6 @@ export async function POST(req: NextRequest) {
         break
       }
 
-      // ── Pago fallido después de reintentos ─────────────────────────────────
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice
         const subscriptionId = getInvoiceSubscriptionId(invoice)
@@ -154,7 +173,6 @@ export async function POST(req: NextRequest) {
         const userId = sub.metadata?.userId
         if (!userId) break
 
-        // Solo actualizamos el status — no bajamos el tier hasta que Stripe cancele
         await prisma.user.update({
           where: { id: userId },
           data: { stripeSubscriptionStatus: "past_due" },
@@ -168,8 +186,6 @@ export async function POST(req: NextRequest) {
     }
   } catch (err: any) {
     console.error(`🔥 Error procesando evento ${event.type}:`, err.message)
-    // Retornamos 200 para que Stripe no reintente en bucle
-    // Los errores críticos quedan en los logs del servidor
     return NextResponse.json({ received: true, warning: err.message })
   }
 

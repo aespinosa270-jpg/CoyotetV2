@@ -9,30 +9,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-11-20.acacia" as any,
 })
 
-// ─── Price IDs desde .env ──────────────────────────────────────────────────────
-// Agrega a .env.local:
-//   STRIPE_PRICE_GOLD_MONTHLY=price_xxx
-//   STRIPE_PRICE_GOLD_ANNUAL=price_xxx
-//   STRIPE_PRICE_BLACK_MONTHLY=price_xxx
-//   STRIPE_PRICE_BLACK_ANNUAL=price_xxx
-//   STRIPE_PRICE_ELITE_MONTHLY=price_xxx
-//   STRIPE_PRICE_ELITE_ANNUAL=price_xxx
-const STRIPE_PRICE_IDS: Record<string, { monthly: string; annual: string }> = {
-  GOLD: {
-    monthly: process.env.STRIPE_PRICE_GOLD_MONTHLY!,
-    annual:  process.env.STRIPE_PRICE_GOLD_ANNUAL!,
-  },
-  BLACK: {
-    monthly: process.env.STRIPE_PRICE_BLACK_MONTHLY!,
-    annual:  process.env.STRIPE_PRICE_BLACK_ANNUAL!,
-  },
-  ELITE: {
-    monthly: process.env.STRIPE_PRICE_ELITE_MONTHLY!,
-    annual:  process.env.STRIPE_PRICE_ELITE_ANNUAL!,
-  },
-}
-
-// Coinciden exactamente con el enum MembershipTier de schema.prisma
 const VALID_PLANS = ["GOLD", "BLACK", "ELITE"] as const
 const VALID_CYCLES = ["monthly", "annual"] as const
 type PlanKey = typeof VALID_PLANS[number]
@@ -50,12 +26,28 @@ export async function POST(req: Request) {
     const planKey: PlanKey      = body.planKey
     const billingCycle: BillingCycle = body.billingCycle ?? "monthly"
 
-    // ── Validación ─────────────────────────────────────────────────────────────
+    // ── Validación de entrada ──────────────────────────────────────────────────
     if (!VALID_PLANS.includes(planKey)) {
       return new NextResponse(`Plan inválido: ${planKey}`, { status: 400 })
     }
     if (!VALID_CYCLES.includes(billingCycle)) {
       return new NextResponse(`Ciclo inválido: ${billingCycle}`, { status: 400 })
+    }
+
+    // Mapeo seguro de precios en runtime (evita crashes de build-time en Next.js)
+    const STRIPE_PRICE_IDS: Record<PlanKey, Record<BillingCycle, string | undefined>> = {
+      GOLD: {
+        monthly: process.env.STRIPE_PRICE_GOLD_MONTHLY,
+        annual:  process.env.STRIPE_PRICE_GOLD_ANNUAL,
+      },
+      BLACK: {
+        monthly: process.env.STRIPE_PRICE_BLACK_MONTHLY,
+        annual:  process.env.STRIPE_PRICE_BLACK_ANNUAL,
+      },
+      ELITE: {
+        monthly: process.env.STRIPE_PRICE_ELITE_MONTHLY,
+        annual:  process.env.STRIPE_PRICE_ELITE_ANNUAL,
+      },
     }
 
     const priceId = STRIPE_PRICE_IDS[planKey][billingCycle]
@@ -67,7 +59,7 @@ export async function POST(req: Request) {
       )
     }
 
-    // ── Usuario ─────────────────────────────────────────────────────────────────
+    // ── Usuario de BD ──────────────────────────────────────────────────────────
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
       select: {
@@ -84,18 +76,25 @@ export async function POST(req: Request) {
       return new NextResponse("Socio no encontrado", { status: 404 })
     }
 
-    // Guardia: si ya tiene suscripción activa en Stripe, no crear otra
+    // ── Control de Suscripciones Previas (Evitar Basura en Stripe) ─────────────
     if (user.stripeSubscriptionId) {
       try {
         const existing = await stripe.subscriptions.retrieve(user.stripeSubscriptionId)
+        
         if (existing.status === "active" || existing.status === "trialing") {
           return new NextResponse(
             "Ya tienes una suscripción activa. Cancela la actual antes de cambiar de plan.",
             { status: 409 }
           )
         }
-      } catch {
-        // Suscripción no existe en Stripe — continuamos sin problema
+        
+        // Si hay una incompleta (ej. cerró la ventana ayer y hoy lo vuelve a intentar),
+        // la cancelamos en Stripe para no dejar suscripciones huérfanas acumulándose.
+        if (existing.status === "incomplete") {
+          await stripe.subscriptions.cancel(user.stripeSubscriptionId)
+        }
+      } catch (error) {
+        console.warn(`Suscripción anterior no encontrada en Stripe, continuando...`)
       }
     }
 
@@ -116,8 +115,7 @@ export async function POST(req: Request) {
       })
     }
 
-    // ── Crear suscripción incompleta ────────────────────────────────────────────
-    // "incomplete" hasta que el frontend confirme el PaymentElement
+    // ── Crear nueva suscripción incompleta ─────────────────────────────────────
     const subscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: priceId }],
@@ -131,23 +129,35 @@ export async function POST(req: Request) {
       },
     })
 
-    // ── Extraer clientSecret ────────────────────────────────────────────────────
-    const invoice = subscription.latest_invoice as Stripe.Invoice
-    const paymentIntent = (invoice as any).payment_intent as Stripe.PaymentIntent
+    // ── Extraer clientSecret de forma segura ───────────────────────────────────
+    const invoice = subscription.latest_invoice as Stripe.Invoice | string | null
+    if (!invoice || typeof invoice === "string") {
+      throw new Error("No se pudo recuperar la factura de la suscripción.")
+    }
 
-    if (!paymentIntent?.client_secret) {
-      console.error("❌ No se obtuvo clientSecret del PaymentIntent:", subscription.id)
-      return new NextResponse("Error interno: no se obtuvo el secreto de pago", { status: 500 })
+    // Stripe ha ido moviendo el PaymentIntent de la factura entre campos
+    // (`payment_intent` directo en la Invoice vs. dentro de `payment.payment_intent`).
+    // Usamos `any` para ser resilientes a cambios de typings entre versiones.
+    const rawPaymentIntent =
+      (invoice as any).payment_intent ??
+      (invoice as any).payment?.payment_intent
+
+    const paymentIntent =
+      typeof rawPaymentIntent === "string"
+        ? await stripe.paymentIntents.retrieve(rawPaymentIntent)
+        : (rawPaymentIntent as Stripe.PaymentIntent | null)
+
+    if (!paymentIntent || !paymentIntent.client_secret) {
+      throw new Error("No se pudo obtener el secreto de pago de Stripe.")
     }
 
     // ── Pre-registrar subscriptionId en BD ─────────────────────────────────────
-    // OJO: membershipTier NO se actualiza aquí todavía.
-    // El webhook invoice.payment_succeeded lo hará al confirmar el cobro.
+    // Esperaremos al webhook para confirmar el pago y subirlo de nivel.
     await prisma.user.update({
       where: { id: user.id },
       data: {
         stripeSubscriptionId: subscription.id,
-        stripeSubscriptionStatus: "incomplete", // campo real del schema
+        stripeSubscriptionStatus: "incomplete",
       },
     })
 
@@ -156,8 +166,9 @@ export async function POST(req: Request) {
       clientSecret: paymentIntent.client_secret,
       subscriptionId: subscription.id,
     })
+    
   } catch (error: any) {
     console.error("🔥 Error de Transacción en Membresía:", error.message)
-    return new NextResponse(error.message, { status: 500 })
+    return new NextResponse(error.message || "Error interno del servidor", { status: 500 })
   }
 }

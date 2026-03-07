@@ -1,6 +1,8 @@
+// src/app/api/register/route.ts
 import { NextResponse } from "next/server";
 import { hash } from "bcryptjs";
-import { prisma } from "@/lib/prisma"; // 👈 Asegúrate de que los import con llaves {} estén correctos
+import { prisma } from "@/lib/prisma"; 
+import { sendBienvenidaEmail } from "@/lib/zeptomail"; // 👈 Importamos el servicio de bienvenida
 
 export async function POST(req: Request) {
   try {
@@ -15,7 +17,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Verificar si el usuario ya existe en Supabase
+    // 2. Verificar si el usuario ya existe en Supabase/Prisma
     const existingUser = await prisma.user.findUnique({
       where: { email: email }
     });
@@ -23,14 +25,14 @@ export async function POST(req: Request) {
     if (existingUser) {
       return NextResponse.json(
         { message: "Este correo ya está registrado. Por favor, inicia sesión." }, 
-        { status: 409 } // 409 Conflict
+        { status: 409 } 
       );
     }
 
     // 3. Encriptar la contraseña (NUNCA guardar texto plano)
     const hashedPassword = await hash(password, 10);
 
-    // 4. Crear el usuario en Prisma / Supabase
+    // 4. Crear el usuario en Prisma
     const newUser = await prisma.user.create({
       data: {
         name,
@@ -40,7 +42,13 @@ export async function POST(req: Request) {
       }
     });
 
-    // 5. Devolver éxito sin mandar la contraseña de regreso por seguridad
+    // 5. ─── ENVIAR CORREO DE BIENVENIDA ──────────────────────────────────────
+    // Lo disparamos sin "await" para que el usuario no espere a que ZeptoMail responda.
+    // Usamos la nueva plantilla enfocada en el CTA de Iniciar Sesión.
+    sendBienvenidaEmail(newUser.email, newUser.name || "Socio Comercial")
+      .catch(err => console.error("Fallo el envío de ZeptoMail en el registro:", err));
+
+    // 6. Devolver éxito sin mandar la contraseña de regreso por seguridad
     return NextResponse.json(
       { 
         message: "¡Usuario creado exitosamente!", 
