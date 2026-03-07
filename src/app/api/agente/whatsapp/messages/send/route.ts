@@ -6,13 +6,13 @@ export async function POST(req: NextRequest) {
     const { conversationId, body, employeeId } = await req.json();
     
     if (!conversationId || !body) {
-      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+      return NextResponse.json({ error: "Faltan campos" }, { status: 400 });
     }
 
     // 1. Buscamos a qué número de teléfono pertenece esta conversación
     const conversation = await prisma.waConversation.findUnique({
       where: { id: conversationId },
-      select: { contactPhone: true } 
+      select: { contactPhone: true } // 👈 Aseguramos usar el campo correcto
     });
 
     if (!conversation || !conversation.contactPhone) {
@@ -50,7 +50,6 @@ export async function POST(req: NextRequest) {
     // 3. 💾 SI META LO ENTREGÓ, AHORA SÍ LO GUARDAMOS EN EL HISTORIAL DEL CRM
     const [message] = await prisma.$transaction([
       prisma.waMessage.create({
-        // isRead en true, porque el mensaje lo acabamos de mandar nosotros mismos
         data: { conversationId, role: "AGENT", body, isRead: true }, 
       }),
       prisma.waConversation.update({
