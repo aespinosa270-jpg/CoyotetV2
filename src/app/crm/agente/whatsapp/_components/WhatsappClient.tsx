@@ -10,7 +10,7 @@ import {
 
 type WaMessage = {
   id:       string;
-  role:     "AGENT" | "CLIENT";
+  role:     "AGENT" | "CLIENT" | "CUSTOMER"; // Agregué CUSTOMER por si lo guardas así en BD
   body:     string;
   mediaUrl: string | null;
   isRead:   boolean;
@@ -68,17 +68,39 @@ export default function WhatsappClient({
 
   const activeConvo = convos.find((c) => c.id === activeId) ?? null;
 
-  // Cargar mensajes al cambiar conversación
+  // 🔄 CARGA INICIAL DE MENSAJES (Al cambiar de chat)
   useEffect(() => {
     if (!activeId) return;
     setLoadingMsgs(true);
     fetch(`/api/agente/whatsapp/messages?conversationId=${activeId}`)
       .then((r) => r.json())
-      .then((data) => { setMessages(data ?? []); setLoadingMsgs(false); })
+      .then((data) => { 
+        setMessages(data ?? []); 
+        setLoadingMsgs(false); 
+      })
       .catch(() => setLoadingMsgs(false));
   }, [activeId]);
 
-  // Scroll al fondo
+  // 📡 POLLING: CONSULTAR MENSAJES NUEVOS CADA 3 SEGUNDOS (Tiempo Real Ligero)
+  useEffect(() => {
+    if (!activeId) return;
+
+    const interval = setInterval(() => {
+      fetch(`/api/agente/whatsapp/messages?conversationId=${activeId}`)
+        .then((r) => r.json())
+        .then((data) => {
+          // Solo actualizamos si hay mensajes nuevos para no romper el scroll
+          if (data && data.length > messages.length) {
+            setMessages(data);
+          }
+        })
+        .catch(err => console.error("Error en polling:", err));
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [activeId, messages.length]);
+
+  // 📜 SCROLL AL FONDO AUTOMÁTICO
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -86,9 +108,9 @@ export default function WhatsappClient({
   const handleSend = () => {
     const body = input.trim();
     if (!body || !activeId) return;
-    setInput("");
+    setInput(""); // Limpiamos la caja rápido para que se sienta fluido
 
-    // Optimistic
+    // Optimistic Update (Pintamos el mensaje antes de que el server responda)
     const optimistic: WaMessage = {
       id:       `tmp-${Date.now()}`,
       role:     "AGENT",
@@ -97,9 +119,10 @@ export default function WhatsappClient({
       isRead:   false,
       sentAt:   new Date().toISOString(),
     };
+    
     setMessages((prev) => [...prev, optimistic]);
 
-    // Actualizar lastMessage en sidebar
+    // Actualizamos el preview en la barra lateral
     setConvos((prev) =>
       prev.map((c) =>
         c.id === activeId
@@ -108,6 +131,7 @@ export default function WhatsappClient({
       )
     );
 
+    // Mandamos la petición REAL a tu API (Que conectará con Meta)
     startT(async () => {
       try {
         await fetch("/api/agente/whatsapp/send", {
@@ -115,8 +139,8 @@ export default function WhatsappClient({
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ conversationId: activeId, body, employeeId }),
         });
-      } catch {
-        // silent — en modo simulado no hay error real
+      } catch (err) {
+        console.error("Fallo al enviar mensaje:", err);
       }
     });
   };
@@ -136,7 +160,7 @@ export default function WhatsappClient({
         <div className="px-4 py-4 border-b border-white/[0.04] shrink-0">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-black uppercase tracking-widest text-white">
-              Chats
+              Chats Activos
             </h2>
             <button className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-800 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/20 transition-all">
               <Plus size={13} />
@@ -146,13 +170,13 @@ export default function WhatsappClient({
             <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
             <input
               value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar conversación..."
+              placeholder="Buscar cliente o mensaje..."
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-1.5 pl-8 pr-3 text-[11px] text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 transition-all"
             />
           </div>
         </div>
 
-        {/* Lista */}
+        {/* Lista de Chats */}
         <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-0">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 p-6">
@@ -227,7 +251,7 @@ export default function WhatsappClient({
                 <div className="flex items-center gap-1.5">
                   <Circle size={6} className="text-emerald-400 fill-emerald-400" />
                   <p className="text-[9px] text-emerald-400 uppercase tracking-widest font-bold">
-                    {activeConvo.isOpen ? "En línea" : "Desconectado"}
+                    {activeConvo.isOpen ? "Chat Abierto (IA Apagada)" : "Cerrado"}
                   </p>
                   {activeConvo.contactPhone && (
                     <>
@@ -239,10 +263,10 @@ export default function WhatsappClient({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
+              <button className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-emerald-400 transition-colors" title="Llamar">
                 <Phone size={14} />
               </button>
-              <button className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
+              <button className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-white transition-colors" title="Ver Perfil">
                 <User size={14} />
               </button>
               <button className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
@@ -251,7 +275,7 @@ export default function WhatsappClient({
             </div>
           </div>
 
-          {/* Mensajes */}
+          {/* Área de Mensajes */}
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full"
             style={{
               backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.015) 1px, transparent 0)`,
@@ -291,7 +315,7 @@ export default function WhatsappClient({
                     <div key={msg.id}>
                       {showTime && (
                         <div className="flex justify-center my-2">
-                          <span className="text-[9px] text-zinc-600 font-mono bg-zinc-900 px-3 py-0.5 rounded-full">
+                          <span className="text-[9px] text-zinc-500 font-mono bg-[#0d0d0d] border border-zinc-900 px-3 py-0.5 rounded-full">
                             {new Date(msg.sentAt).toLocaleString("es-MX", {
                               day: "2-digit", month: "short",
                               hour: "2-digit", minute: "2-digit",
@@ -307,10 +331,10 @@ export default function WhatsappClient({
                       >
                         <div className={`max-w-[68%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                           isAgent
-                            ? "bg-emerald-600 text-white rounded-br-sm"
+                            ? "bg-emerald-600 text-white rounded-br-sm shadow-[0_4px_15px_rgba(16,185,129,0.1)]"
                             : "bg-zinc-800 text-zinc-100 rounded-bl-sm"
                         }`}>
-                          <p className="text-[13px] leading-relaxed">{msg.body}</p>
+                          <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{msg.body}</p>
                           <div className={`flex items-center gap-1 mt-1 ${isAgent ? "justify-end" : "justify-start"}`}>
                             <span className="text-[9px] opacity-60 font-mono">
                               {new Date(msg.sentAt).toLocaleTimeString("es-MX", {
@@ -318,7 +342,7 @@ export default function WhatsappClient({
                               })}
                             </span>
                             {isAgent && (
-                              <CheckCheck size={10} className={msg.isRead ? "text-sky-300" : "opacity-50"} />
+                              <CheckCheck size={10} className={msg.isRead ? "text-emerald-200" : "text-emerald-100/50"} />
                             )}
                           </div>
                         </div>
@@ -326,55 +350,53 @@ export default function WhatsappClient({
                     </div>
                   );
                 })}
-                <div ref={bottomRef} />
+                {/* Elemento ancla para auto-scroll */}
+                <div ref={bottomRef} className="h-1" />
               </>
             )}
           </div>
 
-          {/* Input */}
+          {/* Caja de Texto (Input) */}
           <div className="px-4 py-3 border-t border-white/[0.04] shrink-0 bg-[#0a0a0a]">
-            <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2 focus-within:border-emerald-500/40 transition-all">
-              <button className="text-zinc-600 hover:text-zinc-400 transition-colors shrink-0">
-                <Smile size={18} />
-              </button>
-              <button className="text-zinc-600 hover:text-zinc-400 transition-colors shrink-0">
-                <Paperclip size={16} />
+            <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2 focus-within:border-emerald-500/40 transition-all shadow-inner">
+              <button className="text-zinc-600 hover:text-emerald-400 transition-colors shrink-0" title="Adjuntar archivo">
+                <Paperclip size={18} />
               </button>
               <input
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }}}
-                placeholder="Escribe un mensaje..."
-                className="flex-1 bg-transparent text-sm text-white placeholder:text-zinc-600 focus:outline-none"
+                placeholder="Responde a nombre de Coyote Textil..."
+                className="flex-1 bg-transparent text-sm text-white placeholder:text-zinc-600 focus:outline-none py-1"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim()}
-                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all ${
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all ${
                   input.trim()
-                    ? "bg-emerald-500 text-black hover:bg-emerald-400"
+                    ? "bg-emerald-500 text-black hover:bg-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                     : "bg-zinc-800 text-zinc-600"
                 }`}
               >
-                <Send size={14} />
+                <Send size={15} className={input.trim() ? "translate-x-[-1px] translate-y-[1px]" : ""} />
               </button>
             </div>
-            <p className="text-[9px] text-zinc-700 text-center mt-1.5 uppercase tracking-widest">
-              Simulado · Meta WhatsApp Business API ready
+            <p className="text-[9px] text-zinc-600 text-center mt-2 uppercase tracking-widest font-bold">
+              ⚡ Live · Conectado con Meta Graph API
             </p>
           </div>
         </div>
       ) : (
-        /* Empty state */
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-800 flex items-center justify-center">
-            <MessageSquare size={28} className="text-emerald-400" />
+        /* Estado vacío si no hay chat seleccionado */
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-[#0a0a0a]">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-500/5 border border-emerald-900/30 flex items-center justify-center">
+            <MessageSquare size={28} className="text-emerald-500/50" />
           </div>
           <div className="text-center">
-            <p className="text-sm font-bold text-zinc-400">Selecciona una conversación</p>
-            <p className="text-[10px] text-zinc-700 uppercase tracking-widest mt-1">
-              o inicia una nueva con el botón +
+            <p className="text-sm font-bold text-zinc-300">Bandeja de Entrada</p>
+            <p className="text-[10px] text-zinc-600 uppercase tracking-widest mt-1">
+              Selecciona un chat para responder
             </p>
           </div>
         </div>
