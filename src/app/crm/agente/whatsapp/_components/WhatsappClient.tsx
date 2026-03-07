@@ -116,7 +116,7 @@ export default function WhatsappClient({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // INICIAR NUEVO CHAT DESDE EL MODAL
+  // INICIAR NUEVO CHAT DESDE EL MODAL (ACTUALIZADO CON MANEJO DE ERRORES)
   const startNewChat = async (contact: any) => {
     try {
       const res = await fetch('/api/agente/whatsapp/conversations', {
@@ -124,18 +124,48 @@ export default function WhatsappClient({
         headers: { 'Content-Type': 'application/json'},
         body: JSON.stringify({ userId: contact.id, phone: contact.phone, name: contact.name, employeeId })
       });
-      const newConvo = await res.json();
+      
+      // Manejo de errores HTTP
+      if (!res.ok) {
+        let errorMsg = "Error desconocido";
+        try {
+          const errData = await res.json();
+          errorMsg = errData.error;
+        } catch(e) {
+          errorMsg = `Error HTTP: ${res.status} - Revisa que el archivo conversations/route.ts exista y funcione.`;
+        }
+        alert(`❌ Fallo al crear chat: ${errorMsg}`);
+        return;
+      }
+
+      const newConvoRaw = await res.json();
+
+      // Formateo seguro para no romper la vista
+      const newConvo: Conversacion = {
+        id: newConvoRaw.id,
+        contactName: newConvoRaw.contactName ?? contact.name,
+        contactPhone: newConvoRaw.contactPhone ?? contact.phone,
+        isOpen: newConvoRaw.isOpen ?? true,
+        lastMessage: newConvoRaw.lastMessage ?? null,
+        lastMessageAt: newConvoRaw.lastMessageAt ?? null,
+        unreadCount: newConvoRaw.unreadCount ?? 0,
+        user: newConvoRaw.user ?? { id: contact.id, name: contact.name, email: "", phone: contact.phone },
+        messages: newConvoRaw.messages ?? []
+      };
 
       // Lo agregamos a la barra lateral si no estaba
-      const exists = convos.find(c => c.id === newConvo.id);
-      if (!exists) {
-        setConvos([newConvo, ...convos]);
-      }
+      setConvos((prev) => {
+        const exists = prev.find(c => c.id === newConvo.id);
+        if (exists) return prev;
+        return [newConvo, ...prev];
+      });
       
       setActiveId(newConvo.id);
       setShowNewChat(false);
+      
     } catch (error) {
-      console.error("Fallo al iniciar chat", error);
+      console.error("Fallo crítico al iniciar chat", error);
+      alert("❌ Ocurrió un error de red o de código. Revisa la consola (F12).");
     }
   };
 
