@@ -6,20 +6,17 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   ShoppingCart, ChevronLeft, Layers, Minus, Plus, 
-  Shield, Zap, Package, Scissors, Flame, Heart, Truck, 
+  Shield, Package, Scissors, Flame, Heart, Truck, 
   LayoutGrid, Globe, ArrowRight, Check, Palette, Ruler,
-  PaintRoller, Star, Share2, Crown 
+  PaintRoller, Star, Share2, Zap
 } from 'lucide-react';
 import { useCart } from '@/lib/context/cart-context';
 import { products } from '@/lib/products';
-import { useSession } from 'next-auth/react'; // 🔥 Importamos la sesión
-import { getDiscountMultiplier, getTierBadge } from '@/lib/pricing'; // 🔥 Importamos tu archivo real
 
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { addItem } = useCart();
-  const { data: session } = useSession(); // 🔥 Sacamos los datos del usuario
   
   // 1. Obtener Producto de forma segura (con as any para evitar error TS)
   const productId = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -34,7 +31,7 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     if (selectedColor && selectedColor.image) {
-      // Lógica visual si es necesaria
+      // Lógica visual si es necesaria al cambiar color
     }
   }, [selectedColor]);
 
@@ -61,16 +58,12 @@ export default function ProductDetailPage() {
   const unitAbbr = isMeter ? 'm' : 'Kg';
   const unitsPerRoll = product.unidadesPorRollo || 25;
 
-  // 🔥 LÓGICA DE PRECIOS DIRECTA DESDE PRICING.TS
-  const role = (session?.user as any)?.membershipTier || 'NONE';
+  // 🔥 LÓGICA DE PRECIOS (SIN MEMBRESÍAS, SOLO MENUDEO O MAYOREO)
   const basePriceToUse = buyingMode === 'rollo' ? product.prices.mayoreo : product.prices.menudeo;
-  const finalPrice = basePriceToUse * getDiscountMultiplier(role);
-  const label = getTierBadge(role);
   
   // Cálculo de Totales 
   const totalWeight = buyingMode === 'rollo' ? quantity * unitsPerRoll : quantity;
-  const totalPrice = finalPrice * totalWeight;
-  const savingsAmount = (basePriceToUse - finalPrice) * totalWeight;
+  const totalPrice = basePriceToUse * totalWeight;
 
   // --- CÁLCULO DE RENDIMIENTO (METROS) ---
   const totalMeters = !isMeter ? (totalWeight * (product.rendimiento || 1)).toFixed(1) : totalWeight;
@@ -95,7 +88,7 @@ export default function ProductDetailPage() {
       id: cartVariantId,      
       productId: product.id,  
       title: `${product.title} ${selectedColor ? `- ${selectedColor.name}` : ''}`, 
-      price: finalPrice,
+      price: basePriceToUse, // 🔥 Usamos el precio directo
       image: selectedColor?.image || product.thumbnail, 
       quantity: totalWeight,
       unit: buyingMode === 'rollo' ? `${unitAbbr} (Rollo)` : unitAbbr,
@@ -169,7 +162,7 @@ export default function ProductDetailPage() {
                 {product.hasRollo && (
                     <div className="absolute bottom-4 left-4 z-10">
                         <span className="bg-[#FDCB02] text-black px-3 py-1 text-[10px] font-bold uppercase rounded-full shadow-lg flex items-center gap-1">
-                            <Package size={12} /> Venta por Rollo
+                            <Package size={12} /> Venta por Rollo Disponible
                         </span>
                     </div>
                 )}
@@ -204,90 +197,20 @@ export default function ProductDetailPage() {
                   )}
                </div>
 
-               {/* 🔥 NUEVA TARJETA DE PRECIO B2B (FOMO + MEMBRESÍAS) */}
-               <div className={`p-6 rounded-lg border-2 relative transition-all ${
-                   role === 'NONE' || role === 'silver' || role === 'USER'
-                   ? 'bg-neutral-50 border-neutral-200' 
-                   : 'bg-[#FDCB02]/5 border-[#FDCB02]/50 shadow-md'
-               }`}>
-                  <div className="flex flex-col gap-2">
-                    
-                    {/* UI PARA MORTALES (Nivel Básico) */}
-                    {(role === 'NONE' || role === 'silver' || role === 'USER') ? (
-                      <>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="text-[11px] font-bold bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded uppercase">
-                                Precio Mortal (Lista)
-                            </span>
-                            <div className="flex items-baseline gap-1 mt-2">
-                                <span className="text-4xl lg:text-5xl font-[900] text-black tracking-tight">
-                                    ${basePriceToUse.toLocaleString()}
-                                </span>
-                                <span className="text-xs text-neutral-500 font-bold uppercase mb-1">MXN / {unitAbbr}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* El Dulce (La trampa de ventas) */}
-                        <div className="mt-4 pt-4 border-t border-neutral-200">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Crown size={14} className="text-[#FDCB02]" />
-                            <span className="text-xs font-bold text-[#FDCB02] uppercase tracking-widest">
-                                Precio Master Elite
-                            </span>
-                          </div>
-                          <div className="flex items-end gap-3">
-                            <span className="text-2xl font-black text-neutral-400 line-through decoration-[#FDCB02] decoration-2">
-                                ${(basePriceToUse * 0.85).toLocaleString()}
-                            </span>
-                            <span className="text-[10px] text-green-600 font-bold uppercase mb-1">
-                              (Ahorras 15%)
-                            </span>
-                          </div>
-                          <button 
-                            onClick={() => router.push('/membresia')}
-                            className="w-full mt-3 text-[11px] bg-black text-[#FDCB02] hover:bg-neutral-800 font-black uppercase tracking-widest py-2.5 rounded transition-colors shadow-sm"
-                          >
-                            ADQUIRIR MEMBRESÍA PARA DESBLOQUEAR
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      
-                      // UI PARA SOCIOS (Con Membresía Activa)
-                      <>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="text-[11px] font-bold bg-black text-[#FDCB02] px-3 py-1 rounded-sm uppercase tracking-wider flex items-center gap-1 w-fit">
-                                <Crown size={12} /> {label}
-                            </span>
-                            
-                            <div className="flex items-baseline gap-2 mt-3">
-                                <span className="text-4xl lg:text-5xl font-[900] text-black tracking-tight">
-                                    ${finalPrice.toLocaleString()}
-                                </span>
-                                <span className="text-xs text-neutral-500 font-bold uppercase mb-1">MXN / {unitAbbr}</span>
-                            </div>
-                            
-                            <div className="flex items-center gap-2 mt-1">
-                                <span className="text-sm text-neutral-400 line-through decoration-red-500/50">
-                                    ${basePriceToUse.toLocaleString()} (Precio Lista)
-                                </span>
-                            </div>
-                          </div>
-
-                          <div className="text-right">
-                              {savingsAmount > 0 && (
-                                  <div className="animate-in fade-in slide-in-from-bottom-2 bg-green-50 border border-green-200 px-3 py-2 rounded">
-                                      <span className="block text-[9px] text-green-700 font-black uppercase mb-0.5">Ahorro Activo</span>
-                                      <span className="text-xl font-black text-green-600">-${savingsAmount.toLocaleString()}</span>
-                                  </div>
-                              )}
-                          </div>
-                        </div>
-                      </>
-                    )}
+               {/* 🔥 TARJETA DE PRECIO LIMPIA (SIN MEMBRESÍAS) */}
+               <div className="bg-neutral-50 border border-neutral-200 p-6 rounded-lg">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-[11px] font-bold bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded uppercase">
+                          {buyingMode === 'rollo' ? 'Precio Mayoreo (Rollo)' : 'Precio Menudeo'}
+                      </span>
+                      <div className="flex items-baseline gap-1 mt-2">
+                          <span className="text-4xl lg:text-5xl font-[900] text-black tracking-tight">
+                              ${basePriceToUse.toLocaleString()}
+                          </span>
+                          <span className="text-xs text-neutral-500 font-bold uppercase mb-1">MXN / {unitAbbr}</span>
+                      </div>
+                    </div>
                   </div>
                </div>
             </div>
@@ -485,7 +408,7 @@ export default function ProductDetailPage() {
                            {product.description}
                        </p>
 
-                       {/* 🔥 CEREBRO DE DESCRIPCIONES DINÁMICAS (AHORA CON TU SUPER COPY DE VENTAS) */}
+                       {/* 🔥 CEREBRO DE DESCRIPCIONES DINÁMICAS */}
                        <p className="text-neutral-600 leading-relaxed text-sm font-medium">
                           {product.id === 'prod_flanel' 
                             ? "Nuestra tela Flanel es la reina del invierno. Su textura ultra suave, afelpada y ligera retiene el calor corporal de manera excepcional, haciéndola la opción perfecta para confeccionar pijamas, cobijas, sudaderas y ropa de descanso premium."
