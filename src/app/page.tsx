@@ -1,16 +1,21 @@
-"use client"
+// ================================================
+// ARCHIVO COMPLETO ACTUALIZADO - COYOTE MARKETPLACE
+// ================================================
+// Copia y pega TODO esto en tu página (reemplaza el archivo entero)
+// "use client" ya está incluido
 
+"use client"
 import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation"; 
-import { motion, AnimatePresence } from "framer-motion"; 
-import { products } from "@/lib/products"; 
-import { useCart } from "@/lib/context/cart-context"; 
-import { useSession } from "next-auth/react"; 
+import { usePathname } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { products } from "@/lib/products";
+import { useCart } from "@/lib/context/cart-context";
+import { useSession } from "next-auth/react";
 import { useState } from "react";
-import { 
-  Plus, Minus, Check, ArrowRight, 
-  Flag, 
+import {
+  Plus, Minus, Check, ArrowRight,
+  Flag,
   Zap, Star,
   Ruler, Sun, Weight,
   BicepsFlexed, Package
@@ -22,35 +27,29 @@ import Lenis from 'lenis';
 function IntroLoader() {
   const [isVisible, setIsVisible] = useState(true);
   const pathname = usePathname();
-
   useEffect(() => {
     const isHome = pathname === "/";
-    
+   
     if (!isHome) {
       setIsVisible(false);
       document.body.style.overflow = "auto";
       return;
     }
-
     setIsVisible(true);
     document.body.style.overflow = "hidden";
-
     const safetyTimer = setTimeout(() => {
       handleVideoComplete();
-    }, 6000); 
-
+    }, 6000);
     return () => clearTimeout(safetyTimer);
   }, [pathname]);
-
   const handleVideoComplete = () => {
     setIsVisible(false);
     document.body.style.overflow = "auto";
   };
-
   return (
     <AnimatePresence mode="wait">
       {isVisible && (
-        <motion.div 
+        <motion.div
           className="fixed inset-0 z-[99999] flex items-center justify-center bg-black"
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -58,7 +57,7 @@ function IntroLoader() {
         >
           <div className="absolute inset-0 bg-black -z-10" />
           <video
-            src="/i-coyote.mp4" 
+            src="/i-coyote.mp4"
             autoPlay
             muted
             playsInline
@@ -66,10 +65,10 @@ function IntroLoader() {
             onEnded={handleVideoComplete}
             onError={(e) => {
               console.error("Error al cargar el video intro", e);
-              handleVideoComplete(); 
+              handleVideoComplete();
             }}
           />
-          <button 
+          <button
             onClick={handleVideoComplete}
             className="absolute bottom-12 right-8 text-[10px] font-black text-white/40 hover:text-white uppercase tracking-[0.2em] border border-white/10 hover:border-white px-5 py-2 rounded-full transition-all z-50 backdrop-blur-sm"
           >
@@ -82,12 +81,12 @@ function IntroLoader() {
 }
 
 // --- UTILIDADES ---
-const formatMoney = (amount: number) => 
+const formatMoney = (amount: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(amount);
 
-// --- COMPONENTES UI ---
-
-// 1. PRODUCT CARD PREMIUM
+// ================================================
+// PRODUCT CARD PREMIUM - VERSIÓN CON MODAL DE COLORES
+// ================================================
 const ProductCard = ({ product, className = "" }: { product: any, className?: string }) => {
   const { addItem } = useCart();
   const { data: session } = useSession();
@@ -98,21 +97,21 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
   const hasDiscount = isGold || isBlack || isElite;
   const discountMultiplier = isBlack || isElite ? 0.85 : isGold ? 0.9 : 1;
   const discountPercent = isBlack || isElite ? 15 : isGold ? 10 : 0;
-  
+
   const [activeImage, setActiveImage] = useState(product.thumbnail);
   const [selectedColorName, setSelectedColorName] = useState<string | null>(null);
   const [hovered, setHovered] = useState(false);
-  const [mode, setMode] = useState<'rollo' | 'kilo'>('rollo'); 
+  const [mode, setMode] = useState<'rollo' | 'kilo'>('rollo');
   const [quantity, setQuantity] = useState(1);
+  const [showAllColors, setShowAllColors] = useState(false); // ← PARA EL MODAL
 
   const isMeter = product.unit === 'Metro';
   const unitLabel = isMeter ? 'Metro' : 'Kilo';
   const unitAbbr = isMeter ? 'MT' : 'KG';
   const unitsPerRoll = product.unidadesPorRollo || 25;
-
   const basePrice = mode === 'rollo' ? product.prices?.mayoreo : product.prices?.menudeo;
   const currentPrice = basePrice * discountMultiplier;
-  const unitFactor = mode === 'rollo' ? unitsPerRoll : 1; 
+  const unitFactor = mode === 'rollo' ? unitsPerRoll : 1;
   const currentUnits = quantity * unitFactor;
   const totalPay = currentUnits * currentPrice;
   const totalMeters = !isMeter ? (currentUnits * (product.rendimiento || 4.3)).toFixed(1) : currentUnits;
@@ -125,7 +124,7 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
   };
 
   return (
-    <div 
+    <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={`min-w-[320px] w-[320px] bg-[#050505] border border-white/10 hover:border-[#FDCB02]/50 transition-all duration-300 relative flex flex-col snap-center md:snap-align-none group overflow-hidden rounded-xl shadow-2xl ${className}`}
@@ -137,10 +136,10 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
       )}
 
       <Link href={`/products/${product.id}`} className="block relative aspect-[4/3] w-full overflow-hidden border-b border-white/5 cursor-pointer">
-        <Image 
-          src={activeImage} 
-          alt={product.title} 
-          fill 
+        <Image
+          src={activeImage}
+          alt={product.title}
+          fill
           className={`object-cover transition-transform duration-700 ${hovered ? 'scale-110' : 'scale-100'}`}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-90"/>
@@ -162,13 +161,13 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
 
       <div className="p-5 flex flex-col gap-5 bg-[#050505]">
         <div className="grid grid-cols-2 bg-[#111] p-1 rounded-lg border border-white/10">
-          <button 
+          <button
             onClick={(e) => { e.preventDefault(); setMode('rollo'); setQuantity(1); }}
             className={`text-[10px] font-[900] uppercase py-2 rounded transition-all ${mode === 'rollo' ? 'bg-[#FDCB02] text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
           >
             Por Rollo
           </button>
-          <button 
+          <button
             onClick={(e) => { e.preventDefault(); setMode('kilo'); setQuantity(1); }}
             className={`text-[10px] font-[900] uppercase py-2 rounded transition-all ${mode === 'kilo' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
           >
@@ -204,30 +203,119 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
           </div>
         </div>
 
+        {/* ====================== COLORES CON BOTÓN +32 QUE ABRE MODAL ====================== */}
         <div>
           <div className="flex justify-between items-center mb-3">
             <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Colorido</span>
-            <span className="text-[9px] font-bold text-[#FDCB02] uppercase tracking-widest">{selectedColorName || "Seleccionar"}</span>
+            <span className="text-[9px] font-bold text-[#FDCB02] uppercase tracking-widest">
+              {selectedColorName || "Seleccionar"}
+            </span>
           </div>
+
           {product.colors && (
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-              {product.colors.slice(0, 6).map((c: any, i: number) => (
-                <button
-                  key={i}
-                  onClick={(e) => handleColorClick(e, c)}
-                  className={`w-8 h-8 rounded-full border shrink-0 transition-all relative group/color ${selectedColorName === c.name ? 'border-white ring-2 ring-[#FDCB02] ring-offset-2 ring-offset-black scale-110' : 'border-white/10 hover:border-white'}`}
-                  style={{ backgroundColor: c.hex }}
-                  title={c.name}
-                >
-                  {selectedColorName === c.name && <Check size={12} className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name === 'Blanco' || c.name === 'Beige' ? 'text-black' : 'text-white'}`}/>}
-                </button>
-              ))}
-              {product.colors.length > 6 && (
-                <div className="w-8 h-8 rounded-full bg-[#111] border border-white/10 flex items-center justify-center text-[9px] font-bold text-white">
-                  +{product.colors.length - 6}
-                </div>
-              )}
-            </div>
+            <>
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                {product.colors.slice(0, 6).map((c: any, i: number) => (
+                  <button
+                    key={i}
+                    onClick={(e) => handleColorClick(e, c)}
+                    className={`w-8 h-8 rounded-full border shrink-0 transition-all relative group/color ${selectedColorName === c.name ? 'border-white ring-2 ring-[#FDCB02] ring-offset-2 ring-offset-black scale-110' : 'border-white/10 hover:border-white'}`}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                  >
+                    {selectedColorName === c.name && (
+                      <Check
+                        size={12}
+                        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name === 'Blanco' || c.name === 'Beige' ? 'text-black' : 'text-white'}`}
+                      />
+                    )}
+                  </button>
+                ))}
+
+                {product.colors.length > 6 && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowAllColors(true);
+                    }}
+                    className="w-8 h-8 rounded-full bg-[#111] border border-white/10 flex items-center justify-center text-[9px] font-bold text-white hover:border-[#FDCB02] hover:text-[#FDCB02] active:scale-95 transition-all"
+                  >
+                    +{product.colors.length - 6}
+                  </button>
+                )}
+              </div>
+
+              {/* MODAL TODOS LOS COLORES */}
+              <AnimatePresence>
+                {showAllColors && (
+                  <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
+                    onClick={() => setShowAllColors(false)}
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="bg-[#0a0a0a] border border-white/10 rounded-2xl w-full max-w-md max-h-[85vh] overflow-hidden"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="p-5 border-b border-white/10 flex items-center justify-between">
+                        <h4 className="text-lg font-bold text-white">Todos los colores disponibles</h4>
+                        <button
+                          onClick={() => setShowAllColors(false)}
+                          className="text-neutral-400 hover:text-white text-2xl leading-none"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="p-6 overflow-y-auto max-h-[65vh]">
+                        <div className="grid grid-cols-5 gap-4">
+                          {product.colors.map((c: any, i: number) => (
+                            <button
+                              key={i}
+                              onClick={(e) => {
+                                handleColorClick(e, c);
+                                setShowAllColors(false);
+                              }}
+                              className="group flex flex-col items-center gap-1.5"
+                            >
+                              <div
+                                className={`w-14 h-14 rounded-2xl border-2 transition-all relative ${selectedColorName === c.name
+                                  ? 'border-[#FDCB02] ring-2 ring-[#FDCB02]/50 scale-110'
+                                  : 'border-white/10 hover:border-white/40'}`}
+                                style={{ backgroundColor: c.hex }}
+                              >
+                                {selectedColorName === c.name && (
+                                  <Check
+                                    size={18}
+                                    className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name.includes('Blanco') || c.name.includes('Beige') ? 'text-black' : 'text-white'}`}
+                                  />
+                                )}
+                              </div>
+                              <span className="text-[10px] text-center text-neutral-400 group-hover:text-white transition-colors leading-tight max-w-[60px] truncate">
+                                {c.name}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="p-4 border-t border-white/10 text-center">
+                        <button
+                          onClick={() => setShowAllColors(false)}
+                          className="text-xs uppercase tracking-widest text-neutral-500 hover:text-white"
+                        >
+                          Cerrar
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+            </>
           )}
         </div>
 
@@ -237,19 +325,18 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
             <span className="text-xs font-bold text-white uppercase">{quantity} {mode === 'rollo' ? 'Rollos' : `${unitLabel}s`}</span>
             <button onClick={(e) => { e.preventDefault(); setQuantity(quantity + 1); }} className="w-8 h-full flex items-center justify-center text-white hover:text-[#FDCB02] transition-colors"><Plus size={14}/></button>
           </div>
-
-          <button 
+          <button
             onClick={(e) => {
               e.preventDefault();
-              addItem({ 
-                ...product, 
-                price: currentPrice, 
-                quantity: currentUnits, 
-                unit: mode === 'rollo' ? `${unitLabel} (Rollo)` : unitLabel, 
-                variantId: mode, 
-                color: selectedColorName 
+              addItem({
+                ...product,
+                price: currentPrice,
+                quantity: currentUnits,
+                unit: mode === 'rollo' ? `${unitLabel} (Rollo)` : unitLabel,
+                variantId: mode,
+                color: selectedColorName
               });
-            }} 
+            }}
             className={`w-full h-12 font-[900] uppercase tracking-widest text-xs flex items-center justify-between px-6 rounded transition-all duration-300 group/btn ${hasDiscount ? 'bg-[#FDCB02] text-black hover:bg-white' : 'bg-white hover:bg-[#FDCB02] text-black'}`}
           >
             <span>Agregar • {formatMoney(totalPay)}</span>
@@ -261,12 +348,12 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
   );
 };
 
-// 2. PRODUCT RAIL — grid normal, sin carrusel
+// ================================================
+// PRODUCT RAIL
+// ================================================
 const ProductRail = ({ id, title, items, icon: Icon, isNational = false, titleAlign = 'left' }: { id: string, title: string, items: any[], icon?: any, isNational?: boolean, titleAlign?: 'left' | 'right' }) => {
   if (!items || items.length === 0) return null;
-
   const isRight = titleAlign === 'right';
-
   return (
     <section id={id} className="mb-20 border-b border-white/5 pb-10 scroll-mt-[150px]">
       <div className={`flex items-end mb-8 px-1 ${isRight ? 'justify-end' : 'justify-start'}`}>
@@ -282,7 +369,6 @@ const ProductRail = ({ id, title, items, icon: Icon, isNational = false, titleAl
           </div>
         </div>
       </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         {items.map((product, i) => (
           <ProductCard key={product.id || i} product={product} className="!w-full !min-w-0" />
@@ -292,7 +378,9 @@ const ProductRail = ({ id, title, items, icon: Icon, isNational = false, titleAl
   );
 };
 
-
+// ================================================
+// PÁGINA PRINCIPAL
+// ================================================
 export default function CoyoteMarketplace() {
   useEffect(() => {
     const lenis = new Lenis({ duration: 1.2, lerp: 0.1 });
@@ -315,7 +403,6 @@ export default function CoyoteMarketplace() {
     <div className="bg-[#030303] min-h-screen text-white font-sans selection:bg-[#FDCB02] selection:text-black pb-20 relative overflow-x-hidden">
       
       <IntroLoader />
-
       <div className="fixed inset-0 pointer-events-none opacity-[0.04] mix-blend-overlay z-0" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
 
       {/* HERO SECTION */}
@@ -347,7 +434,6 @@ export default function CoyoteMarketplace() {
       <main className="container mx-auto px-4 md:px-6 py-10 md:py-16 relative z-10">
         <div className="space-y-24 animate-in fade-in duration-700">
           
-          {/* Potencia en cada fibra — todas las telas Deportivas / Sublimación */}
           <ProductRail
             id="telas-deportivas"
             title="Potencia en cada fibra"
@@ -356,7 +442,6 @@ export default function CoyoteMarketplace() {
             titleAlign="left"
           />
 
-          {/* Resto de categorías — título a la derecha */}
           {categories.map((cat) => (
             <ProductRail
               key={cat.id}
@@ -392,7 +477,6 @@ export default function CoyoteMarketplace() {
               {products.map((p) => <ProductCard key={p.id} product={p} className="!w-full !min-w-0" />)}
             </div>
           </section>
-
         </div>
       </main>
     </div>
