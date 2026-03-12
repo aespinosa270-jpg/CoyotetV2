@@ -451,7 +451,7 @@ export const products: Product[] = [
     gramaje: "180",
     ancho: "1.60m",
     rendimiento: 3.5,
-    prices: { menudeo: 135.00, mayoreo: 125.00 },
+    prices: { menudeo: 95.00, mayoreo: 90.00 },
     hasRollo: true,
     origin: "Importado",
     category: "Deportivo / Licra",
