@@ -443,7 +443,7 @@ export const products: Product[] = [
   },
   {
     id: "prod_licra_poliester",
-    title: "Licra Poliester",
+    title: "Licra Poliéster",
     unit: "Kilo",
     thumbnail: "/assets/products/licra-poliester/blanco.jpg",
     description: "Tejido de alta elasticidad y recuperación, perfecto para prendas ajustadas y de alto impacto.",
@@ -451,11 +451,17 @@ export const products: Product[] = [
     gramaje: "180",
     ancho: "1.60m",
     rendimiento: 3.5,
-    singleColor: true,
     prices: { menudeo: 135.00, mayoreo: 125.00 },
     hasRollo: true,
     origin: "Importado",
-    category: "Deportivo / Licra"
+    category: "Deportivo / Licra",
+    colors: [
+      { name: "Blanco", hex: "#FFFFFF", image: "/assets/products/licra-poliester/blanco.jpg" },
+      { name: "Negro", hex: "#050505", image: "/assets/products/licra-poliester/negro.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/licra-poliester/rojo.jpg" },
+      { name: "Rey", hex: "#1434A4", image: "/assets/products/licra-poliester/rey.jpg" },
+      { name: "Marino", hex: "#000080", image: "/assets/products/licra-poliester/marino.jpg" }
+    ]
   },
   {
     id: "prod_licra_saludable",
