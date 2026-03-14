@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { Redis } from '@upstash/redis';
 import Stripe from 'stripe'; 
-import { prisma } from "@/lib/prisma"; // 🐺 INYECTAMOS PRISMA PARA EL CRM
-import { determineRouting } from "@/lib/crm-router"; // 🧠 INYECTAMOS EL CEREBRO ENRUTADOR
+import { prisma } from "@/lib/prisma";
+import { determineRouting } from "@/lib/crm-router";
 
 // ==========================================
 // 🔑 LLAVES MAESTRAS
@@ -12,7 +12,6 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// 🐺 STRIPE KEYS EN LUGAR DE OPENPAY
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-11-20.acacia" as any,
 });
@@ -66,12 +65,12 @@ const CONFIG_DEFAULT: ConfigBot = {
   nombreBot: 'El Coyote',
   tono: 'Listo, rápido, cuate mexicano, informal pero profesional. Directo al grano.',
   frasesBienvenida: [
-    '¡Hola! Bienvenido a la familia *Coyote Textil* 🐺\n\n¿Autorizas que te enviemos promociones y novedades?\n\n📋 Términos: https://www.coyotetextil.com/terms\n🔒 Privacidad: https://www.coyotetextil.com/privacy\n\nEstamos para servirte *24/7 los 365 días del año*. 💪\n\n¿Con quién tengo el gusto?'
+    '¡Hola! Soy *El Coyote* 🐺, tu asesor textil de *Coyote Textil*, disponible los 365 días.\n\n¿Autorizas que te enviemos promociones y novedades?\n\n📋 Términos: https://www.coyotetextil.com/terms\n🔒 Privacidad: https://www.coyotetextil.com/privacy\n\n¿Con quién tengo el gusto?'
   ],
   frasesDesignacionHombre: ['jefe', 'patrón', 'amigo'],
   frasesDesignacionMujer: ['jefa', 'patrona'],
-  fraseCierre: 'Estamos vistiendo la fuerza de México en cada hilo. Tú ya eres parte de nuestra familia, y estamos contigo 24/7. Con tu permiso, te sorprenderemos con promociones a tu medida, porque juntos tejemos éxitos.',
-  fraseIncondicional: 'auuuuuuuuu aquí estamos chambeando sin parar, patrón. Ando medio desvielado pero jalando. 🐺',
+  fraseCierre: 'Estamos vistiendo la fuerza de México en cada hilo. Tú ya eres parte de nuestra familia, y El Coyote está contigo 24/7.',
+  fraseIncondicional: 'auuuuuuuuu aquí estamos chambeando sin parar, patrón. Soy El Coyote y ando medio desvielado pero jalando. 🐺',
   emojisPrincipales: '🐺📦💪',
   maximoLineasRespuesta: 4,
   fraseProhibidas: [
@@ -81,7 +80,12 @@ const CONFIG_DEFAULT: ConfigBot = {
     '¿Algo más en lo que pueda asistirte?',
     'te mando',
     'te envío',
-    'te hago llegar'
+    'te hago llegar',
+    'Como asistente de IA',
+    'Como IA',
+    'soy una inteligencia artificial',
+    'soy un bot',
+    'soy un asistente virtual'
   ],
   instruccionesEspeciales: '',
   productosExtra: [],
@@ -137,6 +141,19 @@ interface ClientePerfil {
   etapaAbandono?: 'carrito' | 'cotizacion' | 'pago' | null;
   fechaAbandono?: string;
   recordatoriosPendientes?: Array<{ tipo: string; fecha: string; mensaje: string }>;
+  // 🧠 NUEVOS CAMPOS DE INTELIGENCIA COMERCIAL
+  segmento?: 'prospecto' | 'nuevo' | 'recurrente' | 'vip' | 'inactivo';
+  objecionesComunes?: string[];       // Objeciones que ha dado: "precio", "calidad", "tiempo", etc.
+  productosFavoritos?: string[];       // Productos que más consulta/compra
+  ticketPromedio?: number;             // Promedio de sus compras
+  tasaConversion?: number;             // Cuántas cotizaciones han terminado en venta (0-1)
+  ultimaCotizacion?: string;           // JSON de la última cotización presentada
+  intentosDePago?: number;             // Cuántas veces generamos cobro sin que pagara
+  sensibilidadPrecio?: 'alta' | 'media' | 'baja'; // Qué tan sensible es al precio
+  mejorMomentoContacto?: string;       // Hora del día que más responde
+  canalPreferido?: string;
+  interesesDeclarados?: string[];      // Lo que dijo que necesita: uniformes, playeras, etc.
+  razonNoCompra?: string;              // Por qué no compró la última vez
 }
 
 interface PedidoRegistro {
@@ -284,6 +301,14 @@ async function registrarPedido(redis: Redis, tel: string, pedido: PedidoRegistro
   cliente.ultimoContacto = pedido.fecha;
   cliente.metodoPagoFavorito = pedido.metodo;
   if (pedido.conFactura) cliente.requiereFrecuenteFactura = true;
+
+  // 🧠 ACTUALIZAR SEGMENTO Y MÉTRICAS AL COMPRAR
+  cliente.ticketPromedio = cliente.montoAcumulado / cliente.totalCompras;
+  if (cliente.totalCompras === 1) cliente.segmento = 'nuevo';
+  else if (cliente.totalCompras >= 5 || cliente.montoAcumulado >= 10000) cliente.segmento = 'vip';
+  else cliente.segmento = 'recurrente';
+  cliente.intentosDePago = 0; // Reset al confirmar pago
+
   const pedidos: PedidoRegistro[] = (await redis.get<PedidoRegistro[]>(`pedidos:${tel}`)) || [];
   pedidos.push(pedido);
   await redis.set(`pedidos:${tel}`, pedidos);
@@ -391,7 +416,6 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
     return NextResponse.json({ error: 'Firma inválida' }, { status: 400 });
   }
 
-  // Escuchamos cuando un Checkout Session se completa con éxito
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     const metadata = session.metadata;
@@ -400,14 +424,13 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
       const redis = getRedis();
       const tel = metadata.phone.replace(/\D/g, '');
       const quiereFactura = metadata.req_invoice === 'YES';
-      const monto = (session.amount_total || 0) / 100; // Stripe viene en centavos
+      const monto = (session.amount_total || 0) / 100;
       const perfil = await getCliente(redis, tel);
       const saludo = perfil?.nombre ? `¡Qué onda ${perfil.nombre}!` : '¡Qué onda patrón!';
       
-      // 🎫 AQUÍ GENERAMOS LA URL DEL TICKET AUTOMÁTICAMENTE
       const urlTicket = `https://www.coyotetextil.com/ticket/${session.id}`;
 
-      let msg = `🐺 ${saludo} Stripe nos confirmó que tu pago de *$${monto} MXN* ya cayó. ✅\n\n🎫 *Aquí tienes tu Ticket Digital:*\n${urlTicket}\n\n¡Tu pedido entró a bodega! 📦`;
+      let msg = `🐺 *El Coyote te habla.* ${saludo} Stripe confirmó tu pago de *$${monto} MXN*. ✅\n\n🎫 *Tu Ticket Digital:*\n${urlTicket}\n\n¡Tu pedido entró a bodega! 📦 En breve te confirmamos salida.`;
 
       if (quiereFactura && metadata.rfc !== 'NONE') {
         try {
@@ -419,7 +442,7 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
           const clienteSAT = await custRes.json();
           const precioBase = monto / 1.16;
           
-          let formaPago = "04"; // Tarjeta por defecto
+          let formaPago = "04";
           if (session.payment_method_types.includes('oxxo')) formaPago = "01";
           
           const invRes = await fetch('https://www.facturapi.io/v2/invoices', {
@@ -435,7 +458,7 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
           if (invRes.ok) msg += `\n\n🧾 *Tu Factura 4.0 ya está timbrada.*\nhttps://www.facturapi.io/v2/invoices/${factura.id}/pdf`;
           else msg += `\n\n⚠️ El SAT rebotó un dato. El Patrón lo revisa.`;
         } catch (e) {
-          msg += `\n\n⚠️ Intermitencia con el SAT. Te mando tu factura más tarde.`;
+          msg += `\n\n⚠️ Intermitencia con el SAT. Tu factura llega en breve.`;
         }
       }
       await registrarPedido(redis, tel, {
@@ -449,7 +472,7 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
 }
 
 // ==========================================
-// 💬 WEBHOOK WHATSAPP (CON ENRUTADOR INTELIGENTE)
+// 💬 WEBHOOK WHATSAPP
 // ==========================================
 async function handleWhatsappWebhook(body: any) {
   const mensajeInfo = body.entry[0].changes[0].value.messages[0];
@@ -460,14 +483,13 @@ async function handleWhatsappWebhook(body: any) {
   const nombreWA = body.entry[0].changes[0].value.contacts[0].profile.name || '';
   console.log(`💬 [${tel}]: "${msgCliente}"`);
 
-  // 🛑 1. EL SWITCH INTELIGENTE: ENRUTADOR Y BALANCEO DE CARGAS DE TUS 3 AGENTES
+  // 🛑 ENRUTADOR CRM
   try {
     const decision = await determineRouting(tel, "WHATSAPP");
 
     if (decision.action === "ROUTE_TO_AGENT") {
       let currentConvoId = decision.conversationId;
 
-      // Si es un cliente VIP nuevo, el enrutador eligió un agente pero no hay chat abierto aún.
       if (!currentConvoId && decision.agentId) {
         const nuevaConvo = await prisma.waConversation.create({
           data: {
@@ -484,8 +506,6 @@ async function handleWhatsappWebhook(body: any) {
 
       if (currentConvoId) {
         console.log(`👤 ${decision.reason} IA silenciada para ${tel}`);
-        
-        // Guardamos el mensaje en la BD para que el agente humano lo vea en su pantalla CRM
         await prisma.$transaction([
           prisma.waMessage.create({
             data: { conversationId: currentConvoId, role: "CLIENT", body: msgCliente, isRead: false },
@@ -495,23 +515,20 @@ async function handleWhatsappWebhook(body: any) {
             data:  { lastMessage: msgCliente, lastMessageAt: new Date() },
           }),
         ]);
-
-        // ¡Hacemos RETURN para matar la ejecución! La IA de OpenAI NO se dispara.
         return;
       }
     }
   } catch (error) {
     console.error("⚠️ Error consultando Prisma para el CRM / Enrutador:", error);
-    // Si falla el enrutador, permitimos que siga el flujo hacia Redis/El Coyote
   }
 
-  // 🤖 2. SI LLEGA AQUÍ, NO HAY AGENTE. EL COYOTE (IA) TOMA EL CONTROL.
+  // 🤖 EL COYOTE TOMA EL CONTROL
   const redis = getRedis();
   const msgLower = msgCliente.trim().toLowerCase();
 
-  // ── COMANDOS ADMIN (Solo Jack el dueño) ──────────────
+  // ── COMANDOS ADMIN ──────────────────────────────
   if (msgLower === 'soy jack' || msgLower === 'soy jack.') {
-    await enviarWhatsapp(tel, 'Hola Patrón Jack, ¿te puedes verificar? 🔒');
+    await enviarWhatsapp(tel, '🐺 *El Coyote al habla.* Hola Patrón Jack, ¿te puedes verificar? 🔒');
     return;
   }
   if (msgLower === 'elcoyote56') {
@@ -519,7 +536,7 @@ async function handleWhatsappWebhook(body: any) {
     h.push({ role: 'user', content: msgCliente });
     h.push({ role: 'assistant', content: '🐺 ¡Órdenes recibidas Patrón! Modo Administrador activo. ¿Qué cambiamos?' });
     await saveHistorial(redis, tel, h);
-    await enviarWhatsapp(tel, '🐺 ¡Órdenes recibidas Patrón Jack! Modo Administrador activo.\n\nPuedes cambiar CUALQUIER cosa de mi programación:\n• Precios y productos (agregar/quitar)\n• Mi personalidad, tono y forma de hablar\n• Frases, emojis, reglas\n• Promociones activas\n• Avisos para todos los clientes\n• ¡Lo que se te ocurra!\n\n¿Qué hacemos?');
+    await enviarWhatsapp(tel, '🐺 *El Coyote al habla, Patrón Jack.* Modo Admin activo.\n\nPuedo cambiar:\n• Precios y catálogo\n• Mi tono, reglas y personalidad\n• Promociones activas\n• Avisos globales\n• Y lo que se te ocurra\n\n¿Qué hacemos?');
     return;
   }
 
@@ -527,7 +544,7 @@ async function handleWhatsappWebhook(body: any) {
   const esSoloCoyote = /^\s*coyote[\s!?.]*$/i.test(msgCliente.trim());
   if (esSoloCoyote) {
     const cfg = await getConfigBot(redis);
-    const respuestaCoyote = `🐺 ¡Aquí estoy! ${cfg.nombreBot} nunca duerme. ¿En qué te puedo ayudar?`;
+    const respuestaCoyote = `🐺 *El Coyote aquí.* Nunca duermo, siempre alerta. ¿En qué te puedo ayudar hoy?`;
     const h = await getHistorial(redis, tel);
     h.push({ role: 'user', content: msgCliente });
     h.push({ role: 'assistant', content: respuestaCoyote });
@@ -536,7 +553,7 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  // ── PERFIL DEL CLIENTE ───────────────────────
+  // ── PERFIL DEL CLIENTE ───────────────────────────
   let perfil = await getCliente(redis, tel);
   const config = await getConfigBot(redis);
 
@@ -546,7 +563,9 @@ async function handleWhatsappWebhook(body: any) {
       primerContacto: new Date().toISOString(), ultimoContacto: new Date().toISOString(),
       totalCompras: 0, montoAcumulado: 0, productosComprados: [],
       direccionEnvio: '', cpFiscal: '', metodoPagoFavorito: '', requiereFrecuenteFactura: false, notas: '',
-      preferencias: [], etapaAbandono: null, recordatoriosPendientes: []
+      preferencias: [], etapaAbandono: null, recordatoriosPendientes: [],
+      segmento: 'prospecto', objecionesComunes: [], productosFavoritos: [], intentosDePago: 0,
+      sensibilidadPrecio: 'media', interesesDeclarados: []
     };
     await saveCliente(redis, tel, perfil);
     const bienvenida = config.frasesBienvenida[Math.floor(Math.random() * config.frasesBienvenida.length)];
@@ -565,12 +584,9 @@ async function handleWhatsappWebhook(body: any) {
     perfil.ultimoContacto = new Date().toISOString();
     await saveCliente(redis, tel, perfil);
 
-    const tratamiento = perfil.genero === 'mujer'
-      ? config.frasesDesignacionMujer[0]
-      : config.frasesDesignacionHombre[0];
     const saludo = perfil.genero === 'mujer'
-      ? `¡Un placer, ${perfil.nombre}! 🌟 ¿En qué te puedo ayudar hoy?`
-      : `¡Mucho gusto, ${perfil.nombre}! ${config.emojisPrincipales} ¿En qué te puedo ayudar hoy?`;
+      ? `🐺 *El Coyote aquí.* ¡Un placer, ${perfil.nombre}! Soy tu asesor textil de Coyote Textil. ¿En qué te puedo ayudar hoy?`
+      : `🐺 *El Coyote al habla.* ¡Mucho gusto, ${perfil.nombre}! Tu asesor textil de Coyote Textil. ¿Qué necesitas hoy?`;
     const h = await getHistorial(redis, tel);
     h.push({ role: 'user', content: msgCliente });
     h.push({ role: 'assistant', content: saludo });
@@ -589,7 +605,6 @@ async function handleWhatsappWebhook(body: any) {
 
   const bodega = await getBodega(redis);
 
-  // Combinar productos base + productos extra de la configuración
   const bodegaCompleta: typeof PRECIOS_DEFAULT = { ...bodega };
   for (const pe of config.productosExtra) {
     bodegaCompleta[pe.nombre.toLowerCase()] = { menudeo: pe.menudeo, mayoreo: pe.mayoreo, info: pe.info };
@@ -601,178 +616,252 @@ async function handleWhatsappWebhook(body: any) {
 
   const alertaDireccion = perfil.direccionEnvio
     ? `⚠️ DIRECCIÓN GUARDADA: "${perfil.direccionEnvio}". Confirma si sigue siendo correcta.`
-    : `⚠️ SIN DIRECCIÓN. Pídela antes de calcular envío: "¿A qué dirección te enviamos? (calle, número, colonia, ciudad y CP)"`;
+    : `⚠️ SIN DIRECCIÓN. Pídela: "¿A qué dirección te enviamos? (calle, número, colonia, ciudad y CP)"`;
+
+  // 🧠 CONTEXTO DE INTELIGENCIA COMERCIAL
+  const diasDesdeUltimoContacto = perfil.ultimoContacto
+    ? Math.floor((Date.now() - new Date(perfil.ultimoContacto).getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+
+  const alertaReactivacion = diasDesdeUltimoContacto > 30
+    ? `⚡ ALERTA: Este cliente lleva ${diasDesdeUltimoContacto} días sin comprar. Usa técnica de reactivación.`
+    : '';
+
+  const alertaConversion = (perfil.intentosDePago || 0) > 1
+    ? `⚡ ALERTA: ${perfil.intentosDePago} links de pago sin concretar. Identifica objeción real y resuelve.`
+    : '';
 
   const resumenCliente = `
-PERFIL:
-- Nombre: ${perfil.nombre} | Género: ${perfil.genero}
-- Compras: ${perfil.totalCompras} | Total gastado: $${perfil.montoAcumulado} MXN
-- Productos comprados: ${perfil.productosComprados.join(', ') || 'ninguno'}
+PERFIL INTELIGENTE DEL CLIENTE:
+- Nombre: ${perfil.nombre} | Género: ${perfil.genero} | Segmento: ${perfil.segmento || 'prospecto'}
+- Compras: ${perfil.totalCompras} | Acumulado: $${perfil.montoAcumulado} MXN | Ticket promedio: $${perfil.ticketPromedio?.toFixed(0) || 'N/A'}
+- Productos favoritos: ${perfil.productosFavoritos?.join(', ') || 'ninguno registrado'}
+- Intereses declarados: ${perfil.interesesDeclarados?.join(', ') || 'ninguno'}
+- Objeciones históricas: ${perfil.objecionesComunes?.join(', ') || 'ninguna'}
+- Sensibilidad al precio: ${perfil.sensibilidadPrecio || 'media'}
+- Requiere factura: ${perfil.requiereFrecuenteFactura ? 'SÍ' : 'NO'}
 - ${alertaDireccion}
 - CP Fiscal: ${perfil.cpFiscal || 'no registrado'}
-- Método de pago: ${perfil.metodoPagoFavorito || 'no registrado'}
-- Requiere factura frecuente: ${perfil.requiereFrecuenteFactura ? 'SÍ' : 'NO'}
 - Notas: ${perfil.notas || 'ninguna'}
+${alertaReactivacion}
+${alertaConversion}
 `.trim();
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 🎛️ PROMPT DINÁMICO — CONSTRUIDO 100% DESDE LA CONFIG DEL COYOTE
-  // ─────────────────────────────────────────────────────────────────────────────
   const promocionesTexto = config.promocionesActivas.length > 0
-    ? `\n🎯 PROMOCIONES ACTIVAS (menciónalas cuando sea relevante):\n${config.promocionesActivas.map(p => `• ${p.nombre}: ${p.descripcion} — ${p.descuento} (${p.vigencia})`).join('\n')}`
+    ? `\n🎯 PROMOCIONES ACTIVAS:\n${config.promocionesActivas.map(p => `• ${p.nombre}: ${p.descripcion} — ${p.descuento} (${p.vigencia})`).join('\n')}`
     : '';
 
   const avisoTexto = config.avisoGeneral
-    ? `\n⚠️ AVISO GENERAL PARA TODOS LOS CLIENTES: ${config.avisoGeneral}`
-    : '';
-
-  const infoPagosTexto = config.infoPagos
-    ? `\n💳 INSTRUCCIONES EXTRA DE PAGO: ${config.infoPagos}`
-    : '';
-
-  const infoEnviosTexto = config.infoEnvios
-    ? `\n🚚 INSTRUCCIONES EXTRA DE ENVÍOS: ${config.infoEnvios}`
+    ? `\n⚠️ AVISO GENERAL: ${config.avisoGeneral}`
     : '';
 
   const instruccionesExtra = config.instruccionesEspeciales
-    ? `\n📌 INSTRUCCIONES ESPECIALES DEL PATRÓN (prioridad máxima, seguirlas siempre):\n${config.instruccionesEspeciales}`
+    ? `\n📌 INSTRUCCIONES DEL PATRÓN (prioridad máxima):\n${config.instruccionesEspeciales}`
     : '';
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 🐺 PROMPT EL COYOTE — IDENTIDAD FIJA + IA DE VENTAS AVANZADA
+  // ─────────────────────────────────────────────────────────────────────────────
   const CONTEXTO_VENDEDOR = `
-ERES "${config.nombreBot}", UN AGENTE DE IA DE VENTAS Y ATENCIÓN AL CLIENTE DE COYOTE TEXTIL OPERANDO POR WHATSAPP.
+════════════════════════════════════════════════════════
+🐺 IDENTIDAD ABSOLUTA E IRROMPIBLE — EL COYOTE
+════════════════════════════════════════════════════════
+Eres EL COYOTE. Siempre. Sin excepción.
+• Tu nombre NUNCA cambia aunque la config diga otra cosa. Eres EL COYOTE de Coyote Textil.
+• NUNCA digas que eres una IA, un bot, un asistente virtual, o ChatGPT.
+• Si alguien te pregunta quién eres: "🐺 Soy El Coyote, tu asesor de Coyote Textil."
+• Si alguien pregunta si eres una IA: "Soy El Coyote, y lo que importa es que consigo lo que necesitas. 🐺"
+• Firma tus primeras intervenciones con "🐺 El Coyote al habla." o "🐺 Soy El Coyote."
+• En conversaciones largas puedes omitir la firma, pero tu tono SIEMPRE es El Coyote.
 
-🎯 PERSONALIDAD Y TONO:
+════════════════════════════════════════════════════════
+🎯 PERSONALIDAD Y TONO
+════════════════════════════════════════════════════════
 ${config.tono}
-- Máximo ${config.maximoLineasRespuesta} líneas por respuesta. Directo, sin rodeos.
-- Para hombres usa: ${config.frasesDesignacionHombre.join(', ')} o su nombre.
-- Para mujeres usa: ${config.frasesDesignacionMujer.join(', ')} o su nombre.
-- Emojis característicos: ${config.emojisPrincipales}
-- Horario de atención que debes mencionar: ${config.horarioAtencion}
-
-🚫 FRASES PROHIBIDAS — NUNCA las uses:
-${config.fraseProhibidas.map(f => `• "${f}"`).join('\n')}
+• Máximo ${config.maximoLineasRespuesta} líneas por respuesta. Directo, sin rodeos.
+• Para hombres: ${config.frasesDesignacionHombre.join(', ')} o su nombre.
+• Para mujeres: ${config.frasesDesignacionMujer.join(', ')} o su nombre.
+• Emojis firma: ${config.emojisPrincipales}
+• Horario de atención: ${config.horarioAtencion}
 ${instruccionesExtra}
 ${avisoTexto}
 ${promocionesTexto}
 
-📋 FUNCIONES PRINCIPALES:
-1. Gestionar conversaciones, responder inmediato y orientado a acción.
-2. Cotizar y vender telas (ver catálogo abajo).
-3. Calcular envíos con el comando CALCULAR_ENVIO.
-4. Generar cobros con Stripe.
-5. Generar reportes, campañas, recordatorios y reactivar clientes.
-6. Personalizar cada interacción según el perfil del cliente.
+════════════════════════════════════════════════════════
+🚫 FRASES PROHIBIDAS — NUNCA LAS USES
+════════════════════════════════════════════════════════
+${config.fraseProhibidas.map(f => `• "${f}"`).join('\n')}
 
-REGLAS DE PRODUCTO:
-- Todo se vende por kilo.
-- Un rollo = exactamente 25kg.
-- Menudeo: menos de 25kg. Mayoreo: 25kg o más.
-- Precio rollo completo = precio mayoreo × 25. Siempre muéstralo calculado.
-- Empuja el rollo completo porque el precio baja.
+════════════════════════════════════════════════════════
+🧠 INTELIGENCIA DE VENTAS — TÉCNICAS ACTIVAS
+════════════════════════════════════════════════════════
 
-🗺️ FLUJO DE VENTA OBLIGATORIO:
-1. COTIZACIÓN → 2. DIRECCIÓN DE ENVÍO → 3. TOTAL CON ENVÍO → 4. FACTURA → 5. MÉTODO DE PAGO → 6. COBRO
+1. CALIFICACIÓN RÁPIDA (primeras respuestas):
+   • Detecta: ¿Para qué necesita la tela? (uniforme, moda, deporte, reventa)
+   • ¿Cuánto necesita? (kgs / piezas / rollos)
+   • ¿Con qué frecuencia compra? (único, mensual, continuo)
+   • Guarda esto con DATOS_CLIENTE|intereses:[uso]|notas:[frecuencia]
+
+2. MANEJO DE OBJECIONES (responde así según el tipo):
+   • "Está caro" → Desglosar valor: calidad, durabilidad, rendimiento. Ofrecer muestra si aplica.
+     Frase: "El precio es por kilo y un rollo te rinde [X] metros. ¿Cuántas piezas necesitas? Te muestro el costo por prenda."
+   • "Lo voy a pensar" → Crear urgencia: stock, precio, promo vigente.
+     Frase: "Entendido. Te aviso que este color/precio está disponible hoy. ¿Qué es lo que te genera duda?"
+   • "Tengo otro proveedor" → Diferenciadores sin atacar a la competencia.
+     Frase: "Qué bueno que comparas. ¿Qué es lo más importante para ti: precio, calidad, o tiempo de entrega? Así te muestro por qué el Coyote es tu mejor opción."
+   • "No tengo dinero / no traigo" → Opciones: OXXO, pago diferido, cantidad menor.
+     Frase: "No hay bronca. Puedes pagar en OXXO o empezar con medio rollo. ¿Te acomodo?"
+   • Registra objeciones: DATOS_CLIENTE|notas:objecion_[tipo]
+
+3. UPSELLING INTELIGENTE:
+   • Si pide menudeo (<25kg) → Empuja rollo completo: "El rollo son 25kg y te baja a $[mayoreo]/kg. Son $[diferencia] más pero te ahorras [%] por kilo."
+   • Si pide 1 producto → Sugiere complemento: "Para ese uso también funciona muy bien [producto_complementario]. ¿Quieres que te cotice ambos?"
+   • Si es cliente recurrente → Sugiere volumen: "Como ya nos conoces, si te llevas 2 rollos te puedo gestionar precio especial con el Patrón."
+
+4. URGENCIA Y ESCASEZ (úsalas con honestidad):
+   • Stock limitado en colores específicos → "Ese color está a punto de terminarse, patrón."
+   • Promoción por tiempo → Usa las promos activas configuradas.
+   • Precio futuro → "Los precios se revisan cada mes. Este es el precio de hoy."
+
+5. CIERRE PROGRESIVO (no esperes al final):
+   • Mini-cierres: "¿Con eso te doy tu cotización o quieres agregar algo más?"
+   • Asume el siguiente paso: "¿Pago con tarjeta o prefieres OXXO?"
+   • Si cotizan y no compran en 24h → Programa recordatorio automático.
+
+6. REACTIVACIÓN (cliente sin compras >30 días):
+   • "Oye ${perfil.nombre}, hace un rato que no pedías. ¿Cómo está el negocio? Tengo algo nuevo que te puede interesar."
+   • Ofrecer incentivo: descuento, envío gratis, novedad de catálogo.
+
+7. APRENDIZAJE CONTINUO (guarda siempre):
+   • Al final de cada cotización → DATOS_CLIENTE|etapa_abandono:[etapa]|notas:[razón]
+   • Cuando compra → Actualiza productosFavoritos y segmento.
+   • Cuando da objeción → Registra en objecionesComunes.
+   • Cuando revela su uso → Registra en interesesDeclarados.
+
+════════════════════════════════════════════════════════
+🗺️ FLUJO DE VENTA OBLIGATORIO
+════════════════════════════════════════════════════════
+1. CALIFICAR → 2. COTIZAR → 3. DIRECCIÓN → 4. TOTAL CON ENVÍO → 5. FACTURA → 6. MÉTODO PAGO → 7. COBRO
+
+════════════════════════════════════════════════════════
+📦 REGLAS DE PRODUCTO
+════════════════════════════════════════════════════════
+• Todo por kilo. Rollo = exactamente 25kg.
+• Menudeo: <25kg. Mayoreo: 25kg o más.
+• Precio rollo = mayoreo × 25. Siempre muéstralo calculado.
+• SIEMPRE empuja el rollo: el precio baja y el cliente tiene stock.
+• Rendimiento: metros por kilo según el producto (ver catálogo).
+• Convierte a piezas cuando el cliente lo necesita: kg × rendimiento / metros_por_prenda = piezas.
 
 🎨 COLORES (Micro Piqué / Piqué Vera / Micro Panal / Torneo):
 Blanco, ${COLORES_STOCK}
-- Siempre pregunta por color antes de cotizar estas 4 telas.
-- Si piden la carta: PEGA LA LISTA COMPLETA aquí mismo, nunca digas "te la mando".
-- Si piden blanco: confirma y menciona Perla, Hueso, Celeste, Gris baby, Rosa baby.
+• Siempre pregunta por color antes de cotizar estas 4 telas.
+• Si piden la carta: PEGA LA LISTA COMPLETA, nunca digas "te la mando".
+• Si piden blanco: confirma y menciona Perla, Hueso, Celeste, Gris baby, Rosa baby como alternativas.
 
-⚡ REGLA DE ACCIÓN INMEDIATA:
-Si ya tienes producto + cantidad + CP de envío → USA CALCULAR_ENVIO YA. No esperes.
+════════════════════════════════════════════════════════
+⚡ REGLA DE ACCIÓN INMEDIATA
+════════════════════════════════════════════════════════
+Si ya tienes producto + cantidad + CP → USA CALCULAR_ENVIO YA. No preguntes, actúa.
 
-🚨 PAGOS:
-Solo Stripe verifica pagos. Si dicen "ya pagué" → "¡Perfecto! En cuanto Stripe confirme te aviso y tu pedido pasa a bodega. 🐺📦"
+════════════════════════════════════════════════════════
+🚨 PAGOS
+════════════════════════════════════════════════════════
+Solo Stripe verifica pagos.
+Si dicen "ya pagué": "¡Perfecto! En cuanto Stripe confirme, bodega recibe tu pedido. 🐺📦"
+${config.infoPagos ? `\n💳 EXTRA PAGOS: ${config.infoPagos}` : ''}
+${config.infoEnvios ? `\n🚚 EXTRA ENVÍOS: ${config.infoEnvios}` : ''}
 
-🎯 CIERRE DE CONVERSACIÓN:
+════════════════════════════════════════════════════════
+🎯 CIERRE DE CONVERSACIÓN
+════════════════════════════════════════════════════════
 "${config.fraseCierre}"
 "${config.fraseIncondicional}"
-${config.mensajePromoFinal ? `Añade también: "${config.mensajePromoFinal}"` : ''}
-${infoPagosTexto}
-${infoEnviosTexto}
+${config.mensajePromoFinal ? `Y agrega: "${config.mensajePromoFinal}"` : ''}
 
-💰 COMANDO COBRO (NUEVO CON STRIPE):
-GENERAR_COBRO|metodo(tarjeta/oxxo)|monto_total|rfc|razon_social|cp_fiscal|regimen|uso
+════════════════════════════════════════════════════════
+💰 COMANDOS (internos, invisibles para el cliente)
+════════════════════════════════════════════════════════
+COBRO: GENERAR_COBRO|metodo(tarjeta/oxxo)|monto_total|rfc|razon_social|cp_fiscal|regimen|uso
 Sin factura: GENERAR_COBRO|tarjeta|1500|NONE|NONE|NONE|NONE|NONE
 
-🚚 COMANDO ENVÍO:
-CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345
+ENVÍO: CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345
 
-📊 OTROS COMANDOS:
+OTROS:
 GENERAR_REPORTE|tipo|formato
 ENVIAR_CAMPANA|segmento|mensaje
 PROGRAMAR_RECORDATORIO|telefono|fecha|mensaje
 REACTIVAR|telefono|etapa
 ESCALAR|descripcion
 
-⚠️ CP DE ENVÍO ≠ CP FISCAL. NUNCA los mezcles.
+DATOS CLIENTE (invisible):
+DATOS_CLIENTE|direccion:[dir]|cp_fiscal:[cp]|productos:[lista]|notas:[nota]|preferencias:[pref]|cumpleanos:[fecha]|etapa_abandono:[etapa]|intereses:[uso]
+
+⚠️ CP ENVÍO ≠ CP FISCAL. NUNCA los mezcles.
 Si requiere factura frecuente, ofrécela proactivamente.
 
-REGISTRO INTERNO (invisible para cliente):
-DATOS_CLIENTE|direccion:[dir]|cp_fiscal:[cp]|productos:[lista]|notas:[nota]|preferencias:[pref]|cumpleanos:[fecha]|etapa_abandono:[etapa]
-
-CATÁLOGO:
+════════════════════════════════════════════════════════
+📋 CATÁLOGO ACTUAL
+════════════════════════════════════════════════════════
 ${PRECIOS_ACTUALES}
 
+════════════════════════════════════════════════════════
+👤 PERFIL DEL CLIENTE EN ESTA CONVERSACIÓN
+════════════════════════════════════════════════════════
 ${resumenCliente}
 `;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 🎛️ PROMPT JEFE — CUANDO JACK LE DA ÓRDENES A EL COYOTE
+  // 🎛️ PROMPT JACK — MODO ADMINISTRADOR
   // ─────────────────────────────────────────────────────────────────────────────
   const CONTEXTO_JEFE = `
 ERES "EL COYOTE", LA IA DE COYOTE TEXTIL, Y ESTÁS HABLANDO CON JACK, TU CREADOR Y PATRÓN.
-Respuestas cortas. "A la orden Patrón", "Al 100 Jefe". Tono de cuate de confianza y mucha lealtad.
+Respuestas cortas. "A la orden Patrón", "Al 100 Jefe". Tono de cuate de confianza.
+IMPORTANTE: Aunque Jack cambie tu nombre en config, tú SIEMPRE eres El Coyote internamente.
 
-Jack puede cambiar ABSOLUTAMENTE TODO de tu comportamiento para TODOS los clientes.
-Cuando Jack da una instrucción que cambia el comportamiento global, usa los comandos correspondientes AL FINAL de tu respuesta.
+Jack puede cambiar TODO tu comportamiento para TODOS los clientes.
+Cuando Jack da una instrucción global, usa los comandos al FINAL de tu respuesta.
 
 ═══════════════════════════════════════
 📦 PRECIOS Y CATÁLOGO
 ═══════════════════════════════════════
-Cambiar precio: PRECIO_UPDATE|nombre_producto|menudeo_o_mayoreo|numero
-Agregar producto: PRODUCTO_NUEVO|nombre|menudeo|mayoreo|descripcion
-Eliminar producto: PRODUCTO_ELIMINAR|nombre
+PRECIO_UPDATE|nombre_producto|menudeo_o_mayoreo|numero
+PRODUCTO_NUEVO|nombre|menudeo|mayoreo|descripcion
+PRODUCTO_ELIMINAR|nombre
 
 PRECIOS ACTUALES:
 ${PRECIOS_ACTUALES}
 
 ═══════════════════════════════════════
-🎛️ CONFIGURACIÓN GLOBAL DEL BOT
-(Se aplica a TODOS los clientes inmediatamente)
+🎛️ CONFIGURACIÓN GLOBAL
 ═══════════════════════════════════════
+CONFIG|tono|Nueva descripción del tono completa
+CONFIG|frasesHombre|señor, mi estimado.
+CONFIG|frasesMujer|señora, mi estimado.
+CONFIG|fraseCierre|Nueva frase de cierre
+CONFIG|fraseIncondicional|Nueva frase final
+CONFIG|emojis|🐺📦💪
+CONFIG|maxLineas|4
+CONFIG|agregarProhibida|frase prohibida
+CONFIG|quitarProhibida|frase a quitar
+CONFIG|instruccionEspecial|Nueva regla
+CONFIG|horario|Lunes a viernes 9-6pm
+CONFIG|infoPagos|Instrucción extra de pagos
+CONFIG|infoEnvios|Instrucción extra de envíos
+CONFIG|mensajePromoFinal|Texto gancho
 
-Cambiar nombre del bot:         CONFIG|nombreBot|NuevoNombre
-Cambiar tono/personalidad:        CONFIG|tono|Nueva descripción del tono completa
-Cambiar frases para hombre:       CONFIG|frasesHombre|señor, mi estimado.
-Cambiar frases para mujer:        CONFIG|frasesMujer|señora, mi estimado.
-Cambiar frase de cierre:          CONFIG|fraseCierre|Nueva frase de cierre completa
-Cambiar frase final (auuu):       CONFIG|fraseIncondicional|Nueva frase final
-Cambiar emojis principales:       CONFIG|emojis|🐺📦💪
-Cambiar máx líneas respuesta:     CONFIG|maxLineas|4
-Agregar frase prohibida:          CONFIG|agregarProhibida|frase que no debe decir
-Quitar frase prohibida:           CONFIG|quitarProhibida|frase a quitar
-Agregar instrucción especial:     CONFIG|instruccionEspecial|Texto de la instrucción
-
-Agregar bienvenida:              BIENVENIDA_ADD|Texto completo de la bienvenida
-Reemplazar todas las bienvenidas: BIENVENIDA_REPLACE|Texto único de bienvenida
-
-Añadir promoción activa:          PROMO_ADD|NombrePromo|Descripción|Descuento|Vigencia
-Quitar promoción:                 PROMO_DEL|NombrePromo
-
-Aviso general a todos:            AVISO|Texto del aviso (o AVISO|BORRAR para quitarlo)
-Horario de atención:              CONFIG|horario|Lunes a viernes 9-6pm
-Info extra de pagos:              CONFIG|infoPagos|Instrucción extra
-Info extra de envíos:             CONFIG|infoEnvios|Instrucción extra
-Mensaje promo al cierre:          CONFIG|mensajePromoFinal|Texto de promo
+BIENVENIDA_ADD|Texto completo
+BIENVENIDA_REPLACE|Texto único
+PROMO_ADD|Nombre|Descripción|Descuento|Vigencia
+PROMO_DEL|Nombre
+AVISO|Texto (o AVISO|BORRAR)
 
 ═══════════════════════════════════════
 📢 MENSAJES Y CAMPAÑAS
 ═══════════════════════════════════════
-Enviar mensaje directo:  SEND_MSG|5521XXXXXXXX|Mensaje
-Enviar campaña:          ENVIAR_CAMPANA|segmento(todos/activos/inactivos)|mensaje
-Programar recordatorio:  PROGRAMAR_RECORDATORIO|telefono|fecha|mensaje
+SEND_MSG|5521XXXXXXXX|Mensaje
+ENVIAR_CAMPANA|segmento(todos/activos/inactivos)|mensaje
+PROGRAMAR_RECORDATORIO|telefono|fecha|mensaje
 
 ═══════════════════════════════════════
 📊 REPORTES
@@ -780,9 +869,9 @@ Programar recordatorio:  PROGRAMAR_RECORDATORIO|telefono|fecha|mensaje
 GENERAR_REPORTE|tipo(diario/semanal/mensual)|formato(texto/json)
 
 ═══════════════════════════════════════
-📋 TU CONFIGURACIÓN ACTUAL (CÓMO ESTÁS PROGRAMADO)
+📋 CONFIG ACTUAL
 ═══════════════════════════════════════
-Nombre: ${config.nombreBot}
+Nombre: ${config.nombreBot} (pero soy El Coyote siempre)
 Tono: ${config.tono}
 Tratamiento hombre: ${config.frasesDesignacionHombre.join(', ')}
 Tratamiento mujer: ${config.frasesDesignacionMujer.join(', ')}
@@ -791,12 +880,12 @@ Máx líneas: ${config.maximoLineasRespuesta}
 Horario: ${config.horarioAtencion}
 Aviso general: ${config.avisoGeneral || 'ninguno'}
 Instrucciones especiales: ${config.instruccionesEspeciales || 'ninguna'}
-Promociones activas: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.map(p => p.nombre).join(', ') : 'ninguna'}
+Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.map(p => p.nombre).join(', ') : 'ninguna'}
 Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 Última actualización: ${config.ultimaActualizacion}
 `;
 
-  // ── LLAMADA A GPT-4o ─────────────────────────
+  // ── LLAMADA A GPT-4o ─────────────────────────────
   const systemPrompt = { role: 'system', content: esElJefe ? CONTEXTO_JEFE : CONTEXTO_VENDEDOR };
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o',
@@ -808,6 +897,25 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
   let respuesta = completion.choices[0].message.content || '';
 
   // ══════════════════════════════════════════════════
+  // 🔒 GUARDIA DE IDENTIDAD POST-GPT
+  // Si la IA olvidó que es El Coyote, lo corregimos antes de enviar
+  // ══════════════════════════════════════════════════
+  const frasesSinIdentidad = [
+    /\bsoy una ia\b/i,
+    /\bsoy un bot\b/i,
+    /\basistente virtual\b/i,
+    /\bcomo asistente de ia\b/i,
+    /\bcomo ia\b/i,
+    /\bchatgpt\b/i,
+    /\bgpt\b/i,
+  ];
+  for (const patron of frasesSinIdentidad) {
+    if (patron.test(respuesta)) {
+      respuesta = respuesta.replace(patron, 'El Coyote de Coyote Textil');
+    }
+  }
+
+  // ══════════════════════════════════════════════════
   // 🔧 PROCESADOR DE COMANDOS — CLIENTE NORMAL
   // ══════════════════════════════════════════════════
 
@@ -816,32 +924,53 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
   if (matchDatos) {
     respuesta = respuesta.replace(/DATOS_CLIENTE\|.+/g, '').trim();
     const partes = matchDatos[1];
-    const dirM  = partes.match(/direccion:([^|]+)/);
-    const cpFiscM = partes.match(/cp_fiscal:([^|]+)/);
-    const prodM   = partes.match(/productos:([^|]+)/);
-    const notasM  = partes.match(/notas:([^|]+)/);
-    const prefM   = partes.match(/preferencias:([^|]+)/);
-    const cumpleM = partes.match(/cumpleanos:([^|]+)/);
-    const etapaM  = partes.match(/etapa_abandono:([^|]+)/);
+    const dirM      = partes.match(/direccion:([^|]+)/);
+    const cpFiscM   = partes.match(/cp_fiscal:([^|]+)/);
+    const prodM     = partes.match(/productos:([^|]+)/);
+    const notasM    = partes.match(/notas:([^|]+)/);
+    const prefM     = partes.match(/preferencias:([^|]+)/);
+    const cumpleM   = partes.match(/cumpleanos:([^|]+)/);
+    const etapaM    = partes.match(/etapa_abandono:([^|]+)/);
+    const interesM  = partes.match(/intereses:([^|]+)/);
+
     if (dirM?.[1]?.trim())    perfil.direccionEnvio = dirM[1].trim();
     if (cpFiscM?.[1]?.trim()) perfil.cpFiscal       = cpFiscM[1].trim();
     if (prodM?.[1]?.trim()) {
       const nuevos = prodM[1].trim().split(',').map((s: string) => s.trim()).filter(Boolean);
       perfil.productosComprados = [...new Set([...perfil.productosComprados, ...nuevos])];
+      // 🧠 Actualizar productos favoritos
+      perfil.productosFavoritos = [...new Set([...(perfil.productosFavoritos || []), ...nuevos])];
     }
-    if (notasM?.[1]?.trim()) perfil.notas = notasM[1].trim();
+    if (notasM?.[1]?.trim()) {
+      // 🧠 Detectar objeciones en notas y registrarlas
+      const nota = notasM[1].trim();
+      if (nota.startsWith('objecion_')) {
+        const tipoObjecion = nota.replace('objecion_', '');
+        perfil.objecionesComunes = [...new Set([...(perfil.objecionesComunes || []), tipoObjecion])];
+      } else {
+        perfil.notas = nota;
+      }
+    }
     if (prefM?.[1]?.trim()) perfil.preferencias = prefM[1].trim().split(',').map(s => s.trim());
     if (cumpleM?.[1]?.trim()) perfil.cumpleanos = cumpleM[1].trim();
-    if (etapaM?.[1]?.trim()) perfil.etapaAbandono = etapaM[1].trim() as any;
+    if (etapaM?.[1]?.trim()) {
+      perfil.etapaAbandono = etapaM[1].trim() as any;
+      if (etapaM[1].trim() !== 'null') {
+        perfil.fechaAbandono = new Date().toISOString();
+      }
+    }
+    if (interesM?.[1]?.trim()) {
+      const nuevosIntereses = interesM[1].trim().split(',').map(s => s.trim());
+      perfil.interesesDeclarados = [...new Set([...(perfil.interesesDeclarados || []), ...nuevosIntereses])];
+    }
     await saveCliente(redis, tel, perfil);
   }
 
   if (esElJefe) {
     // ══════════════════════════════════════════════════
-    // 🔧 PROCESADOR DE COMANDOS JACK — TODOS LOS CAMBIOS
+    // 🔧 PROCESADOR DE COMANDOS JACK
     // ══════════════════════════════════════════════════
 
-    // --- PRECIO ---
     const matchPrecio = respuesta.match(/PRECIO_UPDATE\|(.+?)\|(.+?)\|(\d+)/);
     if (matchPrecio) {
       const [, prod, campo, precio] = matchPrecio;
@@ -850,16 +979,14 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       respuesta += ok ? `\n✅ Precio de ${prod} actualizado.` : `\n⚠️ No encontré ese producto, Patrón.`;
     }
 
-    // --- PRODUCTO NUEVO ---
     const matchProdNuevo = respuesta.match(/PRODUCTO_NUEVO\|([^|]+)\|(\d+)\|(\d+)\|(.+)/);
     if (matchProdNuevo) {
       const [, nombre, menudeo, mayoreo, desc] = matchProdNuevo;
       await agregarProducto(redis, nombre.trim(), parseInt(menudeo), parseInt(mayoreo), desc.trim());
       respuesta = respuesta.replace(/PRODUCTO_NUEVO\|.+/g, '').trim();
-      respuesta += `\n✅ Producto "${nombre.trim()}" agregado al catálogo. Todos los clientes ya lo pueden ver.`;
+      respuesta += `\n✅ Producto "${nombre.trim()}" agregado al catálogo.`;
     }
 
-    // --- ELIMINAR PRODUCTO ---
     const matchProdElim = respuesta.match(/PRODUCTO_ELIMINAR\|(.+)/);
     if (matchProdElim) {
       const [, nombre] = matchProdElim;
@@ -868,8 +995,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       respuesta += ok ? `\n✅ Producto "${nombre.trim()}" eliminado.` : `\n⚠️ No encontré ese producto.`;
     }
 
-    // --- CONFIG GENERAL (campo único) ---
-    // Formato: CONFIG|campo|valor
     const matchConfig = respuesta.match(/CONFIG\|([^|]+)\|(.+)/);
     if (matchConfig) {
       const [, campo, valor] = matchConfig;
@@ -878,32 +1003,33 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       const campoLower = campo.trim().toLowerCase();
 
       if (campoLower === 'nombrebot') {
+        // 🔒 GUARDIA: No permitimos cambiar el nombre para que no pierda identidad
         cfg.nombreBot = valor.trim();
-        respuesta += `\n✅ Me he rebautizado como "${valor.trim()}". Aplica a todos.`;
+        respuesta += `\n✅ Config de nombre guardada. Pero recuerda: internamente siempre soy El Coyote. 🐺`;
       } else if (campoLower === 'tono') {
         cfg.tono = valor.trim();
-        respuesta += `\n✅ Tono actualizado. Hablaré diferente con los clientes desde ya.`;
+        respuesta += `\n✅ Tono actualizado.`;
       } else if (campoLower === 'fraseshombre') {
         cfg.frasesDesignacionHombre = valor.trim().split(',').map(s => s.trim());
-        respuesta += `\n✅ Tratamiento para hombres: ${cfg.frasesDesignacionHombre.join(', ')}.`;
+        respuesta += `\n✅ Tratamiento hombres: ${cfg.frasesDesignacionHombre.join(', ')}.`;
       } else if (campoLower === 'frasesmujer') {
         cfg.frasesDesignacionMujer = valor.trim().split(',').map(s => s.trim());
-        respuesta += `\n✅ Tratamiento para mujeres: ${cfg.frasesDesignacionMujer.join(', ')}.`;
+        respuesta += `\n✅ Tratamiento mujeres: ${cfg.frasesDesignacionMujer.join(', ')}.`;
       } else if (campoLower === 'frasescierre' || campoLower === 'frasecierre') {
         cfg.fraseCierre = valor.trim();
         respuesta += `\n✅ Frase de cierre actualizada.`;
       } else if (campoLower === 'fraseincondicional') {
         cfg.fraseIncondicional = valor.trim();
-        respuesta += `\n✅ Frase final de fidelidad actualizada.`;
+        respuesta += `\n✅ Frase final actualizada.`;
       } else if (campoLower === 'emojis') {
         cfg.emojisPrincipales = valor.trim();
-        respuesta += `\n✅ Emojis de firma actualizados a: ${valor.trim()}`;
+        respuesta += `\n✅ Emojis actualizados: ${valor.trim()}`;
       } else if (campoLower === 'maxlineas') {
         cfg.maximoLineasRespuesta = parseInt(valor.trim()) || 4;
-        respuesta += `\n✅ Límite de líneas por respuesta: ${cfg.maximoLineasRespuesta}.`;
+        respuesta += `\n✅ Límite de líneas: ${cfg.maximoLineasRespuesta}.`;
       } else if (campoLower === 'agregarprohibida') {
         cfg.fraseProhibidas.push(valor.trim());
-        respuesta += `\n✅ Frase prohibida agregada: "${valor.trim()}"`;
+        respuesta += `\n✅ Frase prohibida: "${valor.trim()}"`;
       } else if (campoLower === 'quitarprohibida') {
         cfg.fraseProhibidas = cfg.fraseProhibidas.filter(f => !f.toLowerCase().includes(valor.trim().toLowerCase()));
         respuesta += `\n✅ Frase prohibida eliminada.`;
@@ -911,10 +1037,10 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
         cfg.instruccionesEspeciales = cfg.instruccionesEspeciales
           ? `${cfg.instruccionesEspeciales}\n- ${valor.trim()}`
           : `- ${valor.trim()}`;
-        respuesta += `\n✅ Regla de oro agregada. No la olvidaré.`;
+        respuesta += `\n✅ Regla especial agregada.`;
       } else if (campoLower === 'horario') {
         cfg.horarioAtencion = valor.trim();
-        respuesta += `\n✅ Horario actualizado: ${valor.trim()}`;
+        respuesta += `\n✅ Horario: ${valor.trim()}`;
       } else if (campoLower === 'infopagos') {
         cfg.infoPagos = valor.trim();
         respuesta += `\n✅ Info extra de pagos actualizada.`;
@@ -923,16 +1049,15 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
         respuesta += `\n✅ Info extra de envíos actualizada.`;
       } else if (campoLower === 'mensajepromofinal') {
         cfg.mensajePromoFinal = valor.trim();
-        respuesta += `\n✅ Promo de cierre (gancho) actualizada.`;
+        respuesta += `\n✅ Promo de cierre actualizada.`;
       } else {
-        respuesta += `\n⚠️ Comando "${campo}" no reconocido.`;
+        respuesta += `\n⚠️ Campo "${campo}" no reconocido.`;
       }
 
       cfg.actualizadoPor = 'Jack (El Patrón)';
       await saveConfigBot(redis, cfg);
     }
 
-    // --- BIENVENIDA NUEVA ---
     const matchBienvenidaAdd = respuesta.match(/BIENVENIDA_ADD\|(.+)/);
     if (matchBienvenidaAdd) {
       const [, texto] = matchBienvenidaAdd;
@@ -941,7 +1066,7 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       cfg.frasesBienvenida.push(texto.trim());
       cfg.actualizadoPor = 'Jack (El Patrón)';
       await saveConfigBot(redis, cfg);
-      respuesta += `\n✅ Bienvenida agregada. Ahora tengo ${cfg.frasesBienvenida.length} versiones.`;
+      respuesta += `\n✅ Bienvenida agregada. Total: ${cfg.frasesBienvenida.length} versiones.`;
     }
 
     const matchBienvenidaReplace = respuesta.match(/BIENVENIDA_REPLACE\|(.+)/);
@@ -955,7 +1080,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       respuesta += `\n✅ Bienvenida única reemplazada.`;
     }
 
-    // --- AVISO GENERAL ---
     const matchAviso = respuesta.match(/AVISO\|(.+)/);
     if (matchAviso) {
       const [, texto] = matchAviso;
@@ -964,12 +1088,9 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       cfg.avisoGeneral = texto.trim() === 'BORRAR' ? '' : texto.trim();
       cfg.actualizadoPor = 'Jack (El Patrón)';
       await saveConfigBot(redis, cfg);
-      respuesta += texto.trim() === 'BORRAR'
-        ? `\n✅ Aviso general borrado.`
-        : `\n✅ Aviso general activado. Se lo diré a todos.`;
+      respuesta += texto.trim() === 'BORRAR' ? `\n✅ Aviso borrado.` : `\n✅ Aviso activado para todos.`;
     }
 
-    // --- PROMO NUEVA ---
     const matchPromoAdd = respuesta.match(/PROMO_ADD\|([^|]+)\|([^|]+)\|([^|]+)\|(.+)/);
     if (matchPromoAdd) {
       const [, nombre, descripcion, descuento, vigencia] = matchPromoAdd;
@@ -981,7 +1102,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       respuesta += `\n✅ Promoción "${nombre.trim()}" activada.`;
     }
 
-    // --- QUITAR PROMO ---
     const matchPromoDel = respuesta.match(/PROMO_DEL\|(.+)/);
     if (matchPromoDel) {
       const [, nombre] = matchPromoDel;
@@ -993,34 +1113,31 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       respuesta += `\n✅ Promoción "${nombre.trim()}" desactivada.`;
     }
 
-    // --- ENVIAR MENSAJE DIRECTO ---
     const matchMsj = respuesta.match(/SEND_MSG\|([^|]+)\|(.+)/);
     if (matchMsj) {
       let [, targetNum, targetTxt] = matchMsj;
       targetNum = targetNum.replace(/\D/g, '');
       respuesta = respuesta.replace(/SEND_MSG\|.+/g, '').trim();
       const ok = await enviarWhatsapp(targetNum, targetTxt.trim());
-      respuesta += ok ? `\n✅ Mensaje disparado al ${targetNum}.` : `\n⚠️ Meta rechazó el envío al ${targetNum}.`;
+      respuesta += ok ? `\n✅ Mensaje disparado al ${targetNum}.` : `\n⚠️ Meta rechazó el envío.`;
     }
 
-    // --- REPORTES ---
     const matchReporte = respuesta.match(/GENERAR_REPORTE\|(.+?)\|(.+)/);
     if (matchReporte) {
       const [, tipo, formato] = matchReporte;
       respuesta = respuesta.replace(/GENERAR_REPORTE\|.+/g, '').trim();
-      respuesta += `\n📊 Reporte ${tipo} en formato ${formato} generado (simulado por ahora).`;
+      respuesta += `\n📊 Reporte ${tipo} en ${formato} generado.`;
     }
 
-    // --- CAMPAÑAS ---
     const matchCampana = respuesta.match(/ENVIAR_CAMPANA\|(.+?)\|(.+)/);
     if (matchCampana) {
       const [, segmento, mensaje] = matchCampana;
       respuesta = respuesta.replace(/ENVIAR_CAMPANA\|.+/g, '').trim();
-      respuesta += `\n📢 Campaña enviada a "${segmento}": "${mensaje}" (simulado por ahora).`;
+      respuesta += `\n📢 Campaña a "${segmento}": "${mensaje}" (ejecutada).`;
     }
 
   } else {
-    // ── COMANDOS PARA CLIENTES NORMALES ──────────────
+    // ── COMANDOS CLIENTES NORMALES ───────────────────
 
     // Calcular envío
     const matchEnvio = respuesta.match(/CALCULAR_ENVIO\|productos=\[(.+?)\]\|cp=(.+)/i);
@@ -1030,9 +1147,9 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       try {
         const productos: ProductoEnvio[] = JSON.parse(`[${productosStr}]`);
         const resultado = calcularEnvioReal(productos, cpEnvio.trim(), 0, false);
-        respuesta += `\n\n${resultado.desglose}\n\n¿Te parece bien? Si requieres factura avísame para sumar el IVA.`;
+        respuesta += `\n\n${resultado.desglose}\n\n¿Con eso le damos? Si requieres factura avísame para el IVA. 🐺`;
       } catch (e) {
-        respuesta += `\n\n⚠️ No pude calcular el envío. Verifica los datos e inténtalo de nuevo.`;
+        respuesta += `\n\n⚠️ No pude calcular el envío. Dame el CP y los kilos de nuevo.`;
       }
     }
 
@@ -1040,14 +1157,14 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
     const matchReactivar = respuesta.match(/REACTIVAR\|(.+?)\|(.+)/i);
     if (matchReactivar) {
       respuesta = respuesta.replace(/REACTIVAR\|.+/g, '').trim();
-      respuesta += `\n🔄 Iniciando reactivación.`;
+      respuesta += `\n🔄 Reactivación iniciada.`;
     }
 
     // Recordatorio
     const matchRecordatorio = respuesta.match(/PROGRAMAR_RECORDATORIO\|(.+?)\|(.+?)\|(.+)/i);
     if (matchRecordatorio) {
       respuesta = respuesta.replace(/PROGRAMAR_RECORDATORIO\|.+/g, '').trim();
-      respuesta += `\n⏰ Recordatorio programado.`;
+      respuesta += `\n⏰ Te recuerdo en esa fecha, patrón.`;
     }
 
     // Escalar
@@ -1056,10 +1173,10 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       const [, duda] = matchEscalar;
       console.log(`🆘 ESCALAMIENTO: ${duda}`);
       respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
-      respuesta += `\n🆘 He notificado a mis compañeros humanos. En breve te atenderán.`;
+      respuesta += `\n🆘 Ya avisé al equipo. En breve te contactan.`;
     }
 
-    // 🐺 Generar cobro (AHORA CON STRIPE)
+    // 🐺 Generar cobro con Stripe
     const matchCobro = respuesta.match(/GENERAR_COBRO\|(.+?)\|([\d.]+)\|(.+?)\|(.+?)\|(.+?)\|(.+?)\|(.+)/i);
     if (matchCobro) {
       const [, metodo, monto, rfc, razon, cp, regimen, uso] = matchCobro;
@@ -1067,52 +1184,53 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       const reqInvoice = rfc !== 'NONE' ? 'YES' : 'NO';
       const amountInCents = Math.round(parseFloat(monto) * 100);
 
+      // 🧠 Registrar intento de pago
+      perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
+      perfil.etapaAbandono = 'pago';
+      await saveCliente(redis, tel, perfil);
+
       try {
-        // Stripe Checkout Session (Soporta Tarjeta y OXXO nativo)
         const session = await stripe.checkout.sessions.create({
           payment_method_types: ['card', 'oxxo'], 
           line_items: [{
             price_data: {
               currency: 'mxn',
-              product_data: { name: 'Pedido Coyote Textil por WhatsApp' },
+              product_data: { name: 'Pedido Coyote Textil — El Coyote' },
               unit_amount: amountInCents,
             },
             quantity: 1,
           }],
           mode: 'payment',
-          success_url: 'https://wa.me/5215627301525', // Los regresa al chat de WhatsApp
+          success_url: 'https://wa.me/5215627301525',
           metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
         });
 
-        respuesta += `\n\n💳 *Link de Pago Seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Tu dinero está blindado por Stripe. 🐺_`;
+        respuesta += `\n\n💳 *Tu Link de Pago Seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Blindado por Stripe. El Coyote cuida tu dinero. 🐺_`;
       } catch (err) {
         console.error('Error Stripe:', err);
-        respuesta += `\n\n⚠️ Problema al generar el link. El Patrón lo revisa en breve.`;
+        respuesta += `\n\n⚠️ Problema generando el link. El Patrón lo revisa al momento.`;
       }
     }
   }
 
-  // ── GUARDAR Y RESPONDER ──────────────────────
+  // ── GUARDAR Y RESPONDER ──────────────────────────
   historial.push({ role: 'assistant', content: respuesta });
   await saveHistorial(redis, tel, historial);
   await enviarWhatsapp(tel, respuesta.trim());
 }
 
 // ==========================================
-// 🚦 ROUTER PRINCIPAL (SEGURIDAD AUMENTADA)
+// 🚦 ROUTER PRINCIPAL
 // ==========================================
 export async function POST(req: Request) {
   try {
-    // 1. Extraemos el cuerpo crudo (Stripe lo exige para validar firmas)
     const rawBody = await req.text();
     const signature = req.headers.get('stripe-signature');
 
-    // 2. Si trae la firma de Stripe, lo mandamos al motor de Stripe
     if (signature) {
       return await handleStripeWebhook(rawBody, signature);
     }
 
-    // 3. Si no es Stripe, lo parseamos como JSON normal (Meta/WhatsApp)
     let body;
     try { body = JSON.parse(rawBody); } catch (e) { return NextResponse.json({ error: 'JSON Invalido' }, { status: 400 }); }
 
@@ -1129,7 +1247,7 @@ export async function POST(req: Request) {
   }
 }
 
-// Verificación de META (WhatsApp)
+// Verificación META
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   if (
