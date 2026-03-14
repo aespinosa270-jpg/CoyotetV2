@@ -200,6 +200,26 @@ export default function Footer() {
                     Centro Histórico, CDMX, C.P. 06000
                   </p>
                 </li>
+                
+                {/* 🔥 NUEVO BLOQUE DE REDES SOCIALES */}
+                <li>
+                  <span className="block text-[9px] font-black text-neutral-600 mb-2.5 tracking-widest">REDES SOCIALES</span>
+                  <div className="flex flex-col gap-3">
+                    <a href="https://www.facebook.com/coyotetextil/?locale=es_LA" target="_blank" rel="noopener noreferrer" className="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-white hover:pl-2 transition-all flex items-center gap-2 group">
+                      <ArrowUpRight size={10} className="text-[#FDCB02] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      Facebook
+                    </a>
+                    <a href="https://www.instagram.com/coyotetextil/" target="_blank" rel="noopener noreferrer" className="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-white hover:pl-2 transition-all flex items-center gap-2 group">
+                      <ArrowUpRight size={10} className="text-[#FDCB02] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      Instagram
+                    </a>
+                    <a href="https://www.tiktok.com/@coyotetextil" target="_blank" rel="noopener noreferrer" className="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-white hover:pl-2 transition-all flex items-center gap-2 group">
+                      <ArrowUpRight size={10} className="text-[#FDCB02] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      TikTok
+                    </a>
+                  </div>
+                </li>
+
               </ul>
             </div>
           </div>

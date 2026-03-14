@@ -3,12 +3,15 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   const { breakId } = await req.json();
+
   if (!breakId)
     return NextResponse.json({ error: "Missing breakId" }, { status: 400 });
 
   const existing = await prisma.attendanceBreak.findUnique({ where: { id: breakId } });
-  if (!existing)    return NextResponse.json({ error: "Pausa no encontrada" }, { status: 404 });
-  if (existing.endAt) return NextResponse.json({ error: "Pausa ya terminada" }, { status: 400 });
+  if (!existing)
+    return NextResponse.json({ error: "Pausa no encontrada" }, { status: 404 });
+  if (existing.endAt)
+    return NextResponse.json({ error: "Pausa ya terminada" }, { status: 400 });
 
   const endAt    = new Date();
   const duration = parseFloat(

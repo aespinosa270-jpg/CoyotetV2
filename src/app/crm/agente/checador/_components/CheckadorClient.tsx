@@ -6,13 +6,15 @@ import {
   MapPin, Clock, LogIn, LogOut,
   Calendar, TrendingUp, CheckCircle2,
   AlertCircle, Loader2, Coffee, Droplets,
-  Timer, Play, Square,
+  Timer, Square, Package, GraduationCap,
 } from "lucide-react";
 import { EmployeeRole } from "@prisma/client";
 
+type BreakType = "BANO" | "LUNCH" | "PEDIDO" | "ENTRENAMIENTO";
+
 type AttendanceBreak = {
   id:       string;
-  type:     "BANO" | "LUNCH";
+  type:     BreakType;
   startAt:  string;
   endAt:    string | null;
   duration: number | null;
@@ -51,6 +53,71 @@ const ROLE_LABEL: Record<EmployeeRole, string> = {
   CONTABILIDAD: "Contabilidad",
 };
 
+// ── Configuración centralizada de tipos de pausa ──────────────────────────────
+const BREAK_CONFIG: Record<BreakType, {
+  label:        string;
+  labelFin:     string;
+  emoji:        string;
+  icon:         React.ReactNode;
+  color:        string;   // text color
+  border:       string;   // border color
+  bg:           string;   // background (idle)
+  bgActive:     string;   // background (active button)
+  bgBadge:      string;   // background (badge)
+  borderBadge:  string;
+}> = {
+  BANO: {
+    label:       "Baño",
+    labelFin:    "Fin Baño",
+    emoji:       "🚻",
+    icon:        <Droplets size={12} />,
+    color:       "text-sky-400",
+    border:      "border-sky-800",
+    bg:          "bg-sky-500/10 hover:bg-sky-500/20",
+    bgActive:    "bg-sky-500 text-black",
+    bgBadge:     "bg-sky-500/5",
+    borderBadge: "border-sky-800/50",
+  },
+  LUNCH: {
+    label:       "Lunch",
+    labelFin:    "Fin Lunch",
+    emoji:       "🍽️",
+    icon:        <Coffee size={12} />,
+    color:       "text-amber-400",
+    border:      "border-amber-800",
+    bg:          "bg-amber-500/10 hover:bg-amber-500/20",
+    bgActive:    "bg-amber-500 text-black",
+    bgBadge:     "bg-amber-500/5",
+    borderBadge: "border-amber-800/50",
+  },
+  PEDIDO: {
+    label:       "Pedido",
+    labelFin:    "Fin Pedido",
+    emoji:       "📦",
+    icon:        <Package size={12} />,
+    color:       "text-violet-400",
+    border:      "border-violet-800",
+    bg:          "bg-violet-500/10 hover:bg-violet-500/20",
+    bgActive:    "bg-violet-500 text-white",
+    bgBadge:     "bg-violet-500/5",
+    borderBadge: "border-violet-800/50",
+  },
+  ENTRENAMIENTO: {
+    label:       "Training",
+    labelFin:    "Fin Training",
+    emoji:       "🎓",
+    icon:        <GraduationCap size={12} />,
+    color:       "text-emerald-400",
+    border:      "border-emerald-800",
+    bg:          "bg-emerald-500/10 hover:bg-emerald-500/20",
+    bgActive:    "bg-emerald-500 text-black",
+    bgBadge:     "bg-emerald-500/5",
+    borderBadge: "border-emerald-800/50",
+  },
+};
+
+const ALL_BREAK_TYPES: BreakType[] = ["BANO", "LUNCH", "PEDIDO", "ENTRENAMIENTO"];
+
 function formatHoras(h: number) {
   const hrs = Math.floor(h);
   const min = Math.round((h - hrs) * 60);
@@ -87,7 +154,7 @@ export default function CheckadorClient({
   const [locStatus,     setLocStatus]   = useState<"idle" | "getting" | "ok" | "error">("idle");
   const [locLabel,      setLocLabel]    = useState<string | null>(null);
   const [loading,       setLoading]     = useState(false);
-  const [breakLoading,  setBreakLoading]= useState<"BANO" | "LUNCH" | null>(null);
+  const [breakLoading,  setBreakLoading]= useState<BreakType | null>(null);
   const [activeBreak,   setActiveBreak] = useState<AttendanceBreak | null>(null);
   const [breaks,        setBreaks]      = useState<AttendanceBreak[]>(
     initialActive?.breaks ?? []
@@ -182,7 +249,6 @@ export default function CheckadorClient({
 
   const handleCheckOut = async () => {
     if (!active) return;
-    // No permitir checkout si hay break activo
     if (activeBreak) {
       showToast("Termina tu pausa antes de hacer Check-Out", false);
       return;
@@ -215,7 +281,7 @@ export default function CheckadorClient({
     }
   };
 
-  const handleBreakStart = async (type: "BANO" | "LUNCH") => {
+  const handleBreakStart = async (type: BreakType) => {
     if (!active || activeBreak) return;
     setBreakLoading(type);
     try {
@@ -226,15 +292,11 @@ export default function CheckadorClient({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      const newBreak: AttendanceBreak = {
-        ...data, endAt: null, duration: null,
-      };
+      const newBreak: AttendanceBreak = { ...data, endAt: null, duration: null };
       setActiveBreak(newBreak);
       setBreaks((prev) => [...prev, newBreak]);
-      showToast(
-        type === "BANO" ? "Pausa de baño iniciada 🚻" : "Hora de lunch iniciada 🍽️",
-        true
-      );
+      const cfg = BREAK_CONFIG[type];
+      showToast(`${cfg.emoji} ${cfg.label} iniciado`, true);
     } catch (e: any) {
       showToast(e.message ?? "Error", false);
     } finally {
@@ -254,13 +316,14 @@ export default function CheckadorClient({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setBreaks((prev) =>
-        prev.map((b) => b.id === activeBreak.id ? { ...b, endAt: data.endAt, duration: data.duration } : b)
+        prev.map((b) => b.id === activeBreak.id
+          ? { ...b, endAt: data.endAt, duration: data.duration }
+          : b
+        )
       );
       setActiveBreak(null);
       setBreakElapsed("00:00");
-      showToast(
-        `Pausa terminada — ${Math.round(data.duration ?? 0)} min`, true
-      );
+      showToast(`Pausa terminada — ${Math.round(data.duration ?? 0)} min`, true);
     } catch (e: any) {
       showToast(e.message ?? "Error", false);
     } finally {
@@ -268,13 +331,16 @@ export default function CheckadorClient({
     }
   };
 
-  // Stats de breaks del día
-  const totalBanoMin  = breaks.filter((b) => b.type === "BANO"  && b.duration).reduce((s, b) => s + (b.duration ?? 0), 0);
-  const totalLunchMin = breaks.filter((b) => b.type === "LUNCH" && b.duration).reduce((s, b) => s + (b.duration ?? 0), 0);
+  // Stats de breaks del día por tipo
+  const breakMinsByType = (type: BreakType) =>
+    breaks.filter((b) => b.type === type && b.duration)
+          .reduce((s, b) => s + (b.duration ?? 0), 0);
 
   const today = new Date().toLocaleDateString("es-MX", {
     weekday: "long", day: "2-digit", month: "long", year: "numeric",
   });
+
+  const activeBreakCfg = activeBreak ? BREAK_CONFIG[activeBreak.type] : null;
 
   return (
     <div className="flex-1 flex flex-col min-h-0 gap-4 overflow-hidden">
@@ -301,8 +367,8 @@ export default function CheckadorClient({
 
         {/* ── PUNCH CARD ── */}
         <div className="col-span-1 bg-[#0a0a0a] border border-white/[0.04] rounded-3xl p-6 flex flex-col items-center gap-4 relative overflow-hidden">
-          {active && <div className="absolute inset-0 bg-emerald-500/3 rounded-3xl pointer-events-none" />}
-          {activeBreak && <div className="absolute inset-0 bg-amber-500/3 rounded-3xl pointer-events-none" />}
+          {active      && !activeBreak && <div className="absolute inset-0 bg-emerald-500/3 rounded-3xl pointer-events-none" />}
+          {activeBreak && <div className={`absolute inset-0 rounded-3xl pointer-events-none ${activeBreakCfg?.bgBadge}`} />}
 
           {/* Avatar */}
           <div className="text-center">
@@ -318,20 +384,20 @@ export default function CheckadorClient({
           <div className="text-center w-full">
             <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-1">
               {activeBreak
-                ? activeBreak.type === "BANO" ? "🚻 Pausa Baño" : "🍽️ Hora Lunch"
+                ? `${activeBreakCfg?.emoji} ${activeBreakCfg?.label}`
                 : active ? "Tiempo trabajado" : "Sin sesión activa"
               }
             </p>
             <p className={`text-3xl font-mono font-black tracking-tighter transition-colors ${
-              activeBreak ? "text-amber-400" :
+              activeBreak ? activeBreakCfg?.color :
               active      ? "text-emerald-400" : "text-zinc-700"
             }`}>
               {active ? elapsed : "00:00:00"}
             </p>
             {activeBreak && (
               <div className="mt-1 flex items-center justify-center gap-1.5">
-                <Timer size={10} className="text-amber-400" />
-                <p className="text-[10px] font-mono text-amber-400">{breakElapsed}</p>
+                <Timer size={10} className={activeBreakCfg?.color} />
+                <p className={`text-[10px] font-mono ${activeBreakCfg?.color}`}>{breakElapsed}</p>
               </div>
             )}
             {active && !activeBreak && (
@@ -359,8 +425,8 @@ export default function CheckadorClient({
           {/* ── BOTONES ── */}
           <div className="w-full space-y-2">
 
-            {/* Check-In / Check-Out */}
             {!active ? (
+              // ── CHECK-IN ──
               <motion.button whileTap={{ scale: 0.97 }}
                 onClick={handleCheckIn} disabled={loading}
                 className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-widest py-3 rounded-xl transition-all disabled:opacity-50"
@@ -370,70 +436,60 @@ export default function CheckadorClient({
               </motion.button>
             ) : (
               <>
-                {/* Baño + Lunch */}
+                {/* ── GRID 2x2 DE PAUSAS ── */}
                 <div className="grid grid-cols-2 gap-2">
-                  {/* Baño */}
-                  {!activeBreak ? (
-                    <motion.button whileTap={{ scale: 0.97 }}
-                      onClick={() => handleBreakStart("BANO")}
-                      disabled={!!breakLoading || loading}
-                      className="flex items-center justify-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-800 font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl transition-all disabled:opacity-40"
-                    >
-                      {breakLoading === "BANO"
-                        ? <Loader2 size={12} className="animate-spin" />
-                        : <Droplets size={12} />
-                      }
-                      Baño
-                    </motion.button>
-                  ) : activeBreak.type === "BANO" ? (
-                    <motion.button whileTap={{ scale: 0.97 }}
-                      onClick={handleBreakEnd}
-                      disabled={!!breakLoading}
-                      className="flex items-center justify-center gap-1.5 bg-sky-500 text-black font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl transition-all disabled:opacity-50 animate-pulse"
-                    >
-                      {breakLoading ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />}
-                      Fin Baño
-                    </motion.button>
-                  ) : (
-                    <button disabled
-                      className="flex items-center justify-center gap-1.5 bg-zinc-900 text-zinc-700 border border-zinc-800 font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl opacity-40"
-                    >
-                      <Droplets size={12} /> Baño
-                    </button>
-                  )}
+                  {ALL_BREAK_TYPES.map((type) => {
+                    const cfg       = BREAK_CONFIG[type];
+                    const isActive  = activeBreak?.type === type;
+                    const isBlocked = !!activeBreak && !isActive;
 
-                  {/* Lunch */}
-                  {!activeBreak ? (
-                    <motion.button whileTap={{ scale: 0.97 }}
-                      onClick={() => handleBreakStart("LUNCH")}
-                      disabled={!!breakLoading || loading}
-                      className="flex items-center justify-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-800 font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl transition-all disabled:opacity-40"
-                    >
-                      {breakLoading === "LUNCH"
-                        ? <Loader2 size={12} className="animate-spin" />
-                        : <Coffee size={12} />
-                      }
-                      Lunch
-                    </motion.button>
-                  ) : activeBreak.type === "LUNCH" ? (
-                    <motion.button whileTap={{ scale: 0.97 }}
-                      onClick={handleBreakEnd}
-                      disabled={!!breakLoading}
-                      className="flex items-center justify-center gap-1.5 bg-amber-500 text-black font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl transition-all disabled:opacity-50 animate-pulse"
-                    >
-                      {breakLoading ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />}
-                      Fin Lunch
-                    </motion.button>
-                  ) : (
-                    <button disabled
-                      className="flex items-center justify-center gap-1.5 bg-zinc-900 text-zinc-700 border border-zinc-800 font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl opacity-40"
-                    >
-                      <Coffee size={12} /> Lunch
-                    </button>
-                  )}
+                    if (isActive) {
+                      // Botón para terminar esta pausa
+                      return (
+                        <motion.button key={type} whileTap={{ scale: 0.97 }}
+                          onClick={handleBreakEnd}
+                          disabled={!!breakLoading}
+                          className={`flex items-center justify-center gap-1.5 ${cfg.bgActive} font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl transition-all disabled:opacity-50 animate-pulse`}
+                        >
+                          {breakLoading === type
+                            ? <Loader2 size={12} className="animate-spin" />
+                            : <Square size={12} />
+                          }
+                          {cfg.labelFin}
+                        </motion.button>
+                      );
+                    }
+
+                    if (isBlocked) {
+                      // Deshabilitado mientras hay otra pausa activa
+                      return (
+                        <button key={type} disabled
+                          className={`flex items-center justify-center gap-1.5 bg-zinc-900 text-zinc-700 border border-zinc-800 font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl opacity-40`}
+                        >
+                          {cfg.icon}
+                          {cfg.label}
+                        </button>
+                      );
+                    }
+
+                    // Botón normal para iniciar pausa
+                    return (
+                      <motion.button key={type} whileTap={{ scale: 0.97 }}
+                        onClick={() => handleBreakStart(type)}
+                        disabled={!!breakLoading || loading}
+                        className={`flex items-center justify-center gap-1.5 ${cfg.bg} ${cfg.color} border ${cfg.border} font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl transition-all disabled:opacity-40`}
+                      >
+                        {breakLoading === type
+                          ? <Loader2 size={12} className="animate-spin" />
+                          : cfg.icon
+                        }
+                        {cfg.label}
+                      </motion.button>
+                    );
+                  })}
                 </div>
 
-                {/* Check-Out */}
+                {/* ── CHECK-OUT ── */}
                 <motion.button whileTap={{ scale: 0.97 }}
                   onClick={handleCheckOut}
                   disabled={loading || !!activeBreak}
@@ -446,27 +502,23 @@ export default function CheckadorClient({
             )}
           </div>
 
-          {/* Mini stats breaks del día */}
-          {active && (totalBanoMin > 0 || totalLunchMin > 0) && (
-            <div className="w-full flex gap-2 pt-2 border-t border-white/[0.04]">
-              {totalBanoMin > 0 && (
-                <div className="flex-1 flex items-center gap-1.5 bg-sky-500/5 border border-sky-800/50 rounded-lg px-2 py-1.5">
-                  <Droplets size={9} className="text-sky-400 shrink-0" />
-                  <div>
-                    <p className="text-[8px] text-sky-400 font-black uppercase tracking-widest">Baño</p>
-                    <p className="text-[9px] font-mono text-sky-300">{Math.round(totalBanoMin)} min</p>
+          {/* ── Mini stats de pausas del día ── */}
+          {active && ALL_BREAK_TYPES.some((t) => breakMinsByType(t) > 0) && (
+            <div className="w-full grid grid-cols-2 gap-2 pt-2 border-t border-white/[0.04]">
+              {ALL_BREAK_TYPES.map((type) => {
+                const mins = breakMinsByType(type);
+                if (mins === 0) return null;
+                const cfg = BREAK_CONFIG[type];
+                return (
+                  <div key={type} className={`flex items-center gap-1.5 ${cfg.bgBadge} border ${cfg.borderBadge} rounded-lg px-2 py-1.5`}>
+                    <span className={cfg.color + " shrink-0"}>{cfg.icon}</span>
+                    <div>
+                      <p className={`text-[8px] ${cfg.color} font-black uppercase tracking-widest`}>{cfg.label}</p>
+                      <p className={`text-[9px] font-mono ${cfg.color}`}>{Math.round(mins)} min</p>
+                    </div>
                   </div>
-                </div>
-              )}
-              {totalLunchMin > 0 && (
-                <div className="flex-1 flex items-center gap-1.5 bg-amber-500/5 border border-amber-800/50 rounded-lg px-2 py-1.5">
-                  <Coffee size={9} className="text-amber-400 shrink-0" />
-                  <div>
-                    <p className="text-[8px] text-amber-400 font-black uppercase tracking-widest">Lunch</p>
-                    <p className="text-[9px] font-mono text-amber-300">{Math.round(totalLunchMin)} min</p>
-                  </div>
-                </div>
-              )}
+                );
+              })}
             </div>
           )}
         </div>
@@ -494,18 +546,18 @@ export default function CheckadorClient({
           {active && (
             <div className={`col-span-3 rounded-2xl p-4 flex items-center gap-4 border ${
               activeBreak
-                ? "bg-amber-500/5 border-amber-500/20"
+                ? `${activeBreakCfg?.bgBadge} ${activeBreakCfg?.borderBadge}`
                 : "bg-emerald-500/5 border-emerald-500/20"
             }`}>
               <div className={`w-2 h-2 rounded-full shrink-0 animate-pulse ${
-                activeBreak ? "bg-amber-500" : "bg-emerald-500"
+                activeBreak ? activeBreakCfg?.color.replace("text-", "bg-") : "bg-emerald-500"
               }`} />
               <div className="flex-1 min-w-0">
                 <p className={`text-xs font-bold uppercase tracking-widest ${
-                  activeBreak ? "text-amber-400" : "text-emerald-400"
+                  activeBreak ? activeBreakCfg?.color : "text-emerald-400"
                 }`}>
                   {activeBreak
-                    ? activeBreak.type === "BANO" ? "🚻 En pausa — Baño" : "🍽️ En pausa — Lunch"
+                    ? `${activeBreakCfg?.emoji} En pausa — ${activeBreakCfg?.label}`
                     : "Sesión Activa"
                   }
                 </p>
@@ -522,7 +574,7 @@ export default function CheckadorClient({
               {activeBreak && (
                 <div className="text-right shrink-0">
                   <p className="text-[9px] text-zinc-600 uppercase tracking-widest">Pausa</p>
-                  <p className="text-sm font-mono font-bold text-amber-400">{breakElapsed}</p>
+                  <p className={`text-sm font-mono font-bold ${activeBreakCfg?.color}`}>{breakElapsed}</p>
                 </div>
               )}
             </div>
@@ -535,23 +587,22 @@ export default function CheckadorClient({
                 <Timer size={11} /> Pausas de Hoy
               </p>
               <div className="flex flex-wrap gap-2">
-                {breaks.map((b) => (
-                  <div key={b.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[9px] font-bold uppercase tracking-widest ${
-                    b.type === "BANO"
-                      ? "bg-sky-500/5 border-sky-800/50 text-sky-400"
-                      : "bg-amber-500/5 border-amber-800/50 text-amber-400"
-                  }`}>
-                    {b.type === "BANO" ? <Droplets size={10} /> : <Coffee size={10} />}
-                    {b.type === "BANO" ? "Baño" : "Lunch"}
-                    <span className="font-mono">
-                      {formatTime(b.startAt)}
-                      {b.endAt ? ` → ${formatTime(b.endAt)}` : " · en curso"}
-                    </span>
-                    {b.duration != null && (
-                      <span className="opacity-60">{Math.round(b.duration)}min</span>
-                    )}
-                  </div>
-                ))}
+                {breaks.map((b) => {
+                  const cfg = BREAK_CONFIG[b.type];
+                  return (
+                    <div key={b.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[9px] font-bold uppercase tracking-widest ${cfg.bgBadge} ${cfg.borderBadge} ${cfg.color}`}>
+                      {cfg.icon}
+                      {cfg.label}
+                      <span className="font-mono">
+                        {formatTime(b.startAt)}
+                        {b.endAt ? ` → ${formatTime(b.endAt)}` : " · en curso"}
+                      </span>
+                      {b.duration != null && (
+                        <span className="opacity-60">{Math.round(b.duration)}min</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -587,9 +638,7 @@ export default function CheckadorClient({
               </thead>
               <tbody className="divide-y divide-white/[0.02]">
                 {attendances.map((a, idx) => {
-                  const completo   = !!a.checkOut;
-                  const banoMins   = (a.breaks ?? []).filter((b) => b.type === "BANO"  && b.duration).reduce((s, b) => s + (b.duration ?? 0), 0);
-                  const lunchMins  = (a.breaks ?? []).filter((b) => b.type === "LUNCH" && b.duration).reduce((s, b) => s + (b.duration ?? 0), 0);
+                  const completo = !!a.checkOut;
                   return (
                     <motion.tr key={a.id}
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -619,32 +668,31 @@ export default function CheckadorClient({
                         }
                       </td>
                       <td className="px-6 py-3">
-                        <div className="flex items-center gap-2">
-                          {banoMins > 0 && (
-                            <span className="flex items-center gap-1 text-[9px] text-sky-400 font-mono">
-                              <Droplets size={9} /> {Math.round(banoMins)}m
-                            </span>
-                          )}
-                          {lunchMins > 0 && (
-                            <span className="flex items-center gap-1 text-[9px] text-amber-400 font-mono">
-                              <Coffee size={9} /> {Math.round(lunchMins)}m
-                            </span>
-                          )}
-                          {banoMins === 0 && lunchMins === 0 && (
-                            <span className="text-zinc-700 text-xs">—</span>
-                          )}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {ALL_BREAK_TYPES.map((type) => {
+                            const mins = (a.breaks ?? [])
+                              .filter((b) => b.type === type && b.duration)
+                              .reduce((s, b) => s + (b.duration ?? 0), 0);
+                            if (mins === 0) return null;
+                            const cfg = BREAK_CONFIG[type];
+                            return (
+                              <span key={type} className={`flex items-center gap-1 text-[9px] ${cfg.color} font-mono`}>
+                                {cfg.icon} {Math.round(mins)}m
+                              </span>
+                            );
+                          })}
+                          {ALL_BREAK_TYPES.every((t) =>
+                            (a.breaks ?? []).filter((b) => b.type === t && b.duration).reduce((s, b) => s + (b.duration ?? 0), 0) === 0
+                          ) && <span className="text-zinc-700 text-xs">—</span>}
                         </div>
                       </td>
                       <td className="px-6 py-3">
-                        {a.location
-                          ? (
-                            <div className="flex items-center gap-1">
-                              <MapPin size={9} className="text-zinc-600 shrink-0" />
-                              <p className="text-[10px] text-zinc-500 truncate max-w-[160px]">{a.location}</p>
-                            </div>
-                          )
-                          : <p className="text-zinc-700 text-xs">—</p>
-                        }
+                        {a.location ? (
+                          <div className="flex items-center gap-1">
+                            <MapPin size={9} className="text-zinc-600 shrink-0" />
+                            <p className="text-[10px] text-zinc-500 truncate max-w-[160px]">{a.location}</p>
+                          </div>
+                        ) : <p className="text-zinc-700 text-xs">—</p>}
                       </td>
                       <td className="px-6 py-3 text-right">
                         {completo ? (
@@ -652,7 +700,7 @@ export default function CheckadorClient({
                             <CheckCircle2 size={10} /> Completo
                           </span>
                         ) : (
-                          <span className="flex items-center justify-end gap-1 text-[9px] font-black text-amber-400 uppercase tracking-widest">
+                          <span className="flex items-center justify-end gap-1 text-[9px] font-black text-amber-400 uppercase tracking-widest animate-pulse">
                             <Clock size={10} /> En curso
                           </span>
                         )}

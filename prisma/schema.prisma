@@ -129,9 +129,12 @@ enum WaMessageRole {
   CLIENT
 }
 
+// ✅ ACTUALIZADO: agregados PEDIDO y ENTRENAMIENTO
 enum BreakType {
   BANO
   LUNCH
+  PEDIDO
+  ENTRENAMIENTO
 }
 
 // ==========================================================
@@ -376,10 +379,6 @@ model Order {
   vehicle        Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 }
 
-// ── CAMBIO: productId String? (opcional) para evitar FK violation ─────────────
-// cuando el carrito manda un id que no existe en Product.
-// Migración requerida:
-//   npx prisma migrate dev --name make_orderitem_productid_optional
 model OrderItem {
   id        String   @id @default(cuid())
   orderId   String
