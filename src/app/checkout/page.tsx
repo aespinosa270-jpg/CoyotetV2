@@ -54,8 +54,9 @@ const FINANCING_PROVIDERS = [
     perks: ['0% de interés disponible', 'Meses sin intereses', 'Hasta 24 MSI'],
     badge: 'MSI',
     badgeColor: 'bg-emerald-500',
+    // 🔥 APLAZO: Usamos el MERCHANT_ID público por seguridad en el frontend
     checkoutUrl: (amount: number, orderId: string) =>
-      `https://checkout.aplazo.mx/checkout?total=${amount}&order_id=${orderId}&api_key=${process.env.NEXT_PUBLIC_APLAZO_API_KEY}`,
+      `https://checkout.aplazo.mx/checkout?total=${amount}&order_id=${orderId}&merchant_id=${process.env.NEXT_PUBLIC_APLAZO_MERCHANT_ID}`,
   },
   {
     id: 'kapital' as FinancingProvider,
@@ -218,16 +219,24 @@ function FinancingSection({
 
   const provider = FINANCING_PROVIDERS.find(p => p.id === selectedProvider);
 
+  // 🔥 APLAZO: Lógica para usar la URL segura del backend
   const handleFinancingRedirect = async () => {
     if (!provider || !orderId) return;
     setIsRedirecting(true);
     try {
-      await fetch('/api/financing/initiate', {
+      const response = await fetch('/api/financing/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId, provider: provider.id, amount: total })
       });
-      window.location.href = provider.checkoutUrl(total, orderId);
+      
+      const data = await response.json();
+      
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        window.location.href = provider.checkoutUrl(total, orderId);
+      }
     } catch (error) {
       console.error('Error al iniciar financiamiento:', error);
       setIsRedirecting(false);

@@ -66,17 +66,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) => {
       // Buscamos por el ID compuesto (producto + variante + color)
       const existing = prev.find((i) => i.id === newItem.id);
+      
       if (existing) {
-        // Si ya existe la misma variante exacto, sumamos la cantidad
+        // 🔥 CORRECCIÓN: Si ya existe, sumamos la cantidad Y FORZAMOS la imagen nueva.
+        // Así curamos cualquier dato roto que haya quedado guardado en el navegador.
         return prev.map((i) =>
           i.id === newItem.id
-            ? { ...i, quantity: i.quantity + newItem.quantity }
+            ? { 
+                ...i, 
+                quantity: i.quantity + newItem.quantity,
+                image: newItem.image // Re-inyectamos la imagen fresca
+              }
             : i
         );
       }
-      // Si no existe, lo agregamos como línea nueva
-      return [...prev, newItem];
+      
+      // Si no existe, lo agregamos como línea nueva asegurando que pase completo
+      return [...prev, { ...newItem }];
     });
+    
     // Abrir el sidebar automáticamente al agregar da buena UX
     setIsCartOpen(true);
   };

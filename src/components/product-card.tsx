@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useSession } from "next-auth/react" // 🔥 REACCIÓN EN TIEMPO REAL
+import { useSession } from "next-auth/react" 
 import { useCart } from "@/lib/context/cart-context"
 import { 
   Check, ArrowRight, Ruler, Weight, Info, Plus, Minus, Star, Truck
@@ -18,41 +18,40 @@ const formatMoney = (amount: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(amount);
 
 export default function ProductCard({ product, className = "" }: ProductProps) {
-    const { data: session } = useSession(); // 🔥 OBTENEMOS EL ADN DEL SOCIO
+    const { data: session } = useSession(); 
     const { addItem } = useCart();
     
-    // 1. IDENTIFICACIÓN DE MEMBRESÍA REAL
     const tier = session?.user?.membershipTier || "NONE";
     const isGold = tier === "GOLD";
     const isBlack = tier === "BLACK";
     const isElite = tier === "ELITE";
     const hasDiscount = isGold || isBlack || isElite;
 
-    // 2. MOTOR DE DESCUENTOS (COHERENTE CON LOS PLANES)
-    // GOLD: 10% | BLACK/ELITE: 15%
     const discountMultiplier = isElite || isBlack ? 0.85 : isGold ? 0.90 : 1;
     const discountPercent = isElite || isBlack ? 15 : isGold ? 10 : 0;
 
-    const [activeImage, setActiveImage] = useState(product.thumbnail);
-    const [selectedColorName, setSelectedColorName] = useState<string | null>(product.colors?.[0]?.name || null);
+    // 🔥 FIX: Aseguramos que siempre haya una cadena, incluso si viene vacío el prop
+    const defaultImage = product?.thumbnail || "/placeholder.jpg";
+    const [activeImage, setActiveImage] = useState(defaultImage);
+    const [selectedColorName, setSelectedColorName] = useState<string | null>(product?.colors?.[0]?.name || null);
+    
     const [hovered, setHovered] = useState(false);
     const [mode, setMode] = useState<'rollo' | 'kilo'>('rollo'); 
     const [quantity, setQuantity] = useState(1);
 
-    // 3. CÁLCULO FINANCIERO DINÁMICO
-    const basePrice = mode === 'rollo' ? product.prices?.mayoreo : product.prices?.menudeo;
-    const finalPrice = basePrice * discountMultiplier; // 🔥 PRECIO YA REBAJADO
+    const basePrice = mode === 'rollo' ? product?.prices?.mayoreo : product?.prices?.menudeo;
+    const finalPrice = basePrice * discountMultiplier; 
 
-    const isMeter = product.unit === 'Metro';
+    const isMeter = product?.unit === 'Metro';
     const unitLabel = isMeter ? 'Metro' : 'Kilo';
     const unitAbbr = isMeter ? 'm' : 'Kg';
-    const unitsPerRoll = product.unidadesPorRollo || 25;
+    const unitsPerRoll = product?.unidadesPorRollo || 25;
 
     const unitWeight = mode === 'rollo' ? unitsPerRoll : 1; 
     const currentWeight = quantity * unitWeight;
     const totalPay = currentWeight * finalPrice;
     
-    const totalMeters = !isMeter ? (currentWeight * (product.rendimiento || 4.3)).toFixed(1) : currentWeight;
+    const totalMeters = !isMeter ? (currentWeight * (product?.rendimiento || 4.3)).toFixed(1) : currentWeight;
 
     const handleColorClick = (e: any, color: any) => {
         e.preventDefault(); 
@@ -70,7 +69,10 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
             productId: product.id,
             title: product.title,
             price: finalPrice, 
-            image: activeImage,
+            
+            // 🔥 FIX: Le pasamos la imagen forzada, nunca null
+            image: activeImage || product.thumbnail || "/placeholder.jpg",
+            
             quantity: currentWeight,
             unit: mode === 'rollo' ? `${unitAbbr} (Rollo)` : unitAbbr, 
             meta: {
@@ -78,7 +80,10 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                 color: selectedColorName || undefined, 
                 packages: quantity,
                 meters: totalMeters,
-                tierApplied: tier // Guardamos qué tier le dio el precio
+                tierApplied: tier,
+                
+                // 🔥 FIX EXTRA: Mandamos la imagen en el meta también por si acaso
+                image: activeImage || product.thumbnail || "/placeholder.jpg",
             }
         });
     };
@@ -89,14 +94,13 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
             onMouseLeave={() => setHovered(false)}
             className={`min-w-[320px] w-full bg-[#050505] border border-white/10 hover:border-[#FDCB02]/50 transition-all duration-300 relative flex flex-col group overflow-hidden rounded-xl shadow-2xl ${className}`}
         >
-            <Link href={`/products/${product.id}`} className="block relative aspect-[4/3] w-full overflow-hidden border-b border-white/5 cursor-pointer">
+            <Link href={`/products/${product.id}`} className="block relative aspect-[4/3] w-full overflow-hidden border-b border-white/5 cursor-pointer bg-neutral-900">
                 <Image 
-                    src={activeImage} alt={product.title} fill 
+                    src={activeImage} alt={product?.title || 'Producto'} fill sizes="(max-width: 768px) 100vw, 33vw"
                     className={`object-cover transition-transform duration-700 ${hovered ? 'scale-110' : 'scale-100'}`}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-90"/>
                 
-                {/* 🔥 BADGE DE MEMBRESÍA DINÁMICO */}
                 {hasDiscount && (
                     <div className={`absolute top-3 right-3 text-[9px] font-[1000] px-2 py-1 rounded uppercase shadow-lg z-10 flex items-center gap-1 animate-in zoom-in duration-500
                         ${isBlack ? 'bg-white text-black' : isElite ? 'bg-[#FDCB02] text-black ring-2 ring-[#FDCB02] ring-offset-2 ring-offset-black' : 'bg-[#FDCB02] text-black'}
@@ -105,7 +109,6 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                     </div>
                 )}
 
-                {/* 🔥 PRIVILEGIO ELITE: ENVÍO GRATIS */}
                 {isElite && (
                     <div className="absolute top-3 left-3 bg-green-500 text-white text-[8px] font-black px-2 py-1 rounded uppercase flex items-center gap-1 shadow-lg">
                         <Truck size={10} /> Envío Local Gratis
@@ -113,12 +116,12 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                 )}
 
                 <div className="absolute bottom-0 left-0 w-full p-5">
-                    <h3 className="text-2xl font-[1000] uppercase text-white leading-none tracking-tight mb-1">{product.title}</h3>
+                    <h3 className="text-2xl font-[1000] uppercase text-white leading-none tracking-tight mb-1">{product?.title}</h3>
                     <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-[#FDCB02] tracking-widest uppercase">{product.composicion || "100% Poliéster"}</span>
+                        <span className="text-[10px] font-black text-[#FDCB02] tracking-widest uppercase">{product?.composicion || "100% Poliéster"}</span>
                         <div className="flex flex-col items-end leading-none">
                             <span className="text-[9px] text-neutral-400 font-bold uppercase">GSM</span>
-                            <span className="text-lg font-black text-white">{product.gramaje || "145"}</span>
+                            <span className="text-lg font-black text-white">{product?.gramaje || "145"}</span>
                         </div>
                     </div>
                 </div>
@@ -148,13 +151,12 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                         </p>
                         <div className="flex items-baseline gap-2">
                             <p className={`text-4xl font-[1000] tracking-tighter ${hasDiscount ? 'text-[#FDCB02]' : 'text-white'}`}>
-                                ${finalPrice.toFixed(0)}<span className={`text-sm font-bold align-top ${hasDiscount ? 'text-yellow-600' : 'text-neutral-500'}`}>.00</span>
+                                ${finalPrice?.toFixed(0)}<span className={`text-sm font-bold align-top ${hasDiscount ? 'text-yellow-600' : 'text-neutral-500'}`}>.00</span>
                             </p>
                             
-                            {/* 🔥 PRECIO ORIGINAL TACHADO */}
                             {hasDiscount && (
                                 <span className="text-xs text-neutral-600 line-through font-bold">
-                                    ${basePrice.toFixed(0)}
+                                    ${basePrice?.toFixed(0)}
                                 </span>
                             )}
                         </div>
@@ -179,7 +181,7 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                         <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Colorido</span>
                         <span className="text-[9px] font-bold text-[#FDCB02] uppercase tracking-widest">{selectedColorName || "Seleccionar"}</span>
                     </div>
-                    {product.colors && (
+                    {product?.colors && (
                         <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                             {product.colors.slice(0, 6).map((c: any, i: number) => (
                                 <button 

@@ -84,19 +84,28 @@ export default function ProductDetailPage() {
   const handleAddToCart = () => {
     const cartVariantId = `${product.id}-${buyingMode}-${selectedColor ? selectedColor.name : 'default'}`;
 
+    // 🔥 BLINDAMOS LA RUTA DE LA IMAGEN SÍ O SÍ
+    const finalImageToSave = selectedColor?.image || product?.thumbnail || "/placeholder.jpg";
+
     addItem({
       id: cartVariantId,      
       productId: product.id,  
       title: `${product.title} ${selectedColor ? `- ${selectedColor.name}` : ''}`, 
-      price: basePriceToUse, // 🔥 Usamos el precio directo
-      image: selectedColor?.image || product.thumbnail, 
+      price: basePriceToUse, 
+      
+      // 🔥 APLICAMOS LA IMAGEN BLINDADA
+      image: finalImageToSave, 
+      
       quantity: totalWeight,
       unit: buyingMode === 'rollo' ? `${unitAbbr} (Rollo)` : unitAbbr,
       meta: {
         mode: buyingMode,
         packages: quantity,
         color: selectedColor?.name,
-        meters: totalMeters 
+        meters: totalMeters,
+        
+        // 🔥 MANDAMOS LA IMAGEN COMO RESPALDO AL META
+        image: finalImageToSave 
       }
     });
   };
