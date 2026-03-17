@@ -677,15 +677,16 @@ export default function CheckoutPage() {
     const isFreeShipping = role === 'ELITE';
     const envio = isFreeShipping ? 0 : originalEnvio;
     const fee = FIXED_SERVICE_FEE; 
+    
     const baseTotal = subtotal + flete + envio + fee;
-    const iva = wantsInvoice ? baseTotal * 0.16 : 0;
+    const iva = baseTotal * 0.16; // 🔥 LEY: 16% de IVA se aplica siempre y en todo momento.
 
     return {
         freightCost: flete, shippingCost: envio, originalShippingCost: originalEnvio, 
         isFreeShipping, vehiclesNeeded: requiredVehicles, serviceFee: fee, 
         taxIVA: iva, total: baseTotal + iva, totalWeight: weight, totalRolls: rollCount
     };
-  }, [items, subtotal, wantsInvoice, selectedLogistics, coyoteDistanceKm, skydropxRate, role]); 
+  }, [items, subtotal, selectedLogistics, coyoteDistanceKm, skydropxRate, role]); 
 
   // ─── PUNTOS [3b/4]: descuento y total final ───────────────────────────────
   const descuentoPuntosMXN     = Math.floor(puntosUsados * 0.50);
@@ -708,7 +709,7 @@ export default function CheckoutPage() {
                 city_to: customerData.city,
                 neighborhood_to: customerData.neighborhood, 
                 weight: totalWeight,
-                cartItems: items // 🔥 EL CAMBIO MAESTRO: Pasamos todo el carrito
+                cartItems: items // 🔥 Pasamos todo el carrito para el cubicaje exacto
             })
         });
         const data = await res.json();
@@ -966,7 +967,8 @@ export default function CheckoutPage() {
                     <div className="bg-neutral-50 p-6 rounded-2xl border border-neutral-200 mb-8 flex items-center justify-between">
                       <div>
                         <h4 className="font-bold text-black text-sm">¿Requieres Comprobante Fiscal (CFDI)?</h4>
-                        <p className="text-xs text-neutral-500 mt-1">El IVA (16%) se agregará automáticamente.</p>
+                        {/* 🔥 TEXTO CORREGIDO LEY SAT */}
+                        <p className="text-xs text-neutral-500 mt-1">Todos nuestros precios ya incluyen el 16% de IVA.</p>
                       </div>
                       <button onClick={() => setWantsInvoice(!wantsInvoice)} className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 focus:outline-none shadow-inner ${wantsInvoice ? 'bg-[#FDCB02]' : 'bg-neutral-300'}`}>
                           <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 flex items-center justify-center ${wantsInvoice ? 'translate-x-6' : 'translate-x-0'}`}>
@@ -1107,6 +1109,11 @@ export default function CheckoutPage() {
                         <span className="text-neutral-400 flex items-center gap-2"><Info size={14} className="text-neutral-500"/> Tarifa Servicio</span>
                         <span className="font-bold text-white">${serviceFee.toLocaleString()}</span>
                     </div>
+                    {/* 🔥 NUEVO: Desglose de IVA transparente (16% siempre aplicado) */}
+                    <div className="flex justify-between text-sm">
+                        <span className="text-neutral-400 flex items-center gap-2"><Landmark size={14} className="text-neutral-500"/> I.V.A. (16%)</span>
+                        <span className="font-bold text-white">${taxIVA.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    </div>
 
                     {/* ─── PUNTOS [4/4]: panel + descuento + total reactivo ─── */}
                     {session && (
@@ -1149,7 +1156,7 @@ export default function CheckoutPage() {
                             exit={{   y:  6, opacity: 0 }}
                             className="font-[1000] text-4xl text-[#FDCB02] block"
                           >
-                            ${totalConPuntos.toLocaleString()}
+                            ${totalConPuntos.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                           </motion.span>
                         </AnimatePresence>
                       </div>
