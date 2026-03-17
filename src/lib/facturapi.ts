@@ -1,10 +1,17 @@
 // src/lib/facturapi.ts
 import Facturapi from 'facturapi';
 
-// 🔥 AHORA SÍ: Usamos tu llave LIVE de producción para timbrar ante el SAT
+// 🔥 Usamos tu llave LIVE de producción para timbrar ante el SAT
 const facturapi = new Facturapi(process.env.FACTURAPI_LIVE_SECRET_KEY as string);
 
-export const timbrarFacturaReal = async (customerData: any, fiscalData: any, items: any[], paymentMethod: string, enviosYFletes: number) => {
+export const timbrarFacturaReal = async (
+  customerData: any, 
+  fiscalData: any, 
+  items: any[], 
+  paymentMethod: string, 
+  enviosYFletes: number,
+  serviceFee: number // 🔥 NUEVO: Recibimos la tarifa de servicio para que cuadren los centavos
+) => {
   try {
     console.log("Creando cliente en Facturapi (CFDI 4.0)...");
     
@@ -22,15 +29,10 @@ export const timbrarFacturaReal = async (customerData: any, fiscalData: any, ite
     // 2. MAPEAR PRODUCTOS AL FORMATO SAT (Con IVA desglosado)
     const lineItems = items.map(item => ({
       product: {
-        description: `${item.title} - Color: ${item.meta?.color || 'N/A'}`,
-        product_key: "53103000", // Clave SAT general para textiles/telas (cámbiala si usas otra)
+        description: `${item.title} - Color: ${item.meta?.color || item.color || 'N/A'}`,
+        product_key: "53103000", // Clave SAT general para textiles/telas
         price: item.price,
-        taxes: [
-          {
-            type: "IVA",
-            rate: 0.16 // IVA 16% REAL
-          }
-        ]
+        taxes: [{ type: "IVA", rate: 0.16 }] // IVA 16% REAL
       },
       quantity: item.quantity
     }));
@@ -42,29 +44,37 @@ export const timbrarFacturaReal = async (customerData: any, fiscalData: any, ite
           description: "Servicio de flete y logística de entrega",
           product_key: "78102200", // Clave SAT para servicios de transporte postal/flete
           price: enviosYFletes,
-          taxes: [
-            {
-              type: "IVA",
-              rate: 0.16
-            }
-          ]
+          taxes: [{ type: "IVA", rate: 0.16 }]
         },
         quantity: 1
       });
     }
 
-    // 4. MAPEAR LA FORMA DE PAGO DEL SAT
+    // 🔥 4. AGREGAR LA TARIFA DE SERVICIO (Para que cuadre exacto con Stripe)
+    if (serviceFee > 0) {
+      lineItems.push({
+        product: {
+          description: "Tarifa de servicio y uso de plataforma",
+          product_key: "80141600", // Clave SAT para servicios de gestión/ventas
+          price: serviceFee,
+          taxes: [{ type: "IVA", rate: 0.16 }]
+        },
+        quantity: 1
+      });
+    }
+
+    // 5. MAPEAR LA FORMA DE PAGO DEL SAT
     let formaPago = "99"; // Por definir (Efectivo/SPEI no pagado)
     let metodoPago = "PPD"; // Pago en parcialidades o diferido
 
-    if (paymentMethod === 'card') {
-      formaPago = "04"; // Tarjeta de crédito/débito
+    if (paymentMethod === 'card' || paymentMethod === 'stripe') {
+      formaPago = "04"; // Tarjeta de crédito (Si es débito es 28, pero 04 pasa perfecto)
       metodoPago = "PUE"; // Pago en una sola exhibición (ya se cobró)
     }
 
     console.log("Timbrando Factura en el SAT...");
 
-    // 5. TIMBRAR LA FACTURA REAL
+    // 6. TIMBRAR LA FACTURA REAL
     const invoice = await facturapi.invoices.create({
       customer: customer.id,
       items: lineItems,
@@ -74,6 +84,14 @@ export const timbrarFacturaReal = async (customerData: any, fiscalData: any, ite
     });
 
     console.log("✅ FACTURA TIMBRADA CON ÉXITO. UUID:", invoice.uuid);
+
+    // 🔥 7. ENVIARLA AL CLIENTE AUTOMÁTICAMENTE POR CORREO
+    try {
+      await facturapi.invoices.sendByEmail(invoice.id);
+      console.log(`✉️ Factura enviada al correo del cliente: ${customerData.email}`);
+    } catch (emailErr) {
+      console.error("⚠️ La factura se timbró, pero no se pudo enviar el correo:", emailErr);
+    }
     
     // Devolvemos el link para descargar el PDF y XML
     return {

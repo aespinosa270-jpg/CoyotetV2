@@ -10,7 +10,7 @@ import {
   ArrowRight, ArrowUpRight, Clock, Activity, Zap, Gem, Trophy,
   Calendar, Percent, Truck, Gift, QrCode, CreditCard
 } from "lucide-react"
-
+import OrderHistoryList from "./OrderHistoryList"
 // Formateadores
 const formatMoney = (amount: number) => 
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount)
@@ -30,8 +30,9 @@ export default async function PerfilPage() {
     where: { email: session.user.email },
     include: {
       orders: { 
-        select: { total: true, status: true, createdAt: true },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
+        // 🔥 ACTUALIZADO: Traemos todo lo necesario para el OrderHistoryList
+        include: { items: true } 
       }
     }
   })
@@ -197,7 +198,7 @@ export default async function PerfilPage() {
 
             {/* BOTÓN DE UPGRADE SI NO ES ELITE */}
             {tier !== 'ELITE' && (
-              <Link href="/membresias" className="flex items-center justify-between p-6 bg-[#FDCB02] text-black rounded-3xl font-[1000] uppercase text-xs tracking-widest hover:bg-white transition-all shadow-[0_0_30px_rgba(253,203,2,0.2)] group">
+              <Link href="/membresia" className="flex items-center justify-between p-6 bg-[#FDCB02] text-black rounded-3xl font-[1000] uppercase text-xs tracking-widest hover:bg-white transition-all shadow-[0_0_30px_rgba(253,203,2,0.2)] group">
                 <span>Subir de Nivel</span>
                 <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
               </Link>
@@ -287,13 +288,16 @@ export default async function PerfilPage() {
                       Seguridad
                     </button>
                     <button className="flex-1 md:flex-none px-10 py-5 bg-white/5 hover:bg-white hover:text-black text-white rounded-2xl text-[10px] font-[1000] uppercase tracking-widest transition-all border border-white/5">
-                      Facturación
+                      Soporte Técnico
                     </button>
                   </div>
                </div>
             </div>
-          </div>
+            
+            {/* 🔥 AQUÍ INYECTAMOS EL COMPONENTE CLIENTE DE ÓRDENES */}
+            <OrderHistoryList orders={orders} />
 
+          </div>
         </div>
       </main>
     </div>

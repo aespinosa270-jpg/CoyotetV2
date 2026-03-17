@@ -1,4 +1,5 @@
-﻿import { getToken } from "next-auth/jwt";
+﻿// src/middleware.ts
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -17,6 +18,22 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isLoginPage  = pathname === "/crm/login";
 
+  // =======================================================================
+  // 🐺 1. PROTECCIÓN DE LA TIENDA PÚBLICA (E-Commerce)
+  // =======================================================================
+  const isStorefrontProtectedRoute = 
+    pathname.startsWith("/checkout") || 
+    pathname.startsWith("/perfil") || 
+    pathname.startsWith("/pedidos");
+
+  if (isStorefrontProtectedRoute && !token) {
+    // Si intentan comprar o ver su perfil sin sesión, a la página de cuenta
+    return NextResponse.redirect(new URL("/cuenta", req.url));
+  }
+
+  // =======================================================================
+  // 🏢 2. PROTECCIÓN DEL CRM INTERNO
+  // =======================================================================
   if (pathname.startsWith("/crm") && !isLoginPage && !token) {
     return NextResponse.redirect(new URL("/crm/login", req.url));
   }
@@ -40,6 +57,12 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
+// 🔥 ACTUALIZADO: Le decimos al cadenero en qué pasillos tiene que patrullar
 export const config = {
-  matcher: ["/crm/:path*"],
+  matcher: [
+    "/crm/:path*", 
+    "/checkout/:path*", 
+    "/perfil/:path*", 
+    "/pedidos/:path*"
+  ],
 };

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import Stripe from "stripe"
 import { prisma } from "@/lib/prisma"
 import { sendAdminOrderNotification } from "@/lib/mailer" // 🔥 Tu misil de ZeptoMail
+import { timbrarFacturaReal } from "@/lib/facturapi"      // 🧾 Tu misil del SAT (CFDI 4.0)
 
 // 🐺 Inicializamos Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
       const orderId = paymentIntent.metadata.order_id
 
       if (orderId) {
-        // 🔥 Actualizamos a "PAID" e incluimos los "items" exactos de tu Prisma
+        // 🔥 Actualizamos a "PAID" e incluimos los "items" y al "user" de tu Prisma
         const updatedOrder = await prisma.order.update({
           where: { id: orderId },
           data: {
@@ -43,12 +44,92 @@ export async function POST(req: Request) {
             paymentId: paymentIntent.id, // Guardamos el ID de pago de Stripe por si hay devoluciones
           },
           include: {
-            items: true, // <- Exactamente como se llama en tu schema.prisma
+            items: true, 
+            user: true, // <- VITAL para saber su nivel de membresía y darle sus puntos
           }
         })
         
         console.log(`✅ Pago exitoso. Orden ${updatedOrder.orderNumber} marcada como PAGADA.`)
+
+        // =====================================================================
+        // 💰 INYECCIÓN: SISTEMA DE PUNTOS COYOTE
+        // =====================================================================
+        try {
+          // Extraemos los puntos que usó (viene de la metadata que mandaste al crear el checkout)
+          const puntosUsados = parseInt(paymentIntent.metadata.puntos_usados || '0');
+          
+          // Calculamos los que ganó según su nivel B2B
+          const tier = updatedOrder.user.membershipTier || 'NONE';
+          let multiplicador = 0.5; // Silver
+          if (tier === 'GOLD') multiplicador = 1.0;
+          if (tier === 'BLACK') multiplicador = 2.0;
+          if (tier === 'ELITE') multiplicador = 4.0;
+          
+          // Gana puntos basados en el subtotal
+          const puntosGanados = Math.floor((updatedOrder.subtotal / 100) * multiplicador);
+          const balanceNeto = puntosGanados - puntosUsados;
+
+          if (balanceNeto !== 0) {
+            await prisma.user.update({
+              where: { id: updatedOrder.userId },
+              data: { points: { increment: balanceNeto } }
+            });
+            console.log(`🐺 Puntos actualizados para el socio: ${balanceNeto > 0 ? '+' : ''}${balanceNeto}`);
+          }
+        } catch (pointsErr) {
+          console.error("⚠️ Error actualizando puntos (no detiene la orden):", pointsErr);
+        }
+
+        // =====================================================================
+        // 🧾 INYECCIÓN FACTURAPI (SAT CFDI 4.0)
+        // =====================================================================
+        const reqInvoice = paymentIntent.metadata.req_invoice === 'YES';
+
+        if (reqInvoice) {
+          try {
+            console.log("⏳ Iniciando timbrado automático ante el SAT...");
+            
+            // Extraemos los datos guardados en la metadata del checkout
+            const fiscalData = JSON.parse(paymentIntent.metadata.fiscal_data || '{}');
+            const enviosYFletes = parseFloat(paymentIntent.metadata.shipping_cost || '0') + parseFloat(paymentIntent.metadata.freight_cost || '0');
+            const serviceFee = parseFloat(paymentIntent.metadata.service_fee || '175');
+            const customerData = { email: updatedOrder.customerEmail, name: updatedOrder.customerName };
+
+            // Disparamos el misil a Facturapi
+            const cfdi = await timbrarFacturaReal(
+              customerData,
+              fiscalData,
+              updatedOrder.items,
+              'stripe', // Método de pago
+              enviosYFletes,
+              serviceFee
+            );
+
+            if (cfdi.success) {
+              // 🔥 Guardamos el LINK DIRECTO en la base de datos para que el cliente lo descargue en su perfil
+              await prisma.order.update({
+                where: { id: orderId },
+                data: { invoiceStatus: cfdi.pdf }
+              });
+            } else {
+              throw new Error(cfdi.error); // Si falló la API, brincamos al catch
+            }
+
+          } catch (facturaError: any) {
+            console.error("⚠️ Falló el timbrado automático:", facturaError.message || facturaError);
+            // Lo marcamos como ERROR para que el botón del perfil se ponga rojo
+            await prisma.order.update({
+              where: { id: orderId },
+              data: { invoiceStatus: "ERROR" }
+            });
+          }
+        }
+        // =====================================================================
+
         
+        // =====================================================================
+        // ✉️ INYECCIÓN ZEPTOMAIL (Reporte al Patrón)
+        // =====================================================================
         try {
           // 🚀 ARMAMOS LA INTELIGENCIA PARA EL CORREO CON TUS CAMPOS REALES
           const orderInfo = {
@@ -69,13 +150,14 @@ export async function POST(req: Request) {
             }))
           };
 
-          // ✉️ DISPARAMOS ZEPTOMAIL
+          // Disparamos ZeptoMail
           await sendAdminOrderNotification(orderInfo);
           console.log("📨 Notificación de ZeptoMail enviada al Patrón.");
 
         } catch (mailError) {
           console.error("⚠️ El pago se guardó, pero falló el envío del correo:", mailError);
         }
+        // =====================================================================
 
       } else {
         console.warn("⚠️ Pago exitoso pero sin order_id en la metadata:", paymentIntent.id)
