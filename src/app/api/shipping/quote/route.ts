@@ -22,9 +22,52 @@ async function getSkydropxToken() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { zip_to, state_to, city_to, neighborhood_to, weight } = body;
+    // Agregamos cartItems para armar los paquetes dinámicamente
+    const { zip_to, state_to, city_to, neighborhood_to, cartItems } = body;
+
+    if (!cartItems || cartItems.length === 0) {
+      return NextResponse.json({ error: 'El carrito está vacío' }, { status: 400 });
+    }
 
     const accessToken = await getSkydropxToken();
+
+    // 🐺 LÓGICA DE EMPAQUETADO DEL COYOTE
+    const parcels: any[] = [];
+    let looseWeight = 0; // Kilos sueltos
+
+    cartItems.forEach((item: any) => {
+      if (item.meta?.mode === "rollo") {
+        // Por cada rollo generamos un "parcel" físico de 25kg cilíndrico
+        // Tomamos el número de rollos (que está en item.meta.packages, o lo calculamos dividiendo el peso total / 25)
+        const numberOfRolls = item.meta?.packages || Math.ceil(item.quantity / 25);
+        for (let i = 0; i < numberOfRolls; i++) {
+          parcels.push({
+            weight: 25, 
+            length: 160, 
+            width: 25,   
+            height: 25
+          });
+        }
+      } else {
+        // Los kilos o metros sueltos los sumamos
+        looseWeight += item.quantity;
+      }
+    });
+
+    // Si hay kilos sueltos, armamos cajas consolidadas (máximo 30kg por caja para que las paqueterías no lloren)
+    if (looseWeight > 0) {
+      const cajasNecesarias = Math.ceil(looseWeight / 30);
+      const pesoPorCaja = looseWeight / cajasNecesarias;
+
+      for (let i = 0; i < cajasNecesarias; i++) {
+        parcels.push({
+          weight: Math.max(1, pesoPorCaja),
+          length: 50, 
+          width: 50,
+          height: 50
+        });
+      }
+    }
 
     const payload = {
       quotation: {
@@ -42,14 +85,7 @@ export async function POST(request: Request) {
           area_level2: city_to || "Monterrey",
           area_level3: neighborhood_to || "Centro"
         },
-        parcels: [
-          {
-            weight: Math.max(1, Number(weight)),
-            length: 40,
-            width: 40,
-            height: 40
-          }
-        ]
+        parcels: parcels // 🔥 AQUÍ PASAMOS LA LISTA REAL DE PAQUETES
       }
     };
 
@@ -65,25 +101,23 @@ export async function POST(request: Request) {
 
     if (!res.ok) {
       const err = await res.json();
+      console.error("Error al crear cotización Skydropx:", err)
       return NextResponse.json({ error: 'SkydropX rechazó la dirección.' }, { status: 400 });
     }
 
     let data = await res.json();
-    const quotationId = data.id; // Guardamos el ID de la cotización
+    const quotationId = data.id; 
     
     console.log(`⏳ Cotización creada (ID: ${quotationId}). Esperando a las paqueterías...`);
 
     // 2. EL CICLO DE ESPERA (POLLING)
-    // Le preguntamos a SkydropX cada segundo si ya terminó de calcular
     let isCompleted = data.is_completed;
     let attempts = 0;
-    const MAX_ATTEMPTS = 12; // Esperamos máximo 12 segundos
+    const MAX_ATTEMPTS = 12; 
 
     while (!isCompleted && attempts < MAX_ATTEMPTS) {
-      // Esperamos 1 segundo
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Volvemos a consultar la misma cotización
       const pollRes = await fetch(`https://pro.skydropx.com/api/v1/quotations/${quotationId}`, {
         method: 'GET',
         headers: {
@@ -100,7 +134,6 @@ export async function POST(request: Request) {
       attempts++;
     }
 
-    // Si pasaron 12 segundos y no terminó...
     if (!isCompleted) {
       console.log('⚠️ Timeout: SkydropX tardó demasiado.');
       return NextResponse.json({ error: 'El servidor de paqueterías está tardando. Intenta de nuevo.' }, { status: 408 });
@@ -127,7 +160,8 @@ export async function POST(request: Request) {
       bestQuote: {
         amount: precioFinal,
         carrier: ganador.provider_display_name || ganador.provider_name,
-        days: ganador.days || 3
+        days: ganador.days || 3,
+        rateId: ganador.id // MUY IMPORTANTE: Retornar el ID para luego comprar la guía si lo deseas
       }
     });
 

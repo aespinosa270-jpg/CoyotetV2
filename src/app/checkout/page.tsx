@@ -587,7 +587,7 @@ export default function CheckoutPage() {
   const [isQuoting, setIsQuoting] = useState(false);
   const [skydropxRate, setSkydropxRate] = useState<number>(0);
   const [skydropxCarrier, setSkydropxCarrier] = useState<string>('Paquetería');
-  const [skydropxDays, setSkydropxDays] = useState<number>(3);
+  const [skydropxDays, setSkydropxDays] = useState<number>(3); // ESTADO PARA LOS DÍAS ESTIMADOS
 
   const [wantsInvoice, setWantsInvoice] = useState(false);
 
@@ -703,16 +703,22 @@ export default function CheckoutPage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-                zip_to: customerData.zip, state_to: customerData.state, city_to: customerData.city,
-                neighborhood_to: customerData.neighborhood, weight: totalWeight 
+                zip_to: customerData.zip, 
+                state_to: customerData.state, 
+                city_to: customerData.city,
+                neighborhood_to: customerData.neighborhood, 
+                weight: totalWeight,
+                cartItems: items // 🔥 EL CAMBIO MAESTRO: Pasamos todo el carrito
             })
         });
         const data = await res.json();
+        
         if (data.success && data.bestQuote && data.bestQuote.amount > 0) {
             setSkydropxRate(data.bestQuote.amount);
             setSkydropxCarrier(data.bestQuote.carrier);
             setSkydropxDays(data.bestQuote.days);
         }
+
         const logistics = getLogisticsInfo(customerData.zip);
         if (logistics.type === 'COYOTE_LOCAL') {
             setCoyoteDistanceKm(logistics.distance);
@@ -892,6 +898,9 @@ export default function CheckoutPage() {
                             <Map size={20} className={selectedLogistics === 'skydropx' ? 'text-white' : 'text-neutral-400'}/>
                           </div>
                           <h4 className={`font-[1000] uppercase text-lg mb-1 ${selectedLogistics === 'skydropx' ? 'text-blue-900' : 'text-black'}`}>{skydropxCarrier}</h4>
+                          <div className={`text-xs space-y-2 font-medium ${selectedLogistics === 'skydropx' ? 'text-blue-700' : 'text-neutral-500'}`}>
+                            <p className="flex items-center gap-2"><CheckCircle2 size={14} className={selectedLogistics === 'skydropx' ? 'text-blue-500' : 'text-neutral-300'}/> Entrega est. {skydropxDays} días hábiles</p>
+                          </div>
                         </button>
                       </div>
                     )}
@@ -1162,8 +1171,8 @@ export default function CheckoutPage() {
                           <p className="text-[9px] text-neutral-600 uppercase tracking-widest font-black mb-3">Créditos Disponibles</p>
                           <div className="grid grid-cols-2 gap-2">
                             {FINANCING_PROVIDERS.map(p => (
-                              <div key={p.id} className="bg-white/5 rounded-xl px-3 py-2 text-center border border-white/5">
-                                <div className="text-[#FDCB02] font-[1000] text-base leading-none">{p.name}</div>
+                              <div key={p?.id} className="bg-white/5 rounded-xl px-3 py-2 text-center border border-white/5">
+                                <div className="text-[#FDCB02] font-[1000] text-base leading-none">{p?.name}</div>
                                 <div className="text-white text-[10px] font-bold mt-1">Habilitado</div>
                               </div>
                             ))}
