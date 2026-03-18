@@ -1,13 +1,14 @@
 // src/app/hilos/page.tsx
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowRight, PackageSearch, Scissors, Box, Zap } from "lucide-react"
-import { products } from "@/lib/products" // 🔥 Tu catálogo en vivo
+import { ArrowRight, PackageSearch, Scissors, Box } from "lucide-react"
+// 🔥 IMPORTACIÓN CORRECTA: Traemos los datos y el Tipo para que TS esté feliz
+import { products, Product } from "@/lib/products" 
 
 export default function HilosPage() {
-  // 🐺 Filtramos tu archivo products.ts buscando la categoría "Hilos"
-  const hilos = products.filter(p => 
-    p.category?.toLowerCase().includes('hilo')
+  // 🐺 Filtramos usando el tipo Product
+  const hilos: Product[] = products.filter((p: Product) => 
+    p.category === "Hilos"
   );
 
   return (
@@ -38,13 +39,17 @@ export default function HilosPage() {
             <PackageSearch size={64} className="text-neutral-600 mb-6" />
             <h3 className="text-2xl font-[1000] uppercase tracking-tight mb-2">Catálogo en preparación</h3>
             <p className="text-neutral-500 max-w-md">
-              Aún no hemos agregado los hilos a tu archivo products.ts. Estarán disponibles muy pronto.
+              Aún no hemos agregado los hilos a tu archivo products.ts.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {hilos.map((hilo) => (
-              <Link href={`/producto/${hilo.id}`} key={hilo.id} className="group flex flex-col bg-[#050505] rounded-2xl border border-white/10 overflow-hidden hover:border-[#FDCB02]/50 transition-all duration-500 hover:shadow-[0_0_40px_rgba(253,203,2,0.15)]">
+            {hilos.map((hilo: Product) => (
+              <Link 
+                href={`/producto/${hilo.id}`} 
+                key={hilo.id} 
+                className="group flex flex-col bg-[#050505] rounded-2xl border border-white/10 overflow-hidden hover:border-[#FDCB02]/50 transition-all duration-500 hover:shadow-[0_0_40px_rgba(253,203,2,0.15)]"
+              >
                 
                 {/* IMAGEN DEL HILO CON BADGE DE CAJA */}
                 <div className="relative w-full aspect-square bg-neutral-900 overflow-hidden border-b border-white/5">
@@ -55,11 +60,11 @@ export default function HilosPage() {
                     className="object-cover transition-transform duration-700 group-hover:scale-110 opacity-90 group-hover:opacity-100"
                   />
                   
-                  {/* Badge de Caja Industrial */}
+                  {/* Badge de Caja Industrial (120 pzs definido en product.ts) */}
                   <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-md border border-[#FDCB02]/30 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-2xl">
                     <Box size={12} className="text-[#FDCB02]" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-white">
-                      Caja 120 PZS
+                      Caja {hilo.unidadesPorRollo || 120} PZS
                     </span>
                   </div>
 
@@ -81,7 +86,7 @@ export default function HilosPage() {
                   
                   <div className="flex items-center gap-2 mb-6">
                     <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
-                      Calibre {hilo.gramaje || "40/2"}
+                      Calibre {hilo.gramaje}
                     </span>
                     <div className="w-1 h-1 rounded-full bg-white/10" />
                     <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
@@ -96,7 +101,7 @@ export default function HilosPage() {
                       </span>
                       <div className="flex items-baseline gap-1">
                         <span className="text-3xl font-[1000] text-white">
-                          ${hilo.prices?.mayoreo?.toFixed(0)}
+                          ${hilo.prices.menudeo.toFixed(0)}
                         </span>
                         <span className="text-sm font-bold text-neutral-500">.00</span>
                         <span className="text-[10px] font-bold text-neutral-600 ml-2 uppercase">MXN</span>
