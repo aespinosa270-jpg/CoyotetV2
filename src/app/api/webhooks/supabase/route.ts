@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sendBienvenidaEmail } from '../../../../lib/zeptomail';
+
 export async function POST(req: Request) {
   try {
     // 1. Seguridad: Evitar que alguien externo dispare correos falsos
