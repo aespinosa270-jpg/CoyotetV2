@@ -139,7 +139,7 @@ export const products: Product[] = [
     prices: { menudeo: 155.00, mayoreo: 150.00 },
     hasRollo: true,
     origin: "Importado",
-    category: "Deportivas / Sublimación",
+    category: "Deportivas / Sublimación"
   },
   {
     id: "prod_brush",
@@ -569,7 +569,6 @@ export const products: Product[] = [
     category: "Deportivas / Sublimación"
   },
   {
-    
       id: "prod_micro_panal",
       title: "Micro Panal",
       unit: "Kilo",
@@ -826,7 +825,6 @@ export const products: Product[] = [
     category: "Deportivas / Sublimación"
   },
   {
-    
       id: "prod_pique_vera",
       title: "Piqué Vera",
       unit: "Kilo",
@@ -1051,6 +1049,27 @@ export const products: Product[] = [
     prices: { menudeo: 125.00, mayoreo: 120.00 },
     hasRollo: true,
     origin: "Importado",
-    category: "Deportivas / Sublimación",
+    category: "Deportivas / Sublimación"
+  },
+  {
+    id: "hilo-poliester-40-2",
+    title: "Hilo de Poliéster Industrial 40/2",
+    category: "Hilos",
+    unit: "Cono",
+    thumbnail: "/assets/telas/hilo-coyote.jpg",
+    description: "Hilo de alta tenacidad especial para costura en telas de punto y plano. Resistente a la fricción de máquinas industriales.",
+    composicion: "100% Poliéster", // 🔥 Agregado para cumplir con la Interfaz
+    gramaje: "40/2",               // 🔥 Agregado para cumplir con la Interfaz
+    ancho: "N/A",                  // 🔥 Agregado para cumplir con la Interfaz
+    rendimiento: 0,                // 🔥 Agregado para cumplir con la Interfaz
+    prices: {                      // 🔥 Arreglado de "price: 85" a objeto "prices"
+      menudeo: 90.00,
+      mayoreo: 85.00
+    },
+    hasRollo: false,               // 🔥 Agregado para cumplir con la Interfaz
+    colors: [
+      { name: "Negro", hex: "#000000" },
+      { name: "Blanco", hex: "#FFFFFF" }
+    ]
   }
 ];
