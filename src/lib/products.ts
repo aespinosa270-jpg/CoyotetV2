@@ -1052,24 +1052,46 @@ export const products: Product[] = [
     category: "Deportivas / Sublimación"
   },
   {
-    id: "hilo-poliester-40-2",
-    title: "Hilo de Poliéster Industrial 40/2",
-    category: "Hilos",
+    id: "hilo-kingtex-40-2",
+    title: "Hilo Kingtex 40/2 (5,000m)",
+    category: "Hilos", 
     unit: "Cono",
-    thumbnail: "/assets/telas/hilo-coyote.jpg",
-    description: "Hilo de alta tenacidad especial para costura en telas de punto y plano. Resistente a la fricción de máquinas industriales.",
-    composicion: "100% Poliéster", // 🔥 Agregado para cumplir con la Interfaz
-    gramaje: "40/2",               // 🔥 Agregado para cumplir con la Interfaz
-    ancho: "N/A",                  // 🔥 Agregado para cumplir con la Interfaz
-    rendimiento: 0,                // 🔥 Agregado para cumplir con la Interfaz
-    prices: {                      // 🔥 Arreglado de "price: 85" a objeto "prices"
-      menudeo: 90.00,
-      mayoreo: 85.00
+    thumbnail: "/assets/products/hilos.jpg",
+    description: "Hilo Kingtex 100% poliéster fibra corta (Calibre 40/2). Uso rudo para costura de refuerzo y adorno en telas medianas. Compatible con recta industrial y familiar.",
+    composicion: "100% Poliéster Fibra Corta", 
+    gramaje: "40/2",               
+    ancho: "N/A",                  
+    rendimiento: 5000, // 5,000 metros reales de Kingtex              
+    prices: {                      
+      menudeo: 45.00,
+      mayoreo: 35.00
     },
-    hasRollo: false,               // 🔥 Agregado para cumplir con la Interfaz
+    hasRollo: false,               
     colors: [
+      { name: "Blanco", hex: "#FFFFFF" },
       { name: "Negro", hex: "#000000" },
-      { name: "Blanco", hex: "#FFFFFF" }
+      { name: "Gris Oxford / Charcoal", hex: "#494949" },
+      { name: "Gris Iberia", hex: "#D3D3D3" },
+      { name: "Azul Rey", hex: "#1434A4" },
+      { name: "Azul Marino", hex: "#000080" },
+      { name: "Azul Mezclilla", hex: "#4A658F" },
+      { name: "Celeste", hex: "#87CEEB" },
+      { name: "Rojo", hex: "#C40233" },
+      { name: "Guinda / Vino", hex: "#5C1527" },
+      { name: "Frambuesa / Rosa Oscuro", hex: "#C21E56" },
+      { name: "Rosa Pastel", hex: "#FFD1DC" },
+      { name: "Fiusha", hex: "#FF00CB" },
+      { name: "Amarillo Fuerte", hex: "#FFD700" },
+      { name: "Mostaza", hex: "#FFC300" },
+      { name: "Naranja", hex: "#FF6F00" },
+      { name: "Verde Bandera", hex: "#006847" },
+      { name: "Verde Limón", hex: "#32CD32" },
+      { name: "Morado", hex: "#800080" },
+      { name: "Lila", hex: "#C8A2C8" },
+      { name: "Café / Marrón", hex: "#4B3621" },
+      { name: "Beige", hex: "#F5F5DC" },
+      { name: "Kaki", hex: "#C3B091" },
+      { name: "Hueso", hex: "#F5F5CE" }
     ]
   }
 ];
