@@ -5,7 +5,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
-import { MembershipTier } from "@prisma/client"
+import { MembershipTier, Prisma } from "@prisma/client" // 🔥 Importamos Prisma Types
 import { getColocacionesGratis } from "@/lib/membership-benefits"
 import Stripe from "stripe"
 
@@ -136,45 +136,39 @@ export async function POST(request: Request) {
       .join(", ")
       .trim()
 
-    const newOrder = await prisma.order.create({
-      data: {
-        user: {
-          connectOrCreate: {
-            where:  { email: customer.email },
-            create: {
-              email:        customer.email,
-              name:         fullName,
-              password:     `guest_${Date.now()}`,
-              phone:        customer.phone || null,
-              street:       customer.street || null,
-              neighborhood: customer.neighborhood || null,
-              zipCode:      customer.zip || null,
-              city:         customer.city || null,
-              state:        customer.state || null,
-            },
-          },
-        },
-        total:         totalCobrado,
-        subtotal:      subtotalMercancia,
-        serviceFee:    realServiceFee,
-        status:        "PENDING",
-        paymentMethod: "stripe_custom",
-        customerName:  fullName,
-        customerEmail: customer.email,
-        address:       fullAddress,
-        items: {
-          create: resolvedItems.map((item: any) => ({
-            ...(item.resolvedProductId ? { product: { connect: { id: item.resolvedProductId } } } : {}),
-            title:    item.title || "Producto sin nombre",
-            price:    Number(item.price || 0),
-            quantity: Number(item.quantity || 1),
-            unit:     item.unit        || null,
-            color:    item.meta?.color || null,
-            sku:      item.sku         || null,
-          })),
-        },
+    // 🔥 SOLUCIÓN TYPESCRIPT: Creamos un objeto de datos tipado estrictamente
+    const orderData: any = {
+    total:         totalCobrado,
+      subtotal:      subtotalMercancia,
+      serviceFee:    realServiceFee,
+      status:        "PENDING",
+      paymentMethod: "stripe_custom",
+      customerName:  fullName,
+      customerEmail: customer.email,
+      address:       fullAddress,
+      items: {
+        create: resolvedItems.map((item: any) => ({
+          ...(item.resolvedProductId ? { product: { connect: { id: item.resolvedProductId } } } : {}),
+          title:    item.title || "Producto sin nombre",
+          price:    Number(item.price || 0),
+          quantity: Number(item.quantity || 1),
+          unit:     item.unit        || null,
+          color:    item.meta?.color || null,
+          sku:      item.sku         || null,
+        })),
       },
-    })
+    };
+
+    // Si hay un usuario logueado, lo conectamos a la orden. Si no, lo dejamos pasar como invitado.
+    if (dbUser) {
+      orderData.user = {
+        connect: { id: dbUser.id }
+      };
+    }
+
+    const newOrder = await prisma.order.create({
+      data: orderData
+    });
 
     if (dbUser) {
       const deltaPuntos = (Math.floor(puntosGanados * 10) / 10) - puntosConfirmados

@@ -22,12 +22,12 @@ export async function middleware(req: NextRequest) {
   // 🐺 1. PROTECCIÓN DE LA TIENDA PÚBLICA (E-Commerce)
   // =======================================================================
   const isStorefrontProtectedRoute = 
-    pathname.startsWith("/checkout") || 
+    // pathname.startsWith("/checkout") || // 🔥 ELIMINADO para permitir Guest Checkout
     pathname.startsWith("/perfil") || 
     pathname.startsWith("/pedidos");
 
   if (isStorefrontProtectedRoute && !token) {
-    // Si intentan comprar o ver su perfil sin sesión, a la página de cuenta
+    // Si intentan ver su perfil o pedidos sin sesión, a la página de cuenta
     return NextResponse.redirect(new URL("/cuenta", req.url));
   }
 
@@ -61,7 +61,7 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     "/crm/:path*", 
-    "/checkout/:path*", 
+    // "/checkout/:path*", // 🔥 ELIMINADO de la zona de patrullaje
     "/perfil/:path*", 
     "/pedidos/:path*"
   ],

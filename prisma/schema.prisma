@@ -344,8 +344,8 @@ model Commission {
 model Order {
   id             String         @id @default(cuid())
   orderNumber    String         @unique @default(cuid())
-  userId         String
-  user           User           @relation(fields: [userId], references: [id])
+  userId         String?        // 🔥 AHORA ES OPCIONAL (GUEST CHECKOUT)
+  user           User?          @relation(fields: [userId], references: [id]) // 🔥 AHORA ES OPCIONAL
   subtotal       Float          @default(0)
   freightCost    Float          @default(0)
   shippingCost   Float          @default(0)
@@ -397,10 +397,10 @@ model OrderItem {
 // 6. ERP & OPERACION INTERNA
 // ==========================================================
 model Attendance {
-  id              String             @id @default(cuid())
+  id              String            @id @default(cuid())
   employeeId      String
-  employee        Employee           @relation(fields: [employeeId], references: [id])
-  checkIn         DateTime           @default(now())
+  employee        Employee          @relation(fields: [employeeId], references: [id])
+  checkIn         DateTime          @default(now())
   checkOut        DateTime?
   horasTrabajadas Float?
   ipAddress       String?
@@ -409,8 +409,8 @@ model Attendance {
   lng             Float?
   checkOutLat     Float?
   checkOutLng     Float?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   breaks          AttendanceBreak[]
 }

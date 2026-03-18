@@ -109,32 +109,36 @@ export async function POST(req: Request) {
           },
           include: {
             items: true, 
-            user: true, // <- VITAL para saber su nivel de membresía y darle sus puntos
+            user: true, 
           }
         })
         
         console.log(`✅ Pago exitoso. Orden ${updatedOrder.orderNumber} marcada como PAGADA.`)
 
         // =====================================================================
-        // 💰 INYECCIÓN: SISTEMA DE PUNTOS COYOTE
+        // 💰 INYECCIÓN: SISTEMA DE PUNTOS COYOTE (SOLO USUARIOS REGISTRADOS)
         // =====================================================================
         try {
-          const puntosUsados = parseInt(paymentIntent.metadata.puntos_usados || '0');
-          const tier = updatedOrder.user.membershipTier || 'NONE';
-          let multiplicador = 0.5; // Silver
-          if (tier === 'GOLD') multiplicador = 1.0;
-          if (tier === 'BLACK') multiplicador = 2.0;
-          if (tier === 'ELITE') multiplicador = 4.0;
-          
-          const puntosGanados = Math.floor((updatedOrder.subtotal / 100) * multiplicador);
-          const balanceNeto = puntosGanados - puntosUsados;
+          if (updatedOrder.userId) { // <-- VALIDACIÓN: Solo entra si es usuario registrado
+            const puntosUsados = parseInt(paymentIntent.metadata.puntos_usados || '0');
+            const tier = updatedOrder.user?.membershipTier || 'NONE'; // <-- El ? por si acaso
+            let multiplicador = 0.5; // Silver
+            if (tier === 'GOLD') multiplicador = 1.0;
+            if (tier === 'BLACK') multiplicador = 2.0;
+            if (tier === 'ELITE') multiplicador = 4.0;
+            
+            const puntosGanados = Math.floor((updatedOrder.subtotal / 100) * multiplicador);
+            const balanceNeto = puntosGanados - puntosUsados;
 
-          if (balanceNeto !== 0) {
-            await prisma.user.update({
-              where: { id: updatedOrder.userId },
-              data: { points: { increment: balanceNeto } }
-            });
-            console.log(`🐺 Puntos actualizados para el socio: ${balanceNeto > 0 ? '+' : ''}${balanceNeto}`);
+            if (balanceNeto !== 0) {
+              await prisma.user.update({
+                where: { id: updatedOrder.userId },
+                data: { points: { increment: balanceNeto } }
+              });
+              console.log(`🐺 Puntos actualizados para el socio: ${balanceNeto > 0 ? '+' : ''}${balanceNeto}`);
+            }
+          } else {
+            console.log("👤 Compra de invitado. Se omite el cálculo de puntos.");
           }
         } catch (pointsErr) {
           console.error("⚠️ Error actualizando puntos (no detiene la orden):", pointsErr);
@@ -165,7 +169,6 @@ export async function POST(req: Request) {
             );
 
             if (cfdi.success) {
-              // 🔥 AQUI ESTA LA CORRECCIÓN: Le ponemos || null para calmar a TypeScript
               linkFacturaParaCorreo = cfdi.pdf || null; 
               await prisma.order.update({
                 where: { id: orderId },
