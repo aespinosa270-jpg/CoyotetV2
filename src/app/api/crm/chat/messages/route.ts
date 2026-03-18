@@ -14,10 +14,10 @@ export async function GET(req: Request) {
 
     if (!convoId) return NextResponse.json({ error: "Falta convoId" }, { status: 400 });
 
-    // Traemos todos los mensajes de esa conversación, del más viejo al más nuevo
+    // 🔥 CORREGIDO: Usamos 'sentAt' que es el nombre exacto en tu schema.prisma
     const messages = await prisma.waMessage.findMany({
       where: { conversationId: convoId },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { sentAt: 'asc' } 
     });
 
     // Marcamos todos los mensajes del CLIENTE como leídos
