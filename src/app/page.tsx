@@ -1,8 +1,6 @@
 // ================================================
 // ARCHIVO COMPLETO ACTUALIZADO - COYOTE MARKETPLACE
 // ================================================
-// Copia y pega TODO esto en tu página (reemplaza el archivo entero)
-// "use client" ya está incluido
 
 "use client"
 import { useEffect } from "react";
@@ -29,7 +27,7 @@ function IntroLoader() {
   const pathname = usePathname();
   useEffect(() => {
     const isHome = pathname === "/";
-   
+    
     if (!isHome) {
       setIsVisible(false);
       document.body.style.overflow = "auto";
@@ -135,9 +133,9 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
         </div>
       )}
 
-      <Link href={`/products/${product.id}`} className="block relative aspect-[4/3] w-full overflow-hidden border-b border-white/5 cursor-pointer">
+      <Link href={`/producto/${product.id}`} className="block relative aspect-[4/3] w-full overflow-hidden border-b border-white/5 cursor-pointer">
         <Image
-          src={activeImage}
+          src={activeImage || "/placeholder.jpg"}
           alt={product.title}
           fill
           className={`object-cover transition-transform duration-700 ${hovered ? 'scale-110' : 'scale-100'}`}
@@ -182,11 +180,11 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
             </p>
             {hasDiscount && (
               <p className="text-[11px] text-neutral-500 line-through font-bold mb-0.5 leading-none">
-                ${basePrice.toFixed(2)}
+                ${basePrice?.toFixed(2)}
               </p>
             )}
             <p className={`text-4xl font-[1000] tracking-tighter ${hasDiscount ? 'text-[#FDCB02] drop-shadow-[0_0_10px_rgba(253,203,2,0.3)]' : 'text-white'}`}>
-              ${currentPrice.toFixed(0)}<span className={`text-sm font-bold align-top ${hasDiscount ? 'text-yellow-600' : 'text-neutral-500'}`}>.00</span>
+              ${currentPrice?.toFixed(0) || "0"}<span className={`text-sm font-bold align-top ${hasDiscount ? 'text-yellow-600' : 'text-neutral-500'}`}>.00</span>
             </p>
           </div>
           <div className="text-right flex flex-col items-end gap-1">
@@ -226,7 +224,7 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
                     {selectedColorName === c.name && (
                       <Check
                         size={12}
-                        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name === 'Blanco' || c.name === 'Beige' ? 'text-black' : 'text-white'}`}
+                        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name === 'Blanco' || c.name === 'Beige' || c.name === 'Hueso' ? 'text-black' : 'text-white'}`}
                       />
                     )}
                   </button>
@@ -291,7 +289,7 @@ const ProductCard = ({ product, className = "" }: { product: any, className?: st
                                 {selectedColorName === c.name && (
                                   <Check
                                     size={18}
-                                    className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name.includes('Blanco') || c.name.includes('Beige') ? 'text-black' : 'text-white'}`}
+                                    className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name.includes('Blanco') || c.name.includes('Beige') || c.name.includes('Hueso') ? 'text-black' : 'text-white'}`}
                                   />
                                 )}
                               </div>
@@ -389,7 +387,11 @@ export default function CoyoteMarketplace() {
     return () => lenis.destroy();
   }, []);
 
-  const byCategory = (cat: string) => products.filter((p: any) => p.category === cat);
+  // 🔥 EL CADENERO: Aquí filtramos para que en la página de inicio salgan solo las Telas (Ignoramos los Hilos)
+  const telasPrincipales = products.filter(p => p.category !== "Hilos");
+
+  // Alimenta a las subcategorías con los productos generales
+  const byCategory = (cat: string) => telasPrincipales.filter((p: any) => p.category === cat);
 
   const categories: { id: string; title: string; items: any[]; icon: any; isNational?: boolean }[] = [
     { id: "telas-para-sublimar",    title: "Telas para Sublimar",   items: byCategory("Deportivas / Sublimación"), icon: Zap },
@@ -471,10 +473,12 @@ export default function CoyoteMarketplace() {
           <section className="pt-8 border-t border-white/10">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 pb-4 gap-4 uppercase">
               <h3 className="text-3xl md:text-4xl font-[900] text-white italic tracking-tighter">Catálogo Global</h3>
-              <span className="text-xs font-mono text-neutral-500 font-bold border border-white/10 px-3 py-1 rounded bg-[#0a0a0a] w-fit">{products.length} Referencias</span>
+              {/* 🔥 Aquí también aplicamos el conteo filtrado */}
+              <span className="text-xs font-mono text-neutral-500 font-bold border border-white/10 px-3 py-1 rounded bg-[#0a0a0a] w-fit">{telasPrincipales.length} Referencias</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-              {products.map((p) => <ProductCard key={p.id} product={p} className="!w-full !min-w-0" />)}
+              {/* 🔥 Y mapeamos las telas ya filtradas */}
+              {telasPrincipales.map((p) => <ProductCard key={p.id} product={p} className="!w-full !min-w-0" />)}
             </div>
           </section>
         </div>
