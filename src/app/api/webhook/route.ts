@@ -168,11 +168,13 @@ export async function POST(req: Request) {
               serviceFee
             );
 
+            // 🔥 LA MAGIA OCURRE AQUÍ: Extracción segura para TypeScript
             if (cfdi.success) {
-              linkFacturaParaCorreo = cfdi.pdf || null; 
+              const pdfSeguro = cfdi.pdf || null; 
+              linkFacturaParaCorreo = pdfSeguro; 
               await prisma.order.update({
                 where: { id: orderId },
-                data: { invoiceStatus: cfdi.pdf }
+                data: { invoiceStatus: pdfSeguro } 
               });
             } else {
               throw new Error(cfdi.error); 
