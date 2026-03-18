@@ -9,10 +9,10 @@ const ADMIN_EMAILS = [
 ];
 
 export async function middleware(req: NextRequest) {
+  // 🔥 CORRECCIÓN: Simplificamos la lectura del token para evitar el loop de redirección
   const token = await getToken({
     req,
     secret: process.env.NEXTAUTH_SECRET,
-    secureCookie: process.env.NODE_ENV === "production",
   });
 
   const { pathname } = req.nextUrl;
