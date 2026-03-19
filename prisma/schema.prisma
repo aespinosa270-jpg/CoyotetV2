@@ -129,7 +129,6 @@ enum WaMessageRole {
   CLIENT
 }
 
-// ✅ ACTUALIZADO: agregados PEDIDO y ENTRENAMIENTO
 enum BreakType {
   BANO
   LUNCH
@@ -179,6 +178,19 @@ model User {
   tickets                      Ticket[]
   deals                        Deal[]
   waConversations              WaConversation[]
+  passwordResetToken           PasswordResetToken?
+}
+
+// ==========================================================
+// 1b. RECUPERACIÓN DE CONTRASEÑA
+// ==========================================================
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
 }
 
 // ==========================================================
@@ -344,8 +356,8 @@ model Commission {
 model Order {
   id             String         @id @default(cuid())
   orderNumber    String         @unique @default(cuid())
-  userId         String?        // 🔥 AHORA ES OPCIONAL (GUEST CHECKOUT)
-  user           User?          @relation(fields: [userId], references: [id]) // 🔥 AHORA ES OPCIONAL
+  userId         String?
+  user           User?          @relation(fields: [userId], references: [id])
   subtotal       Float          @default(0)
   freightCost    Float          @default(0)
   shippingCost   Float          @default(0)

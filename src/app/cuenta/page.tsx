@@ -37,9 +37,10 @@ function AccountContent() {
 
   useEffect(() => {
     if (session && authMode !== 'upsell') {
-      router.push("/perfil"); 
+      const callbackUrl = searchParams.get('callbackUrl');
+      router.push(callbackUrl || "/perfil");
     }
-  }, [session, router, authMode]);
+  }, [session, router, authMode, searchParams]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (rightPanelRef.current) {
@@ -64,17 +65,18 @@ function AccountContent() {
 
     try {
       if (authMode === 'login') {
+        const callbackUrl = searchParams.get('callbackUrl') || '/perfil';
         const result = await signIn("credentials", {
           redirect: false,
           email: formData.email,
           password: formData.password,
+          callbackUrl,
         });
 
         if (result?.error) throw new Error("Credenciales incorrectas.");
-        router.push('/perfil');
+        router.push(callbackUrl);
       } 
       else if (authMode === 'register') {
-        // 🔥 LÓGICA CORREGIDA (Sin method duplicado)
         const res = await fetch('/api/register', {  
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -86,29 +88,40 @@ function AccountContent() {
         });
 
         const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Error al crear la cuenta");
 
-        if (!res.ok) {
-          throw new Error(data.message || "Error al crear la cuenta");
-        }
-
+        const callbackUrl = searchParams.get('callbackUrl');
         const loginResult = await signIn("credentials", {
           redirect: false,
           email: formData.email,
           password: formData.password,
         });
 
-        if (loginResult?.error) {
-           throw new Error("Cuenta creada, pero hubo un error al auto-loguear.");
+        if (loginResult?.error) throw new Error("Cuenta creada, pero hubo un error al auto-loguear.");
+
+        // Si viene de membresía, redirigir directo al callbackUrl
+        if (callbackUrl) {
+          router.push(callbackUrl);
+          return;
         }
 
-        // Saltamos al Upsell Agresivo
         setSuccessMsg("¡Bienvenido a la manada!");
         setAuthMode('upsell'); 
       }
       else if (authMode === 'forgot') {
-        await new Promise(r => setTimeout(r, 1800));
-        setSuccessMsg("Enlace de recuperación enviado.");
-        setTimeout(() => setAuthMode('login'), 3500);
+        // ── FLUJO REAL: llama al API que genera token y envía correo via ZeptoMail
+        const res  = await fetch('/api/auth/forgot-password', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ email: formData.email }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error || "Error al procesar la solicitud.");
+
+        // Siempre mostrar el mismo mensaje (no revelar si el email existe)
+        setSuccessMsg("Si ese correo está registrado, recibirás el enlace en breve.");
+        // No redirigir automáticamente — el usuario puede cerrar o volver
       }
       else if (authMode === 'verify') {
         await new Promise(r => setTimeout(r, 1800));
@@ -243,7 +256,7 @@ function AccountContent() {
                   <motion.div variants={formItemVars}>
                     <div className="flex justify-between items-center mb-2">
                       <label className="block text-[11px] font-black uppercase tracking-widest text-neutral-500">Contraseña</label>
-                      <button type="button" onClick={() => setAuthMode('forgot')} className="text-[10px] text-[#FDCB02] font-black uppercase tracking-widest hover:text-white transition-colors">¿Olvidaste tu acceso?</button>
+                      <button type="button" onClick={() => { setAuthMode('forgot'); setError(null); setSuccessMsg(null); }} className="text-[10px] text-[#FDCB02] font-black uppercase tracking-widest hover:text-white transition-colors">¿Olvidaste tu acceso?</button>
                     </div>
                     <input type="password" name="password" value={formData.password} onChange={handleInputChange} required className="w-full h-12 bg-transparent border-b-2 border-white/20 focus:border-[#FDCB02] outline-none font-bold text-lg text-white transition-colors rounded-none placeholder:text-neutral-800 px-0" placeholder="••••••••" />
                   </motion.div>
@@ -261,7 +274,7 @@ function AccountContent() {
                 </form>
 
                 <motion.div variants={formItemVars} className="mt-14 pt-8 border-t border-white/10 text-center">
-                  <button onClick={() => setAuthMode('register')} className="text-[11px] text-neutral-500 hover:text-white font-black uppercase tracking-widest transition-colors">
+                  <button onClick={() => { setAuthMode('register'); setError(null); setSuccessMsg(null); }} className="text-[11px] text-neutral-500 hover:text-white font-black uppercase tracking-widest transition-colors">
                     ¿Quieres precios de fábrica? <span className="text-[#FDCB02] ml-1">Regístrate aquí</span>
                   </button>
                 </motion.div>
@@ -309,14 +322,14 @@ function AccountContent() {
                   </motion.div>
                 </form>
                 <motion.div variants={formItemVars} className="mt-14 pt-8 border-t border-white/10 text-center">
-                  <button onClick={() => setAuthMode('login')} className="text-[11px] font-black text-neutral-500 hover:text-white uppercase tracking-widest transition-colors">
+                  <button onClick={() => { setAuthMode('login'); setError(null); setSuccessMsg(null); }} className="text-[11px] font-black text-neutral-500 hover:text-white uppercase tracking-widest transition-colors">
                       ← Ya soy socio, iniciar sesión
                   </button>
                 </motion.div>
               </motion.div>
             )}
 
-            {/* 3. RECUPERAR CONTRASEÑA */}
+            {/* 3. RECUPERAR CONTRASEÑA — ahora conectado al API real */}
             {authMode === 'forgot' && (
               <motion.div key="forgot" variants={containerVars} initial="hidden" animate="show" exit="exit" className="w-full">
                  <motion.div variants={formItemVars} className="mb-12">
@@ -325,16 +338,26 @@ function AccountContent() {
                     </h1>
                     <motion.div variants={lineVars} className="h-[4px] bg-[#FDCB02] mt-4 mb-6" />
                     <p className="text-neutral-400 font-bold text-[11px] uppercase tracking-widest leading-relaxed">
-                      Enviaremos instrucciones de recuperación a tu correo.
+                      Enviaremos un enlace de recuperación a tu correo. Expira en 60 minutos.
                     </p>
                  </motion.div>
                  
-                 {successMsg && <motion.div variants={formItemVars} className="mb-8 p-4 bg-green-950/30 border border-green-500/50 text-green-500 text-[10px] font-black uppercase tracking-widest">{successMsg}</motion.div>}
+                 {error && (
+                   <motion.div variants={formItemVars} className="mb-8 p-4 bg-red-950/30 border border-red-500/50 text-red-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-3">
+                     <AlertCircle size={16} strokeWidth={2}/> {error}
+                   </motion.div>
+                 )}
+
+                 {successMsg && (
+                   <motion.div variants={formItemVars} className="mb-8 p-4 bg-green-950/30 border border-green-500/50 text-green-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-3">
+                     <Check size={16} strokeWidth={2}/> {successMsg}
+                   </motion.div>
+                 )}
                  
                  {!successMsg && (
                    <form onSubmit={handleSubmit} className="space-y-10">
                      <motion.div variants={formItemVars}>
-                       <label className="block text-[11px] font-black uppercase tracking-widest text-neutral-500 mb-2">e-mail</label>
+                       <label className="block text-[11px] font-black uppercase tracking-widest text-neutral-500 mb-2">E-mail</label>
                        <input type="email" name="email" value={formData.email} onChange={handleInputChange} required className="w-full h-12 bg-transparent border-b-2 border-white/20 focus:border-[#FDCB02] outline-none font-bold text-lg text-white transition-colors rounded-none px-0 placeholder:text-neutral-800" placeholder="ceo@empresa.com"/>
                      </motion.div>
                      <motion.div variants={formItemVars} className="pt-2">
@@ -344,15 +367,16 @@ function AccountContent() {
                      </motion.div>
                    </form>
                  )}
+
                  <motion.div variants={formItemVars} className="mt-14 pt-8 border-t border-white/10 text-center">
-                  <button onClick={() => setAuthMode('login')} className="text-[11px] font-black text-neutral-500 hover:text-white uppercase tracking-widest transition-colors">
+                  <button onClick={() => { setAuthMode('login'); setError(null); setSuccessMsg(null); }} className="text-[11px] font-black text-neutral-500 hover:text-white uppercase tracking-widest transition-colors">
                       ← CANCELAR
                   </button>
                  </motion.div>
               </motion.div>
             )}
 
-            {/* 4. UPSELL ESTRATÉGICO / CUENTA CREADA */}
+            {/* 4. UPSELL ESTRATÉGICO */}
             {authMode === 'upsell' && (
               <motion.div key="upsell" variants={containerVars} initial="hidden" animate="show" exit="exit" className="w-full">
                  <motion.div variants={formItemVars} className="mb-8">
