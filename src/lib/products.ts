@@ -1048,48 +1048,5 @@ export const products: Product[] = [
     origin: "Importado",
     category: "Deportivas / Sublimación"
   },
-  {
-    id: "hilo-kingtex-40-2",
-    title: "Hilo Kingtex 40/2 (5,000m)",
-    category: "Hilos", 
-    unit: "Pieza", // 🔥 Actualizado a Pieza
-    thumbnail: "/assets/products/hilos.jpg",
-    description: "Hilo Kingtex 100% poliéster fibra corta (Calibre 40/2). Calidad premium para costura industrial de alto rendimiento.",
-    composicion: "100% Poliéster Fibra Corta", 
-    gramaje: "40/2",               
-    ancho: "N/A",                  
-    rendimiento: 5000, 
-    unidadesPorRollo: 120, // 🔥 Caja trae 120 piezas
-    prices: {                      
-      menudeo: 29.00, // 🔥 Precio por pieza
-      mayoreo: 25.00  // 🔥 Precio especial por pieza comprando caja
-    },
-    hasRollo: true, // 🔥 Habilitamos para que el cliente pueda elegir "Caja"
-    colors: [
-      { name: "Blanco", hex: "#FFFFFF" },
-      { name: "Negro", hex: "#000000" },
-      { name: "Gris Oxford / Charcoal", hex: "#494949" },
-      { name: "Gris Iberia", hex: "#D3D3D3" },
-      { name: "Azul Rey", hex: "#1434A4" },
-      { name: "Azul Marino", hex: "#000080" },
-      { name: "Azul Mezclilla", hex: "#4A658F" },
-      { name: "Celeste", hex: "#87CEEB" },
-      { name: "Rojo", hex: "#C40233" },
-      { name: "Guinda / Vino", hex: "#5C1527" },
-      { name: "Frambuesa / Rosa Oscuro", hex: "#C21E56" },
-      { name: "Rosa Pastel", hex: "#FFD1DC" },
-      { name: "Fiusha", hex: "#FF00CB" },
-      { name: "Amarillo Fuerte", hex: "#FFD700" },
-      { name: "Mostaza", hex: "#FFC300" },
-      { name: "Naranja", hex: "#FF6F00" },
-      { name: "Verde Bandera", hex: "#006847" },
-      { name: "Verde Limón", hex: "#32CD32" },
-      { name: "Morado", hex: "#800080" },
-      { name: "Lila", hex: "#C8A2C8" },
-      { name: "Café / Marrón", hex: "#4B3621" },
-      { name: "Beige", hex: "#F5F5DC" },
-      { name: "Kaki", hex: "#C3B091" },
-      { name: "Hueso", hex: "#F5F5CE" }
-    ]
-  }
+
 ];

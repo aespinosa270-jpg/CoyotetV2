@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
@@ -10,14 +11,9 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
 const fmx = (n: number) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 0 }).format(n);
 
-// ─────────────────────────────────────────────────────────────────────
-// PLANES — features derivados de membership-benefits.ts (fuente de verdad)
-// planId eliminado: los Price IDs viven en .env, los lee el route
-// ─────────────────────────────────────────────────────────────────────
 const PLANS = [
   {
     id: 0, key: "BASE", tier: "Estándar", name: "Acceso Inicial", price: 0,
-    // Beneficios activos del tier base (NONE)
     features: getBeneficiosActivos("NONE").map(b => b.label),
     metal: {
       solid:   "#b4b4b4",
@@ -93,15 +89,38 @@ const PLANS = [
 type Plan = typeof PLANS[number];
 
 // ─────────────────────────────────────────────────────────────────────
+// HELPER: guardar plan pendiente y redirigir a registro/login
+// Se llama cuando el backend devuelve 401 (no autenticado).
+// Guarda { planKey, billingCycle } en sessionStorage para que el
+// useEffect de autoActivate lo recupere tras el login y retome el checkout.
+// ─────────────────────────────────────────────────────────────────────
+function redirectToAuth(
+  planKey:      string,
+  billingCycle: string,
+  router:       ReturnType<typeof useRouter>
+) {
+  sessionStorage.setItem(
+    "pendingMembershipPlan",
+    JSON.stringify({ planKey, billingCycle })
+  );
+  const callbackUrl = encodeURIComponent("/membresia?autoActivate=1");
+  router.push(`/cuenta?callbackUrl=${callbackUrl}`);
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // SHOWROOM CANVAS
+// isActiveRef evita que dos loops de RAF coexistan durante transiciones
+// de AnimatePresence, previniendo el flash visible en dispositivos lentos.
 // ─────────────────────────────────────────────────────────────────────
 function ShowroomBG({ glowRgb }: { glowRgb: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rafRef    = useRef<number>(0);
-  const glowRef   = useRef(glowRgb);
-  glowRef.current = glowRgb;
+  const canvasRef   = useRef<HTMLCanvasElement>(null);
+  const rafRef      = useRef<number>(0);
+  const glowRef     = useRef(glowRgb);
+  const isActiveRef = useRef(true);
+  glowRef.current   = glowRgb;
 
   useEffect(() => {
+    isActiveRef.current = true;
     const c   = canvasRef.current!;
     const ctx = c.getContext("2d")!;
     let t     = 0;
@@ -130,8 +149,9 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
     }));
 
     const draw = () => {
+      if (!isActiveRef.current) return;
       t++;
-      const W = c.width, H = c.height;
+      const W   = c.width, H = c.height;
       const rgb = glowRef.current;
 
       ctx.fillStyle = "#040404";
@@ -150,9 +170,9 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
         ctx.stroke();
       }
       for (let j = 0; j <= 9; j++) {
-        const fy  = HY + (j / 9) * (H - HY) * 1.1;
-        const sp  = 0.45 + j * 0.30;
-        const a   = 0.012 + j * 0.005;
+        const fy = HY + (j / 9) * (H - HY) * 1.1;
+        const sp = 0.45 + j * 0.30;
+        const a  = 0.012 + j * 0.005;
         ctx.strokeStyle = `rgba(${rgb},${a})`;
         ctx.beginPath();
         ctx.moveTo(vpX - sp * W, fy);
@@ -266,8 +286,14 @@ function ShowroomBG({ glowRgb }: { glowRgb: string }) {
 
       rafRef.current = requestAnimationFrame(draw);
     };
+
     draw();
-    return () => { cancelAnimationFrame(rafRef.current); window.removeEventListener("resize", resize); };
+
+    return () => {
+      isActiveRef.current = false;
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", resize);
+    };
   }, []);
 
   return (
@@ -351,6 +377,10 @@ function MetalCard({
       onClick={onClick}
       onMouseMove={onMove}
       onMouseLeave={onLeave}
+      role={isActive ? undefined : "button"}
+      tabIndex={isActive ? -1 : 0}
+      aria-label={isActive ? undefined : `Seleccionar plan ${plan.name}`}
+      onKeyDown={(e) => { if (!isActive && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onClick(); } }}
       style={{
         position: "absolute",
         zIndex:  isActive ? 50 : 10 - Math.abs(offset),
@@ -358,6 +388,7 @@ function MetalCard({
         rotateY: isActive ? ry : 0,
         cursor:  isActive ? "default" : "pointer",
         opacity: 1,
+        outlineOffset: "4px",
       }}
       animate={{ x: tx, y: ty, scale: sc, filter: isActive ? "brightness(1)" : "brightness(0.28) blur(2px)" }}
       transition={{ type: "spring", stiffness: 72, damping: 20 }}
@@ -509,37 +540,74 @@ function StripeForm({ plan, price, billing, onClose }: {
 // MAIN
 // ─────────────────────────────────────────────────────────────────────
 export default function MembershipPage() {
-  const [activeIdx,    setActiveIdx]    = useState(1);
-  const [billing,      setBilling]      = useState<"monthly" | "annual">("monthly");
-  const [loading,      setLoading]      = useState(false);
-  const [showVault,    setShowVault]    = useState(false);
-  const [clientSecret, setClientSecret] = useState("");
-  const [mounted,      setMounted]      = useState(false);
+  const router       = useRouter();
+  const searchParams = useSearchParams();
 
-  useEffect(() => { setMounted(true); }, []);
+  const [activeIdx,     setActiveIdx]     = useState(1);
+  const [billing,       setBilling]       = useState<"monthly" | "annual">("monthly");
+  const [loading,       setLoading]       = useState(false);
+  const [showVault,     setShowVault]     = useState(false);
+  const [clientSecret,  setClientSecret]  = useState("");
+  const [mounted,       setMounted]       = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [baseMessage,   setBaseMessage]   = useState<string | null>(null);
 
-  const plan  = PLANS[activeIdx];
-  const m     = plan.metal;
-  const isAnn = billing === "annual";
-  // Precio anual con 10% de descuento, mostrado como equivalente mensual
+  const plan    = PLANS[activeIdx];
+  const m       = plan.metal;
+  const isAnn   = billing === "annual";
   const price   = isAnn ? Math.round(plan.price * 12 * 0.9) : plan.price;
-  const savings = Math.round(plan.price * 12 - price);
+  const savings = Math.round(plan.price * 12 * 0.1);
 
-  const next = useCallback(() => setActiveIdx(p => (p + 1) % PLANS.length), []);
-  const prev = useCallback(() => setActiveIdx(p => (p - 1 + PLANS.length) % PLANS.length), []);
+  const clearMessages = useCallback(() => { setCheckoutError(null); setBaseMessage(null); }, []);
+  const next = useCallback(() => { setActiveIdx(p => (p + 1) % PLANS.length); clearMessages(); }, [clearMessages]);
+  const prev = useCallback(() => { setActiveIdx(p => (p - 1 + PLANS.length) % PLANS.length); clearMessages(); }, [clearMessages]);
 
-  const handleBuy = async () => {
-    // BASE no requiere pago
-    if (plan.price === 0) { window.location.href = "/perfil?status=success"; return; }
+  // ── Función core de checkout — reutilizable desde autoActivate ──────
+  // Se extrae de handleBuy para que el useEffect pueda invocarla con
+  // el planKey/billing guardados en sessionStorage sin depender del
+  // estado local que todavía no se actualizó en ese momento.
+  const executeBuy = useCallback(async (targetPlanKey: string, targetBilling: "monthly" | "annual") => {
+    clearMessages();
+
+    if (targetPlanKey === "BASE") {
+      setLoading(true);
+      try {
+        const res  = await fetch("/api/membership/select-free", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 401) { redirectToAuth(targetPlanKey, targetBilling, router); return; }
+          throw new Error(data.error || "Error al seleccionar el plan gratuito");
+        }
+        if (data.cancelAtPeriodEnd) {
+          setBaseMessage(data.message);
+        } else {
+          router.push("/perfil?status=success");
+        }
+      } catch (e: any) {
+        setCheckoutError(e.message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const res  = await fetch("/api/membership/checkout", {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        // planKey es "GOLD" | "BLACK" | "ELITE" — coincide exactamente con el route
-        body: JSON.stringify({ planKey: plan.key, billingCycle: billing }),
+        body:    JSON.stringify({ planKey: targetPlanKey, billingCycle: targetBilling }),
       });
+      // Chequear 401 ANTES de parsear — si el backend devuelve texto plano,
+      // res.json() lanzaría SyntaxError y mostraría el error de parseo
+      // en lugar de redirigir al login.
+      if (res.status === 401) {
+        redirectToAuth(targetPlanKey, targetBilling, router);
+        return;
+      }
+
       const data = await res.json();
+
       if (res.ok && data.clientSecret) {
         setClientSecret(data.clientSecret);
         setShowVault(true);
@@ -547,11 +615,48 @@ export default function MembershipPage() {
         throw new Error(data.error || "Error al iniciar el pago");
       }
     } catch (e: any) {
-      alert(`Error: ${e.message}`);
+      setCheckoutError(e.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
+
+  const executeBuyRef = useRef(executeBuy);
+  useEffect(() => { executeBuyRef.current = executeBuy; }, [executeBuy]);
+
+  const handleBuy = useCallback(() => {
+    executeBuy(plan.key, billing);
+  }, [plan.key, billing, executeBuy]);
+
+  // ── Montaje + autoActivate post-registro ────────────────────────────
+  useEffect(() => {
+    setMounted(true);
+
+    // ¿Viene de vuelta desde /registro con ?autoActivate=1?
+    if (searchParams.get("autoActivate") !== "1") return;
+
+    const saved = sessionStorage.getItem("pendingMembershipPlan");
+    if (!saved) return;
+
+    try {
+      const { planKey, billingCycle: savedBilling } = JSON.parse(saved) as {
+        planKey:      string;
+        billingCycle: "monthly" | "annual";
+      };
+      sessionStorage.removeItem("pendingMembershipPlan");
+
+      // Seleccionar el plan correcto en el carrusel visualmente
+      const planIdx = PLANS.findIndex(p => p.key === planKey);
+      if (planIdx !== -1) setActiveIdx(planIdx);
+      if (savedBilling) setBilling(savedBilling);
+
+      // Pequeño delay para que React aplique los estados antes del fetch
+      const timer = setTimeout(() => executeBuyRef.current(planKey, savedBilling ?? "monthly"), 500);
+      return () => clearTimeout(timer);
+    } catch {
+      sessionStorage.removeItem("pendingMembershipPlan");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!mounted) return null;
 
@@ -564,7 +669,13 @@ export default function MembershipPage() {
 
   return (
     <>
-      <style>{`*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; } body { overflow: hidden; background: #040404; }`}</style>
+      <style>{`
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #040404; }
+        @media (max-width: 768px) {
+          body { overflow: auto; }
+        }
+      `}</style>
 
       <div style={{ width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#040404", display: "flex", position: "relative" }}>
 
@@ -592,6 +703,7 @@ export default function MembershipPage() {
               key={side} onClick={fn}
               whileHover={{ scale: 1.14, borderColor: m.glow, color: m.glow } as any}
               whileTap={{ scale: 0.93 }}
+              aria-label={side === "left" ? "Plan anterior" : "Plan siguiente"}
               style={{
                 position: "absolute", [side]: 22, top: "50%", transform: "translateY(-50%)",
                 zIndex: 20, width: 42, height: 42, borderRadius: "50%",
@@ -607,7 +719,7 @@ export default function MembershipPage() {
           <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <AnimatePresence mode="popLayout">
               {visible.map(({ plan: p, index, offset }) => (
-                <MetalCard key={p.key} plan={p} isActive={index === activeIdx} offset={offset} onClick={() => setActiveIdx(index)} />
+                <MetalCard key={p.key} plan={p} isActive={index === activeIdx} offset={offset} onClick={() => { setActiveIdx(index); clearMessages(); }} />
               ))}
             </AnimatePresence>
           </div>
@@ -615,8 +727,9 @@ export default function MembershipPage() {
           <div style={{ position: "absolute", bottom: 30, display: "flex", gap: 8, zIndex: 20 }}>
             {PLANS.map((_, i) => (
               <motion.button
-                key={i} onClick={() => setActiveIdx(i)}
+                key={i} onClick={() => { setActiveIdx(i); clearMessages(); }}
                 animate={{ width: i === activeIdx ? 28 : 6, opacity: i === activeIdx ? 1 : 0.2 }}
+                aria-label={`Ir al plan ${PLANS[i].name}`}
                 style={{
                   height: 6, borderRadius: 3, cursor: "pointer", border: "none",
                   backgroundColor: i === activeIdx ? m.glow : "#3c3c3c",
@@ -631,7 +744,12 @@ export default function MembershipPage() {
         <div style={{ width: 1, alignSelf: "stretch", margin: "52px 0", flexShrink: 0, zIndex: 10, background: "linear-gradient(to bottom, transparent, rgba(255,255,255,0.06) 22%, rgba(255,255,255,0.06) 78%, transparent)" }} />
 
         {/* ── DERECHA — info + CTA ── */}
-        <div style={{ flex: 1, height: "100%", position: "relative", zIndex: 10, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 52px", overflow: "hidden" }}>
+        <div style={{
+          flex: 1, height: "100%", position: "relative", zIndex: 10,
+          display: "flex", flexDirection: "column", justifyContent: "center",
+          padding: "0 52px",
+          overflowY: "auto",
+        }}>
 
           <AnimatePresence mode="wait">
             <motion.div
@@ -651,7 +769,6 @@ export default function MembershipPage() {
               transition={{ type: "spring", damping: 28, stiffness: 175 }}
               style={{ position: "relative", zIndex: 1, maxWidth: 400 }}
             >
-              {/* Tier + dot */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                 <motion.div
                   animate={{ opacity: [0.5, 1, 0.5], boxShadow: [`0 0 4px ${m.glow}`, `0 0 16px ${m.glow}`, `0 0 4px ${m.glow}`] }}
@@ -674,7 +791,6 @@ export default function MembershipPage() {
                 )}
               </div>
 
-              {/* Nombre */}
               <h1 style={{
                 fontFamily: "monospace", fontWeight: 700, fontSize: 50, letterSpacing: "-0.01em", lineHeight: 0.92,
                 color: "transparent",
@@ -692,7 +808,6 @@ export default function MembershipPage() {
                 style={{ height: 1, marginBottom: 20, background: `linear-gradient(90deg, ${m.glow}90, ${m.glow}22, transparent)`, transformOrigin: "left" }}
               />
 
-              {/* Features — beneficios reales de membership-benefits.ts */}
               <div style={{ marginBottom: 26 }}>
                 {plan.features.map((feat, i) => (
                   <motion.div key={feat}
@@ -706,10 +821,43 @@ export default function MembershipPage() {
                 ))}
               </div>
 
+              {/* Error inline */}
+              <AnimatePresence>
+                {checkoutError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                    style={{
+                      backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)",
+                      borderRadius: 8, padding: "10px 14px", marginBottom: 16,
+                      fontFamily: "monospace", fontSize: 10, color: "#f87171", letterSpacing: "0.06em",
+                      display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8,
+                    }}
+                  >
+                    <span>ERROR: {checkoutError}</span>
+                    <button onClick={() => setCheckoutError(null)} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 12, flexShrink: 0 }}>✕</button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Mensaje de downgrade / cancelación programada */}
+              <AnimatePresence>
+                {baseMessage && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    style={{
+                      backgroundColor: "rgba(253,200,2,0.08)", border: "1px solid rgba(253,200,2,0.20)",
+                      borderRadius: 8, padding: "10px 14px", marginBottom: 16,
+                      fontFamily: "monospace", fontSize: 10, color: "#fdc800", letterSpacing: "0.06em",
+                    }}
+                  >
+                    {baseMessage}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Precio + CTA */}
               {plan.price > 0 ? (
                 <>
-                  {/* Billing toggle */}
                   <div style={{ display: "inline-flex", gap: 3, backgroundColor: "#0e0e0e", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: 3, marginBottom: 18 }}>
                     {(["monthly", "annual"] as const).map(b => (
                       <button key={b} onClick={() => setBilling(b)} style={{
@@ -773,14 +921,14 @@ export default function MembershipPage() {
                     <p style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 54, lineHeight: 1, color: "rgba(255,255,255,0.88)" }}>GRATIS</p>
                     <p style={{ fontFamily: "monospace", fontSize: 8, color: "rgba(255,255,255,0.16)", letterSpacing: "0.2em", marginTop: 4 }}>ACCESO DE CORTESÍA</p>
                   </div>
-                  <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} onClick={handleBuy}
-                    style={{ height: 50, paddingInline: 28, borderRadius: 10, cursor: "pointer", backgroundColor: "#0e0e0e", border: "1px solid rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.6)", fontFamily: "monospace", fontWeight: 700, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", transition: "all 0.2s" }}>
-                    EMPEZAR
+                  <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+                    onClick={handleBuy} disabled={loading}
+                    style={{ height: 50, paddingInline: 28, borderRadius: 10, cursor: loading ? "wait" : "pointer", backgroundColor: "#0e0e0e", border: "1px solid rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.6)", fontFamily: "monospace", fontWeight: 700, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", transition: "all 0.2s" }}>
+                    {loading ? "CARGANDO…" : "EMPEZAR"}
                   </motion.button>
                 </div>
               )}
 
-              {/* Security */}
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
                 style={{ display: "flex", gap: 16, marginTop: 26, paddingTop: 18, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                 {["PCI-DSS", "TLS 1.3", "STRIPE"].map(label => (

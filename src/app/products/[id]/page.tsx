@@ -8,19 +8,25 @@ import {
   ShoppingCart, ChevronLeft, Layers, Minus, Plus, 
   Shield, Package, Scissors, Flame, Heart, Truck, 
   LayoutGrid, Globe, ArrowRight, Check, Palette, Ruler,
-  PaintRoller, Star, Share2, Zap
+  PaintRoller, Star, Share2, Zap, Box
 } from 'lucide-react';
 import { useCart } from '@/lib/context/cart-context';
 import { products } from '@/lib/products';
+import { hilos } from '@/lib/hilos'; // 🔥 Importación del catálogo de hilos
 
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { addItem } = useCart();
   
-  // 1. Obtener Producto de forma segura (con as any para evitar error TS)
+  // 1. Obtener Producto de forma segura — busca en AMBOS catálogos
   const productId = Array.isArray(params.id) ? params.id[0] : params.id;
-  const product: any = products.find(p => p.id === productId);
+
+  // 🐺 Busca en ambos catálogos para evitar el 404
+  const product: any = useMemo(() => {
+    const combined = [...products, ...hilos];
+    return combined.find(p => p.id === productId);
+  }, [productId]);
 
   // Estados
   const [quantity, setQuantity] = useState(1);
@@ -35,10 +41,11 @@ export default function ProductDetailPage() {
     }
   }, [selectedColor]);
 
-  // 2. Productos Relacionados
+  // 2. Productos Relacionados — si es hilo sugiere hilos, si es tela sugiere telas
   const relatedProducts = useMemo(() => {
-    return products.filter(p => p.id !== productId).slice(0, 4);
-  }, [productId]);
+    const source = product?.category === 'Hilos' ? hilos : products;
+    return source.filter((p: any) => p.id !== productId).slice(0, 4);
+  }, [productId, product?.category]);
 
   // Manejo de "Producto no encontrado"
   if (!product) {
@@ -52,21 +59,29 @@ export default function ProductDetailPage() {
     );
   }
 
-  // 🔥 MAGIA DINÁMICA DE UNIDADES
-  const isMeter = product.unit === 'Metro';
-  const unitLabel = isMeter ? 'Metro' : 'Kilo';
-  const unitAbbr = isMeter ? 'm' : 'Kg';
-  const unitsPerRoll = product.unidadesPorRollo || 25;
+  // 🔥 LÓGICA DE NEGOCIO HILOS vs TELAS
+  const isHilo = product?.category === 'Hilos';
+  const isMeter = product?.unit === 'Metro';
 
-  // 🔥 LÓGICA DE PRECIOS (SIN MEMBRESÍAS, SOLO MENUDEO O MAYOREO)
+  // Nombres dinámicos según tipo de producto
+  const unitLabel = isHilo ? 'Pieza' : (isMeter ? 'Metro' : 'Kilo');
+  const unitAbbr = isHilo ? 'PZ' : (isMeter ? 'm' : 'Kg');
+  const containerLabel = isHilo ? 'Caja' : 'Rollo';
+
+  // Cantidades: Hilo usa 120 (Caja), Telas usan unidadesPorRollo o 25
+  const unitsPerPack = product?.unidadesPorRollo || (isHilo ? 120 : 25);
+
+  // 🔥 LÓGICA DE PRECIOS
   const basePriceToUse = buyingMode === 'rollo' ? product.prices.mayoreo : product.prices.menudeo;
   
   // Cálculo de Totales 
-  const totalWeight = buyingMode === 'rollo' ? quantity * unitsPerRoll : quantity;
+  const totalWeight = buyingMode === 'rollo' ? quantity * unitsPerPack : quantity;
   const totalPrice = basePriceToUse * totalWeight;
 
-  // --- CÁLCULO DE RENDIMIENTO (METROS) ---
-  const totalMeters = !isMeter ? (totalWeight * (product.rendimiento || 1)).toFixed(1) : totalWeight;
+  // --- CÁLCULO DE RENDIMIENTO (METROS, solo para telas) ---
+  const totalMeters = !isMeter && !isHilo
+    ? (totalWeight * (product.rendimiento || 1)).toFixed(1)
+    : totalWeight;
 
   // Galería de Imágenes
   const mainImageSrc = (selectedColor && selectedColor.image) ? selectedColor.image : product.thumbnail;
@@ -92,19 +107,14 @@ export default function ProductDetailPage() {
       productId: product.id,  
       title: `${product.title} ${selectedColor ? `- ${selectedColor.name}` : ''}`, 
       price: basePriceToUse, 
-      
-      // 🔥 APLICAMOS LA IMAGEN BLINDADA
       image: finalImageToSave, 
-      
       quantity: totalWeight,
-      unit: buyingMode === 'rollo' ? `${unitAbbr} (Rollo)` : unitAbbr,
+      unit: buyingMode === 'rollo' ? `${unitAbbr} (${containerLabel})` : unitAbbr,
       meta: {
         mode: buyingMode,
         packages: quantity,
         color: selectedColor?.name,
         meters: totalMeters,
-        
-        // 🔥 MANDAMOS LA IMAGEN COMO RESPALDO AL META
         image: finalImageToSave 
       }
     });
@@ -171,7 +181,7 @@ export default function ProductDetailPage() {
                 {product.hasRollo && (
                     <div className="absolute bottom-4 left-4 z-10">
                         <span className="bg-[#FDCB02] text-black px-3 py-1 text-[10px] font-bold uppercase rounded-full shadow-lg flex items-center gap-1">
-                            <Package size={12} /> Venta por Rollo Disponible
+                            {isHilo ? <Box size={12} /> : <Package size={12} />} Venta por {containerLabel} Disponible
                         </span>
                     </div>
                 )}
@@ -206,12 +216,12 @@ export default function ProductDetailPage() {
                   )}
                </div>
 
-               {/* 🔥 TARJETA DE PRECIO LIMPIA (SIN MEMBRESÍAS) */}
+               {/* TARJETA DE PRECIO */}
                <div className="bg-neutral-50 border border-neutral-200 p-6 rounded-lg">
                   <div className="flex justify-between items-start">
                     <div>
                       <span className="text-[11px] font-bold bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded uppercase">
-                          {buyingMode === 'rollo' ? 'Precio Mayoreo (Rollo)' : 'Precio Menudeo'}
+                          {buyingMode === 'rollo' ? `Precio Mayoreo (${containerLabel})` : 'Precio Menudeo'}
                       </span>
                       <div className="flex items-baseline gap-1 mt-2">
                           <span className="text-4xl lg:text-5xl font-[900] text-black tracking-tight">
@@ -286,8 +296,9 @@ export default function ProductDetailPage() {
                      disabled={!product.hasRollo}
                   >
                      {buyingMode === 'rollo' && <div className="absolute top-2 right-2 text-[#FDCB02]"><Check size={14} strokeWidth={3}/></div>}
-                     <Package size={18} />
-                     <span className="text-xs font-bold">Por Rollo (~{unitsPerRoll}{unitAbbr})</span>
+                     {/* 🔥 Icono dinámico: Caja para hilos, Package para telas */}
+                     {isHilo ? <Box size={18} /> : <Package size={18} />}
+                     <span className="text-xs font-bold">Por {containerLabel} (~{unitsPerPack}{unitAbbr})</span>
                   </button>
                </div>
             </div>
@@ -309,8 +320,9 @@ export default function ProductDetailPage() {
                             onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                             className="w-16 bg-transparent text-center font-bold text-xl text-black focus:outline-none"
                         />
+                        {/* 🔥 Etiqueta dinámica: Cajas/Piezas para hilos, Rollos/Kilos para telas */}
                         <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">
-                            {buyingMode === 'rollo' ? 'Rollos' : `${unitLabel}s`}
+                            {buyingMode === 'rollo' ? `${containerLabel}s` : `${unitLabel}s`}
                         </span>
                     </div>
                     <button 
@@ -328,7 +340,8 @@ export default function ProductDetailPage() {
                         <div className="flex items-baseline gap-2">
                             <strong className="text-black text-sm">{totalWeight} {unitAbbr}</strong>
                             
-                            {!isMeter && (
+                            {/* Rendimiento en metros: solo para telas que no sean metro ni hilo */}
+                            {!isMeter && !isHilo && (
                                 <>
                                     <span className="text-[10px] text-neutral-400">≈</span>
                                     <strong className="text-[#FDCB02] text-sm bg-black px-1.5 rounded flex items-center gap-1">
@@ -419,7 +432,9 @@ export default function ProductDetailPage() {
 
                        {/* 🔥 CEREBRO DE DESCRIPCIONES DINÁMICAS */}
                        <p className="text-neutral-600 leading-relaxed text-sm font-medium">
-                          {product.id === 'prod_flanel' 
+                          {isHilo
+                            ? "Hilo de alta resistencia ideal para costura industrial y doméstica. Su composición garantiza una costura limpia, sin cortes ni enredos, compatible con máquinas overlock, recta y de coser en general."
+                            : product.id === 'prod_flanel' 
                             ? "Nuestra tela Flanel es la reina del invierno. Su textura ultra suave, afelpada y ligera retiene el calor corporal de manera excepcional, haciéndola la opción perfecta para confeccionar pijamas, cobijas, sudaderas y ropa de descanso premium."
                             : product.id === 'prod_polar'
                             ? "Tela térmica de alto rendimiento con tecnología anti-pilling. Es ideal desde la confección de pijamas y mamelucos hasta la creación de cobijas, frazadas, y ropa para mascotas, incluyendo camas de perros."
@@ -430,7 +445,26 @@ export default function ProductDetailPage() {
                        </p>
 
                        {/* 🔥 CEREBRO DE CARACTERÍSTICAS DINÁMICAS */}
-                       {product.id === 'prod_flanel' ? (
+                       {isHilo ? (
+                           <div className="flex flex-wrap gap-4 mt-6">
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Shield className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Alta Resistencia</h4><p className="text-[10px] text-neutral-500">Sin cortes</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Zap className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Multiusos</h4><p className="text-[10px] text-neutral-500">Overlock / Recta</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Check className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Sin Enredos</h4><p className="text-[10px] text-neutral-500">Costura limpia</p></div>
+                               </div>
+                               <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
+                                   <Heart className="text-[#FDCB02]" size={20}/>
+                                   <div><h4 className="font-bold text-black text-xs uppercase">Color Firme</h4><p className="text-[10px] text-neutral-500">No destiñe</p></div>
+                               </div>
+                           </div>
+                       ) : product.id === 'prod_flanel' ? (
                            <div className="flex flex-wrap gap-4 mt-6">
                                <div className="flex items-center gap-3 bg-neutral-50 px-4 py-3 rounded border border-neutral-100">
                                    <Heart className="text-[#FDCB02]" size={20}/>
@@ -526,9 +560,10 @@ export default function ProductDetailPage() {
                           <tbody className="divide-y divide-neutral-200">
                              {[
                                 ['Composición', product.composicion],
-                                ['Gramaje (Peso)', `${product.gramaje} g/m²`],
-                                ['Ancho', product.ancho],
-                                ['Rendimiento', isMeter ? `1 metro = 1 metro` : `${product.rendimiento} m/kg`],
+                                ['Gramaje (Peso)', product.gramaje ? `${product.gramaje} g/m²` : '—'],
+                                ['Ancho', product.ancho || '—'],
+                                // Para hilos no aplica rendimiento en metros
+                                ...(!isHilo ? [['Rendimiento', isMeter ? `1 metro = 1 metro` : `${product.rendimiento} m/kg`]] : []),
                                 ['Origen', product.origin === 'MX' ? 'Nacional' : 'Importado'],
                              ].map(([key, val], i) => (
                                 <tr key={i} className="group hover:bg-neutral-50 transition-colors">
@@ -602,12 +637,12 @@ export default function ProductDetailPage() {
            </div>
            
            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {relatedProducts.map((relProduct) => (
-                 <Link href={`/products/${relProduct.id}`} key={relProduct.id} className="group block bg-white border border-neutral-200 rounded-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              {relatedProducts.map((relProduct: any) => (
+                 <Link href={`/producto/${relProduct.id}`} key={relProduct.id} className="group block bg-white border border-neutral-200 rounded-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                     <div className="aspect-[4/5] relative overflow-hidden bg-neutral-100">
                        <Image src={relProduct.thumbnail} alt={relProduct.title} fill className="object-cover group-hover:scale-110 transition-transform duration-700"/>
                        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded text-[9px] font-bold uppercase">
-                            {relProduct.gramaje}g
+                            {relProduct.gramaje ? `${relProduct.gramaje}g` : relProduct.category}
                        </div>
                     </div>
                     <div className="p-4">

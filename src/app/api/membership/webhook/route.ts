@@ -13,9 +13,9 @@ type PlanKey = "GOLD" | "BLACK" | "ELITE"
 const VALID_PLANS: PlanKey[] = ["GOLD", "BLACK", "ELITE"]
 
 function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
-  const subscription = (invoice as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null }).subscription
-  if (!subscription) return null
-  return typeof subscription === "string" ? subscription : subscription.id
+  const sub = (invoice as any).subscription
+  if (!sub) return null
+  return typeof sub === "string" ? sub : sub.id
 }
 
 function unwrapStripeResponse<T>(res: Stripe.Response<T> | T): T {
@@ -27,7 +27,6 @@ function getSubscriptionPeriodEnd(sub: Stripe.Subscription): Date | null {
     (sub as any).current_period_end ??
     (sub as any).current_period?.end ??
     (sub as any).current_period_end_at
-
   return typeof endSeconds === "number" ? new Date(endSeconds * 1000) : null
 }
 
@@ -40,7 +39,6 @@ export async function POST(req: NextRequest) {
   }
 
   let event: Stripe.Event
-
   try {
     event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_MEMBERSHIP_WEBHOOK_SECRET!)
   } catch (err: any) {
@@ -51,12 +49,13 @@ export async function POST(req: NextRequest) {
   try {
     switch (event.type) {
 
+      // ───────────────────────────────────────────────────────────────────────
       case "invoice.payment_succeeded": {
-        const invoice = event.data.object as Stripe.Invoice
+        const invoice        = event.data.object as Stripe.Invoice
         const subscriptionId = getInvoiceSubscriptionId(invoice)
         if (!subscriptionId) break
 
-        const sub = unwrapStripeResponse(await stripe.subscriptions.retrieve(subscriptionId))
+        const sub     = unwrapStripeResponse(await stripe.subscriptions.retrieve(subscriptionId))
         const userId  = sub.metadata?.userId
         const planKey = sub.metadata?.planKey as PlanKey | undefined
         const expiry  = getSubscriptionPeriodEnd(sub)
@@ -66,85 +65,121 @@ export async function POST(req: NextRequest) {
           break
         }
 
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { email: true, name: true }
+        // Idempotencia: si el usuario ya tiene este tier activo con esta sub,
+        // Stripe reenvió el evento. Ignorar para no reenviar el correo ni pisar datos.
+        const alreadyProcessed = await prisma.user.findFirst({
+          where: {
+            id:                   userId,
+            membershipTier:       MembershipTier[planKey],
+            stripeSubscriptionId: sub.id,
+          },
+          select: { id: true },
         })
+        if (alreadyProcessed) {
+          console.log(`✅ Idempotent skip: invoice ya procesado para usuario ${userId}`)
+          break
+        }
 
-        if (!user) {
-          console.warn(`⚠️ Usuario no encontrado en BD para userId: ${userId}`)
+        const dbUser = await prisma.user.findUnique({
+          where:  { id: userId },
+          select: { email: true, name: true },
+        })
+        if (!dbUser) {
+          console.warn(`⚠️ Usuario no encontrado en BD: ${userId}`)
           break
         }
 
         await prisma.user.update({
           where: { id: userId },
           data: {
-            membershipTier:           MembershipTier[planKey],
-            stripeSubscriptionId:     sub.id,
-            stripeSubscriptionStatus: sub.status,
-            membershipExpiry:         expiry,
+            membershipTier:              MembershipTier[planKey],
+            stripeSubscriptionId:        sub.id,
+            stripeSubscriptionStatus:    sub.status,
+            membershipExpiry:            expiry,
+            // Reset de colocaciones al activar/renovar la membresía
+            membershipColocacionesUsadas: 0,
           },
         })
-
         console.log(`✅ Membresía activada: ${planKey} → usuario ${userId}`)
 
-        // ── INYECCIÓN DEL CORREO DE ZEPTOMAIL SEGURA ──
+        // Correo de bienvenida — fallo no es crítico, la BD ya está actualizada
         try {
           const memberId = userId.substring(0, 4).toUpperCase()
-          await sendMembresiaEmail(
-            user.email!, 
-            user.name || "Socio Comercial", 
-            memberId, 
-            planKey
-          )
-          console.log(`✉️ Correo de membresía ${planKey} enviado a ${user.email}`)
+          await sendMembresiaEmail(dbUser.email, dbUser.name || "Socio Comercial", memberId, planKey)
+          console.log(`✉️ Correo de membresía ${planKey} enviado a ${dbUser.email}`)
         } catch (mailErr) {
-          console.error("⚠️ Fallo el envío de ZeptoMail en el webhook (La BD sí se actualizó):", mailErr)
+          console.error("⚠️ Fallo ZeptoMail (tier activado correctamente en BD):", mailErr)
         }
-        
+
         break
       }
 
+      // ───────────────────────────────────────────────────────────────────────
       case "customer.subscription.updated": {
         const sub     = event.data.object as Stripe.Subscription
         const userId  = sub.metadata?.userId
         const planKey = sub.metadata?.planKey as PlanKey | undefined
 
-        // Si la metadata viene vacía, intentamos buscar por el ID de suscripción
-        if (!userId) {
-            console.warn(`⚠️ metadata.userId vacío. Buscando usuario por sub.id: ${sub.id}`);
-            // Continuamos el proceso, pero el update tendrá que ser por stripeSubscriptionId
-        }
+        if (sub.status === "active" || sub.status === "trialing") {
+          if (!planKey || !VALID_PLANS.includes(planKey)) {
+            console.warn(`⚠️ subscription.updated sin planKey válido para sub ${sub.id}`)
+            break
+          }
 
-        if ((sub.status === "active" || sub.status === "trialing") && planKey && VALID_PLANS.includes(planKey)) {
-          await prisma.user.updateMany({
-            where: { 
-                OR: [
-                    { id: userId || 'fallback' },
-                    { stripeSubscriptionId: sub.id }
-                ]
-            },
-            data: {
-              membershipTier:           MembershipTier[planKey],
-              stripeSubscriptionStatus: sub.status,
-              membershipExpiry:         getSubscriptionPeriodEnd(sub),
-            },
-          })
+          if (userId) {
+            // Actualizar tier solo si aún no lo tiene (evita race con invoice.payment_succeeded)
+            await prisma.user.updateMany({
+              where: {
+                id:  userId,
+                NOT: { membershipTier: MembershipTier[planKey] },
+              },
+              data: {
+                membershipTier:           MembershipTier[planKey],
+                stripeSubscriptionStatus: sub.status,
+                membershipExpiry:         getSubscriptionPeriodEnd(sub),
+              },
+            })
+            // Siempre sincronizar status y expiry aunque el tier ya sea correcto
+            await prisma.user.updateMany({
+              where: { id: userId, stripeSubscriptionId: sub.id },
+              data: {
+                stripeSubscriptionStatus: sub.status,
+                membershipExpiry:         getSubscriptionPeriodEnd(sub),
+              },
+            })
+          } else {
+            // Fallback por subscriptionId — rama separada, sin OR peligroso
+            console.warn(`⚠️ metadata.userId vacío, buscando por sub.id: ${sub.id}`)
+            await prisma.user.updateMany({
+              where: {
+                stripeSubscriptionId: sub.id,
+                NOT: { membershipTier: MembershipTier[planKey] },
+              },
+              data: {
+                membershipTier:           MembershipTier[planKey],
+                stripeSubscriptionStatus: sub.status,
+                membershipExpiry:         getSubscriptionPeriodEnd(sub),
+              },
+            })
+          }
           console.log(`✅ Suscripción actualizada: ${planKey} → sub_id ${sub.id}`)
 
         } else if (sub.status === "past_due" || sub.status === "unpaid") {
+          // Solo status — el tier se conserva mientras el usuario resuelve el pago
           await prisma.user.updateMany({
             where: { stripeSubscriptionId: sub.id },
-            data: { stripeSubscriptionStatus: sub.status },
+            data:  { stripeSubscriptionStatus: sub.status },
           })
           console.warn(`⚠️ Pago fallido para sub_id ${sub.id}: ${sub.status}`)
 
         } else if (sub.status === "canceled" || sub.status === "paused") {
           await deactivateMembership(sub.id)
         }
+
         break
       }
 
+      // ───────────────────────────────────────────────────────────────────────
       case "customer.subscription.deleted":
       case "customer.subscription.paused": {
         const sub = event.data.object as Stripe.Subscription
@@ -153,14 +188,15 @@ export async function POST(req: NextRequest) {
         break
       }
 
+      // ───────────────────────────────────────────────────────────────────────
       case "invoice.payment_failed": {
-        const invoice = event.data.object as Stripe.Invoice
+        const invoice        = event.data.object as Stripe.Invoice
         const subscriptionId = getInvoiceSubscriptionId(invoice)
         if (!subscriptionId) break
 
         await prisma.user.updateMany({
           where: { stripeSubscriptionId: subscriptionId },
-          data: { stripeSubscriptionStatus: "past_due" },
+          data:  { stripeSubscriptionStatus: "past_due" },
         })
         console.warn(`⚠️ Pago fallido en invoice ${invoice.id} → sub_id ${subscriptionId}`)
         break
@@ -177,19 +213,20 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ received: true })
 }
 
-// ─── Helper: revertir a estado base (Buscando por Subscription ID) ───────
+// ── Helper: revertir membresía a NONE ────────────────────────────────────────
 async function deactivateMembership(subscriptionId: string) {
   try {
-      await prisma.user.updateMany({
-        where: { stripeSubscriptionId: subscriptionId },
-        data: {
-          membershipTier:           MembershipTier.NONE, 
-          stripeSubscriptionId:     null,
-          stripeSubscriptionStatus: "canceled",
-          membershipExpiry:         null,
-        },
-      })
+    await prisma.user.updateMany({
+      where: { stripeSubscriptionId: subscriptionId },
+      data: {
+        membershipTier:               MembershipTier.NONE,
+        stripeSubscriptionId:         null,
+        stripeSubscriptionStatus:     "canceled",
+        membershipExpiry:             null,
+        membershipColocacionesUsadas: 0,
+      },
+    })
   } catch (error) {
-      console.error(`Error desactivando membresía para sub_id ${subscriptionId}:`, error);
+    console.error(`Error desactivando membresía para sub_id ${subscriptionId}:`, error)
   }
 }
