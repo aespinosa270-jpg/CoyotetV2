@@ -13,7 +13,7 @@ import {
 import { useCart } from '@/lib/context/cart-context';
 import { products } from '@/lib/products';
 import { hilos } from '@/lib/hilos';
-import { elasticos } from '@/lib/elasticos'; // 🔥 Catálogo de elásticos
+import { elasticos } from '@/lib/elasticos';
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -24,8 +24,12 @@ export default function ProductDetailPage() {
   const productId = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const product: any = useMemo(() => {
-    const combined = [...products, ...hilos, ...elasticos]; // 🔥 Incluye elasticos
-    return combined.find(p => p.id === productId);
+    const combined = [...products, ...hilos, ...elasticos];
+    // ✅ FIX 1: búsqueda exacta primero, luego case-insensitive como fallback
+    return (
+      combined.find(p => p.id === productId) ??
+      combined.find(p => p.id.toLowerCase() === (productId ?? '').toLowerCase())
+    );
   }, [productId]);
 
   // Estados
@@ -33,19 +37,22 @@ export default function ProductDetailPage() {
   const [buyingMode, setBuyingMode] = useState<'kilo' | 'rollo'>('kilo');
   const [activeTab, setActiveTab] = useState<'details' | 'specs' | 'reviews'>('details');
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [selectedColor, setSelectedColor] = useState(product?.colors?.[0] || null);
+
+  // ✅ FIX 2: inicializar en null para evitar stale closure cuando product aún no resolvió
+  const [selectedColor, setSelectedColor] = useState<any>(null);
 
   useEffect(() => {
-    if (selectedColor && selectedColor.image) {
-      // Lógica visual si es necesaria al cambiar color
+    if (product?.colors?.length > 0) {
+      // Solo asigna si todavía no hay color seleccionado (no sobreescribir elección del usuario)
+      setSelectedColor((prev: any) => prev ?? product.colors[0]);
     }
-  }, [selectedColor]);
+  }, [product]);
 
   // 2. Productos Relacionados
   const relatedProducts = useMemo(() => {
     const source = product?.category === 'Hilos'
       ? hilos
-      : product?.category === 'Elásticos' // 🔥 Soporte para elásticos
+      : product?.category === 'Elásticos'
       ? elasticos
       : products;
     return source.filter((p: any) => p.id !== productId).slice(0, 4);
@@ -65,7 +72,7 @@ export default function ProductDetailPage() {
 
   // 🔥 LÓGICA DE NEGOCIO: HILOS / TELAS / ELÁSTICOS
   const isHilo = product?.category === 'Hilos';
-  const isElastico = product?.category === 'Elásticos'; // 🔥 Nueva bandera
+  const isElastico = product?.category === 'Elásticos';
   const isMeter = product?.unit === 'Metro';
 
   // Nombres dinámicos según tipo de producto

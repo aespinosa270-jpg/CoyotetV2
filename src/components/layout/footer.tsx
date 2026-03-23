@@ -14,15 +14,12 @@ import {
 export default function Footer() {
   const pathname = usePathname(); 
 
-  // 🔥 EL CADENERO: SI ES LA APP DE CHOFERES, ESCONDEMOS EL FOOTER COMPLETO
   if (pathname?.startsWith("/flotilla")) return null;
 
   return (
     <>
-      {/* 🔥 SUPERPODER AÑADIDO: mt-auto y w-full para obligarlo a quedarse en el fondo real */}
       <footer className="mt-auto w-full bg-[#050505] text-white border-t border-white/10 font-sans relative overflow-hidden selection:bg-[#FDCB02] selection:text-black">
       
-      {/* Textura de Fondo */}
       <div 
         className="absolute inset-0 z-0 opacity-[0.04] pointer-events-none mix-blend-overlay" 
         style={{ backgroundImage: `url("https://grainy-gradients.vercel.app/noise.svg")` }} 
@@ -77,7 +74,6 @@ export default function Footer() {
       <div className="relative z-10 container mx-auto px-6 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-24">
           
-          {/* IDENTIDAD DE MARCA */}
           <div className="lg:col-span-5 flex flex-col justify-between h-full">
             <div>
               <h2 className="text-[12vw] lg:text-[5vw] leading-[0.8] font-[1000] tracking-tighter uppercase text-white mb-8">
@@ -88,21 +84,18 @@ export default function Footer() {
                     Infraestructura digital para la cadena de suministro textil.
                   </p>
                   
-                  {/* --- MÓDULO DE PAGOS FULL TEXTO --- */}
                   <div className="pt-4">
                     <p className="text-[9px] font-black text-neutral-500 uppercase tracking-widest mb-3">
                         Pagos Procesados vía
                     </p>
                     
                     <div className="flex flex-wrap items-center gap-3 sm:gap-4 opacity-70 hover:opacity-100 transition-opacity duration-300">
-                        {/* Marca Stripe tipográfica */}
                         <span className="text-xl font-[1000] tracking-tighter text-white lowercase">
                             stripe
                         </span>
                         
                         <div className="h-4 w-px bg-white/20"></div>
 
-                        {/* Lista de métodos texto chingón */}
                         <div className="flex flex-wrap items-center gap-2.5 text-[9px] sm:text-[10px] font-black tracking-widest uppercase text-neutral-400">
                             <span className="hover:text-white transition-colors cursor-default">Visa</span>
                             <span className="text-[#FDCB02]/50">•</span>
@@ -119,7 +112,6 @@ export default function Footer() {
 
                         <div className="hidden sm:block h-4 w-px bg-white/20"></div>
 
-                        {/* Candado SSL verde */}
                         <div className="flex gap-1.5 items-center w-full sm:w-auto mt-2 sm:mt-0">
                             <Lock size={12} className="text-green-500" />
                             <span className="text-[9px] font-bold uppercase tracking-widest text-green-500">SSL 256-bit</span>
@@ -131,7 +123,6 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* MAPA DEL SITIO */}
           <div className="lg:col-span-7 grid grid-cols-2 md:grid-cols-3 gap-12">
             <div className="space-y-8">
               <h4 className="font-[1000] text-[10px] text-[#FDCB02] uppercase tracking-[0.2em] border-b border-white/10 pb-4">
@@ -186,12 +177,28 @@ export default function Footer() {
                 Datos de Contacto
               </h4>
               <ul className="space-y-6">
+
+                {/* LLAMADAS */}
                 <li>
-                  <span className="block text-[9px] font-black text-neutral-600 mb-1.5 tracking-widest">LÍNEA CORPORATIVA</span>
-                  <a href="tel:5555421527" className="text-xl font-[1000] text-white hover:text-[#FDCB02] transition-colors">
-                    55 5542 1527
+                  <span className="block text-[9px] font-black text-neutral-600 mb-1.5 tracking-widest">LLAMADAS</span>
+                  <a href="tel:5596023567" className="text-xl font-[1000] text-white hover:text-[#FDCB02] transition-colors">
+                    55 9602 3567
                   </a>
                 </li>
+
+                {/* WHATSAPP */}
+                <li>
+                  <span className="block text-[9px] font-black text-neutral-600 mb-1.5 tracking-widest">WHATSAPP</span>
+                  <a
+                    href="https://wa.me/525531314617"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xl font-[1000] text-white hover:text-[#FDCB02] transition-colors"
+                  >
+                    55 3131 4617
+                  </a>
+                </li>
+
                 <li>
                   <span className="block text-[9px] font-black text-neutral-600 mb-1.5 tracking-widest">DOMICILIO FISCAL & RFC</span>
                   <p className="text-xs font-bold text-neutral-300 leading-relaxed uppercase">
@@ -201,7 +208,6 @@ export default function Footer() {
                   </p>
                 </li>
                 
-                {/* 🔥 NUEVO BLOQUE DE REDES SOCIALES */}
                 <li>
                   <span className="block text-[9px] font-black text-neutral-600 mb-2.5 tracking-widest">REDES SOCIALES</span>
                   <div className="flex flex-col gap-3">
@@ -229,7 +235,6 @@ export default function Footer() {
       {/* 3. BARRA LEGAL & COPYRIGHT */}
       <div className="relative z-10 border-t border-white/10 bg-[#020202]">
         <div className="container mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-6">
-          
           <div className="flex flex-col md:flex-row items-center gap-8 w-full justify-between">
             <div className="flex items-center gap-2 text-[9px] font-mono text-neutral-600 uppercase font-bold tracking-widest">
               <Copyright size={10} />
