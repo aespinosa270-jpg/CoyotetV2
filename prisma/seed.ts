@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs'; // 🔥 CORREGIDO: Usando bcryptjs para compatibilidad con Vercel
 
 const prisma = new PrismaClient();
 
@@ -7,23 +7,25 @@ async function main() {
   // ==========================================
   // 1. CREDENCIALES DE ACCESO (SEGURIDAD INDIVIDUAL)
   // ==========================================
-  console.log('🔒 Forjando llaves maestras únicas para el equipo...');
+  console.log('🔒 Forjando llaves maestras únicas para el equipo de Coyote Textil...');
   
   // 👑 LOS JEFES (ADMIN)
-  // Nota: Estas son contraseñas temporales para el seed. 
-  // Podrán cambiarlas después desde el sistema.
   const admins = [
     { email: 'jackrizk@coyotetextil.com', name: 'Jack Rizk', pass: 'JackCoyote2026!' },
     { email: 'stephanyrizk@coyotetextil.com', name: 'Stephany Rizk', pass: 'StephanyCoyote2026!' }
   ];
 
   for (const admin of admins) {
-    // Hasheamos la contraseña ESPECÍFICA de este admin
+    // Hasheamos la contraseña ESPECÍFICA usando bcryptjs
     const hashedPassword = await bcrypt.hash(admin.pass, 10);
 
     await prisma.employee.upsert({
       where: { email: admin.email },
-      update: { password: hashedPassword, isActive: true, role: 'ADMIN' },
+      update: { 
+        password: hashedPassword, 
+        isActive: true, 
+        role: 'ADMIN' 
+      },
       create: {
         email: admin.email,
         name: admin.name,
@@ -43,12 +45,15 @@ async function main() {
   ];
 
   for (const vendedora of vendedoras) {
-    // Hasheamos la contraseña ESPECÍFICA de esta vendedora
     const hashedPassword = await bcrypt.hash(vendedora.pass, 10);
 
     await prisma.employee.upsert({
       where: { email: vendedora.email },
-      update: { password: hashedPassword, isActive: true, role: 'VENDEDORA' },
+      update: { 
+        password: hashedPassword, 
+        isActive: true, 
+        role: 'VENDEDORA' 
+      },
       create: {
         email: vendedora.email,
         name: vendedora.name,

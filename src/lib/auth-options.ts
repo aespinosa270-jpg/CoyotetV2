@@ -1,81 +1,83 @@
-import { NextAuthOptions } from "next-auth"
-import CredentialsProvider from "next-auth/providers/credentials"
-import { PrismaAdapter } from "@auth/prisma-adapter"
-import { prisma } from "@/lib/prisma"
-import bcrypt from "bcryptjs"
-import { Adapter } from "next-auth/adapters"
+import { NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as Adapter,
-  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+  session: { strategy: "jwt" },
   providers: [
     CredentialsProvider({
-      name: "Credentials",
+      name: "credentials",
       credentials: {
-        email:    { label: "Email",    type: "email"    },
+        email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Credenciales incompletas");
-        }
+      async authorize(credentials): Promise<any> {
+        if (!credentials?.email || !credentials?.password) return null;
 
-        let account: any = await prisma.employee.findUnique({
+        const employee = await prisma.employee.findUnique({
           where: { email: credentials.email },
         });
-        let isEmployee = true;
 
-        if (!account) {
-          account = await prisma.user.findUnique({
-            where: { email: credentials.email },
-          });
-          isEmployee = false;
+        if (employee && employee.isActive) {
+          const valid = await bcrypt.compare(credentials.password, employee.password);
+          if (valid) {
+            return {
+              id: employee.id,
+              email: employee.email,
+              name: employee.name,
+              employeeId: employee.id,
+              employeeRole: employee.role,
+              userType: "employee",
+            };
+          }
         }
 
-        if (!account?.password) throw new Error("Usuario no encontrado");
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
 
-        const isValid = await bcrypt.compare(credentials.password, account.password);
-        if (!isValid) throw new Error("Contraseña incorrecta");
-
-        if (isEmployee && account.isActive === false) {
-          throw new Error("Cuenta desactivada");
+        if (user) {
+          const valid = await bcrypt.compare(credentials.password, user.password);
+          if (valid) {
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name ?? "",
+              employeeId: null,
+              employeeRole: null,
+              userType: "user",
+            };
+          }
         }
 
-        return {
-          id: account.id,
-          name: account.name,
-          email: account.email,
-          image: (account as any).image || null,
-          role: account.role || "USER",
-          isEmployee,
-          membershipTier: isEmployee ? "NONE" : (account as any).membershipTier || "BRONZE",
-          points: isEmployee ? 0 : (account as any).points || 0,
-        };
+        return null;
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.isEmployee = user.isEmployee;
-        token.membershipTier = user.membershipTier;
-        token.points = user.points;
+        const u = user as any;
+        token.id = u.id;
+        token.employeeId = u.employeeId ?? null;
+        token.employeeRole = u.employeeRole ?? null;
+        token.userType = u.userType ?? "user";
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-        session.user.isEmployee = token.isEmployee;
-        session.user.membershipTier = token.membershipTier;
-        session.user.points = token.points;
+        session.user.id = token.id as string;
+        session.user.employeeId = token.employeeId as string | null;
+        session.user.employeeRole = token.employeeRole as string | null;
+        session.user.userType = token.userType as string;
       }
       return session;
     },
   },
-  pages: { signIn: '/crm/login', error: '/crm/login' },
+  pages: {
+    signIn: "/crm/login",
+  },
   secret: process.env.NEXTAUTH_SECRET,
 };
