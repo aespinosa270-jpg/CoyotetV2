@@ -2,17 +2,12 @@ import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
-import bcrypt from "bcryptjs" // 🔥 CORREGIDO: Usando bcryptjs para compatibilidad con Vercel
+import bcrypt from "bcryptjs"
 import { Adapter } from "next-auth/adapters"
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
-
-  session: {
-    strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60,
-  },
-
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -21,19 +16,15 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        console.log("--- 🛡️ SYSTEM BOOT: COYOTE TEXTIL ---");
-
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("SYSTEM_ERROR: Credenciales incompletas.");
+          throw new Error("Credenciales incompletas");
         }
 
-        // 1. Buscar en Employee primero
         let account: any = await prisma.employee.findUnique({
           where: { email: credentials.email },
         });
         let isEmployee = true;
 
-        // 2. Si no es empleado, buscar en User (clientes)
         if (!account) {
           account = await prisma.user.findUnique({
             where: { email: credentials.email },
@@ -41,69 +32,50 @@ export const authOptions: NextAuthOptions = {
           isEmployee = false;
         }
 
-        if (!account?.password) {
-          console.log("❌ ERROR: Nodo no localizado.");
-          throw new Error("SYSTEM_ERROR: Nodo no localizado.");
-        }
+        if (!account?.password) throw new Error("Usuario no encontrado");
 
-        // Usando bcryptjs para la comparación
         const isValid = await bcrypt.compare(credentials.password, account.password);
-        if (!isValid) {
-          console.log("⛔ ERROR: Cifrado incorrecto.");
-          throw new Error("SYSTEM_ERROR: Cifrado incorrecto.");
-        }
+        if (!isValid) throw new Error("Contraseña incorrecta");
 
-        // Bloquear empleados inactivos
         if (isEmployee && account.isActive === false) {
-          throw new Error("SYSTEM_ERROR: Cuenta desactivada.");
+          throw new Error("Cuenta desactivada");
         }
-
-        console.log(`✅ ACCESO CONCEDIDO: ${account.name} | ROL: ${account.role || 'CLIENTE'}`);
 
         return {
-          id:             account.id,
-          name:           account.name,
-          email:          account.email!,
-          image:          account.image   || null,
-          role:           account.role    || "USER",
+          id: account.id,
+          name: account.name,
+          email: account.email,
+          image: (account as any).image || null,
+          role: account.role || "USER",
           isEmployee,
           membershipTier: isEmployee ? "NONE" : (account as any).membershipTier || "BRONZE",
-          points:         isEmployee ? 0      : (account as any).points         || 0,
+          points: isEmployee ? 0 : (account as any).points || 0,
         };
       },
     }),
   ],
-
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
-      if (trigger === "update" && session) {
-        return { ...token, ...session };
-      }
+    async jwt({ token, user }) {
       if (user) {
-        token.id             = user.id;
-        token.role           = (user as any).role;
-        token.isEmployee     = (user as any).isEmployee;
-        token.membershipTier = (user as any).membershipTier;
-        token.points         = (user as any).points;
+        token.id = user.id;
+        token.role = user.role;
+        token.isEmployee = user.isEmployee;
+        token.membershipTier = user.membershipTier;
+        token.points = user.points;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id             = token.id;
-        (session.user as any).role           = token.role;
-        (session.user as any).isEmployee     = token.isEmployee;
-        (session.user as any).membershipTier = token.membershipTier;
-        (session.user as any).points         = token.points;
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.isEmployee = token.isEmployee;
+        session.user.membershipTier = token.membershipTier;
+        session.user.points = token.points;
       }
       return session;
     },
   },
-
-  pages: {
-    signIn: '/crm/login',
-    error:  '/crm/login',
-  },
-
+  pages: { signIn: '/crm/login', error: '/crm/login' },
   secret: process.env.NEXTAUTH_SECRET,
 };
