@@ -2,7 +2,7 @@ import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
-import bcrypt from "bcrypt"
+import bcrypt from "bcryptjs" // 🔥 CORREGIDO: Usando bcryptjs para compatibilidad con Vercel
 import { Adapter } from "next-auth/adapters"
 
 export const authOptions: NextAuthOptions = {
@@ -46,6 +46,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error("SYSTEM_ERROR: Nodo no localizado.");
         }
 
+        // Usando bcryptjs para la comparación
         const isValid = await bcrypt.compare(credentials.password, account.password);
         if (!isValid) {
           console.log("⛔ ERROR: Cifrado incorrecto.");
@@ -57,17 +58,17 @@ export const authOptions: NextAuthOptions = {
           throw new Error("SYSTEM_ERROR: Cuenta desactivada.");
         }
 
-        console.log(`✅ ACCESO CONCEDIDO: ${account.name} | ROL: ${account.role}`);
+        console.log(`✅ ACCESO CONCEDIDO: ${account.name} | ROL: ${account.role || 'CLIENTE'}`);
 
         return {
           id:             account.id,
           name:           account.name,
           email:          account.email!,
           image:          account.image   || null,
-          role:           account.role,
+          role:           account.role    || "USER",
           isEmployee,
-          membershipTier: isEmployee ? "NONE" : account.membershipTier,
-          points:         isEmployee ? 0      : account.points,
+          membershipTier: isEmployee ? "NONE" : (account as any).membershipTier || "BRONZE",
+          points:         isEmployee ? 0      : (account as any).points         || 0,
         };
       },
     }),
@@ -100,7 +101,7 @@ export const authOptions: NextAuthOptions = {
   },
 
   pages: {
-    signIn: '/crm/login', // ← cambiar de '/cuenta' a '/crm/login'
+    signIn: '/crm/login',
     error:  '/crm/login',
   },
 

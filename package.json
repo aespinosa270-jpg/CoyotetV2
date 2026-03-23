@@ -49,6 +49,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.1",
+    "react-is": "^19.0.0",
     "recharts": "^3.8.0",
     "sip.js": "^0.21.2",
     "stripe": "^20.4.0",
