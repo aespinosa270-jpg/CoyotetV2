@@ -71,8 +71,9 @@ export async function updateTicketStatusAction(
 
 const ticketInclude = {
   employee: { select: { id: true, name: true } },
-  user:     { select: { id: true, name: true, email: true } },
+  user:     { select: { id: true, name: true, email: true, company: true } }, // 🔥 Agregado company
   order:    { select: { id: true, orderNumber: true } },
+  _count:   { select: { messages: true } }, // 🔥 Agregado el conteo de mensajes
 } as const;
 
 export async function getTicketsAbiertos() {
@@ -123,4 +124,49 @@ export async function getTicketKPIs() {
       : 0;
 
   return { abiertos, pendientes: enRevision, resueltos, criticos: urgentes, avgHours: avgHours.toFixed(1) };
+}
+// Agrégalo al final de src/app/actions/tickets.ts
+
+export async function getTicketById(id: string) {
+  return prisma.ticket.findUnique({
+    where: { id },
+    include: {
+      user: { select: { id: true, name: true, email: true, company: true } },
+      employee: { select: { id: true, name: true } },
+      order: { select: { id: true, orderNumber: true } },
+      messages: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          user: { select: { name: true } },
+          employee: { select: { name: true } }
+        }
+      }
+    }
+  });
+}
+
+export async function addTicketMessageAction(
+  ticketId: string, 
+  body: string, 
+  isInternal: boolean, 
+  employeeId: string // En producción, idealmente sacas esto de la sesión del usuario (NextAuth)
+) {
+  try {
+    await prisma.ticketMessage.create({
+      data: {
+        ticketId,
+        body,
+        isInternal,
+        employeeId
+      }
+    });
+
+    // Opcional: Si el ticket estaba "CERRADO" o "RESUELTO", lo puedes regresar a "EN_REVISION"
+    
+    revalidatePath(`/crm/admin/tickets/${ticketId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("[addTicketMessageAction]", err);
+    return { success: false, error: "Error al enviar el mensaje." };
+  }
 }

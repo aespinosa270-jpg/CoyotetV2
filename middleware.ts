@@ -3,53 +3,61 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const ADMIN_EMAILS = [
-  "jackrizk@coyotetextil.com",
-  "stephanyrizk@coyotetextil.com",
-];
+// Roles que acceden a /crm/admin
+const ADMIN_ROLES = ["ADMIN", "SUPERVISOR", "CONTABILIDAD"];
+// Roles que acceden a /crm/agente
+const AGENT_ROLES = ["VENDEDORA", "LOGISTICA"];
 
 export async function middleware(req: NextRequest) {
-  // 🔥 CORRECCIÓN: Simplificamos la lectura del token para evitar el loop de redirección
   const token = await getToken({
     req,
     secret: process.env.NEXTAUTH_SECRET,
   });
 
   const { pathname } = req.nextUrl;
-  const isLoginPage  = pathname === "/crm/login";
+  const isLoginPage = pathname === "/crm/login";
 
-  // =======================================================================
-  // 🐺 1. PROTECCIÓN DE LA TIENDA PÚBLICA (E-Commerce)
-  // =======================================================================
-  const isStorefrontProtectedRoute = 
-    // pathname.startsWith("/checkout") || // 🔥 ELIMINADO para permitir Guest Checkout
-    pathname.startsWith("/perfil") || 
+  // =========================================================
+  // 1. STOREFRONT — rutas protegidas del e-commerce
+  // =========================================================
+  const isStorefrontProtected =
+    pathname.startsWith("/perfil") ||
     pathname.startsWith("/pedidos");
 
-  if (isStorefrontProtectedRoute && !token) {
-    // Si intentan ver su perfil o pedidos sin sesión, a la página de cuenta
+  if (isStorefrontProtected && !token) {
     return NextResponse.redirect(new URL("/cuenta", req.url));
   }
 
-  // =======================================================================
-  // 🏢 2. PROTECCIÓN DEL CRM INTERNO
-  // =======================================================================
+  // =========================================================
+  // 2. CRM — requiere sesión activa
+  // =========================================================
   if (pathname.startsWith("/crm") && !isLoginPage && !token) {
     return NextResponse.redirect(new URL("/crm/login", req.url));
   }
 
+  // Si ya tiene sesión y va al login, redirige según su rol
   if (isLoginPage && token) {
-    return NextResponse.redirect(new URL("/crm", req.url));
+    const role = token.employeeRole as string;
+    if (ADMIN_ROLES.includes(role)) {
+      return NextResponse.redirect(new URL("/crm/admin", req.url));
+    }
+    return NextResponse.redirect(new URL("/crm/agente", req.url));
   }
 
-  if (pathname.startsWith("/crm/admin") && token) {
-    if (!ADMIN_EMAILS.includes(token.email as string)) {
+  // =========================================================
+  // 3. CONTROL DE ACCESO POR ROL
+  // =========================================================
+  if (token) {
+    const role = token.employeeRole as string;
+
+    // Solo ADMIN/SUPERVISOR/CONTABILIDAD pueden ver /crm/admin
+    if (pathname.startsWith("/crm/admin") && !ADMIN_ROLES.includes(role)) {
       return NextResponse.redirect(new URL("/crm/agente", req.url));
     }
-  }
 
-  if (pathname.startsWith("/crm/agente") && token) {
-    if (ADMIN_EMAILS.includes(token.email as string)) {
+    // Solo VENDEDORA/LOGISTICA van a /crm/agente
+    // (ADMIN que entre a /crm/agente accidentalmente → redirigir a admin)
+    if (pathname.startsWith("/crm/agente") && ADMIN_ROLES.includes(role)) {
       return NextResponse.redirect(new URL("/crm/admin", req.url));
     }
   }
@@ -57,12 +65,10 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-// 🔥 ACTUALIZADO: Le decimos al cadenero en qué pasillos tiene que patrullar
 export const config = {
   matcher: [
-    "/crm/:path*", 
-    // "/checkout/:path*", // 🔥 ELIMINADO de la zona de patrullaje
-    "/perfil/:path*", 
-    "/pedidos/:path*"
+    "/crm/:path*",
+    "/perfil/:path*",
+    "/pedidos/:path*",
   ],
 };

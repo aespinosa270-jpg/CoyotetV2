@@ -1,8 +1,11 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { PipelineStatus } from "@prisma/client";
+import { PipelineStatus, PickupLocation } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { registerMovementAction } from "./inventory"; 
+
+// ─── TYPES ───────────────────────────────────────────────────────────────────
 
 export type CreateDealInput = {
   title:      string;
@@ -10,7 +13,7 @@ export type CreateDealInput = {
   employeeId: string;
   value:      number;
   productId?: string;
-  color?:     string;
+  color?:     string; // Mapeado a 'color' según tu schema
   quantity?:  number;
   userId?:    string;
 };
@@ -18,6 +21,8 @@ export type CreateDealInput = {
 export type DealResult =
   | { success: true;  dealId: string }
   | { success: false; error: string  };
+
+// ─── ACTIONS ─────────────────────────────────────────────────────────────────
 
 export async function createDealAction(input: CreateDealInput): Promise<DealResult> {
   const { title, company, employeeId, value, productId, color, quantity, userId } = input;
@@ -42,19 +47,58 @@ export async function createDealAction(input: CreateDealInput): Promise<DealResu
     return { success: true, dealId: deal.id };
   } catch (err) {
     console.error("[createDealAction]", err);
-    return { success: false, error: "Error al crear el deal." };
+    return { success: false, error: "Error al crear el registro." };
   }
 }
 
 export async function moveDealAction(dealId: string, status: PipelineStatus): Promise<DealResult> {
-  if (!dealId) return { success: false, error: "Deal no encontrado." };
+  if (!dealId) return { success: false, error: "ID de Deal no proporcionado." };
+
   try {
-    await prisma.deal.update({ where: { id: dealId }, data: { status } });
+    const result = await prisma.$transaction(async (tx) => {
+      const deal = await tx.deal.findUnique({
+        where: { id: dealId },
+        include: { employee: true }
+      });
+
+      if (!deal) throw new Error("El Deal no existe en la base de datos.");
+
+      if (status === "CERRADO_GANADO") {
+        if (!deal.productId || !deal.quantity) {
+          throw new Error("Información insuficiente: El deal requiere producto y cantidad.");
+        }
+
+        // 🔥 FIX: Mapeamos deal.color (del schema) a colorId (de la acción de inventario)
+        const invRes = await registerMovementAction({
+          type: "SALIDA",
+          productId: deal.productId,
+          colorId:   deal.color || undefined, 
+          location:  PickupLocation.GUATEMALA_97, 
+          quantity:  deal.quantity,
+          rollCount: 0, 
+          authorizedBy: deal.employee.name,
+          notes: `Salida automática por cierre de venta: ${deal.title}`,
+          orderId: deal.id
+        });
+
+        if (!invRes.success) {
+          throw new Error(invRes.error);
+        }
+      }
+
+      return await tx.deal.update({
+        where: { id: dealId },
+        data: { status }
+      });
+    });
+
     revalidatePath("/crm/admin/leads");
-    return { success: true, dealId };
-  } catch (err) {
+    revalidatePath("/crm/admin/inventario");
+    
+    return { success: true, dealId: result.id };
+  } catch (err: any) {
     console.error("[moveDealAction]", err);
-    return { success: false, error: "Error al mover el deal." };
+    return { success: false, error: err.message || "Error al procesar el cambio de estado." };
   }
 }
 
@@ -65,9 +109,11 @@ export async function deleteDealAction(dealId: string): Promise<DealResult> {
     return { success: true, dealId };
   } catch (err) {
     console.error("[deleteDealAction]", err);
-    return { success: false, error: "Error al eliminar el deal." };
+    return { success: false, error: "Error al eliminar el registro." };
   }
 }
+
+// ─── QUERIES ────────────────────────────────────────────────────────────────
 
 export async function getDealsByStatus() {
   const deals = await prisma.deal.findMany({
@@ -83,7 +129,11 @@ export async function getDealsByStatus() {
     PROSPECTO: [], COTIZANDO: [], NEGOCIACION: [],
     CERRADO_GANADO: [], CERRADO_PERDIDO: [],
   };
-  for (const deal of deals) columns[deal.status].push(deal);
+
+  for (const deal of deals) {
+    columns[deal.status].push(deal);
+  }
+
   return columns;
 }
 
@@ -122,7 +172,9 @@ export async function getPipelineKPIs() {
     prisma.deal.aggregate({ _sum: { value: true } }),
     prisma.deal.aggregate({ where: { status: "CERRADO_GANADO" }, _sum: { value: true } }),
   ]);
+
   const cerrados = ganados + perdidos;
+
   return {
     total, ganados, perdidos,
     winRate:     cerrados > 0 ? Math.round((ganados / cerrados) * 100) : 0,

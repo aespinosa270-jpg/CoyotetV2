@@ -9,6 +9,7 @@ import {
   Timer, Square, Package, GraduationCap,
 } from "lucide-react";
 import { EmployeeRole } from "@prisma/client";
+import { checkInAction, checkOutAction, startBreakAction, endBreakAction } from "@/app/actions/checador";
 
 type BreakType = "BANO" | "LUNCH" | "PEDIDO" | "ENTRENAMIENTO";
 
@@ -156,11 +157,8 @@ export default function CheckadorClient({
   const [loading,       setLoading]     = useState(false);
   const [breakLoading,  setBreakLoading]= useState<BreakType | null>(null);
   const [activeBreak,   setActiveBreak] = useState<AttendanceBreak | null>(null);
-  const [breaks,        setBreaks]      = useState<AttendanceBreak[]>(
-    initialActive?.breaks ?? []
-  );
+  const [breaks,        setBreaks]      = useState<AttendanceBreak[]>(initialActive?.breaks ?? []);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [, startT]        = useTransition();
 
   // Reloj principal
   useEffect(() => {
@@ -229,16 +227,20 @@ export default function CheckadorClient({
     setLoading(true);
     try {
       const { lat, lng, label } = await getLocation();
-      const res  = await fetch("/api/agente/checador/checkin", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ employeeId: employee.id, lat, lng, location: label }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setActive({ ...data, checkOut: null, breaks: [] });
+      const res = await checkInAction(employee.id, lat, lng, label);
+      
+      if (!res.success || !res.data) throw new Error(res.error);
+      
+      const newAttendance: Attendance = { 
+        ...res.data, 
+        checkIn: res.data.checkIn.toISOString(),
+        checkOut: null, 
+        breaks: [] 
+      };
+      
+      setActive(newAttendance);
       setBreaks([]);
-      setAttendances((prev) => [{ ...data, checkOut: null, breaks: [] }, ...prev]);
+      setAttendances((prev) => [newAttendance, ...prev]);
       showToast("Check-In registrado ✓", true);
     } catch (e: any) {
       showToast(e.message ?? "Error al registrar", false);
@@ -255,23 +257,20 @@ export default function CheckadorClient({
     }
     setLoading(true);
     try {
-      const { lat, lng, label } = await getLocation();
-      const res  = await fetch("/api/agente/checador/checkout", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
-          attendanceId: active.id, employeeId: employee.id,
-          lat, lng, location: label,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const { lat, lng } = await getLocation();
+      const res = await checkOutAction(active.id, employee.id, lat, lng);
+      
+      if (!res.success || !res.data) throw new Error(res.error);
+      
       setActive(null);
       setElapsed("00:00:00");
       setBreaks([]);
       setActiveBreak(null);
       setAttendances((prev) =>
-        prev.map((a) => a.id === active.id ? { ...data, breaks } : a)
+        prev.map((a) => a.id === active.id 
+          ? { ...a, checkOut: new Date().toISOString(), horasTrabajadas: res.data.horasTrabajadas, breaks } 
+          : a
+        )
       );
       showToast("Check-Out registrado ✓", true);
     } catch (e: any) {
@@ -285,16 +284,13 @@ export default function CheckadorClient({
     if (!active || activeBreak) return;
     setBreakLoading(type);
     try {
-      const res  = await fetch("/api/agente/checador/break-start", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ attendanceId: active.id, type }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      const newBreak: AttendanceBreak = { ...data, endAt: null, duration: null };
+      const res = await startBreakAction(active.id, type);
+      if (!res.success || !res.data) throw new Error(res.error);
+      
+      const newBreak: AttendanceBreak = { ...res.data, startAt: res.data.startAt.toISOString(), endAt: null, duration: null };
       setActiveBreak(newBreak);
       setBreaks((prev) => [...prev, newBreak]);
+      
       const cfg = BREAK_CONFIG[type];
       showToast(`${cfg.emoji} ${cfg.label} iniciado`, true);
     } catch (e: any) {
@@ -308,22 +304,18 @@ export default function CheckadorClient({
     if (!activeBreak) return;
     setBreakLoading(activeBreak.type);
     try {
-      const res  = await fetch("/api/agente/checador/break-end", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ breakId: activeBreak.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const res = await endBreakAction(activeBreak.id);
+      if (!res.success || !res.data) throw new Error(res.error);
+      
       setBreaks((prev) =>
         prev.map((b) => b.id === activeBreak.id
-          ? { ...b, endAt: data.endAt, duration: data.duration }
+          ? { ...b, endAt: res.data.endAt?.toISOString() ?? null, duration: res.data.duration }
           : b
         )
       );
       setActiveBreak(null);
       setBreakElapsed("00:00");
-      showToast(`Pausa terminada — ${Math.round(data.duration ?? 0)} min`, true);
+      showToast(`Pausa terminada — ${Math.round(res.data.duration ?? 0)} min`, true);
     } catch (e: any) {
       showToast(e.message ?? "Error", false);
     } finally {
@@ -366,13 +358,13 @@ export default function CheckadorClient({
       <div className="grid grid-cols-3 gap-4 shrink-0">
 
         {/* ── PUNCH CARD ── */}
-        <div className="col-span-1 bg-[#0a0a0a] border border-white/[0.04] rounded-3xl p-6 flex flex-col items-center gap-4 relative overflow-hidden">
+        <div className="col-span-1 bg-[#0a0a0a] border border-white/[0.04] rounded-3xl p-6 flex flex-col items-center gap-4 relative overflow-hidden shadow-2xl">
           {active      && !activeBreak && <div className="absolute inset-0 bg-emerald-500/3 rounded-3xl pointer-events-none" />}
           {activeBreak && <div className={`absolute inset-0 rounded-3xl pointer-events-none ${activeBreakCfg?.bgBadge}`} />}
 
           {/* Avatar */}
           <div className="text-center">
-            <div className="w-14 h-14 rounded-2xl bg-[#FDCB02] text-black font-black text-lg flex items-center justify-center mx-auto mb-2">
+            <div className="w-14 h-14 rounded-2xl bg-[#FDCB02] text-black font-black text-lg flex items-center justify-center mx-auto mb-2 shadow-inner">
               {employee.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
             </div>
             <p className="text-sm font-black text-white">{employee.name}</p>
@@ -423,13 +415,13 @@ export default function CheckadorClient({
           )}
 
           {/* ── BOTONES ── */}
-          <div className="w-full space-y-2">
+          <div className="w-full space-y-2 mt-auto">
 
             {!active ? (
               // ── CHECK-IN ──
               <motion.button whileTap={{ scale: 0.97 }}
                 onClick={handleCheckIn} disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-widest py-3 rounded-xl transition-all disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-widest py-3 rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20"
               >
                 {loading ? <Loader2 size={14} className="animate-spin" /> : <LogIn size={14} />}
                 Check-In
@@ -493,7 +485,7 @@ export default function CheckadorClient({
                 <motion.button whileTap={{ scale: 0.97 }}
                   onClick={handleCheckOut}
                   disabled={loading || !!activeBreak}
-                  className="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-400 text-white font-black text-xs uppercase tracking-widest py-3 rounded-xl transition-all disabled:opacity-40"
+                  className="w-full flex items-center justify-center gap-2 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 font-black text-[10px] uppercase tracking-widest py-3 rounded-xl transition-all disabled:opacity-40"
                 >
                   {loading ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
                   {activeBreak ? "Termina la pausa primero" : "Check-Out"}
@@ -524,36 +516,36 @@ export default function CheckadorClient({
         </div>
 
         {/* ── KPIs + sesión activa ── */}
-        <div className="col-span-2 grid grid-cols-3 gap-3 content-start">
+        <div className="col-span-2 grid grid-cols-3 gap-4 content-start">
           {[
             { label: "Horas Este Mes",  value: formatHoras(kpis.totalHorasMes),  icon: <Clock      size={14} className="text-[#FDCB02]"  />, sub: "Total acumulado"   },
             { label: "Días Trabajados", value: kpis.diasTrabajados,              icon: <Calendar   size={14} className="text-sky-400"    />, sub: "Con check-out"     },
             { label: "Promedio Diario", value: formatHoras(kpis.promedioHoras),  icon: <TrendingUp size={14} className="text-emerald-400"/>, sub: "Por día trabajado" },
           ].map((k, i) => (
-            <div key={i} className="bg-[#0a0a0a] border border-white/[0.03] rounded-2xl p-5 flex flex-col justify-between h-28">
+            <div key={i} className="bg-[#0a0a0a] border border-white/[0.03] rounded-3xl p-6 flex flex-col justify-between h-32 shadow-xl">
               <div className="flex justify-between items-start">
-                <p className="text-[8px] font-black uppercase tracking-widest text-zinc-600">{k.label}</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600">{k.label}</p>
                 {k.icon}
               </div>
               <div>
-                <p className="text-xl font-mono font-bold text-white">{k.value}</p>
-                <p className="text-[9px] text-zinc-700 mt-0.5">{k.sub}</p>
+                <p className="text-3xl font-mono font-bold text-white">{k.value}</p>
+                <p className="text-[10px] text-zinc-700 mt-1">{k.sub}</p>
               </div>
             </div>
           ))}
 
           {/* Sesión activa */}
           {active && (
-            <div className={`col-span-3 rounded-2xl p-4 flex items-center gap-4 border ${
+            <div className={`col-span-3 rounded-2xl p-5 flex items-center gap-4 border shadow-lg ${
               activeBreak
                 ? `${activeBreakCfg?.bgBadge} ${activeBreakCfg?.borderBadge}`
                 : "bg-emerald-500/5 border-emerald-500/20"
             }`}>
-              <div className={`w-2 h-2 rounded-full shrink-0 animate-pulse ${
+              <div className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse ${
                 activeBreak ? activeBreakCfg?.color.replace("text-", "bg-") : "bg-emerald-500"
               }`} />
               <div className="flex-1 min-w-0">
-                <p className={`text-xs font-bold uppercase tracking-widest ${
+                <p className={`text-sm font-bold uppercase tracking-widest ${
                   activeBreak ? activeBreakCfg?.color : "text-emerald-400"
                 }`}>
                   {activeBreak
@@ -561,20 +553,20 @@ export default function CheckadorClient({
                     : "Sesión Activa"
                   }
                 </p>
-                <p className="text-[10px] text-zinc-500 mt-0.5 capitalize">
+                <p className="text-xs text-zinc-500 mt-1 capitalize">
                   {formatDate(active.checkIn)} · Entrada: {formatTime(active.checkIn)}
                 </p>
                 {active.location && (
-                  <div className="flex items-center gap-1 mt-1">
-                    <MapPin size={9} className="text-zinc-600 shrink-0" />
-                    <p className="text-[9px] text-zinc-600 truncate">{active.location}</p>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <MapPin size={11} className="text-zinc-600 shrink-0" />
+                    <p className="text-[10px] text-zinc-600 truncate uppercase tracking-widest">{active.location}</p>
                   </div>
                 )}
               </div>
               {activeBreak && (
                 <div className="text-right shrink-0">
-                  <p className="text-[9px] text-zinc-600 uppercase tracking-widest">Pausa</p>
-                  <p className={`text-sm font-mono font-bold ${activeBreakCfg?.color}`}>{breakElapsed}</p>
+                  <p className="text-[9px] text-zinc-600 uppercase tracking-widest">Tiempo</p>
+                  <p className={`text-lg font-mono font-bold ${activeBreakCfg?.color}`}>{breakElapsed}</p>
                 </div>
               )}
             </div>
@@ -582,23 +574,23 @@ export default function CheckadorClient({
 
           {/* Breaks del día */}
           {breaks.length > 0 && (
-            <div className="col-span-3 bg-[#0a0a0a] border border-white/[0.03] rounded-2xl p-4">
-              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-3 flex items-center gap-1.5">
-                <Timer size={11} /> Pausas de Hoy
+            <div className="col-span-3 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl p-5 shadow-xl">
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-4 flex items-center gap-1.5">
+                <Timer size={13} /> Pausas Registradas Hoy
               </p>
               <div className="flex flex-wrap gap-2">
                 {breaks.map((b) => {
                   const cfg = BREAK_CONFIG[b.type];
                   return (
-                    <div key={b.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[9px] font-bold uppercase tracking-widest ${cfg.bgBadge} ${cfg.borderBadge} ${cfg.color}`}>
+                    <div key={b.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-widest ${cfg.bgBadge} ${cfg.borderBadge} ${cfg.color}`}>
                       {cfg.icon}
                       {cfg.label}
-                      <span className="font-mono">
+                      <span className="font-mono bg-black/20 px-2 py-0.5 rounded-md">
                         {formatTime(b.startAt)}
-                        {b.endAt ? ` → ${formatTime(b.endAt)}` : " · en curso"}
+                        {b.endAt ? ` → ${formatTime(b.endAt)}` : " · En curso"}
                       </span>
                       {b.duration != null && (
-                        <span className="opacity-60">{Math.round(b.duration)}min</span>
+                        <span className="opacity-60">{Math.round(b.duration)}m</span>
                       )}
                     </div>
                   );
@@ -610,30 +602,30 @@ export default function CheckadorClient({
       </div>
 
       {/* ── HISTORIAL ── */}
-      <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/[0.04] shrink-0 flex items-center justify-between">
-          <h3 className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-2">
-            <Clock size={13} className="text-[#FDCB02]" /> Historial de Asistencia
+      <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden shadow-2xl">
+        <div className="px-6 py-5 border-b border-white/[0.04] shrink-0 flex items-center justify-between">
+          <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+            <Clock size={15} className="text-[#FDCB02]" /> Historial de Asistencia
           </h3>
-          <p className="text-[9px] text-zinc-600 uppercase tracking-widest">Últimos 30 días</p>
+          <p className="text-[10px] text-zinc-600 uppercase tracking-widest">Últimos 30 días</p>
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full">
           {attendances.length === 0 ? (
             <div className="flex items-center justify-center h-full">
-              <p className="text-[10px] text-zinc-700 uppercase tracking-widest">Sin registros</p>
+              <p className="text-[10px] text-zinc-700 uppercase tracking-widest font-bold">Sin registros</p>
             </div>
           ) : (
             <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-[#0a0a0a] z-10">
-                <tr className="border-b border-white/[0.04] text-[9px] uppercase tracking-[0.2em] text-zinc-600 font-bold">
-                  <th className="px-6 py-3">Fecha</th>
-                  <th className="px-6 py-3">Check-In</th>
-                  <th className="px-6 py-3">Check-Out</th>
-                  <th className="px-6 py-3">Horas</th>
-                  <th className="px-6 py-3">Pausas</th>
-                  <th className="px-6 py-3">Ubicación</th>
-                  <th className="px-6 py-3 text-right">Estado</th>
+              <thead className="sticky top-0 bg-[#0a0a0a] z-10 backdrop-blur-md">
+                <tr className="border-b border-white/[0.04] text-[9px] uppercase tracking-[0.2em] text-zinc-600 font-bold bg-[#0a0a0a]/90">
+                  <th className="px-6 py-4">Fecha</th>
+                  <th className="px-6 py-4">Check-In</th>
+                  <th className="px-6 py-4">Check-Out</th>
+                  <th className="px-6 py-4">Horas</th>
+                  <th className="px-6 py-4">Pausas</th>
+                  <th className="px-6 py-4">Ubicación</th>
+                  <th className="px-6 py-4 text-right">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.02]">
@@ -645,29 +637,29 @@ export default function CheckadorClient({
                       transition={{ delay: idx * 0.03 }}
                       className="hover:bg-white/[0.01] transition-colors"
                     >
-                      <td className="px-6 py-3">
+                      <td className="px-6 py-4">
                         <p className="text-xs font-bold text-zinc-300 capitalize">
                           {new Date(a.checkIn).toLocaleDateString("es-MX", {
                             weekday: "short", day: "2-digit", month: "short",
                           })}
                         </p>
                       </td>
-                      <td className="px-6 py-3">
-                        <p className="text-xs font-mono text-emerald-400">{formatTime(a.checkIn)}</p>
+                      <td className="px-6 py-4">
+                        <p className="text-xs font-mono font-bold text-emerald-400">{formatTime(a.checkIn)}</p>
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-6 py-4">
                         {a.checkOut
-                          ? <p className="text-xs font-mono text-red-400">{formatTime(a.checkOut)}</p>
-                          : <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest animate-pulse">Activo</span>
+                          ? <p className="text-xs font-mono font-bold text-red-400">{formatTime(a.checkOut)}</p>
+                          : <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest animate-pulse border border-amber-500/20 bg-amber-500/10 px-2 py-1 rounded">Activo</span>
                         }
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-6 py-4">
                         {a.horasTrabajadas != null
-                          ? <p className="text-xs font-mono text-[#FDCB02] font-bold">{formatHoras(a.horasTrabajadas)}</p>
+                          ? <p className="text-xs font-mono text-[#FDCB02] font-black">{formatHoras(a.horasTrabajadas)}</p>
                           : <p className="text-xs text-zinc-700">—</p>
                         }
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-6 py-4">
                         <div className="flex items-center gap-2 flex-wrap">
                           {ALL_BREAK_TYPES.map((type) => {
                             const mins = (a.breaks ?? [])
@@ -676,32 +668,32 @@ export default function CheckadorClient({
                             if (mins === 0) return null;
                             const cfg = BREAK_CONFIG[type];
                             return (
-                              <span key={type} className={`flex items-center gap-1 text-[9px] ${cfg.color} font-mono`}>
+                              <span key={type} className={`flex items-center gap-1 text-[10px] ${cfg.color} font-mono bg-white/5 px-2 py-0.5 rounded`}>
                                 {cfg.icon} {Math.round(mins)}m
                               </span>
                             );
                           })}
                           {ALL_BREAK_TYPES.every((t) =>
                             (a.breaks ?? []).filter((b) => b.type === t && b.duration).reduce((s, b) => s + (b.duration ?? 0), 0) === 0
-                          ) && <span className="text-zinc-700 text-xs">—</span>}
+                          ) && <span className="text-zinc-700 text-xs font-bold">—</span>}
                         </div>
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-6 py-4">
                         {a.location ? (
-                          <div className="flex items-center gap-1">
-                            <MapPin size={9} className="text-zinc-600 shrink-0" />
-                            <p className="text-[10px] text-zinc-500 truncate max-w-[160px]">{a.location}</p>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin size={11} className="text-zinc-600 shrink-0" />
+                            <p className="text-[10px] text-zinc-500 uppercase tracking-widest truncate max-w-[160px]">{a.location}</p>
                           </div>
-                        ) : <p className="text-zinc-700 text-xs">—</p>}
+                        ) : <p className="text-zinc-700 text-xs font-bold">—</p>}
                       </td>
-                      <td className="px-6 py-3 text-right">
+                      <td className="px-6 py-4 text-right">
                         {completo ? (
-                          <span className="flex items-center justify-end gap-1 text-[9px] font-black text-emerald-400 uppercase tracking-widest">
-                            <CheckCircle2 size={10} /> Completo
+                          <span className="flex items-center justify-end gap-1.5 text-[9px] font-black text-emerald-400 uppercase tracking-widest">
+                            <CheckCircle2 size={12} /> Completo
                           </span>
                         ) : (
-                          <span className="flex items-center justify-end gap-1 text-[9px] font-black text-amber-400 uppercase tracking-widest animate-pulse">
-                            <Clock size={10} /> En curso
+                          <span className="flex items-center justify-end gap-1.5 text-[9px] font-black text-amber-400 uppercase tracking-widest animate-pulse">
+                            <Clock size={12} /> En curso
                           </span>
                         )}
                       </td>

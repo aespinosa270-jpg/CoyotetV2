@@ -140,22 +140,22 @@ enum BreakType {
 // 1. USUARIO / CLIENTE (B2B & B2C)
 // ==========================================================
 model User {
-  id                           String         @id @default(cuid())
-  hashId                       String         @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
+  id                           String              @id @default(cuid())
+  hashId                       String              @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
   name                         String?
-  email                        String         @unique
+  email                        String              @unique
   password                     String
   image                        String?
   phone                        String?
-  role                         String         @default("USER")
-  membershipTier               MembershipTier @default(NONE)
+  role                         String              @default("USER")
+  membershipTier               MembershipTier      @default(NONE)
   membershipExpiry             DateTime?
-  membershipColocacionesUsadas Int            @default(0)
-  points                       Int            @default(0)
+  membershipColocacionesUsadas Int                 @default(0)
+  points                       Int                 @default(0)
   stripeCustomerId             String?
   stripeSubscriptionId         String?
   stripeSubscriptionStatus     String?
-  ltv                          Float          @default(0)
+  ltv                          Float               @default(0)
   rfc                          String?
   taxRegime                    String?
   cfdiUse                      String?
@@ -166,12 +166,12 @@ model User {
   state                        String?
   company                      String?
   notes                        String?
-  optedIn                      Boolean        @default(false)
-  suppressed                   Boolean        @default(false)
+  optedIn                      Boolean             @default(false)
+  suppressed                   Boolean             @default(false)
   consentDate                  DateTime?
   optOutDate                   DateTime?
-  createdAt                    DateTime       @default(now())
-  updatedAt                    DateTime       @updatedAt
+  createdAt                    DateTime            @default(now())
+  updatedAt                    DateTime            @updatedAt
 
   orders                       Order[]
   interactions                 Interaction[]
@@ -179,6 +179,7 @@ model User {
   deals                        Deal[]
   waConversations              WaConversation[]
   passwordResetToken           PasswordResetToken?
+  ticketMessages               TicketMessage[]     // NUEVO: relación con TicketMessage
 }
 
 // ==========================================================
@@ -197,20 +198,23 @@ model PasswordResetToken {
 // 2. LA JAURIA (EQUIPO INTERNO)
 // ==========================================================
 model Employee {
-  id              String         @id @default(cuid())
+  id              String           @id @default(cuid())
   name            String
-  email           String         @unique
+  email           String           @unique
   password        String
-  role            EmployeeRole   @default(VENDEDORA)
-  isActive        Boolean        @default(true)
-  commissionRate  Float          @default(0.03)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  role            EmployeeRole     @default(VENDEDORA)
+  isActive        Boolean          @default(true)
+  commissionRate  Float            @default(0.03)
+  status          String           @default("offline") // NUEVO
+  lastActiveAt    DateTime?                            // NUEVO
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   logs            AuditLog[]
   attendances     Attendance[]
   interactions    Interaction[]
   assignedTickets Ticket[]
+  ticketMessages  TicketMessage[]                      // NUEVO: relación con TicketMessage
   telemetry       Telemetry[]
   routeOrders     RouteOrder[]
   deals           Deal[]
@@ -275,15 +279,15 @@ model ProductColor {
 }
 
 model Inventory {
-  id        String         @id @default(cuid())
+  id        String        @id @default(cuid())
   productId String
-  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
   colorId   String?
-  color     ProductColor?  @relation(fields: [colorId], references: [id])
+  color     ProductColor? @relation(fields: [colorId], references: [id])
   location  PickupLocation
   quantity  Float
-  rollCount Int            @default(0)
-  updatedAt DateTime       @updatedAt
+  rollCount Int           @default(0)
+  updatedAt DateTime      @updatedAt
 
   @@unique([productId, colorId, location])
 }
@@ -446,6 +450,8 @@ model Interaction {
   user           User            @relation(fields: [userId], references: [id])
   type           InteractionType
   summary        String
+  content        Json?           // NUEVO
+  status         String          @default("open") // NUEVO
   pipelineStatus PipelineStatus?
   date           DateTime        @default(now())
   nextFollowUp   DateTime?
@@ -475,6 +481,22 @@ model Ticket {
   priority     TicketPriority @default(MEDIA)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+
+  messages     TicketMessage[] // NUEVO: relación con TicketMessage
+}
+
+// NUEVO: MODELO TICKET MESSAGE
+model TicketMessage {
+  id         String    @id @default(cuid())
+  ticketId   String
+  ticket     Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id])
+  body       String
+  isInternal Boolean   @default(false) // true = nota interna (solo agentes la ven)
+  createdAt  DateTime  @default(now())
 }
 
 // ==========================================================

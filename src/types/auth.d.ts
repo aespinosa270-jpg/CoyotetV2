@@ -1,38 +1,27 @@
 // src/types/next-auth.d.ts
-// Alineado con el auth-options.ts existente de Coyote Textil
-// MembershipTier como string union — NO importar de @prisma/client aquí
-// para evitar conflicto con el type ya declarado en auth-options
+// Extiende los tipos de NextAuth para que TypeScript conozca tus campos custom
 
-import { DefaultSession } from "next-auth"
-
-export type MembershipTier = "NONE" | "GOLD" | "BLACK" | "ELITE"
+import "next-auth";
+import "next-auth/jwt";
 
 declare module "next-auth" {
   interface Session {
     user: {
-      id:             string
-      role:           string
-      isEmployee:     boolean
-      membershipTier: MembershipTier
-      points:         number
-    } & DefaultSession["user"]
-  }
-
-  interface User {
-    id:             string
-    role:           string
-    isEmployee:     boolean
-    membershipTier: MembershipTier
-    points:         number
+      id?: string;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+      employeeId:   string | null;
+      employeeRole: string | null; // "ADMIN" | "SUPERVISOR" | "VENDEDORA" | "LOGISTICA" | "CONTABILIDAD"
+      userType:     string;        // "employee" | "user"
+    };
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
-    id:             string
-    role:           string
-    isEmployee:     boolean
-    membershipTier: MembershipTier
-    points:         number
+    employeeId:   string | null;
+    employeeRole: string | null;
+    userType:     string;
   }
 }
