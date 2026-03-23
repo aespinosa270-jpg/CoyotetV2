@@ -654,6 +654,8 @@ const ProductCard = ({
               e.preventDefault()
               addItem({
                 ...product,
+                // ── FIX: CartItem.image ← producto activo (color seleccionado o thumbnail) ──
+                image: activeImage ?? product.thumbnail ?? product.image,
                 price: currentPrice,
                 quantity: currentUnits,
                 unit: mode === "rollo" ? `${unitLabel} (Rollo)` : unitLabel,
