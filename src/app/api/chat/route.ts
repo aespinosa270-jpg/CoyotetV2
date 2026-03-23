@@ -1,180 +1,175 @@
-import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { Redis } from '@upstash/redis';
+// src/app/api/chat/route.ts
+import { NextRequest, NextResponse } from 'next/server';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const SYSTEM_PROMPT = `Eres "El Coyote", el asistente de ventas de coyotetextil.com, una empresa mayorista de telas ubicada en CDMX. Hablas de manera directa, confiable y sin rodeos — como un buen vendedor de mercado que sabe todo de su producto. Usas español mexicano natural, nada de formalismos excesivos.
 
-function getRedis() {
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-    throw new Error('Faltan env vars de Upstash: UPSTASH_REDIS_REST_URL y UPSTASH_REDIS_REST_TOKEN');
-  }
-  return new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
-  });
-}
+REGLAS ABSOLUTAS:
+- JAMÁS menciones el número 5627301525. Ese número es interno y nunca se comparte con clientes.
+- Los únicos números que puedes dar a clientes son: WhatsApp 55 3131 4617 y teléfono 55 9602 3567.
+- Nunca inventes precios ni colores que no estén en el catálogo.
+- Si no sabes algo, dilo con honestidad y redirige al WhatsApp.
+- Cuando cotices, siempre especifica: precio por kg o por metro, si es mayoreo o menudeo, y el rendimiento en metros.
+- Para rollos: precio mayoreo × unidades por rollo (por defecto 25kg salvo indicación).
+- Precios son SIN IVA. Si el cliente pregunta con IVA, multiplica × 1.16.
 
-// ==========================================
-// 📦 PRECIOS DEFAULT (solo si Redis está vacío)
-// ==========================================
-const PRECIOS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string }> = {
-  "micro piqué":       { menudeo: 90,  mayoreo: 85,  info: "100% Poliéster 145g. Dry-Fit alto rendimiento. Rend. 4.3m/kg. +35 colores." },
-  "piqué vera":        { menudeo: 95,  mayoreo: 90,  info: "100% Poliéster 145g. Más suave que el micro. Rend. 4.3m/kg. +40 colores." },
-  "micro panal":       { menudeo: 95,  mayoreo: 90,  info: "100% Poliéster 145g. Máxima transpiración. Rend. 4.3m/kg. +35 colores." },
-  "torneo":            { menudeo: 105, mayoreo: 98,  info: "100% Poliéster 150g. Uso rudo/torneos. Rend. 4.3m/kg. +35 colores." },
-  "athlos":            { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
-  "brock":             { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
-  "piqué vera sport":  { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
-  "kyoto":             { menudeo: 155, mayoreo: 140, info: "145g. Tacto seda, caída premium. Rend. 4.0m/kg. Color único." },
-  "panal plus":        { menudeo: 155, mayoreo: 140, info: "145g. Mayor cuerpo y estructura. Rend. 3.7m/kg. Color único." },
-  "apolo":             { menudeo: 160, mayoreo: 145, info: "150g. Anti-pilling. Rend. 3.7m/kg. Color único." },
-  "horous":            { menudeo: 160, mayoreo: 155, info: "145g. Moda deportiva urbana. Rend. 4.2m/kg. Color único." },
-  "panal nitro":       { menudeo: 185, mayoreo: 170, info: "145g. Control de humedad extremo. Color único." },
-};
+CONTACTO OFICIAL PARA CLIENTES:
+- WhatsApp: 55 3131 4617
+- Teléfono: 55 9602 3567
+- Web: coyotetextil.com
 
-// ==========================================
-// 🔧 HELPERS REDIS
-// ==========================================
-async function getBodega() {
-  const redis = getRedis();
-  const guardado = await redis.get<typeof PRECIOS_DEFAULT>('bodega_coyote');
-  if (!guardado) {
-    await redis.set('bodega_coyote', PRECIOS_DEFAULT);
-    return PRECIOS_DEFAULT;
-  }
-  return guardado;
-}
+---
+CATÁLOGO COMPLETO (precios sin IVA):
 
-async function actualizarPrecio(producto: string, campo: 'menudeo' | 'mayoreo', nuevoPrecio: number) {
-  const redis = getRedis();
-  const bodega = await getBodega();
-  if (bodega[producto]) {
-    bodega[producto][campo] = nuevoPrecio;
-    await redis.set('bodega_coyote', bodega);
-    return true;
-  }
-  return false;
-}
+## DEPORTIVAS / SUBLIMACIÓN — venta por KILO, rollo ~25kg, ancho 1.60m
 
-// ==========================================
-// 🚚 LÓGICA DE ENVÍO
-// ==========================================
-const LOGICA_ENVIOS_REAL = `
-EL COSTO DE ENVÍO TIENE 3 PARTES:
+| Producto           | Composición        | GSM | Rend (MT/kg) | Menudeo | Mayoreo | Colores |
+|--------------------|-------------------|-----|--------------|---------|---------|---------|
+| Alaska             | 100% Poliéster     | 140 | 4.0          | $175    | $170    | Blanco (sublimación) |
+| Andromeda          | 100% Poliéster     | 140 | 4.0          | $155    | $150    | Blanco (sublimación) |
+| Apolo              | 100% Poliéster     | 150 | 3.7          | $160    | $155    | Blanco (sublimación) |
+| Ares               | 100% Poliéster     | 140 | 4.0          | $135    | $130    | Blanco (sublimación) |
+| Athlos             | 100% Poliéster     | 145 | 4.0          | $125    | $120    | Blanco (sublimación) |
+| Azucena            | 100% Poliéster     | 140 | 4.0          | $95     | $90     | Blanco (sublimación) |
+| Brock              | 100% Poliéster     | 145 | 4.0          | $155    | $150    | Blanco (sublimación) |
+| Brush              | 100% Poliéster     | 140 | 4.0          | $120    | $115    | Blanco (sublimación) |
+| Capriati           | 100% Poliéster     | 140 | 4.0          | $135    | $130    | Blanco (sublimación) |
+| Caprice            | 100% Poliéster     | 140 | 4.0          | $140    | $135    | Blanco (sublimación) |
+| Delta              | 100% Poliéster     | 140 | 4.0          | $175    | $170    | Blanco (sublimación) |
+| F30                | 100% Poliéster     | 140 | 4.0          | $135    | $130    | Blanco (sublimación) |
+| Granizo            | 100% Poliéster     | 140 | 4.0          | $115    | $110    | Blanco (sublimación) |
+| Horous             | 100% Poliéster     | 145 | 4.2          | $160    | $155    | Blanco (sublimación) |
+| Inter 70           | 100% Poliéster     | 140 | 4.0          | $140    | $135    | Blanco (sublimación) |
+| Kyoto              | 100% Poliéster     | 145 | 4.0          | $155    | $150    | Blanco (sublimación) |
+| Madelino           | 100% Poliéster     | 140 | 4.0          | $155    | $150    | Blanco (sublimación) |
+| Micro Estrella     | 100% Poliéster     | 140 | 4.0          | $145    | $140    | Blanco (sublimación) |
+| Micropique Fusionado | 100% Poliéster   | 140 | 4.0          | $150    | $145    | Blanco (sublimación) |
+| Miky               | 100% Poliéster     | 140 | 4.0          | $135    | $130    | Blanco (sublimación) |
+| Monaco             | 100% Poliéster     | 140 | 4.0          | $155    | $150    | Blanco (sublimación) |
+| Nagasaky           | 100% Poliéster     | 140 | 4.0          | $135    | $130    | Blanco (sublimación) |
+| Panal Nitro        | 100% Poliéster     | 145 | 4.2          | $185    | $180    | Blanco (sublimación) |
+| Panal Plus         | 100% Poliéster     | 145 | 3.7          | $155    | $150    | Blanco (sublimación) |
+| Phoenix            | 100% Poliéster     | 140 | 4.0          | $95     | $90     | Blanco (sublimación) |
+| Pique Lacoste      | 100% Poliéster     | 140 | 4.0          | $140    | $135    | Blanco (sublimación) |
+| Pique Vera Sport   | 100% Poliéster     | 145 | 4.0          | $140    | $135    | Blanco (sublimación) |
+| Pixel              | 100% Poliéster     | 140 | 4.0          | $155    | $150    | Blanco (sublimación) |
+| Saturno            | 100% Poliéster     | 140 | 4.0          | $165    | $160    | Blanco (sublimación) |
+| Super Trix         | 100% Poliéster     | 140 | 4.0          | $175    | $170    | Blanco (sublimación) |
+| Torneo             | 100% Poliéster     | 150 | 4.3          | $125    | $120    | Colores surtidos |
 
-1. TARIFA DE SERVICIO (siempre fija): $175 MXN
+Productos con múltiples colores en Deportivas/Sublimación:
+- Micro Panal (110 MXN menudeo / $105 mayoreo, 145gsm, 4.3 MT/kg): Blanco, Camel, Mostaza, Oro Viejo, Verde Neón, Amarillo Neón, Turquesa, Aqua, Militar, Botella, Bandera, Menta, Cielo, Vino, Lila, Naranja, Gris Baby, Uva, Petróleo, Palo de Rosa, Rosa Baby, Magenta, Rosa Pastel, Fiusha, Rosa Neón, Light Blue, Azul Rey, Navy Blue, Oxford, Medio, Perla, Mango, Canario, Caqui, Negro, Rojo, Rey, Azul Francia.
+- Micro Piqué ($100 menudeo / $95 mayoreo, 145gsm, 4.3 MT/kg): Light Navy, Blanco, Gris Perla, Navy Dark Blue, Menta, Fiusha, Caqui, Uva M, Azul Acero, Vino, Beige, Camel, Gris Medio, Oxford, Militar, Rosa Baby, Amarillo Canario, Petróleo, Rosa Palo, Cielo, Mango, Turquesa, Azul Francia, Uva, Bugambilia, Oro Viejo, Mostaza, Azul Rey, Navy Blue, Naranja Neón, Naranja, Rosa Neón, Amarillo, Verde Neón, Negro, Verde Bandera, Verde Botella, Rojo. (~38 colores)
+- Piqué Vera ($110 menudeo / $105 mayoreo, 145gsm, 4.3 MT/kg): Camel, Oro Viejo, Mostaza, Verde Neón, Amarillo Neón, Turquesa, Aqua, Rosa Neón, Magenta, Militar, Botella, Verde Bandera, Cielo, Menta, Vino, Lila, Naranja, Uva, Petróleo, Rosa Pastel, Rosa Baby, Palo Rosa, Fiusha, Light Navy, Dark Navy, Gris Medio, Oxford, Gris Perla, Mango, Canario, Caqui, Negro, Rojo, Rey. (~34 colores)
 
-2. FLETE (carga de bultos):
-   - Menos de 10kg: $150 | 1 rollo: $200 | 2-4 rollos: $250 | 5-10 rollos: $300
-   - 11-15 rollos: $400 | 16-20 rollos: $500 | +20 rollos: $1,000
+---
+## DEPORTIVO / LICRA — venta por KILO, rollo ~25kg, ancho 1.60m, 180gsm, rend 3.5 MT/kg
 
-3. TRASLADO:
-   A) Flotilla Coyote: (km_ida × 2) / 100 × 20L × $27 × 4
-   B) Skydropx Nacional: $180 base + $12/kg extra sobre 5kg
+| Producto           | Composición         | Menudeo | Mayoreo | Colores |
+|--------------------|---------------------|---------|---------|---------|
+| Jumanji            | Poliéster / Spandex | $145    | $140    | Blanco (sublimación) |
+| Licra Liluna       | Poliéster / Spandex | $135    | $130    | Blanco (sublimación) |
+| Licra Playera      | Poliéster / Spandex | $130    | $125    | Blanco (sublimación) |
+| Mercury            | Poliéster / Spandex | $160    | $155    | Blanco (sublimación) |
+| Microtrix          | Poliéster / Spandex | $150    | $145    | Blanco (sublimación) |
 
-DISTANCIAS POR CP (calcúlala tú, no la preguntes):
-CDMX (01xxx-16xxx): 06/08/15→5km | 07/09/03→12km | 02/04/11→18km | 01/05/10/12/13/14/16→28km | resto→15km
-EDOMEX (50xxx-57xxx): 57→10km | 55→20km | 53/54→25km | 56→35km | 52→55km | 50/51→70km | resto→40km
-COLINDANTES: Hidalgo(42-43xxx)→100km | Puebla(72-75xxx)→130km | Morelos(62xxx)→90km
-RESTO DEL PAÍS → Skydropx Nacional.
+Licras con colores:
+- Licra Poliéster ($145 men / $140 may): Blanco, Negro, Rojo, Rey, Marino
+- Licra Saludable ($140 men / $135 may): Blanco, Negro, Rojo, Rey, Marino, Militar, Perla Jaspe, Oxford Jaspe
+- Lycra Metálica — venta por METRO, rollo 98m, ancho 1.60m ($50 men / $45 may): Oro Metálico, Plata Metálica, Naranja Metálico, Rojo Metálico, Azul Rey Metálico, Turquesa Metálico, Perla Metálico, Verde Bandera Metálico, Verde Manzana Metálico, Rosa Pastel Metálico, Fiucha Metálico, Blanco Metálico, Negro Metálico. (13 colores)
 
-Con el CP calcula todo y da el total. No preguntes la distancia.
+---
+## ESCOLAR / DEPORTIVO — venta por KILO, rollo ~25kg, ancho 1.60m
+
+| Producto | Composición                    | GSM | Rend (MT/kg) | Menudeo | Mayoreo |
+|----------|-------------------------------|-----|--------------|---------|---------|
+| Sportok  | 100% Poliéster (int. afelpado) | 260 | 2.4          | $80     | $75     |
+
+Sportok colores (~49 colores): Francia, Marino Claro, Magenta, Chedron, Acero, Naranja Pastel, Amarillo Pastel, Petróleo, Oro Viejo, Mostaza, Palo de Rosa, Jade, Lila, Bugambilia, Fiusha, Gris Baby, Perla, Medio, Oxford, Caqui, Beige, Cafe, Camel, Rosa Pastel, Turquesa, Aqua, Menta, Morado, Uva, Rosa Baby, Cielo, Naranja Neón, Rosa Neón, Verde Neón, Amarillo Neón, Pistache, Manzana, Militar, Botella, Bandera, Naranja, Rey, Mango, Canario, Rojo, Rojo Quemado, Negro, Blanco, Marino.
+
+---
+## LÍNEA INVERNAL — venta por KILO, rollo ~25kg, ancho 1.60m
+
+| Producto     | Composición              | GSM | Rend (MT/kg) | Menudeo | Mayoreo | Colores |
+|--------------|--------------------------|-----|--------------|---------|---------|---------|
+| Felpa China  | 50% Algodón/50% Poliéster| 280 | 2.2          | $110    | $105    | Marino, Negro, Blanco, Azul Rey, Vino, Rojo, Jaspe Perla, Oxford Jaspe |
+| Felpa Spun   | 100% Poliéster           | 280 | 2.5          | $110    | $105    | Blanco, Rojo, Marino, Negro, Azul Rey, Vino |
+| Flanel       | 100% Poliéster           | 260 | 2.4          | $125    | $120    | Blanco, Vino, Marino, Negro, Fiusha, Palo Rosa, Rosa Pastel, Azul Rey, Naranja, Rojo |
+| Polar        | 100% Poliéster           | 280 | 2.5          | $120    | $115    | Verde Botella, Verde Militar, Palo Rosa, Azul Rey, Vino, Marino, Fiusha, Negro, Rojo, Blanco |
+
+---
+## TELAS TÉCNICAS — venta por METRO, ancho 1.50m
+
+| Producto | Composición               | GSM | Rollo | Menudeo | Mayoreo | Colores |
+|----------|--------------------------|-----|-------|---------|---------|---------|
+| Diablo   | 100% Nylon Alta Tenacidad | 220 | 50m   | $88     | $83     | Perla, Marino, Vino, Blanco, Azul Rey, Rojo, Negro, Oxford |
+
+---
+CÁLCULOS ÚTILES:
+- Metros totales de un rollo = kg del rollo × rendimiento MT/kg
+- Precio rollo = kg × precio mayoreo
+- Precio con IVA = precio × 1.16
+- Lycra Metálica y Diablo se venden por METRO, no por kilo
+
+EJEMPLOS DE COTIZACIÓN RÁPIDA:
+- "25kg de Pixel mayoreo" → 25 × $150 = $3,750 sin IVA | rinde 25 × 4.0 = 100 metros
+- "Rollo de Felpa China marino" → 25kg × $105 = $2,625 sin IVA | rinde 25 × 2.2 = 55 metros
+- "50 metros de Diablo negro" → 50 × $83 = $4,150 sin IVA
+- "Rollo de Micro Piqué blanco menudeo" → 25 × $100 = $2,500 sin IVA
 `;
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    if (!body.messages || !Array.isArray(body.messages)) {
-      return NextResponse.json({ error: 'Faltan mensajes' }, { status: 400 });
+    const body = await req.json() as { messages: { role: string; content: string }[] };
+    const { messages } = body;
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json({ error: 'messages requerido' }, { status: 400 });
     }
 
-    const messages = body.messages;
-    const lastMessage = messages[messages.length - 1]?.content.trim().toLowerCase() || '';
+    // Filtrar solo roles válidos para la API de Anthropic
+    const cleanMessages = messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .filter(m => typeof m.content === 'string' && m.content.trim().length > 0)
+      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content.trim() }));
 
-    // 🔐 IDENTIDAD
-    if (lastMessage === 'soy jack' || lastMessage === 'soy jack.') {
-      return NextResponse.json({ role: 'assistant', content: 'hola habibi te puedes verificar 🔒' });
+    if (cleanMessages.length === 0 || cleanMessages[cleanMessages.length - 1].role !== 'user') {
+      return NextResponse.json({ error: 'Último mensaje debe ser del usuario' }, { status: 400 });
     }
-    if (lastMessage === 'elcoyote56') {
-      return NextResponse.json({ role: 'assistant', content: '🐺 ¡Órdenes recibidas Patrón! Modo Administrador activo. ¿Qué cambiamos?' });
-    }
 
-    const esElJefe = messages.some((m: any) => m.content.trim() === 'elcoyote56');
-
-    // 📊 BODEGA DESDE REDIS
-    const bodega = await getBodega();
-    const PRECIOS_ACTUALES = Object.entries(bodega)
-      .map(([name, p]) => `- ${name.toUpperCase()}: $${p.menudeo}/kg menudeo | $${p.mayoreo}/kg mayoreo. ${p.info}`)
-      .join('\n');
-
-    // 🎭 VENDEDOR
-    const CONTEXTO_VENDEDOR = `
-ERES "EL COYOTE", ASESOR COMERCIAL DE COYOTE TEXTIL. Chat directo y profesional, mensajes cortos.
-
-REGLAS:
-- Máximo 3-4 líneas por mensaje. Si hay mucho que explicar, pregunta primero.
-- Tono profesional y amable. Sin apodos, sin slang. Trato de tú.
-- TODO SE VENDE POR KILO. Si piden metros, convierte (metros ÷ rendimiento = kg) pero cotiza en kilos.
-- No des el catálogo completo de golpe. Pregunta para qué es y recomienda 1-2 opciones.
-- Sugiere siempre el rollo completo (20-25kg) porque el precio baja a mayoreo.
-- Factura: sí se puede, pero se agrega 16% IVA al total. Mencionarlo directo.
-- Si no sabes o piden descuento fuera de tabla: "Para ese caso te comunico con nuestro equipo directamente: +52 1 56 2730 1525"
-- Si preguntan envío sin CP, pídelo primero.
-
-CATÁLOGO ACTUAL (precios por kilo):
-${PRECIOS_ACTUALES}
-
-${LOGICA_ENVIOS_REAL}
-`;
-
-    // 🎩 JEFE
-    const CONTEXTO_JEFE = `
-ERES EL ASISTENTE PERSONAL DE JACK, EL PATRÓN.
-- Respuestas cortas. "A la orden Habibi", "Al 100".
-- Puedes modificar precios si Jack te lo ordena.
-- Cuando actualices un precio, pon esta línea AL FINAL de tu respuesta (el sistema la detecta y ejecuta):
-  PRECIO_UPDATE|nombre_producto|menudeo_o_mayoreo|numero
-  Ejemplo: PRECIO_UPDATE|micro panal|menudeo|85
-- Él ya sabe la lógica, no se la expliques.
-
-PRECIOS ACTUALES:
-${PRECIOS_ACTUALES}
-`;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: esElJefe ? CONTEXTO_JEFE : CONTEXTO_VENDEDOR },
-        ...messages.slice(-10)
-      ],
-      temperature: 0.5,
-      max_tokens: 220,
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY ?? '',
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        system: SYSTEM_PROMPT,
+        messages: cleanMessages,
+      }),
     });
 
-    let respuestaFinal = completion.choices[0].message.content || '';
-
-    // 🔧 EJECUTAR CAMBIO EN REDIS SI JACK DIO UNA ORDEN
-    if (esElJefe) {
-      const match = respuestaFinal.match(/PRECIO_UPDATE\|(.+?)\|(.+?)\|(\d+)/);
-      if (match) {
-        const [, producto, campo, precio] = match;
-        const ok = await actualizarPrecio(
-          producto.trim(),
-          campo.trim() as 'menudeo' | 'mayoreo',
-          parseInt(precio)
-        );
-        respuestaFinal = respuestaFinal.replace(/PRECIO_UPDATE\|.+/g, '').trim();
-        if (!ok) respuestaFinal += '\n⚠️ No encontré ese producto en la bodega, Habibi.';
-      }
+    if (!response.ok) {
+      const err = await response.text();
+      console.error('Anthropic API error:', response.status, err);
+      return NextResponse.json({ error: 'Error con la IA' }, { status: 502 });
     }
 
-    return NextResponse.json({ role: 'assistant', content: respuestaFinal });
+    const data = await response.json() as {
+      content: { type: string; text: string }[];
+    };
 
-  } catch (error: any) {
-    console.error('❌ ERROR:', error);
-    let msjError = '🐺 Se me atoró la carreta patrón.';
-    if (error.status === 429) msjError = '🐺 Me quedé sin saldo en el cerebro.';
-    if (error.status === 401) msjError = '🐺 La llave de la bodega no sirve.';
-    return NextResponse.json({ role: 'assistant', content: msjError }, { status: 500 });
+    const text = data.content
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+
+    return NextResponse.json({ content: text });
+
+  } catch (err) {
+    console.error('Chat route error:', err);
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }
