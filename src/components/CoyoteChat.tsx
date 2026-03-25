@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useRef, useEffect } from 'react';
 
 // ============================================================
@@ -56,86 +55,97 @@ const PRODUCTOS = [
   { id:"prod_torneo", nombre:"Torneo", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"150g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:125, precio_mayoreo:120, unidad:"Kilo", descripcion:"El estándar en durabilidad para torneos exigentes.", origen:"Importado" },
 ];
 
-const CATEGORIAS = [...new Set(PRODUCTOS.map(p => p.categoria))];
+type Product = typeof PRODUCTOS[0];
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  tipo: string;
+  producto?: Product;
+  time: Date;
+}
+
 const WA_NUMBER = "5531314617";
 
 // ============================================================
 // MOTOR DE IA: PROCESAMIENTO DE INTENCIÓN Y RESPUESTA
 // ============================================================
-function procesarMensaje(texto, historial) {
+function procesarMensaje(texto: string, historial: unknown) {
   const t = texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
-
+  
   // -- Saludos
   if (/^(hola|buenos|buenas|saludos|hey|hi|que tal|qué tal|buen dia|buen dia)/.test(t)) {
     return { tipo: "saludo", respuesta: buildSaludo() };
   }
-
+  
   // -- Precios / cotización
   if (/precio|costo|cuanto|cuánto|cotiza|tarifa|valor|rate/.test(t)) {
     const prod = encontrarProducto(t);
     if (prod) return { tipo: "precio", respuesta: buildPrecio(prod), producto: prod };
     return { tipo: "precios_general", respuesta: buildListaPrecios(t) };
   }
-
+  
   // -- Colores
   if (/color|colores|tonos|tono|disponible en|opciones de color/.test(t)) {
     const prod = encontrarProducto(t);
     if (prod) return { tipo: "colores", respuesta: buildColores(prod), producto: prod };
     return { tipo: "colores_cat", respuesta: buildColoresCategorias() };
   }
-
+  
   // -- Características técnicas
   if (/gramo|gramaje|composic|material|ancho|rendimiento|poliester|poliéster|nylon|spandex|tecni/.test(t)) {
     const prod = encontrarProducto(t);
     if (prod) return { tipo: "ficha", respuesta: buildFichaTecnica(prod), producto: prod };
     return { tipo: "ficha_general", respuesta: buildInfoGeneral() };
   }
-
+  
   // -- Línea invernal
   if (/invier|polar|flanel|felpa|frio|frío|sudadera|pants|cobija|pijama/.test(t)) {
     return { tipo: "invernal", respuesta: buildLineaInvernal() };
   }
-
+  
   // -- Sublimación
   if (/sublima|sublimacion|sublimación|transfer|dri.?fit|deportiv/.test(t)) {
     return { tipo: "sublimacion", respuesta: buildSublimaciom() };
   }
-
+  
   // -- Licras
   if (/licra|lycra|elastan|spandex|ajustada|gimnasio|gym|elasticidad/.test(t)) {
     return { tipo: "licras", respuesta: buildLicras() };
   }
-
+  
   // -- Rollos / mayoreo
   if (/rollo|mayoreo|mayor|volumen|cantidad|kilo|tonelad/.test(t)) {
     return { tipo: "mayoreo", respuesta: buildMayoreo() };
   }
-
+  
   // -- Producto específico mencionado
   const prod = encontrarProducto(t);
   if (prod) return { tipo: "producto", respuesta: buildProductoCompleto(prod), producto: prod };
-
+  
   // -- Catálogo general
   if (/catalogo|catálogo|producto|productos|todo|tienen|que venden|que tienen/.test(t)) {
     return { tipo: "catalogo", respuesta: buildCatalogo() };
   }
-
+  
   // -- Cotizar / pedido / comprar
   if (/comprar|compra|pedir|pedido|ordenar|orden|adquirir|contac|asesor|vendedor|hablar|human/.test(t)) {
     return { tipo: "contacto", respuesta: buildContacto() };
   }
-
+  
   // -- Respuesta por defecto inteligente
   return { tipo: "default", respuesta: buildDefault(texto) };
 }
 
-function encontrarProducto(texto) {
+function encontrarProducto(texto: string) {
   const t = texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  
   // Buscar por nombre exacto primero
   for (const p of PRODUCTOS) {
     const nombre = p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
     if (t.includes(nombre)) return p;
   }
+  
   // Buscar palabras clave del nombre
   for (const p of PRODUCTOS) {
     const partes = p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").split(" ");
@@ -145,120 +155,57 @@ function encontrarProducto(texto) {
 }
 
 // ============================================================
-// BUILDERS DE RESPUESTA
+// BUILDERS DE RESPUESTA (CORREGIDOS)
 // ============================================================
 function buildSaludo() {
-  return `¡Buen día! 👋 Le saluda el equipo de *Telas El Coyote*.
-
-Somos distribuidores mayoristas de telas técnicas e industriales con cobertura nacional. Contamos con más de *${PRODUCTOS.length} líneas de producto* en las siguientes categorías:
-
-📦 *Deportivas / Sublimación*
-🏋️ *Deportivo / Licra*
-❄️ *Línea Invernal*
-🎓 *Escolar / Deportivo*
-🔩 *Telas Técnicas*
-
-¿En qué puedo orientarle el día de hoy?`;
+  return `¡Buen día! 👋 Le saluda el equipo de Telas El Coyote.\nSomos distribuidores mayoristas de telas técnicas e industriales con cobertura nacional. Contamos con más de ${PRODUCTOS.length} líneas de producto en las siguientes categorías:\n📦 Deportivas / Sublimación\n🏋️ Deportivo / Licra\n❄️ Línea Invernal\n🎓 Escolar / Deportivo\n🔩 Telas Técnicas\n\n¿En qué puedo orientarle el día de hoy?`;
 }
 
-function buildPrecio(p) {
-  return `💰 *Precios — ${p.nombre}*
-
-| Modalidad | Precio por ${p.unidad} |
-|---|---|
-| Menudeo | $${p.precio_menudeo}.00 MXN |
-| Mayoreo | $${p.precio_mayoreo}.00 MXN |
-
-📌 _El precio de mayoreo aplica a partir de rollos completos._
-
-📐 *Datos clave:*
-• Ancho: ${p.ancho}
-• Gramaje: ${p.gramaje}
-• Rendimiento: ${p.rendimiento}
-${p.rollo_metros ? `• Rollo: ${p.rollo_metros} metros\n` : ''}${p.rollo_kg ? `• Rollo: ${p.rollo_kg} kg\n` : ''}
-¿Le gustaría realizar una cotización formal o conocer disponibilidad de colores?`;
+function buildPrecio(p: Product) {
+  return `💰 Precios — ${p.nombre}\n\n| Modalidad | Precio por ${p.unidad} |\n|---|---|\n| Menudeo | $${p.precio_menudeo}.00 MXN |\n| Mayoreo | $${p.precio_mayoreo}.00 MXN |\n\n📌 El precio de mayoreo aplica a partir de rollos completos.\n📐 Datos clave:\n• Ancho: ${p.ancho}\n• Gramaje: ${p.gramaje}\n• Rendimiento: ${p.rendimiento}\n${p.rollo_metros ? `• Rollo: ${p.rollo_metros} metros\n` : ''}${p.rollo_kg ? `• Rollo: ${p.rollo_kg} kg\n` : ''}\n¿Le gustaría realizar una cotización formal o conocer disponibilidad de colores?`;
 }
 
-function buildListaPrecios(t) {
-  // Detectar si busca por categoría
+function buildListaPrecios(t: string) {
   const esSub = /sublima|deportiv/.test(t);
   const esInv = /invier|polar|flanel|felpa/.test(t);
   const esLicra = /licra|lycra|elastan/.test(t);
   const esEscolar = /escolar|sportok|pants/.test(t);
-
+  
   let lista = PRODUCTOS;
   let cat = "General";
+  
   if (esSub) { lista = PRODUCTOS.filter(p => p.categoria === "Deportivas / Sublimación"); cat = "Deportivas / Sublimación"; }
   else if (esInv) { lista = PRODUCTOS.filter(p => p.categoria === "Línea Invernal"); cat = "Línea Invernal"; }
   else if (esLicra) { lista = PRODUCTOS.filter(p => p.categoria === "Deportivo / Licra"); cat = "Deportivo / Licra"; }
   else if (esEscolar) { lista = PRODUCTOS.filter(p => p.categoria === "Escolar / Deportivo"); cat = "Escolar / Deportivo"; }
-
+  
   const items = lista.slice(0, 12).map(p =>
     `• *${p.nombre}* — Menudeo $${p.precio_menudeo} / Mayoreo $${p.precio_mayoreo} por ${p.unidad}`
   ).join('\n');
-
+  
   return `📋 *Lista de Precios — ${cat}*\n\n${items}${lista.length > 12 ? `\n\n_...y ${lista.length - 12} productos más._` : ''}\n\n¿Desea información detallada de alguna tela en particular?`;
 }
 
-function buildColores(p) {
+function buildColores(p: Product) {
   if (!p.colores || p.colores.length === 0) {
     return `ℹ️ *${p.nombre}* se trabaja en color único (blanco) especial para procesos de sublimación. Puede sublimar cualquier diseño a color directamente sobre esta tela.\n\n¿Le gustaría cotizar o saber más de sus características?`;
   }
-  const colorList = p.colores.map(c => `• ${c}`).join('\n');
+  const colorList = p.colores.map((c: string) => `• ${c}`).join('\n');
   return `🎨 *Colores disponibles — ${p.nombre}*\n\n${colorList}\n\n_Total: ${p.colores.length} colores en stock._\n\n¿Desea cotizar en algún color específico?`;
 }
 
 function buildColoresCategorias() {
   const conColores = PRODUCTOS.filter(p => p.colores && p.colores.length > 0);
-  const texto = conColores.slice(0, 8).map(p => `• *${p.nombre}* — ${p.colores.length} colores`).join('\n');
+  const texto = conColores.slice(0, 8).map(p => `• *${p.nombre}* — ${p.colores!.length} colores`).join('\n');
   return `🎨 *Telas con amplia paleta de colores*\n\n${texto}\n\nMencione el nombre de la tela que le interese y le comparto el catálogo de colores completo.`;
 }
 
-function buildFichaTecnica(p) {
-  return `🧵 *Ficha Técnica — ${p.nombre}*
-
-📁 Categoría: ${p.categoria}
-🧪 Composición: ${p.composicion}
-⚖️ Gramaje: ${p.gramaje}
-📏 Ancho: ${p.ancho}
-📦 Unidad de venta: ${p.unidad}
-📐 Rendimiento: ${p.rendimiento}
-${p.rollo_metros ? `🔄 Metros por rollo: ${p.rollo_metros}\n` : ''}${p.rollo_kg ? `🔄 Kg por rollo: ${p.rollo_kg}\n` : ''}🌍 Origen: ${p.origen}
-
-📝 *Descripción:*
-${p.descripcion}
-
-💰 Menudeo: $${p.precio_menudeo} / Mayoreo: $${p.precio_mayoreo} por ${p.unidad}
-
-¿Le puedo apoyar con una cotización o tiene alguna pregunta técnica adicional?`;
+function buildFichaTecnica(p: Product) {
+  return `🧵 Ficha Técnica — ${p.nombre}\n📁 Categoría: ${p.categoria}\n🧪 Composición: ${p.composicion}\n⚖️ Gramaje: ${p.gramaje}\n📏 Ancho: ${p.ancho}\n📦 Unidad de venta: ${p.unidad}\n📐 Rendimiento: ${p.rendimiento}\n${p.rollo_metros ? `🔄 Metros por rollo: ${p.rollo_metros}\n` : ''}${p.rollo_kg ? `🔄 Kg por rollo: ${p.rollo_kg}\n` : ''}🌍 Origen: ${p.origen}\n📝 Descripción:\n${p.descripcion}\n💰 Menudeo: $${p.precio_menudeo} / Mayoreo: $${p.precio_mayoreo} por ${p.unidad}\n\n¿Le puedo apoyar con una cotización o tiene alguna pregunta técnica adicional?`;
 }
 
 function buildInfoGeneral() {
-  return `🔬 *Información Técnica General*
-
-Toda nuestra línea textil es de *origen importado* con los siguientes estándares:
-
-🏅 *Deportivas / Sublimación*
-— Composición: 100% Poliéster
-— Gramajes: 140–185 g/m²
-— Ancho: 1.60m
-— Rendimiento: 3.7–4.3 m/kg
-
-🏋️ *Deportivo / Licra*
-— Composición: Poliéster / Spandex
-— Gramaje: 180 g/m²
-— Rendimiento: 3.5 m/kg
-
-❄️ *Línea Invernal*
-— Composición: 100% Poliéster o 50/50 Algodón/Poliéster
-— Gramajes: 260–280 g/m²
-— Rendimiento: 2.2–2.5 m/kg
-
-🔩 *Telas Técnicas (Diablo)*
-— Composición: 100% Nylon Alta Tenacidad
-— Gramaje: 220 g/m²
-
-¿De qué línea específica necesita más información?`;
+  return `🔬 Información Técnica General\nToda nuestra línea textil es de origen importado con los siguientes estándares:\n\n🏅 Deportivas / Sublimación\n— Composición: 100% Poliéster\n— Gramajes: 140–185 g/m²\n— Ancho: 1.60m\n— Rendimiento: 3.7–4.3 m/kg\n\n🏋️ Deportivo / Licra\n— Composición: Poliéster / Spandex\n— Gramaje: 180 g/m²\n— Rendimiento: 3.5 m/kg\n\n❄️ Línea Invernal\n— Composición: 100% Poliéster o 50/50 Algodón/Poliéster\n— Gramajes: 260–280 g/m²\n— Rendimiento: 2.2–2.5 m/kg\n\n🔩 Telas Técnicas (Diablo)\n— Composición: 100% Nylon Alta Tenacidad\n— Gramaje: 220 g/m²\n\n¿De qué línea específica necesita más información?`;
 }
 
 function buildLineaInvernal() {
@@ -272,71 +219,28 @@ function buildLineaInvernal() {
 function buildSublimaciom() {
   const subs = PRODUCTOS.filter(p => p.categoria === "Deportivas / Sublimación");
   const rangoPrecio = { min: Math.min(...subs.map(p=>p.precio_menudeo)), max: Math.max(...subs.map(p=>p.precio_menudeo)) };
-  return `🎽 *Línea Deportiva para Sublimación*
-
-Contamos con *${subs.length} referencias* especializadas en sublimación:
-
-💡 *¿Por qué nuestras telas para sublimación?*
-✅ 100% Poliéster de alta calidad
-✅ Gramajes entre 140–185 g/m²
-✅ Ancho estándar de 1.60m
-✅ Rendimiento de 3.7 a 4.3 metros por kilo
-✅ Acabado blanco óptico para máxima fidelidad de color
-
-💰 Rango de precios: $${rangoPrecio.min}–$${rangoPrecio.max} por kilo (menudeo)
-
-*Destacadas:*
-• Delta / Alaska / Super Trix — $175/kg (premium)
-• Panal Nitro — $185/kg (control de humedad extremo)
-• Micro Piqué / Micro Panal — desde $100/kg
-• Phoenix / Azucena — desde $95/kg (económicas)
-
-¿Desea que le asesore en la selección según su aplicación específica?`;
+  return `🎽 Línea Deportiva para Sublimación\nContamos con ${subs.length} referencias especializadas en sublimación:\n\n💡 ¿Por qué nuestras telas para sublimación?\n✅ 100% Poliéster de alta calidad\n✅ Gramajes entre 140–185 g/m²\n✅ Ancho estándar de 1.60m\n✅ Rendimiento de 3.7 a 4.3 metros por kilo\n✅ Acabado blanco óptico para máxima fidelidad de color\n\n💰 Rango de precios: $${rangoPrecio.min}–$${rangoPrecio.max} por kilo (menudeo)\n\nDestacadas:\n• Delta / Alaska / Super Trix — $175/kg (premium)\n• Panal Nitro — $185/kg (control de humedad extremo)\n• Micro Piqué / Micro Panal — desde $100/kg\n• Phoenix / Azucena — desde $95/kg (económicas)\n\n¿Desea que le asesore en la selección según su aplicación específica?`;
 }
 
 function buildLicras() {
   const licras = PRODUCTOS.filter(p => p.categoria === "Deportivo / Licra");
-  const lista = licras.map(p =>
-    `• *${p.nombre}* — $${p.precio_menudeo}/$${p.precio_mayoreo} por ${p.unidad}`
-  ).join('\n');
+  const lista = licras.map(p => `• *${p.nombre}* — $${p.precio_menudeo}/$${p.precio_mayoreo} por ${p.unidad}`).join('\n');
   return `🏋️ *Línea Deportivo / Licra*\n\n${lista}\n\n🔍 Todas con composición *Poliéster / Spandex* excepto Lycra Metálica (100% Poliéster).\n\nℹ️ La *Lycra Metálica* es nuestra propuesta más especial: 13 colores metálicos, vendida por metro a $50/$45.\n\n¿Le interesa alguna referencia específica?`;
 }
 
 function buildMayoreo() {
   const conRollo = PRODUCTOS.filter(p => p.rollo_metros || p.rollo_kg);
-  return `📦 *Información sobre Rollos y Compras a Mayoreo*
-
-Para compras al *precio de mayoreo* se requiere adquirir el rollo completo:
-
-${conRollo.map(p =>
-  `• *${p.nombre}* — Rollo de ${p.rollo_metros ? p.rollo_metros + ' metros' : p.rollo_kg + ' kg'} | $${p.precio_mayoreo} por ${p.unidad}`
-).join('\n')}
-
-Para las telas vendidas por kilo sin especificación de rollo, el precio mayoreo también aplica por rollo completo (aprox. 25–30 kg).
-
-💬 Para confirmar disponibilidad exacta y lotes disponibles, comuníquese directamente con nuestro equipo de ventas.`;
+  return `📦 Información sobre Rollos y Compras a Mayoreo\n\nPara compras al precio de mayoreo se requiere adquirir el rollo completo:\n${conRollo.map(p =>
+    `• *${p.nombre}* — Rollo de ${p.rollo_metros ? p.rollo_metros + ' metros' : p.rollo_kg + ' kg'} | $${p.precio_mayoreo} por ${p.unidad}`
+  ).join('\n')}\n\nPara las telas vendidas por kilo sin especificación de rollo, el precio mayoreo también aplica por rollo completo (aprox. 25–30 kg).\n\n💬 Para confirmar disponibilidad exacta y lotes disponibles, comuníquese directamente con nuestro equipo de ventas.`;
 }
 
-function buildProductoCompleto(p) {
-  return `📦 *${p.nombre}*
-
-🏷️ Categoría: ${p.categoria}
-🧪 Composición: ${p.composicion}
-⚖️ Gramaje: ${p.gramaje} | 📏 Ancho: ${p.ancho}
-📐 Rendimiento: ${p.rendimiento}
-
-💰 *Precios:*
-• Menudeo: $${p.precio_menudeo}.00 MXN / ${p.unidad}
-• Mayoreo: $${p.precio_mayoreo}.00 MXN / ${p.unidad}
-
-${p.colores ? `🎨 *${p.colores.length} colores disponibles*\nEscriba "colores ${p.nombre}" para verlos.\n` : '✏️ Color único — ideal para sublimación\n'}
-📝 ${p.descripcion}
-
-¿Desea cotizar, conocer los colores disponibles o hablar con un asesor?`;
+function buildProductoCompleto(p: Product) {
+  return `📦 ${p.nombre}\n🏷️ Categoría: ${p.categoria}\n🧪 Composición: ${p.composicion}\n⚖️ Gramaje: ${p.gramaje} | 📏 Ancho: ${p.ancho}\n📐 Rendimiento: ${p.rendimiento}\n💰 Precios:\n• Menudeo: $${p.precio_menudeo}.00 MXN / ${p.unidad}\n• Mayoreo: $${p.precio_mayoreo}.00 MXN / ${p.unidad}\n${p.colores ? `🎨 *${p.colores.length} colores disponibles*\nEscriba "colores ${p.nombre}" para verlos.\n` : `✏️ Color único — ideal para sublimación\n`}\n📝 ${p.descripcion}\n\n¿Desea cotizar, conocer los colores disponibles o hablar con un asesor?`;
 }
 
 function buildCatalogo() {
-  const porCat = {};
+  const porCat: Record<string, string[]> = {};
   for (const p of PRODUCTOS) {
     if (!porCat[p.categoria]) porCat[p.categoria] = [];
     porCat[p.categoria].push(p.nombre);
@@ -350,39 +254,18 @@ function buildCatalogo() {
 }
 
 function buildContacto() {
-  return `✅ *Conectar con un Asesor de Ventas*
-
-Nuestro equipo está listo para atenderle con:
-
-📋 Cotizaciones personalizadas
-📦 Consulta de inventario en tiempo real
-🚚 Información sobre envíos y logística
-💳 Condiciones de pago
-
-Para continuar la conversación directamente en *WhatsApp*, presione el botón de abajo. 👇`;
+  return `✅ Conectar con un Asesor de Ventas\n\nNuestro equipo está listo para atenderle con:\n📋 Cotizaciones personalizadas\n📦 Consulta de inventario en tiempo real\n🚚 Información sobre envíos y logística\n💳 Condiciones de pago\n\nPara continuar la conversación directamente en WhatsApp, presione el botón de abajo. 👇`;
 }
 
-function buildDefault(texto) {
-  return `Gracias por su mensaje. 
-
-Para brindarle la mejor asesoría, permítame orientarle. Puedo ayudarle con:
-
-• 🔍 **Búsqueda de telas** — dígame el nombre o el tipo
-• 💰 **Precios y cotizaciones** — menudeo y mayoreo
-• 🎨 **Paleta de colores** disponibles por tela
-• 📐 **Fichas técnicas** — composición, gramaje, rendimiento
-• ❄️ **Línea invernal** — felpa, polar, flanel, sportok
-• 🎽 **Deportivas** — sublimación, licras, dry-fit
-• 📦 **Pedidos y mayoreo** — rollos completos
-
-_¿Sobre cuál de estos temas le puedo orientar?_`;
+function buildDefault(texto: string) {
+  return `Gracias por su mensaje.\n\nPara brindarle la mejor asesoría, permítame orientarle. Puedo ayudarle con:\n• 🔍 Búsqueda de telas — dígame el nombre o el tipo\n• 💰 Precios y cotizaciones — menudeo y mayoreo\n• 🎨 Paleta de colores disponibles por tela\n• 📐 Fichas técnicas — composición, gramaje, rendimiento\n• ❄️ Línea invernal — felpa, polar, flanel, sportok\n• 🎽 Deportivas — sublimación, licras, dry-fit\n• 📦 Pedidos y mayoreo — rollos completos\n\n¿Sobre cuál de estos temas le puedo orientar?`;
 }
 
 // ============================================================
 // SUGERENCIAS RÁPIDAS CONTEXTUALES
 // ============================================================
-function getSugerencias(tipo) {
-  const map = {
+function getSugerencias(tipo: string): string[] {
+  const map: Record<string, string[]> = {
     saludo: ["Ver catálogo", "Precios generales", "Línea invernal", "Telas para sublimación"],
     catalogo: ["Precios Sportok", "Colores Micro Piqué", "Línea invernal", "Licras disponibles"],
     invernal: ["Precio Polar", "Colores Flanel", "Precio Felpa China", "Cotizar rollo"],
@@ -399,16 +282,16 @@ function getSugerencias(tipo) {
 }
 
 // ============================================================
-// COMPONENTE PRINCIPAL
+// COMPONENTE PRINCIPAL (COMPLETO Y CORREGIDO)
 // ============================================================
 export default function CoyoteWhatsApp() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
-  const scrollRef = useRef(null);
-  const inputRef = useRef(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
       content: buildSaludo(),
@@ -427,17 +310,16 @@ export default function CoyoteWhatsApp() {
     if (isOpen && inputRef.current) inputRef.current.focus();
   }, [isOpen]);
 
-  const addMessage = async (userText) => {
+  const addMessage = async (userText: string) => {
     if (!userText.trim()) return;
     const now = new Date();
-    setMessages(prev => [...prev, { role: 'user', content: userText, time: now }]);
+    setMessages(prev => [...prev, { role: 'user', content: userText, tipo: '', time: now }]);
     setInput('');
     setTyping(true);
-
-    // Simular tiempo de escritura realista
+    
     const delay = Math.min(800 + userText.length * 12, 2200);
     await new Promise(r => setTimeout(r, delay));
-
+    
     const resultado = procesarMensaje(userText, messages);
     setTyping(false);
     setMessages(prev => [...prev, {
@@ -449,16 +331,16 @@ export default function CoyoteWhatsApp() {
     }]);
   };
 
-  const handleSend = (e) => {
+  const handleSend = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (input.trim() && !typing) addMessage(input.trim());
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const handleSugerencia = (s) => {
+  const handleSugerencia = (s: string) => {
     if (!typing) addMessage(s);
   };
 
@@ -471,21 +353,17 @@ export default function CoyoteWhatsApp() {
 
   const lastMsg = messages[messages.length - 1];
   const sugerencias = lastMsg?.tipo ? getSugerencias(lastMsg.tipo) : [];
-  const esContacto = lastMsg?.tipo === 'contacto';
+  const formatTime = (d: Date) => d ? d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
 
-  const formatTime = (d) => d ? d.toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'}) : '';
-
-  // Función para renderizar texto con formato tipo WhatsApp
-  const renderMsg = (text) => {
-    return text.split('\n').map((line, i) => {
-      // Negrita *texto*
-      const parts = line.split(/(\*[^*]+\*)/g).map((part, j) => {
+  const renderMsg = (text: string) => {
+    return text.split('\n').map((line: string, i: number) => {
+      const parts = line.split(/(\*[^*]+\*)/g).map((part: string, j: number) => {
         if (part.startsWith('*') && part.endsWith('*')) {
-          return <strong key={j}>{part.slice(1,-1)}</strong>;
+          return <strong key={j}>{part.slice(1, -1)}</strong>;
         }
         return part;
       });
-      return <span key={i}>{parts}<br/></span>;
+      return <span key={i}>{parts}<br /></span>;
     });
   };
 
@@ -493,9 +371,7 @@ export default function CoyoteWhatsApp() {
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-
         .wa-widget * { box-sizing: border-box; font-family: 'Inter', -apple-system, sans-serif; }
-
         .wa-window {
           position: fixed;
           bottom: 90px;
@@ -515,7 +391,6 @@ export default function CoyoteWhatsApp() {
         }
         .wa-window.closed { opacity:0; pointer-events:none; transform: scale(0.92) translateY(16px); }
         .wa-window.open { opacity:1; transform: scale(1) translateY(0); }
-
         .wa-header {
           background: #075E54;
           padding: 10px 14px;
@@ -551,7 +426,20 @@ export default function CoyoteWhatsApp() {
           transition: background .2s;
         }
         .wa-header-close:hover { background: rgba(255,255,255,0.22); }
-
+        .wa-banner {
+          background: linear-gradient(90deg, #25D366, #075E54);
+          color: white;
+          padding: 10px 14px;
+          text-align: center;
+          font-size: 15px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          flex-shrink: 0;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
         .wa-bg {
           position: absolute;
           inset: 60px 0 0 0;
@@ -560,7 +448,6 @@ export default function CoyoteWhatsApp() {
           pointer-events: none;
           z-index: 0;
         }
-
         .wa-messages {
           flex: 1;
           overflow-y: auto;
@@ -572,11 +459,9 @@ export default function CoyoteWhatsApp() {
         .wa-messages::-webkit-scrollbar { width: 4px; }
         .wa-messages::-webkit-scrollbar-track { background: transparent; }
         .wa-messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
-
         .wa-msg { display: flex; margin-bottom: 4px; }
         .wa-msg.user { justify-content: flex-end; }
         .wa-msg.bot { justify-content: flex-start; }
-
         .wa-bubble {
           max-width: 82%;
           padding: 7px 10px 6px;
@@ -607,7 +492,6 @@ export default function CoyoteWhatsApp() {
           content: ' ✓✓';
           color: #53bdeb;
         }
-
         .wa-typing {
           display: flex;
           align-items: center;
@@ -631,7 +515,6 @@ export default function CoyoteWhatsApp() {
           0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
           40% { transform: scale(1.2); opacity: 1; }
         }
-
         .wa-suggestions {
           padding: 6px 12px;
           display: flex;
@@ -654,7 +537,6 @@ export default function CoyoteWhatsApp() {
           white-space: nowrap;
         }
         .wa-chip:hover { background: #25D366; color: white; }
-
         .wa-wa-btn {
           margin: 6px 12px;
           background: #25D366;
@@ -674,7 +556,6 @@ export default function CoyoteWhatsApp() {
           z-index: 1;
         }
         .wa-wa-btn:hover { background: #1da851; }
-
         .wa-input-area {
           padding: 8px 10px;
           background: #f0f2f5;
@@ -722,8 +603,6 @@ export default function CoyoteWhatsApp() {
         }
         .wa-send-btn:hover { background: #1da851; }
         .wa-send-btn:disabled { background: #c4c4c4; cursor: not-allowed; }
-
-        /* FAB */
         .wa-fab {
           position: fixed;
           bottom: 20px;
@@ -768,7 +647,6 @@ export default function CoyoteWhatsApp() {
           align-items: center;
           justify-content: center;
         }
-
         .wa-date-sep {
           text-align: center;
           margin: 8px 0;
@@ -783,7 +661,7 @@ export default function CoyoteWhatsApp() {
       `}</style>
 
       <div className="wa-widget">
-        {/* Ventana */}
+        {/* Ventana del chat */}
         <div className={`wa-window ${isOpen ? 'open' : 'closed'}`}>
           {/* Header */}
           <div className="wa-header">
@@ -793,6 +671,27 @@ export default function CoyoteWhatsApp() {
               <div className="wa-header-status">{typing ? 'escribiendo...' : 'En línea'}</div>
             </div>
             <button className="wa-header-close" onClick={() => setIsOpen(false)}>✕</button>
+          </div>
+
+          {/* === BANNER "COTIZAR AHORA" === */}
+          <div className="wa-banner">
+            🚀 ¡Cotizar Ahora!
+            <button
+              onClick={() => openWhatsApp()}
+              style={{
+                background: 'white',
+                color: '#075E54',
+                border: 'none',
+                padding: '4px 14px',
+                borderRadius: '9999px',
+                fontSize: '13px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+              }}
+            >
+              Contactar por WhatsApp
+            </button>
           </div>
 
           {/* Fondo tipo WhatsApp */}
@@ -830,10 +729,13 @@ export default function CoyoteWhatsApp() {
           )}
 
           {/* Botón WhatsApp siempre visible */}
-          <button className="wa-wa-btn" onClick={() => {
-            const prod = lastMsg?.producto;
-            openWhatsApp(prod ? `${prod.nombre} ($${prod.precio_menudeo}/${prod.precio_mayoreo} por ${prod.unidad})` : '');
-          }}>
+          <button
+            className="wa-wa-btn"
+            onClick={() => {
+              const prod = lastMsg?.producto;
+              openWhatsApp(prod ? `${prod.nombre} ($${prod.precio_menudeo}/${prod.precio_mayoreo} por ${prod.unidad})` : '');
+            }}
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
               <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
             </svg>
