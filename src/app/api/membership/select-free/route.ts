@@ -1,17 +1,16 @@
 // src/app/api/membership/select-free/route.ts
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
 import { MembershipTier } from "@prisma/client"
 import Stripe from "stripe"
+import { auth } from "../../../../auth"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-11-20.acacia" as any,
 })
 
-export async function POST() {
-  const session = await getServerSession(authOptions)
+export const POST = auth(async (req: Request) => {
+  const session = (req as any).auth
   if (!session?.user?.email) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
@@ -97,4 +96,4 @@ export async function POST() {
       { status: 500 }
     )
   }
-}
+})

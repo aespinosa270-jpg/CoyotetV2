@@ -1,13 +1,12 @@
 // src/app/crm/agente/chat/page.tsx
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import ChatInterface from "@/components/crm/ChatInterface"
 import { MessageSquare } from "lucide-react"
 
 export default async function AgenteChatPage() {
-  const session = await getServerSession(authOptions)
+  const session = await auth()
   
   if (!session?.user?.email) {
     redirect("/crm/login")

@@ -1,10 +1,9 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { ShieldCheck, Settings, Bell } from "lucide-react";
 import BtnFinalizarTurno from "@/components/flotilla/BtnFinalizarTurno";
+import { auth } from "@/auth";
 
 export default async function PerfilChofer() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] p-6 pb-24 font-sans">

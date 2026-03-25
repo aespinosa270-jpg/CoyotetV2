@@ -1,15 +1,14 @@
 // src/app/api/crm/chat/send/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
+import { auth } from "../../../../../auth";
 
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-export async function POST(req: Request) {
+export const POST = auth(async (req: Request) => {
   try {
-    const session = await getServerSession(authOptions);
+    const session = (req as any).auth;
     if (!session?.user?.email) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
@@ -77,4 +76,4 @@ export async function POST(req: Request) {
     console.error("🔥 Error enviando mensaje de agente:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+});

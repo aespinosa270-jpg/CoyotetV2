@@ -1,8 +1,7 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import MisPedidosClient from "./_components/MisPedidosClient";
+import { auth } from "@/auth";
 
 async function getMisPedidos(employeeId: string) {
   const orders = await prisma.routeOrder.findMany({
@@ -34,7 +33,7 @@ async function getMisPedidos(employeeId: string) {
 }
 
 export default async function MisPedidosPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const employee = await prisma.employee.findUnique({

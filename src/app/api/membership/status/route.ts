@@ -1,10 +1,9 @@
 // src/app/api/membership/status/route.ts
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
 import { MembershipTier } from "@prisma/client"
 import { getColocacionesGratis, calcularPuntos } from "@/lib/membership-benefits"
+import { auth } from "../../../../auth"
 
 // Tarifa de servicio por tier.
 // Si membership-benefits.ts ya exporta TARIFA_SERVICIO, importarlo desde ahí
@@ -16,8 +15,8 @@ const TARIFA_SERVICIO: Record<MembershipTier, number> = {
   ELITE: 0,
 }
 
-export async function GET() {
-  const session = await getServerSession(authOptions)
+export const GET = auth(async (req: Request) => {
+  const session = (req as any).auth
   if (!session?.user?.email) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
@@ -64,4 +63,4 @@ export async function GET() {
     tarifaServicio:           TARIFA_SERVICIO[tier],
     puntosEstimadosMes:       calcularPuntos(gastoMesActual, tier),
   })
-}
+})

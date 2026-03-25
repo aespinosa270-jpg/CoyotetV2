@@ -1,8 +1,7 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import WhatsappClient from "./_components/WhatsappClient";
+import { auth } from "@/auth";
 
 async function getMisConversaciones(employeeId: string) {
   const conversaciones = await prisma.waConversation.findMany({
@@ -30,7 +29,7 @@ async function getMisConversaciones(employeeId: string) {
 }
 
 export default async function WhatsappPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const employee = await prisma.employee.findUnique({

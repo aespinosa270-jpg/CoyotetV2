@@ -1,8 +1,7 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import MisInteraccionesClient from "./_components/MisInteraccionesClient";
+import { auth } from "@/auth";
 
 async function getMisInteracciones(employeeId: string) {
   const today = new Date();
@@ -44,7 +43,7 @@ async function getMisInteracciones(employeeId: string) {
 }
 
 export default async function MisInteraccionesPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const employee = await prisma.employee.findUnique({

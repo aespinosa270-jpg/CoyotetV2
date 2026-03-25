@@ -1,17 +1,16 @@
 // src/app/api/admin/orders/update/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-options';
+import { auth } from '@/auth';
 
 const ADMIN_EMAILS = [
   "jackrizk@coyotetextil.com",
   "stephanyrizk@coyotetextil.com",
 ];
 
-export async function POST(req: Request) {
+export const POST = auth(async (req) => {
   try {
-    const session = await getServerSession(authOptions);
+    const session = req.auth;
     
     // Cadenero de seguridad interno
     if (!session?.user?.email || !ADMIN_EMAILS.includes(session.user.email)) {
@@ -34,4 +33,4 @@ export async function POST(req: Request) {
     console.error("🔥 Error actualizando orden:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+});

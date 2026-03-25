@@ -1,9 +1,8 @@
 // src/app/perfil/page.tsx
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
+import { auth } from "@/auth"
 import { 
   ChevronLeft, LayoutDashboard, TrendingUp, Package, 
   ShieldCheck, KeyRound, User, Crown, Star, 
@@ -19,7 +18,7 @@ const formatPoints = (points: number) =>
   new Intl.NumberFormat('es-MX').format(Math.floor(points))
 
 export default async function PerfilPage() {
-  const session = await getServerSession(authOptions)
+  const session = await auth()
 
   if (!session?.user?.email) {
     redirect("/cuenta")

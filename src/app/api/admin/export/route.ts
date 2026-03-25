@@ -1,15 +1,14 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import * as XLSX from "xlsx"
 
-export async function GET() {
+export const GET = auth(async (req) => {
   try {
-    const session = await getServerSession(authOptions)
+    const session = req.auth
 
     // Validación de seguridad para nivel Black
-    if (!session?.user?.email || session.user.role !== "black") {
+    if (!session?.user?.email || (session.user as any).role !== "black") {
       return new NextResponse("Acceso Denegado: Se requiere nivel Black", { status: 401 })
     }
 
@@ -61,4 +60,4 @@ export async function GET() {
     console.error("Error en API de Excel:", error)
     return new NextResponse(`Fallo en el servidor: ${error.message}`, { status: 500 })
   }
-}
+})

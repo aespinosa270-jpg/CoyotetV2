@@ -37,7 +37,11 @@ export default function ProfileStatus() {
     }
   }
 
-  const tier = session?.user?.role as "black" | "gold" | "silver" || "silver"
+  // `role` no siempre está tipado en todas las versiones/augmentations de `next-auth`,
+  // pero el runtime lo expone (lo usa `use-price-engine`).
+  const tier =
+    (((session?.user as any)?.role as "black" | "gold" | "silver" | undefined) ??
+      "silver")
   const config = tierConfig[tier]
 
   return (

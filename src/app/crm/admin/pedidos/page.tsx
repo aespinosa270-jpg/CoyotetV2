@@ -1,6 +1,5 @@
 // src/app/crm/admin/pedidos/page.tsx
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import OrderManager from "@/components/crm/OrderManager"
@@ -11,7 +10,7 @@ const ADMIN_EMAILS = [
 ];
 
 export default async function AdminPedidosPage() {
-  const session = await getServerSession(authOptions)
+  const session = await auth()
   
   // Seguridad: Solo los jefes entran aquí
   if (!session?.user?.email || !ADMIN_EMAILS.includes(session.user.email)) {

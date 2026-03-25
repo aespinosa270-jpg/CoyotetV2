@@ -1,12 +1,11 @@
 // src/app/api/crm/chat/messages/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
+import { auth } from "../../../../../auth";
 
-export async function GET(req: Request) {
+export const GET = auth(async (req: Request) => {
   try {
-    const session = await getServerSession(authOptions);
+    const session = (req as any).auth;
     if (!session?.user?.email) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
@@ -30,4 +29,4 @@ export async function GET(req: Request) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+});

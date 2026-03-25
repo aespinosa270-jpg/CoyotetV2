@@ -1,5 +1,4 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
@@ -18,7 +17,7 @@ const formatNumber = (num: number) =>
   new Intl.NumberFormat('es-MX').format(num)
 
 export default async function AdminDashboardPage() {
-  const session = await getServerSession(authOptions)
+  const session = await auth()
 
   if (!session?.user?.email || (session.user as any).role !== "black") {
     redirect("/perfil")

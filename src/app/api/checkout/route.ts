@@ -2,12 +2,11 @@
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
 import { MembershipTier, Prisma } from "@prisma/client" // 🔥 Importamos Prisma Types
 import { getColocacionesGratis } from "@/lib/membership-benefits"
 import Stripe from "stripe"
+import { auth } from "../../../auth"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-11-20.acacia" as any,
@@ -41,7 +40,7 @@ function maxCanjeable(puntosDisponibles: number, totalCompra: number): number {
 }
 
 // ─── POST ─────────────────────────────────────────────────────────────────────
-export async function POST(request: Request) {
+export const POST = auth(async (request: Request) => {
   try {
     const body = await request.json()
     
@@ -63,7 +62,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const session = await getServerSession(authOptions)
+    const session = (request as any).auth
 
     let dbUser: {
       id:                           string
@@ -270,4 +269,4 @@ export async function POST(request: Request) {
     console.error("❌ Error Checkout:", error)
     return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }
-}
+})

@@ -1,16 +1,15 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import AgentLayoutClient from "./_components/AgentLayoutClient";
 import { ADMIN_EMAILS } from "@/lib/admin-emails";
+import { auth } from "@/auth";
 
 export default async function AgentLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   if (ADMIN_EMAILS.includes(session.user.email)) {

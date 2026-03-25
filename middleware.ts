@@ -1,69 +1,61 @@
 ﻿// src/middleware.ts
-import { getToken } from "next-auth/jwt";
+// Auth.js v5 usa auth() como middleware directamente
+
+import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Roles que acceden a /crm/admin
 const ADMIN_ROLES = ["ADMIN", "SUPERVISOR", "CONTABILIDAD"];
-// Roles que acceden a /crm/agente
 const AGENT_ROLES = ["VENDEDORA", "LOGISTICA"];
 
-export async function middleware(req: NextRequest) {
-  const token = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
-
+export default auth((req) => {
   const { pathname } = req.nextUrl;
-  const isLoginPage = pathname === "/crm/login";
+  const session      = req.auth;           // auth() inyecta req.auth en v5
+  const isLoginPage  = pathname === "/crm/login";
 
   // =========================================================
-  // 1. STOREFRONT — rutas protegidas del e-commerce
+  // 1. STOREFRONT
   // =========================================================
   const isStorefrontProtected =
     pathname.startsWith("/perfil") ||
     pathname.startsWith("/pedidos");
 
-  if (isStorefrontProtected && !token) {
+  if (isStorefrontProtected && !session) {
     return NextResponse.redirect(new URL("/cuenta", req.url));
   }
 
   // =========================================================
-  // 2. CRM — requiere sesión activa
+  // 2. CRM — requiere sesión
   // =========================================================
-  if (pathname.startsWith("/crm") && !isLoginPage && !token) {
+  if (pathname.startsWith("/crm") && !isLoginPage && !session) {
     return NextResponse.redirect(new URL("/crm/login", req.url));
   }
 
-  // Si ya tiene sesión y va al login, redirige según su rol
-  if (isLoginPage && token) {
-    const role = token.employeeRole as string;
-    if (ADMIN_ROLES.includes(role)) {
-      return NextResponse.redirect(new URL("/crm/admin", req.url));
-    }
-    return NextResponse.redirect(new URL("/crm/agente", req.url));
+  // Si ya tiene sesión y va al login → redirige según rol
+  if (isLoginPage && session) {
+    const role = session.user?.employeeRole ?? "";
+    return NextResponse.redirect(
+      new URL(ADMIN_ROLES.includes(role) ? "/crm/admin" : "/crm/agente", req.url)
+    );
   }
 
   // =========================================================
   // 3. CONTROL DE ACCESO POR ROL
   // =========================================================
-  if (token) {
-    const role = token.employeeRole as string;
+  if (session) {
+    const role = session.user?.employeeRole ?? "";
 
-    // Solo ADMIN/SUPERVISOR/CONTABILIDAD pueden ver /crm/admin
     if (pathname.startsWith("/crm/admin") && !ADMIN_ROLES.includes(role)) {
       return NextResponse.redirect(new URL("/crm/agente", req.url));
     }
 
-    // Solo VENDEDORA/LOGISTICA van a /crm/agente
-    // (ADMIN que entre a /crm/agente accidentalmente → redirigir a admin)
     if (pathname.startsWith("/crm/agente") && ADMIN_ROLES.includes(role)) {
       return NextResponse.redirect(new URL("/crm/admin", req.url));
     }
   }
 
   return NextResponse.next();
-}
+});
 
 export const config = {
   matcher: [

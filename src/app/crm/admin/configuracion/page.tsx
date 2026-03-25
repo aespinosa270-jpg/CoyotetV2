@@ -1,10 +1,9 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 import ConfiguracionClient from "./_components/ConfiguracionClient";
 
 export default async function ConfiguracionPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
 
   // Cargar datos reales del empleado en sesión
   const employee = session?.user?.id

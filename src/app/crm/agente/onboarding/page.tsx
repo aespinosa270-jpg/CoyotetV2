@@ -1,8 +1,7 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import OnboardingClient from "./_components/OnboardingClient";
+import { auth } from "@/auth";
 
 async function getOnboardingData(employeeId: string) {
   const [productos, recientes] = await Promise.all([
@@ -36,7 +35,7 @@ async function getOnboardingData(employeeId: string) {
 }
 
 export default async function OnboardingPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const employee = await prisma.employee.findUnique({

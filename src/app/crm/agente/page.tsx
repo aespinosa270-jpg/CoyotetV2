@@ -1,5 +1,3 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -8,6 +6,7 @@ import {
   ShoppingBag, ArrowUpRight, TrendingUp,
   CheckCircle2, Clock, ArrowRight,
 } from "lucide-react";
+import { auth } from "@/auth";
 
 async function getAgenteDashboard(employeeId: string) {
   const today = new Date();
@@ -96,7 +95,7 @@ const fmtShort = (v: number) => {
 };
 
 export default async function AgenteDashboardPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const employee = await prisma.employee.findUnique({

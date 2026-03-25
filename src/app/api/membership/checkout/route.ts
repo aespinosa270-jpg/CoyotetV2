@@ -1,9 +1,8 @@
 // src/app/api/membership/checkout/route.ts
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
+import { auth } from "../../../../auth"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-11-20.acacia" as any,
@@ -14,8 +13,8 @@ const VALID_CYCLES = ["monthly", "annual"] as const
 type PlanKey      = typeof VALID_PLANS[number]
 type BillingCycle = typeof VALID_CYCLES[number]
 
-export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
+export const POST = auth(async (req: Request) => {
+  const session = (req as any).auth
   if (!session?.user?.email) {
     // FIX: NextResponse.json() en lugar de new NextResponse(string)
     // Antes devolvía text/plain → JSON.parse fallaba en el cliente
@@ -158,4 +157,4 @@ export async function POST(req: Request) {
       { status: 500 }
     )
   }
-}
+})
