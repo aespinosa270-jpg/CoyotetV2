@@ -1,196 +1,880 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { usePathname } from "next/navigation";
-import { Send, X, MessageSquare, Sparkles, User, ArrowUp } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 
-export default function CoyoteChat() {
-  const pathname = usePathname();
+// ============================================================
+// BASE DE CONOCIMIENTO COMPLETA DE PRODUCTOS
+// ============================================================
+const PRODUCTOS = [
+  { id:"prod_alaska", nombre:"Alaska", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:175, precio_mayoreo:170, unidad:"Kilo", descripcion:"Tela deportiva especializada para sublimación de alta definición. Color único blanco.", origen:"Importado" },
+  { id:"prod_andromeda", nombre:"Andromeda", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Tela deportiva para sublimación de alta definición.", origen:"Importado" },
+  { id:"prod_apolo", nombre:"Apolo", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"150g/m²", ancho:"1.60m", rendimiento:"3.7 m/kg", precio_menudeo:160, precio_mayoreo:155, unidad:"Kilo", descripcion:"Resistencia superior a la abrasión y el pilling.", origen:"Importado" },
+  { id:"prod_ares", nombre:"Ares", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:135, precio_mayoreo:130, unidad:"Kilo", descripcion:"Tela deportiva para sublimación de alta definición.", origen:"Importado" },
+  { id:"prod_athlos", nombre:"Athlos", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:125, precio_mayoreo:120, unidad:"Kilo", descripcion:"Versatilidad total para cualquier disciplina deportiva.", origen:"Importado" },
+  { id:"prod_azucena", nombre:"Azucena", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:95, precio_mayoreo:90, unidad:"Kilo", descripcion:"Tela deportiva económica para sublimación.", origen:"Importado" },
+  { id:"prod_brock", nombre:"Brock", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Versatilidad total para cualquier disciplina deportiva.", origen:"Importado" },
+  { id:"prod_brush", nombre:"Brush", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:120, precio_mayoreo:115, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_capriati", nombre:"Capriati", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:135, precio_mayoreo:130, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_caprice", nombre:"Caprice", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:140, precio_mayoreo:135, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_delta", nombre:"Delta", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:175, precio_mayoreo:170, unidad:"Kilo", descripcion:"Tela deportiva premium para sublimación.", origen:"Importado" },
+  { id:"prod_diablo", nombre:"Diablo", categoria:"Telas Técnicas", composicion:"100% Nylon Alta Tenacidad", gramaje:"220g/m²", ancho:"1.50m", rendimiento:"1 m/metro", precio_menudeo:88, precio_mayoreo:83, unidad:"Metro", descripcion:"Uso rudo absoluto. Resistente a la abrasión, ideal para equipo táctico y calzado. Disponible en: Perla, Marino, Vino, Blanco, Azul Rey, Rojo, Negro, Oxford.", origen:"Importado", rollo_metros:50, colores:["Perla","Marino","Vino","Blanco","Azul Rey","Rojo","Negro","Oxford"] },
+  { id:"prod_f30", nombre:"F30", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:135, precio_mayoreo:130, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_felpa_china", nombre:"Felpa China", categoria:"Línea Invernal", composicion:"50% Algodón / 50% Poliéster", gramaje:"280g/m²", ancho:"1.60m", rendimiento:"2.2 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kilo", descripcion:"Ideal para sudaderas, pants y ropa deportiva de invierno. Cara lisa y reverso afelpado. Colores: Marino, Negro, Blanco, Azul Rey, Vino, Rojo, Jaspe Perla, Oxford Jaspe.", origen:"Importado", rollo_kg:25, colores:["Marino","Negro","Blanco","Azul Rey","Vino","Rojo","Jaspe Perla","Oxford Jaspe"] },
+  { id:"prod_felpa_spun", nombre:"Felpa Spun", categoria:"Línea Invernal", composicion:"100% Poliéster", gramaje:"280g/m²", ancho:"1.90m", rendimiento:"2.5 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kg", descripcion:"Tejido de alto volumen y suavidad excepcional para sudaderas premium. Colores: Blanco, Rojo, Marino, Negro, Azul Rey, Vino.", origen:"Importado", rollo_kg:25, colores:["Blanco","Rojo","Marino","Negro","Azul Rey","Vino"] },
+  { id:"prod_flanel", nombre:"Flanel", categoria:"Línea Invernal", composicion:"100% Poliéster", gramaje:"260g/m²", ancho:"1.60m", rendimiento:"2.4 m/kg", precio_menudeo:125, precio_mayoreo:120, unidad:"Kilo", descripcion:"Ultra suave, afelpado y ligero. Ideal para pijamas, cobijas, sudaderas y ropa de descanso premium. Colores: Blanco, Vino, Marino, Negro, Fiusha, Palo Rosa, Rosa Pastel, Azul Rey, Naranja, Rojo.", origen:"Importado", rollo_kg:27, colores:["Blanco","Vino","Marino","Negro","Fiusha","Palo Rosa","Rosa Pastel","Azul Rey","Naranja","Rojo"] },
+  { id:"prod_granizo", nombre:"Granizo", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:115, precio_mayoreo:110, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_horous", nombre:"Horous", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.2 m/kg", precio_menudeo:160, precio_mayoreo:155, unidad:"Kilo", descripcion:"Diseño vanguardista para moda deportiva urbana.", origen:"Importado" },
+  { id:"prod_inter_70", nombre:"Inter 70", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:140, precio_mayoreo:135, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_jumanji", nombre:"Jumanji", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:145, precio_mayoreo:140, unidad:"Kilo", descripcion:"Alta elasticidad y recuperación para prendas ajustadas y de alto impacto.", origen:"Importado" },
+  { id:"prod_kyoto", nombre:"Kyoto", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Acabado premium con tacto seda y caída espectacular.", origen:"Importado" },
+  { id:"prod_licra_liluna", nombre:"Licra Liluna", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:135, precio_mayoreo:130, unidad:"Kilo", descripcion:"Alta elasticidad para prendas ajustadas.", origen:"Importado" },
+  { id:"prod_licra_playera", nombre:"Licra Playera", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:130, precio_mayoreo:125, unidad:"Kilo", descripcion:"Alta elasticidad para prendas ajustadas.", origen:"Importado" },
+  { id:"prod_licra_poliester", nombre:"Licra Poliéster", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:145, precio_mayoreo:140, unidad:"Kilo", descripcion:"Alta elasticidad. Colores: Blanco, Negro, Rojo, Rey, Marino.", origen:"Importado", colores:["Blanco","Negro","Rojo","Rey","Marino"] },
+  { id:"prod_licra_saludable", nombre:"Licra Saludable", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:140, precio_mayoreo:135, unidad:"Kilo", descripcion:"Alta elasticidad. Colores: Blanco, Negro, Rojo, Rey, Marino, Militar, Perla Jaspe, Oxford Jaspe.", origen:"Importado", colores:["Blanco","Negro","Rojo","Rey","Marino","Militar","Perla Jaspe","Oxford Jaspe"] },
+  { id:"lycra_metalica", nombre:"Lycra Metálica", categoria:"Deportivo / Licra", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"1 m/metro", precio_menudeo:50, precio_mayoreo:45, unidad:"Metro", descripcion:"Licra metálica brillante para prendas deportivas, escénicas, disfraces. 13 colores metálicos disponibles.", origen:"Importado", rollo_metros:98, colores:["Oro Metálico","Plata Metálica","Naranja Metálico","Rojo Metálico","Azul Rey Metálico","Turquesa Metálico","Perla Metálico","Verde Bandera Metálico","Verde Manzana Metálico","Rosa Pastel Metálico","Fiucha Metálico","Blanco Metálico","Negro Metálico"] },
+  { id:"prod_madelino", nombre:"Madelino", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_mercury", nombre:"Mercury", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:160, precio_mayoreo:155, unidad:"Kilo", descripcion:"Alta elasticidad para prendas ajustadas y de alto impacto.", origen:"Importado" },
+  { id:"prod_micro_estrella", nombre:"Micro Estrella", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:145, precio_mayoreo:140, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_micro_panal", nombre:"Micro Panal", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kilo", descripcion:"Estructura de panal para máxima transpiración. +38 colores disponibles.", origen:"Importado", colores:["Blanco","Camel","Mostaza","Oro Viejo","Verde Neón","Amarillo Neón","Turquesa","Aqua","Militar","Botella","Bandera","Menta","Cielo","Vino","Lila","Naranja","Gris Baby","Uva","Petróleo","Palo de Rosa","Rosa Baby","Magenta","Rosa Pastel","Fiusha","Rosa Neón","Light Blue","Azul Rey","Navy Blue","Oxford","Medio","Perla","Mango","Canario","Caqui","Negro","Rojo","Rey","Azul Francia"] },
+  { id:"prod_micropique", nombre:"Micro Piqué", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:100, precio_mayoreo:95, unidad:"Kilo", descripcion:"Tecnología Dry-Fit Calidad Gold. Ideal para uniformes deportivos. +38 colores.", origen:"Importado", colores:["Light Navy","Blanco","Gris Perla","Navy Dark Blue","Menta","Fiusha","Caqui","Uva M","Azul Acero","Vino","Beige","Camel","Gris Medio","Oxford","Militar","Rosa Baby","Amarillo Canario","Petróleo","Rosa Palo","Cielo","Mango","Turquesa","Azul Francia","Uva","Bugambilia","Oro Viejo","Mostaza","Azul Rey","Navy Blue","Naranja Neón","Naranja","Rosa Neón","Amarillo","Verde Neón","Negro","Verde Bandera","Verde Botella","Rojo"] },
+  { id:"prod_micropique_fusionado", nombre:"Micropiqué Fusionado", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:150, precio_mayoreo:145, unidad:"Kilo", descripcion:"Tela deportiva fusionada para sublimación.", origen:"Importado" },
+  { id:"prod_microtrix", nombre:"Microtrix", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:150, precio_mayoreo:145, unidad:"Kilo", descripcion:"Alta elasticidad para prendas ajustadas.", origen:"Importado" },
+  { id:"prod_miky", nombre:"Miky", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:135, precio_mayoreo:130, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_monaco", nombre:"Monaco", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_nagasaky", nombre:"Nagasaky", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:135, precio_mayoreo:130, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_panal_nitro", nombre:"Panal Nitro", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.2 m/kg", precio_menudeo:185, precio_mayoreo:180, unidad:"Kilo", descripcion:"Tejido técnico avanzado para control de humedad extremo.", origen:"Importado" },
+  { id:"prod_panal_plus", nombre:"Panal Plus", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"3.7 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Mayor cuerpo y estructura para prendas que requieren forma.", origen:"Importado" },
+  { id:"prod_phoenix", nombre:"Phoenix", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:95, precio_mayoreo:90, unidad:"Kilo", descripcion:"Tela deportiva económica para sublimación.", origen:"Importado" },
+  { id:"prod_pique_lacoste", nombre:"Piqué Lacoste", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:140, precio_mayoreo:135, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_pique_vera", nombre:"Piqué Vera", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kilo", descripcion:"Tecnología Dry-Fit con textura suave y resistente. +34 colores.", origen:"Importado", colores:["Camel","Oro Viejo","Mostaza","Verde Neón","Amarillo Neón","Turquesa","Aqua","Rosa Neón","Magenta","Militar","Botella","Verde Bandera","Cielo","Menta","Vino","Lila","Naranja","Uva","Petróleo","Rosa Pastel","Rosa Baby","Palo Rosa","Fiusha","Light Navy","Dark Navy","Gris Medio","Oxford","Gris Perla","Mango","Canario","Caqui","Negro","Rojo","Rey"] },
+  { id:"prod_pique_vera_sport", nombre:"Piqué Vera Sport", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:140, precio_mayoreo:135, unidad:"Kilo", descripcion:"Versatilidad total para cualquier disciplina deportiva.", origen:"Importado" },
+  { id:"prod_pixel", nombre:"Pixel", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
+  { id:"prod_polar", nombre:"Polar", categoria:"Línea Invernal", composicion:"100% Poliéster", gramaje:"280g/m²", ancho:"1.60m", rendimiento:"2.5 m/kg", precio_menudeo:120, precio_mayoreo:115, unidad:"Kilo", descripcion:"Tela térmica con tecnología anti-pilling. Ideal para pijamas, mamelucos, cobijas y ropa para mascotas. Colores: Verde Botella, Verde Militar, Palo Rosa, Azul Rey, Vino, Marino, Fiusha, Negro, Rojo, Blanco.", origen:"Importado", rollo_kg:25, colores:["Verde Botella","Verde Militar","Palo Rosa","Azul Rey","Vino","Marino","Fiusha","Negro","Rojo","Blanco"] },
+  { id:"prod_saturno", nombre:"Saturno", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:165, precio_mayoreo:160, unidad:"Kilo", descripcion:"Tela deportiva premium para sublimación.", origen:"Importado" },
+  { id:"prod_super_trix", nombre:"Super Trix", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:175, precio_mayoreo:170, unidad:"Kilo", descripcion:"Tela deportiva premium para sublimación.", origen:"Importado" },
+  { id:"prod_sportok", nombre:"Sportok", categoria:"Escolar / Deportivo", composicion:"100% Poliéster (Interior Afelpado)", gramaje:"260g/m²", ancho:"1.60m", rendimiento:"2.4 m/kg", precio_menudeo:80, precio_mayoreo:75, unidad:"Kg", descripcion:"Estándar para pants, sudaderas y uniformes escolares. Semi-brillante, interior afelpado, no se arruga. +49 colores.", origen:"Importado", rollo_kg:25, colores:["Francia","Marino Claro","Magenta","Chedron","Acero","Naranja Pastel","Amarillo Pastel","Petróleo","Oro Viejo","Mostaza","Palo de Rosa","Jade","Lila","Bugambilia","Fiusha","Gris Baby","Perla","Medio","Oxford","Caqui","Beige","Cafe","Camel","Rosa Pastel","Turquesa","Aqua","Menta","Morado","Uva","Rosa Baby","Cielo","Naranja Neón","Rosa Neón","Verde Neón","Amarillo Neón","Pistache","Manzana","Militar","Botella","Bandera","Naranja","Rey","Mango","Canario","Rojo","Rojo Quemado","Negro","Blanco","Marino"] },
+  { id:"prod_torneo", nombre:"Torneo", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"150g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:125, precio_mayoreo:120, unidad:"Kilo", descripcion:"El estándar en durabilidad para torneos exigentes.", origen:"Importado" },
+];
+
+const CATEGORIAS = [...new Set(PRODUCTOS.map(p => p.categoria))];
+const WA_NUMBER = "5531314617";
+
+// ============================================================
+// MOTOR DE IA: PROCESAMIENTO DE INTENCIÓN Y RESPUESTA
+// ============================================================
+function procesarMensaje(texto, historial) {
+  const t = texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+
+  // -- Saludos
+  if (/^(hola|buenos|buenas|saludos|hey|hi|que tal|qué tal|buen dia|buen dia)/.test(t)) {
+    return { tipo: "saludo", respuesta: buildSaludo() };
+  }
+
+  // -- Precios / cotización
+  if (/precio|costo|cuanto|cuánto|cotiza|tarifa|valor|rate/.test(t)) {
+    const prod = encontrarProducto(t);
+    if (prod) return { tipo: "precio", respuesta: buildPrecio(prod), producto: prod };
+    return { tipo: "precios_general", respuesta: buildListaPrecios(t) };
+  }
+
+  // -- Colores
+  if (/color|colores|tonos|tono|disponible en|opciones de color/.test(t)) {
+    const prod = encontrarProducto(t);
+    if (prod) return { tipo: "colores", respuesta: buildColores(prod), producto: prod };
+    return { tipo: "colores_cat", respuesta: buildColoresCategorias() };
+  }
+
+  // -- Características técnicas
+  if (/gramo|gramaje|composic|material|ancho|rendimiento|poliester|poliéster|nylon|spandex|tecni/.test(t)) {
+    const prod = encontrarProducto(t);
+    if (prod) return { tipo: "ficha", respuesta: buildFichaTecnica(prod), producto: prod };
+    return { tipo: "ficha_general", respuesta: buildInfoGeneral() };
+  }
+
+  // -- Línea invernal
+  if (/invier|polar|flanel|felpa|frio|frío|sudadera|pants|cobija|pijama/.test(t)) {
+    return { tipo: "invernal", respuesta: buildLineaInvernal() };
+  }
+
+  // -- Sublimación
+  if (/sublima|sublimacion|sublimación|transfer|dri.?fit|deportiv/.test(t)) {
+    return { tipo: "sublimacion", respuesta: buildSublimaciom() };
+  }
+
+  // -- Licras
+  if (/licra|lycra|elastan|spandex|ajustada|gimnasio|gym|elasticidad/.test(t)) {
+    return { tipo: "licras", respuesta: buildLicras() };
+  }
+
+  // -- Rollos / mayoreo
+  if (/rollo|mayoreo|mayor|volumen|cantidad|kilo|tonelad/.test(t)) {
+    return { tipo: "mayoreo", respuesta: buildMayoreo() };
+  }
+
+  // -- Producto específico mencionado
+  const prod = encontrarProducto(t);
+  if (prod) return { tipo: "producto", respuesta: buildProductoCompleto(prod), producto: prod };
+
+  // -- Catálogo general
+  if (/catalogo|catálogo|producto|productos|todo|tienen|que venden|que tienen/.test(t)) {
+    return { tipo: "catalogo", respuesta: buildCatalogo() };
+  }
+
+  // -- Cotizar / pedido / comprar
+  if (/comprar|compra|pedir|pedido|ordenar|orden|adquirir|contac|asesor|vendedor|hablar|human/.test(t)) {
+    return { tipo: "contacto", respuesta: buildContacto() };
+  }
+
+  // -- Respuesta por defecto inteligente
+  return { tipo: "default", respuesta: buildDefault(texto) };
+}
+
+function encontrarProducto(texto) {
+  const t = texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  // Buscar por nombre exacto primero
+  for (const p of PRODUCTOS) {
+    const nombre = p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    if (t.includes(nombre)) return p;
+  }
+  // Buscar palabras clave del nombre
+  for (const p of PRODUCTOS) {
+    const partes = p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").split(" ");
+    if (partes.some(part => part.length > 3 && t.includes(part))) return p;
+  }
+  return null;
+}
+
+// ============================================================
+// BUILDERS DE RESPUESTA
+// ============================================================
+function buildSaludo() {
+  return `¡Buen día! 👋 Le saluda el equipo de *Telas El Coyote*.
+
+Somos distribuidores mayoristas de telas técnicas e industriales con cobertura nacional. Contamos con más de *${PRODUCTOS.length} líneas de producto* en las siguientes categorías:
+
+📦 *Deportivas / Sublimación*
+🏋️ *Deportivo / Licra*
+❄️ *Línea Invernal*
+🎓 *Escolar / Deportivo*
+🔩 *Telas Técnicas*
+
+¿En qué puedo orientarle el día de hoy?`;
+}
+
+function buildPrecio(p) {
+  return `💰 *Precios — ${p.nombre}*
+
+| Modalidad | Precio por ${p.unidad} |
+|---|---|
+| Menudeo | $${p.precio_menudeo}.00 MXN |
+| Mayoreo | $${p.precio_mayoreo}.00 MXN |
+
+📌 _El precio de mayoreo aplica a partir de rollos completos._
+
+📐 *Datos clave:*
+• Ancho: ${p.ancho}
+• Gramaje: ${p.gramaje}
+• Rendimiento: ${p.rendimiento}
+${p.rollo_metros ? `• Rollo: ${p.rollo_metros} metros\n` : ''}${p.rollo_kg ? `• Rollo: ${p.rollo_kg} kg\n` : ''}
+¿Le gustaría realizar una cotización formal o conocer disponibilidad de colores?`;
+}
+
+function buildListaPrecios(t) {
+  // Detectar si busca por categoría
+  const esSub = /sublima|deportiv/.test(t);
+  const esInv = /invier|polar|flanel|felpa/.test(t);
+  const esLicra = /licra|lycra|elastan/.test(t);
+  const esEscolar = /escolar|sportok|pants/.test(t);
+
+  let lista = PRODUCTOS;
+  let cat = "General";
+  if (esSub) { lista = PRODUCTOS.filter(p => p.categoria === "Deportivas / Sublimación"); cat = "Deportivas / Sublimación"; }
+  else if (esInv) { lista = PRODUCTOS.filter(p => p.categoria === "Línea Invernal"); cat = "Línea Invernal"; }
+  else if (esLicra) { lista = PRODUCTOS.filter(p => p.categoria === "Deportivo / Licra"); cat = "Deportivo / Licra"; }
+  else if (esEscolar) { lista = PRODUCTOS.filter(p => p.categoria === "Escolar / Deportivo"); cat = "Escolar / Deportivo"; }
+
+  const items = lista.slice(0, 12).map(p =>
+    `• *${p.nombre}* — Menudeo $${p.precio_menudeo} / Mayoreo $${p.precio_mayoreo} por ${p.unidad}`
+  ).join('\n');
+
+  return `📋 *Lista de Precios — ${cat}*\n\n${items}${lista.length > 12 ? `\n\n_...y ${lista.length - 12} productos más._` : ''}\n\n¿Desea información detallada de alguna tela en particular?`;
+}
+
+function buildColores(p) {
+  if (!p.colores || p.colores.length === 0) {
+    return `ℹ️ *${p.nombre}* se trabaja en color único (blanco) especial para procesos de sublimación. Puede sublimar cualquier diseño a color directamente sobre esta tela.\n\n¿Le gustaría cotizar o saber más de sus características?`;
+  }
+  const colorList = p.colores.map(c => `• ${c}`).join('\n');
+  return `🎨 *Colores disponibles — ${p.nombre}*\n\n${colorList}\n\n_Total: ${p.colores.length} colores en stock._\n\n¿Desea cotizar en algún color específico?`;
+}
+
+function buildColoresCategorias() {
+  const conColores = PRODUCTOS.filter(p => p.colores && p.colores.length > 0);
+  const texto = conColores.slice(0, 8).map(p => `• *${p.nombre}* — ${p.colores.length} colores`).join('\n');
+  return `🎨 *Telas con amplia paleta de colores*\n\n${texto}\n\nMencione el nombre de la tela que le interese y le comparto el catálogo de colores completo.`;
+}
+
+function buildFichaTecnica(p) {
+  return `🧵 *Ficha Técnica — ${p.nombre}*
+
+📁 Categoría: ${p.categoria}
+🧪 Composición: ${p.composicion}
+⚖️ Gramaje: ${p.gramaje}
+📏 Ancho: ${p.ancho}
+📦 Unidad de venta: ${p.unidad}
+📐 Rendimiento: ${p.rendimiento}
+${p.rollo_metros ? `🔄 Metros por rollo: ${p.rollo_metros}\n` : ''}${p.rollo_kg ? `🔄 Kg por rollo: ${p.rollo_kg}\n` : ''}🌍 Origen: ${p.origen}
+
+📝 *Descripción:*
+${p.descripcion}
+
+💰 Menudeo: $${p.precio_menudeo} / Mayoreo: $${p.precio_mayoreo} por ${p.unidad}
+
+¿Le puedo apoyar con una cotización o tiene alguna pregunta técnica adicional?`;
+}
+
+function buildInfoGeneral() {
+  return `🔬 *Información Técnica General*
+
+Toda nuestra línea textil es de *origen importado* con los siguientes estándares:
+
+🏅 *Deportivas / Sublimación*
+— Composición: 100% Poliéster
+— Gramajes: 140–185 g/m²
+— Ancho: 1.60m
+— Rendimiento: 3.7–4.3 m/kg
+
+🏋️ *Deportivo / Licra*
+— Composición: Poliéster / Spandex
+— Gramaje: 180 g/m²
+— Rendimiento: 3.5 m/kg
+
+❄️ *Línea Invernal*
+— Composición: 100% Poliéster o 50/50 Algodón/Poliéster
+— Gramajes: 260–280 g/m²
+— Rendimiento: 2.2–2.5 m/kg
+
+🔩 *Telas Técnicas (Diablo)*
+— Composición: 100% Nylon Alta Tenacidad
+— Gramaje: 220 g/m²
+
+¿De qué línea específica necesita más información?`;
+}
+
+function buildLineaInvernal() {
+  const inv = PRODUCTOS.filter(p => p.categoria === "Línea Invernal");
+  const lista = inv.map(p =>
+    `*${p.nombre}* — $${p.precio_menudeo}/$${p.precio_mayoreo} por ${p.unidad}\n  ${p.composicion} | ${p.gramaje} | ${p.colores ? p.colores.length + ' colores' : 'color único'}`
+  ).join('\n\n');
+  return `❄️ *Línea Invernal — Catálogo Completo*\n\n${lista}\n\n🧥 Ideales para: sudaderas, pants, pijamas, cobijas, uniformes escolares y ropa de invierno.\n\n¿Le interesa alguna en particular?`;
+}
+
+function buildSublimaciom() {
+  const subs = PRODUCTOS.filter(p => p.categoria === "Deportivas / Sublimación");
+  const rangoPrecio = { min: Math.min(...subs.map(p=>p.precio_menudeo)), max: Math.max(...subs.map(p=>p.precio_menudeo)) };
+  return `🎽 *Línea Deportiva para Sublimación*
+
+Contamos con *${subs.length} referencias* especializadas en sublimación:
+
+💡 *¿Por qué nuestras telas para sublimación?*
+✅ 100% Poliéster de alta calidad
+✅ Gramajes entre 140–185 g/m²
+✅ Ancho estándar de 1.60m
+✅ Rendimiento de 3.7 a 4.3 metros por kilo
+✅ Acabado blanco óptico para máxima fidelidad de color
+
+💰 Rango de precios: $${rangoPrecio.min}–$${rangoPrecio.max} por kilo (menudeo)
+
+*Destacadas:*
+• Delta / Alaska / Super Trix — $175/kg (premium)
+• Panal Nitro — $185/kg (control de humedad extremo)
+• Micro Piqué / Micro Panal — desde $100/kg
+• Phoenix / Azucena — desde $95/kg (económicas)
+
+¿Desea que le asesore en la selección según su aplicación específica?`;
+}
+
+function buildLicras() {
+  const licras = PRODUCTOS.filter(p => p.categoria === "Deportivo / Licra");
+  const lista = licras.map(p =>
+    `• *${p.nombre}* — $${p.precio_menudeo}/$${p.precio_mayoreo} por ${p.unidad}`
+  ).join('\n');
+  return `🏋️ *Línea Deportivo / Licra*\n\n${lista}\n\n🔍 Todas con composición *Poliéster / Spandex* excepto Lycra Metálica (100% Poliéster).\n\nℹ️ La *Lycra Metálica* es nuestra propuesta más especial: 13 colores metálicos, vendida por metro a $50/$45.\n\n¿Le interesa alguna referencia específica?`;
+}
+
+function buildMayoreo() {
+  const conRollo = PRODUCTOS.filter(p => p.rollo_metros || p.rollo_kg);
+  return `📦 *Información sobre Rollos y Compras a Mayoreo*
+
+Para compras al *precio de mayoreo* se requiere adquirir el rollo completo:
+
+${conRollo.map(p =>
+  `• *${p.nombre}* — Rollo de ${p.rollo_metros ? p.rollo_metros + ' metros' : p.rollo_kg + ' kg'} | $${p.precio_mayoreo} por ${p.unidad}`
+).join('\n')}
+
+Para las telas vendidas por kilo sin especificación de rollo, el precio mayoreo también aplica por rollo completo (aprox. 25–30 kg).
+
+💬 Para confirmar disponibilidad exacta y lotes disponibles, comuníquese directamente con nuestro equipo de ventas.`;
+}
+
+function buildProductoCompleto(p) {
+  return `📦 *${p.nombre}*
+
+🏷️ Categoría: ${p.categoria}
+🧪 Composición: ${p.composicion}
+⚖️ Gramaje: ${p.gramaje} | 📏 Ancho: ${p.ancho}
+📐 Rendimiento: ${p.rendimiento}
+
+💰 *Precios:*
+• Menudeo: $${p.precio_menudeo}.00 MXN / ${p.unidad}
+• Mayoreo: $${p.precio_mayoreo}.00 MXN / ${p.unidad}
+
+${p.colores ? `🎨 *${p.colores.length} colores disponibles*\nEscriba "colores ${p.nombre}" para verlos.\n` : '✏️ Color único — ideal para sublimación\n'}
+📝 ${p.descripcion}
+
+¿Desea cotizar, conocer los colores disponibles o hablar con un asesor?`;
+}
+
+function buildCatalogo() {
+  const porCat = {};
+  for (const p of PRODUCTOS) {
+    if (!porCat[p.categoria]) porCat[p.categoria] = [];
+    porCat[p.categoria].push(p.nombre);
+  }
+  let texto = `🗂️ *Catálogo General — Telas El Coyote*\n\nContamos con *${PRODUCTOS.length} líneas de producto*:\n\n`;
+  for (const [cat, prods] of Object.entries(porCat)) {
+    texto += `*${cat}* (${prods.length})\n${prods.join(', ')}\n\n`;
+  }
+  texto += `Mencione el nombre de cualquier tela para ver ficha técnica, precios y colores.`;
+  return texto;
+}
+
+function buildContacto() {
+  return `✅ *Conectar con un Asesor de Ventas*
+
+Nuestro equipo está listo para atenderle con:
+
+📋 Cotizaciones personalizadas
+📦 Consulta de inventario en tiempo real
+🚚 Información sobre envíos y logística
+💳 Condiciones de pago
+
+Para continuar la conversación directamente en *WhatsApp*, presione el botón de abajo. 👇`;
+}
+
+function buildDefault(texto) {
+  return `Gracias por su mensaje. 
+
+Para brindarle la mejor asesoría, permítame orientarle. Puedo ayudarle con:
+
+• 🔍 **Búsqueda de telas** — dígame el nombre o el tipo
+• 💰 **Precios y cotizaciones** — menudeo y mayoreo
+• 🎨 **Paleta de colores** disponibles por tela
+• 📐 **Fichas técnicas** — composición, gramaje, rendimiento
+• ❄️ **Línea invernal** — felpa, polar, flanel, sportok
+• 🎽 **Deportivas** — sublimación, licras, dry-fit
+• 📦 **Pedidos y mayoreo** — rollos completos
+
+_¿Sobre cuál de estos temas le puedo orientar?_`;
+}
+
+// ============================================================
+// SUGERENCIAS RÁPIDAS CONTEXTUALES
+// ============================================================
+function getSugerencias(tipo) {
+  const map = {
+    saludo: ["Ver catálogo", "Precios generales", "Línea invernal", "Telas para sublimación"],
+    catalogo: ["Precios Sportok", "Colores Micro Piqué", "Línea invernal", "Licras disponibles"],
+    invernal: ["Precio Polar", "Colores Flanel", "Precio Felpa China", "Cotizar rollo"],
+    sublimacion: ["Precio Alaska", "Precio Micro Piqué", "Colores Micro Panal", "Hablar con asesor"],
+    licras: ["Precio Licra Saludable", "Colores Lycra Metálica", "Precio Mercury", "Cotizar"],
+    mayoreo: ["Rollo Sportok", "Rollo Polar", "Cotizar pedido", "Hablar con asesor"],
+    producto: ["Ver precios", "Ver colores", "Ficha técnica", "Hablar con asesor"],
+    precio: ["Ver colores", "Ficha técnica", "Comprar ahora", "Hablar con asesor"],
+    colores: ["Ver precio", "Cotizar", "Hablar con asesor"],
+    contacto: [],
+    default: ["Ver catálogo", "Telas para sublimación", "Línea invernal", "Hablar con asesor"],
+  };
+  return map[tipo] || map.default;
+}
+
+// ============================================================
+// COMPONENTE PRINCIPAL
+// ============================================================
+export default function CoyoteWhatsApp() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  
-  const [messages, setMessages] = useState<{role: string, content: string}[]>([
-    { 
-      role: 'assistant', 
-      content: '🐺 ¡Qué tal! Soy El Coyote. ¿En qué te puedo asesorar hoy sobre nuestras telas e infraestructura?' 
+  const [typing, setTyping] = useState(false);
+  const scrollRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const [messages, setMessages] = useState([
+    {
+      role: 'assistant',
+      content: buildSaludo(),
+      tipo: 'saludo',
+      time: new Date()
     }
   ]);
 
-  // Auto-scroll al recibir mensajes
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isOpen]);
+  }, [messages, typing, isOpen]);
 
-  const sendMessage = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  useEffect(() => {
+    if (isOpen && inputRef.current) inputRef.current.focus();
+  }, [isOpen]);
 
-    const userMsg = input.trim();
+  const addMessage = async (userText) => {
+    if (!userText.trim()) return;
+    const now = new Date();
+    setMessages(prev => [...prev, { role: 'user', content: userText, time: now }]);
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-    setIsLoading(true);
+    setTyping(true);
 
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: userMsg }]
-        })
-      });
+    // Simular tiempo de escritura realista
+    const delay = Math.min(800 + userText.length * 12, 2200);
+    await new Promise(r => setTimeout(r, delay));
 
-      const data = await res.json();
-      if (data.content) {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
-      }
-    } catch (error) {
-      console.error("Error en el chat:", error);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Lo siento, tuve un pequeño problema con mi conexión. ¿Podrías intentar de nuevo?" }]);
-    } finally {
-      setIsLoading(false);
-    }
+    const resultado = procesarMensaje(userText, messages);
+    setTyping(false);
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: resultado.respuesta,
+      tipo: resultado.tipo,
+      producto: resultado.producto,
+      time: new Date()
+    }]);
   };
 
-  // EL CADENERO: No mostramos el chat en la app de choferes/flotilla
-  if (pathname?.startsWith("/flotilla") || pathname?.startsWith("/crm")) return null;
+  const handleSend = (e) => {
+    if (e) e.preventDefault();
+    if (input.trim() && !typing) addMessage(input.trim());
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  };
+
+  const handleSugerencia = (s) => {
+    if (!typing) addMessage(s);
+  };
+
+  const openWhatsApp = (msg = '') => {
+    const text = msg
+      ? `Hola, me interesa: ${msg}`
+      : `Hola, vengo del chat de El Coyote y deseo más información sobre sus telas.`;
+    window.open(`https://wa.me/52${WA_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const lastMsg = messages[messages.length - 1];
+  const sugerencias = lastMsg?.tipo ? getSugerencias(lastMsg.tipo) : [];
+  const esContacto = lastMsg?.tipo === 'contacto';
+
+  const formatTime = (d) => d ? d.toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'}) : '';
+
+  // Función para renderizar texto con formato tipo WhatsApp
+  const renderMsg = (text) => {
+    return text.split('\n').map((line, i) => {
+      // Negrita *texto*
+      const parts = line.split(/(\*[^*]+\*)/g).map((part, j) => {
+        if (part.startsWith('*') && part.endsWith('*')) {
+          return <strong key={j}>{part.slice(1,-1)}</strong>;
+        }
+        return part;
+      });
+      return <span key={i}>{parts}<br/></span>;
+    });
+  };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end font-sans selection:bg-[#FDCB02] selection:text-black">
-      
-      {/* --- VENTANA DEL CHAT --- */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95, filter: "blur(10px)" }}
-            animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-            exit={{ opacity: 0, y: 20, scale: 0.95, filter: "blur(10px)" }}
-            transition={{ type: "spring", stiffness: 350, damping: 30 }}
-            className="w-[90vw] sm:w-[380px] h-[600px] max-h-[80vh] bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-white/20 mb-6 flex flex-col overflow-hidden origin-bottom-right"
-          >
-            {/* --- HEADER PREMIUM --- */}
-            <div className="relative bg-gradient-to-r from-[#0a0a0a] to-[#1a1a1a] p-5 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div className="w-12 h-12 bg-[#FDCB02] rounded-full flex items-center justify-center text-2xl shadow-lg shadow-yellow-500/20 border-2 border-black">🐺</div>
-                  <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-[#1a1a1a] rounded-full animate-pulse"></span>
-                </div>
-                <div>
-                  <h3 className="text-white font-[900] uppercase text-sm tracking-wider flex items-center gap-2">
-                    El Coyote <Sparkles size={12} className="text-[#FDCB02]" />
-                  </h3>
-                  <p className="text-neutral-400 text-[11px] font-medium tracking-wide">
-                    Infraestructura Nacional
-                  </p>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+        .wa-widget * { box-sizing: border-box; font-family: 'Inter', -apple-system, sans-serif; }
+
+        .wa-window {
+          position: fixed;
+          bottom: 90px;
+          right: 20px;
+          width: 360px;
+          max-width: calc(100vw - 32px);
+          height: 600px;
+          max-height: calc(100vh - 110px);
+          background: #ECE5DD;
+          border-radius: 16px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.08);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          z-index: 9998;
+          transition: opacity .25s, transform .25s;
+        }
+        .wa-window.closed { opacity:0; pointer-events:none; transform: scale(0.92) translateY(16px); }
+        .wa-window.open { opacity:1; transform: scale(1) translateY(0); }
+
+        .wa-header {
+          background: #075E54;
+          padding: 10px 14px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+        .wa-avatar {
+          width: 42px; height: 42px;
+          background: #25D366;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 22px;
+          flex-shrink: 0;
+        }
+        .wa-header-info { flex: 1; }
+        .wa-header-name { color: white; font-size: 15px; font-weight: 600; line-height: 1.2; }
+        .wa-header-status { color: #b2dfdb; font-size: 12px; }
+        .wa-header-close {
+          width: 32px; height: 32px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.12);
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-size: 16px;
+          transition: background .2s;
+        }
+        .wa-header-close:hover { background: rgba(255,255,255,0.22); }
+
+        .wa-bg {
+          position: absolute;
+          inset: 60px 0 0 0;
+          background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10 Q15 5 20 10 Q25 15 30 10 Q35 5 40 10 Q45 15 50 10 Q55 5 60 10 Q65 15 70 10 Q75 5 80 10 Q85 15 90 10' stroke='%23b2bec3' stroke-width='1' fill='none' opacity='0.15'/%3E%3C/svg%3E");
+          background-color: #e5ddd5;
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        .wa-messages {
+          flex: 1;
+          overflow-y: auto;
+          padding: 12px 12px 8px;
+          position: relative;
+          z-index: 1;
+          scroll-behavior: smooth;
+        }
+        .wa-messages::-webkit-scrollbar { width: 4px; }
+        .wa-messages::-webkit-scrollbar-track { background: transparent; }
+        .wa-messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+
+        .wa-msg { display: flex; margin-bottom: 4px; }
+        .wa-msg.user { justify-content: flex-end; }
+        .wa-msg.bot { justify-content: flex-start; }
+
+        .wa-bubble {
+          max-width: 82%;
+          padding: 7px 10px 6px;
+          border-radius: 7.5px;
+          font-size: 13.5px;
+          line-height: 1.45;
+          position: relative;
+          word-break: break-word;
+          box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+        }
+        .wa-bubble.user {
+          background: #DCF8C6;
+          border-top-right-radius: 2px;
+        }
+        .wa-bubble.bot {
+          background: white;
+          border-top-left-radius: 2px;
+        }
+        .wa-bubble .wa-time {
+          font-size: 10px;
+          color: #8696a0;
+          float: right;
+          margin-left: 8px;
+          margin-top: 2px;
+          line-height: 1;
+        }
+        .wa-bubble.user .wa-time::after {
+          content: ' ✓✓';
+          color: #53bdeb;
+        }
+
+        .wa-typing {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 10px 14px;
+          background: white;
+          border-radius: 7.5px;
+          border-top-left-radius: 2px;
+          width: fit-content;
+          box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+        }
+        .wa-dot {
+          width: 8px; height: 8px;
+          background: #8696a0;
+          border-radius: 50%;
+          animation: waDot 1.2s infinite ease-in-out;
+        }
+        .wa-dot:nth-child(2) { animation-delay: 0.2s; }
+        .wa-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes waDot {
+          0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+          40% { transform: scale(1.2); opacity: 1; }
+        }
+
+        .wa-suggestions {
+          padding: 6px 12px;
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+          background: #e5ddd5;
+          position: relative;
+          z-index: 1;
+        }
+        .wa-chip {
+          background: white;
+          border: 1px solid #25D366;
+          color: #075E54;
+          font-size: 12px;
+          font-weight: 500;
+          padding: 5px 10px;
+          border-radius: 16px;
+          cursor: pointer;
+          transition: all .15s;
+          white-space: nowrap;
+        }
+        .wa-chip:hover { background: #25D366; color: white; }
+
+        .wa-wa-btn {
+          margin: 6px 12px;
+          background: #25D366;
+          color: white;
+          border: none;
+          border-radius: 10px;
+          padding: 11px 16px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: background .2s;
+          position: relative;
+          z-index: 1;
+        }
+        .wa-wa-btn:hover { background: #1da851; }
+
+        .wa-input-area {
+          padding: 8px 10px;
+          background: #f0f2f5;
+          display: flex;
+          align-items: flex-end;
+          gap: 8px;
+          flex-shrink: 0;
+          position: relative;
+          z-index: 1;
+        }
+        .wa-input-wrap {
+          flex: 1;
+          background: white;
+          border-radius: 22px;
+          display: flex;
+          align-items: flex-end;
+          padding: 8px 14px;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .wa-input {
+          flex: 1;
+          border: none;
+          background: transparent;
+          font-size: 14px;
+          outline: none;
+          resize: none;
+          max-height: 80px;
+          min-height: 20px;
+          line-height: 1.4;
+          color: #111b21;
+          font-family: inherit;
+        }
+        .wa-send-btn {
+          width: 42px; height: 42px;
+          background: #25D366;
+          border: none;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          flex-shrink: 0;
+          transition: background .2s;
+          color: white;
+        }
+        .wa-send-btn:hover { background: #1da851; }
+        .wa-send-btn:disabled { background: #c4c4c4; cursor: not-allowed; }
+
+        /* FAB */
+        .wa-fab {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          width: 60px; height: 60px;
+          background: #25D366;
+          border-radius: 50%;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 6px 20px rgba(37,211,102,0.45);
+          z-index: 9999;
+          transition: transform .2s, box-shadow .2s;
+        }
+        .wa-fab:hover { transform: scale(1.08); box-shadow: 0 10px 30px rgba(37,211,102,0.55); }
+        .wa-fab:active { transform: scale(0.95); }
+        .wa-fab-ping {
+          position: absolute;
+          inset: -3px;
+          border-radius: 50%;
+          background: #25D366;
+          opacity: 0.3;
+          animation: waPing 2s infinite;
+        }
+        @keyframes waPing {
+          0%, 100% { transform: scale(1); opacity: 0.3; }
+          50% { transform: scale(1.25); opacity: 0; }
+        }
+        .wa-badge {
+          position: absolute;
+          top: -2px; right: -2px;
+          width: 18px; height: 18px;
+          background: #FF5722;
+          border-radius: 50%;
+          border: 2px solid white;
+          font-size: 10px;
+          font-weight: 700;
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .wa-date-sep {
+          text-align: center;
+          margin: 8px 0;
+        }
+        .wa-date-sep span {
+          background: rgba(225,245,254,0.9);
+          color: #667781;
+          font-size: 11.5px;
+          padding: 3px 10px;
+          border-radius: 8px;
+        }
+      `}</style>
+
+      <div className="wa-widget">
+        {/* Ventana */}
+        <div className={`wa-window ${isOpen ? 'open' : 'closed'}`}>
+          {/* Header */}
+          <div className="wa-header">
+            <div className="wa-avatar">🐺</div>
+            <div className="wa-header-info">
+              <div className="wa-header-name">Telas El Coyote</div>
+              <div className="wa-header-status">{typing ? 'escribiendo...' : 'En línea'}</div>
+            </div>
+            <button className="wa-header-close" onClick={() => setIsOpen(false)}>✕</button>
+          </div>
+
+          {/* Fondo tipo WhatsApp */}
+          <div className="wa-bg" />
+
+          {/* Mensajes */}
+          <div ref={scrollRef} className="wa-messages">
+            <div className="wa-date-sep"><span>Hoy</span></div>
+            {messages.map((msg, i) => (
+              <div key={i} className={`wa-msg ${msg.role === 'user' ? 'user' : 'bot'}`}>
+                <div className={`wa-bubble ${msg.role === 'user' ? 'user' : 'bot'}`}>
+                  {renderMsg(msg.content)}
+                  <span className="wa-time">{formatTime(msg.time)}</span>
                 </div>
               </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all duration-300 hover:rotate-90"
-              >
-                <X size={16} />
-              </button>
-            </div>
+            ))}
+            {typing && (
+              <div className="wa-msg bot">
+                <div className="wa-typing">
+                  <div className="wa-dot" />
+                  <div className="wa-dot" />
+                  <div className="wa-dot" />
+                </div>
+              </div>
+            )}
+          </div>
 
-            {/* --- BODY CHAT --- */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-6 bg-gradient-to-b from-gray-50 to-white scrollbar-thin scrollbar-thumb-gray-200">
-              {messages.map((msg, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'items-end flex flex-col' : 'items-start flex flex-col'}`}>
-                    <span className="text-[10px] text-neutral-400 font-bold uppercase mb-1 px-1 tracking-wider">
-                      {msg.role === 'user' ? 'Tú' : 'El Coyote'}
-                    </span>
-                    <div className={`p-4 rounded-2xl text-[13px] sm:text-sm font-medium leading-relaxed shadow-sm transition-all duration-300 hover:shadow-md ${
-                      msg.role === 'user'
-                        ? 'bg-black text-white rounded-br-sm'
-                        : 'bg-white text-neutral-800 border border-neutral-100 rounded-bl-sm'
-                    }`}>
-                      {msg.content}
-                    </div>
-                  </div>
-                </motion.div>
+          {/* Sugerencias */}
+          {sugerencias.length > 0 && !typing && (
+            <div className="wa-suggestions">
+              {sugerencias.map((s, i) => (
+                <button key={i} className="wa-chip" onClick={() => handleSugerencia(s)}>{s}</button>
               ))}
-
-              {isLoading && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-                  <div className="bg-white px-4 py-3 rounded-2xl rounded-bl-sm border border-neutral-100 shadow-sm flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-[#FDCB02] rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                    <span className="w-1.5 h-1.5 bg-[#FDCB02] rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                    <span className="w-1.5 h-1.5 bg-[#FDCB02] rounded-full animate-bounce"></span>
-                  </div>
-                </motion.div>
-              )}
             </div>
-
-            {/* --- INPUT AREA --- */}
-            <div className="p-4 bg-white border-t border-neutral-100">
-              <form
-                onSubmit={sendMessage}
-                className="relative group bg-neutral-50 rounded-[1.5rem] border border-neutral-200 focus-within:border-[#FDCB02] focus-within:shadow-[0_0_0_4px_rgba(253,203,2,0.1)] transition-all duration-300 flex items-center p-1.5"
-              >
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Escribe aquí..."
-                  className="flex-1 bg-transparent px-4 py-3 text-sm font-medium text-black placeholder:text-neutral-400 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={!input.trim() || isLoading}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
-                    input.trim()
-                      ? 'bg-[#FDCB02] text-black hover:scale-110 hover:shadow-lg'
-                      : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                  }`}
-                >
-                  <ArrowUp size={18} strokeWidth={3} />
-                </button>
-              </form>
-              <div className="text-center mt-2">
-                <p className="text-[9px] text-neutral-300 font-[900] uppercase tracking-widest">Powered by Coyote AI</p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* --- BOTÓN FLOTANTE --- */}
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative group"
-      >
-        <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-500 border-[3px] border-white ${isOpen ? 'bg-black rotate-180' : 'bg-[#FDCB02]'}`}>
-          {isOpen ? (
-            <X size={28} className="text-white" />
-          ) : (
-            <MessageSquare size={28} className="text-black fill-black" />
           )}
+
+          {/* Botón WhatsApp siempre visible */}
+          <button className="wa-wa-btn" onClick={() => {
+            const prod = lastMsg?.producto;
+            openWhatsApp(prod ? `${prod.nombre} ($${prod.precio_menudeo}/${prod.precio_mayoreo} por ${prod.unidad})` : '');
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            Continuar en WhatsApp
+          </button>
+
+          {/* Input */}
+          <div className="wa-input-area">
+            <div className="wa-input-wrap">
+              <textarea
+                ref={inputRef}
+                className="wa-input"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Escriba su consulta..."
+                rows={1}
+              />
+            </div>
+            <button
+              className="wa-send-btn"
+              onClick={handleSend}
+              disabled={!input.trim() || typing}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
-        {!isOpen && (
-          <>
-            <span className="absolute inset-0 rounded-full bg-[#FDCB02] opacity-20 animate-ping duration-1000"></span>
-            <div className="absolute -top-1 -right-1 flex h-4 w-4">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
-            </div>
-          </>
-        )}
-      </motion.button>
-    </div>
+        {/* FAB */}
+        <button className="wa-fab" onClick={() => setIsOpen(o => !o)}>
+          <div className="wa-fab-ping" />
+          {!isOpen && <div className="wa-badge">1</div>}
+          {isOpen
+            ? <svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            : <svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          }
+        </button>
+      </div>
+    </>
   );
 }
