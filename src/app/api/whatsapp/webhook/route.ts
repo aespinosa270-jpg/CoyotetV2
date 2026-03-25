@@ -465,16 +465,12 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
 
 // ==========================================
 // 💬 WEBHOOK WHATSAPP — PROCESAMIENTO ASYNC
-// (se llama DESPUÉS de responder 200 a Meta)
 // ==========================================
-
 async function handleWhatsappWebhook(body: any) {
-  // ── VALIDACIÓN ESTRUCTURAL ───────────────────────
   const entry = body?.entry?.[0];
   const change = entry?.changes?.[0];
   const value = change?.value;
 
-  // Ignorar notificaciones de estado (delivered, read, sent) — no son mensajes
   if (value?.statuses && !value?.messages) {
     console.log('📊 Notificación de estado recibida, ignorando.');
     return;
@@ -488,7 +484,6 @@ async function handleWhatsappWebhook(body: any) {
 
   const mensajeInfo = mensajes[0];
 
-  // Solo procesar texto
   if (mensajeInfo.type !== 'text') {
     console.log(`⏭️ Tipo de mensaje ignorado: ${mensajeInfo.type}`);
     return;
@@ -549,11 +544,9 @@ async function handleWhatsappWebhook(body: any) {
         return;
       }
 
-      // ⚠️ ROUTE_TO_AGENT pero sin conversationId ni agentId → El Coyote toma el relevo
       console.log(`⚠️ ROUTE_TO_AGENT sin convoId ni agentId. El Coyote toma el control.`);
     }
   } catch (error) {
-    // Error en CRM no debe bloquear al Coyote — loguea y continúa
     console.error("⚠️ Error en CRM router (continuando con El Coyote):", error);
   }
 
@@ -562,7 +555,6 @@ async function handleWhatsappWebhook(body: any) {
   const redis = getRedis();
   const msgLower = msgCliente.trim().toLowerCase();
 
-  // ── COMANDOS ADMIN ──────────────────────────────
   if (msgLower === 'soy jack' || msgLower === 'soy jack.') {
     await enviarWhatsapp(tel, '🐺 *El Coyote al habla.* Hola Patrón Jack, ¿te puedes verificar? 🔒');
     return;
@@ -576,7 +568,6 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  // Trigger "coyote"
   const esSoloCoyote = /^\s*coyote[\s!?.]*$/i.test(msgCliente.trim());
   if (esSoloCoyote) {
     const respuestaCoyote = `🐺 *El Coyote aquí.* Nunca duermo, siempre alerta. ¿En qué te puedo ayudar hoy?`;
@@ -588,7 +579,6 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  // ── PERFIL DEL CLIENTE ───────────────────────────
   let perfil = await getCliente(redis, tel);
   const config = await getConfigBot(redis);
 
@@ -911,7 +901,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 Última actualización: ${config.ultimaActualizacion}
 `;
 
-  // ── LLAMADA A GPT-4o ─────────────────────────────
   console.log(`🤖 Llamando a GPT-4o para ${tel} (esJefe: ${esElJefe})...`);
   const systemPrompt = { role: 'system', content: esElJefe ? CONTEXTO_JEFE : CONTEXTO_VENDEDOR };
 
@@ -931,7 +920,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
     return;
   }
 
-  // ── GUARDIA DE IDENTIDAD ─────────────────────────
   const frasesSinIdentidad = [
     /\bsoy una ia\b/i, /\bsoy un bot\b/i, /\basistente virtual\b/i,
     /\bcomo asistente de ia\b/i, /\bcomo ia\b/i, /\bchatgpt\b/i, /\bgpt\b/i,
@@ -942,9 +930,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
     }
   }
 
-  // ══════════════════════════════════════════════════
-  // 🔧 PROCESADOR DE COMANDOS — CLIENTE NORMAL
-  // ══════════════════════════════════════════════════
   const matchDatos = respuesta.match(/DATOS_CLIENTE\|(.+)/);
   if (matchDatos) {
     respuesta = respuesta.replace(/DATOS_CLIENTE\|.+/g, '').trim();
@@ -988,7 +973,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
   }
 
   if (esElJefe) {
-    // ── COMANDOS JACK ────────────────────────────────
     const matchPrecio = respuesta.match(/PRECIO_UPDATE\|(.+?)\|(.+?)\|(\d+)/);
     if (matchPrecio) {
       const [, prod, campo, precio] = matchPrecio;
@@ -1152,7 +1136,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
     }
 
   } else {
-    // ── COMANDOS CLIENTES NORMALES ───────────────────
 
     const matchEnvio = respuesta.match(/CALCULAR_ENVIO\|productos=\[(.+?)\]\|cp=(.+)/i);
     if (matchEnvio) {
@@ -1221,7 +1204,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
     }
   }
 
-  // ── GUARDAR Y RESPONDER ──────────────────────────
   historial.push({ role: 'assistant', content: respuesta });
   await saveHistorial(redis, tel, historial);
   console.log(`📤 Enviando respuesta a ${tel} (${respuesta.length} chars)`);
@@ -1230,23 +1212,19 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 }
 
 // ==========================================
-// 🚦 ROUTER PRINCIPAL — FIX CRÍTICO VERCEL
+// 🚦 ROUTER PRINCIPAL
 // ==========================================
 export async function POST(req: Request) {
+  // ✅ Leer el body UNA SOLA VEZ aquí arriba
   const rawBody = await req.text();
-  console.log("🔴 RAW POST:", rawBody);  // ← primera línea
-  
-  // todo lo demás que ya tenías abajo...
-console.log(`\n🚀 POST recibido — ${new Date().toISOString()}`);
+
+  console.log(`\n🚀 POST recibido — ${new Date().toISOString()}`);
   console.log(`   Content-Type: ${req.headers.get('content-type')}`);
   console.log(`   Stripe-Signature: ${req.headers.get('stripe-signature') ? 'PRESENTE' : 'AUSENTE'}`);
+  console.log(`   Body length: ${rawBody.length} chars`);
+  console.log(`   Body preview: ${rawBody.slice(0, 200)}`);
 
   try {
-    // Leer el body UNA SOLA VEZ
-    const rawBody = await req.text();
-    console.log(`   Body length: ${rawBody.length} chars`);
-    console.log(`   Body preview: ${rawBody.slice(0, 200)}`);
-
     const signature = req.headers.get('stripe-signature');
 
     // ── STRIPE ──────────────────────────────────────
@@ -1274,40 +1252,25 @@ console.log(`\n🚀 POST recibido — ${new Date().toISOString()}`);
       !body.entry[0]?.changes?.[0]?.value?.messages;
 
     if (esStatusUpdate) {
-      // Meta manda notificaciones de estado (delivered, read) — responder 200 y salir
       console.log('📊 Status update de Meta, ignorando.');
       return NextResponse.json({ ok: true }, { status: 200 });
     }
 
     if (esWhatsapp) {
-      console.log('💬 Es mensaje de WhatsApp. Respondiendo 200 a Meta primero...');
-
-      // ✅ FIX CRÍTICO VERCEL:
-      // Responder 200 a Meta INMEDIATAMENTE para evitar timeouts y reintentos.
-      // El procesamiento se hace después con waitUntil si está disponible,
-      // o directamente (Vercel Pro/serverless aguanta ~30s).
-      // Si usas Vercel Free, asegúrate de que tu función no exceda 10s.
-
-      // Procesar de forma que no bloquee la respuesta
-      // En Next.js App Router, awaitar aquí está bien hasta ~25s en Vercel Pro
-      // Si tienes problemas de timeout, usa el patrón de background con fetch a tu propio endpoint
+      console.log('💬 Es mensaje de WhatsApp. Procesando...');
       try {
         await handleWhatsappWebhook(body);
       } catch (err) {
-        // Loguear pero NO fallar — Meta ya recibió el 200
         console.error('❌ Error en handleWhatsappWebhook:', err);
       }
-
       return NextResponse.json({ ok: true }, { status: 200 });
     }
 
-    // Payload desconocido — loguear y responder 200 para no generar reintentos
     console.log('⚠️ Payload no reconocido:', JSON.stringify(body).slice(0, 300));
     return NextResponse.json({ ok: true }, { status: 200 });
 
   } catch (error) {
     console.error('❌ ERROR CRÍTICO en POST:', error);
-    // Responder 200 igual para evitar que Meta reintente infinitamente
     return NextResponse.json({ ok: true }, { status: 200 });
   }
 }
