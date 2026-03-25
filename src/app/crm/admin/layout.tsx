@@ -1,5 +1,4 @@
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth-options";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import AdminLayoutClient from "./_components/AdminLayoutClient";
 import { redirect } from "next/navigation";
@@ -10,7 +9,9 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
+  // En NextAuth v5, auth() reemplaza a getServerSession()
+  const session = await auth();
+  
   if (!session?.user?.email) redirect("/login");
 
   if (!ADMIN_EMAILS.includes(session.user.email)) {
