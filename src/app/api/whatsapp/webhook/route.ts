@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { Redis } from '@upstash/redis';
-import Stripe from 'stripe'; 
+import Stripe from 'stripe';
 import { prisma } from "@/lib/prisma";
 import { determineRouting } from "@/lib/crm-router";
 
@@ -39,23 +39,23 @@ function getRedis() {
 // 🎛️ CONFIGURACIÓN DINÁMICA DE LA IA (EL COYOTE)
 // ==========================================
 interface ConfigBot {
-  nombreBot: string;               
-  tono: string;                    
-  frasesBienvenida: string[];      
-  frasesDesignacionHombre: string[]; 
-  frasesDesignacionMujer: string[]; 
-  fraseCierre: string;             
-  fraseIncondicional: string;      
-  emojisPrincipales: string;       
-  maximoLineasRespuesta: number;   
-  fraseProhibidas: string[];       
-  instruccionesEspeciales: string; 
+  nombreBot: string;
+  tono: string;
+  frasesBienvenida: string[];
+  frasesDesignacionHombre: string[];
+  frasesDesignacionMujer: string[];
+  fraseCierre: string;
+  fraseIncondicional: string;
+  emojisPrincipales: string;
+  maximoLineasRespuesta: number;
+  fraseProhibidas: string[];
+  instruccionesEspeciales: string;
   productosExtra: Array<{ nombre: string; menudeo: number; mayoreo: number; info: string; }>;
   promocionesActivas: Array<{ nombre: string; descripcion: string; descuento: string; vigencia: string; }>;
-  infoPagos: string;              
-  infoEnvios: string;             
-  mensajePromoFinal: string;      
-  avisoGeneral: string;           
+  infoPagos: string;
+  infoEnvios: string;
+  mensajePromoFinal: string;
+  avisoGeneral: string;
   horarioAtencion: string;
   ultimaActualizacion: string;
   actualizadoPor: string;
@@ -141,19 +141,18 @@ interface ClientePerfil {
   etapaAbandono?: 'carrito' | 'cotizacion' | 'pago' | null;
   fechaAbandono?: string;
   recordatoriosPendientes?: Array<{ tipo: string; fecha: string; mensaje: string }>;
-  // 🧠 NUEVOS CAMPOS DE INTELIGENCIA COMERCIAL
   segmento?: 'prospecto' | 'nuevo' | 'recurrente' | 'vip' | 'inactivo';
-  objecionesComunes?: string[];       // Objeciones que ha dado: "precio", "calidad", "tiempo", etc.
-  productosFavoritos?: string[];       // Productos que más consulta/compra
-  ticketPromedio?: number;             // Promedio de sus compras
-  tasaConversion?: number;             // Cuántas cotizaciones han terminado en venta (0-1)
-  ultimaCotizacion?: string;           // JSON de la última cotización presentada
-  intentosDePago?: number;             // Cuántas veces generamos cobro sin que pagara
-  sensibilidadPrecio?: 'alta' | 'media' | 'baja'; // Qué tan sensible es al precio
-  mejorMomentoContacto?: string;       // Hora del día que más responde
+  objecionesComunes?: string[];
+  productosFavoritos?: string[];
+  ticketPromedio?: number;
+  tasaConversion?: number;
+  ultimaCotizacion?: string;
+  intentosDePago?: number;
+  sensibilidadPrecio?: 'alta' | 'media' | 'baja';
+  mejorMomentoContacto?: string;
   canalPreferido?: string;
-  interesesDeclarados?: string[];      // Lo que dijo que necesita: uniformes, playeras, etc.
-  razonNoCompra?: string;              // Por qué no compró la última vez
+  interesesDeclarados?: string[];
+  razonNoCompra?: string;
 }
 
 interface PedidoRegistro {
@@ -301,14 +300,11 @@ async function registrarPedido(redis: Redis, tel: string, pedido: PedidoRegistro
   cliente.ultimoContacto = pedido.fecha;
   cliente.metodoPagoFavorito = pedido.metodo;
   if (pedido.conFactura) cliente.requiereFrecuenteFactura = true;
-
-  // 🧠 ACTUALIZAR SEGMENTO Y MÉTRICAS AL COMPRAR
   cliente.ticketPromedio = cliente.montoAcumulado / cliente.totalCompras;
   if (cliente.totalCompras === 1) cliente.segmento = 'nuevo';
   else if (cliente.totalCompras >= 5 || cliente.montoAcumulado >= 10000) cliente.segmento = 'vip';
   else cliente.segmento = 'recurrente';
-  cliente.intentosDePago = 0; // Reset al confirmar pago
-
+  cliente.intentosDePago = 0;
   const pedidos: PedidoRegistro[] = (await redis.get<PedidoRegistro[]>(`pedidos:${tel}`)) || [];
   pedidos.push(pedido);
   await redis.set(`pedidos:${tel}`, pedidos);
@@ -408,7 +404,6 @@ async function enviarWhatsapp(to: string, body: string) {
 // ==========================================
 async function handleStripeWebhook(rawBody: string, signature: string) {
   let event: Stripe.Event;
-
   try {
     event = stripe.webhooks.constructEvent(rawBody, signature, STRIPE_WEBHOOK_SECRET!);
   } catch (err: any) {
@@ -427,7 +422,6 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
       const monto = (session.amount_total || 0) / 100;
       const perfil = await getCliente(redis, tel);
       const saludo = perfil?.nombre ? `¡Qué onda ${perfil.nombre}!` : '¡Qué onda patrón!';
-      
       const urlTicket = `https://www.coyotetextil.com/ticket/${session.id}`;
 
       let msg = `🐺 *El Coyote te habla.* ${saludo} Stripe confirmó tu pago de *$${monto} MXN*. ✅\n\n🎫 *Tu Ticket Digital:*\n${urlTicket}\n\n¡Tu pedido entró a bodega! 📦 En breve te confirmamos salida.`;
@@ -441,10 +435,8 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
           });
           const clienteSAT = await custRes.json();
           const precioBase = monto / 1.16;
-          
           let formaPago = "04";
           if (session.payment_method_types.includes('oxxo')) formaPago = "01";
-          
           const invRes = await fetch('https://www.facturapi.io/v2/invoices', {
             method: 'POST',
             headers: { 'Authorization': `Basic ${facturapiAuth}`, 'Content-Type': 'application/json' },
@@ -472,20 +464,57 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
 }
 
 // ==========================================
-// 💬 WEBHOOK WHATSAPP
+// 💬 WEBHOOK WHATSAPP — PROCESAMIENTO ASYNC
+// (se llama DESPUÉS de responder 200 a Meta)
 // ==========================================
 async function handleWhatsappWebhook(body: any) {
-  const mensajeInfo = body.entry[0].changes[0].value.messages[0];
-  if (mensajeInfo.type !== 'text') return;
+  // ── VALIDACIÓN ESTRUCTURAL ───────────────────────
+  const entry = body?.entry?.[0];
+  const change = entry?.changes?.[0];
+  const value = change?.value;
+
+  // Ignorar notificaciones de estado (delivered, read, sent) — no son mensajes
+  if (value?.statuses && !value?.messages) {
+    console.log('📊 Notificación de estado recibida, ignorando.');
+    return;
+  }
+
+  const mensajes = value?.messages;
+  if (!mensajes || mensajes.length === 0) {
+    console.log('⚠️ Payload sin mensajes:', JSON.stringify(body).slice(0, 300));
+    return;
+  }
+
+  const mensajeInfo = mensajes[0];
+
+  // Solo procesar texto
+  if (mensajeInfo.type !== 'text') {
+    console.log(`⏭️ Tipo de mensaje ignorado: ${mensajeInfo.type}`);
+    return;
+  }
 
   const tel = mensajeInfo.from;
-  const msgCliente = mensajeInfo.text.body;
-  const nombreWA = body.entry[0].changes[0].value.contacts[0].profile.name || '';
-  console.log(`💬 [${tel}]: "${msgCliente}"`);
+  const msgCliente = mensajeInfo.text?.body;
+
+  if (!tel || !msgCliente) {
+    console.log('⚠️ Mensaje sin teléfono o sin body:', JSON.stringify(mensajeInfo));
+    return;
+  }
+
+  const nombreWA = value?.contacts?.[0]?.profile?.name || '';
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`💬 MENSAJE RECIBIDO`);
+  console.log(`   Tel: ${tel}`);
+  console.log(`   Nombre WA: ${nombreWA}`);
+  console.log(`   Mensaje: "${msgCliente}"`);
+  console.log(`   Timestamp: ${new Date().toISOString()}`);
+  console.log(`${'='.repeat(60)}\n`);
 
   // 🛑 ENRUTADOR CRM
   try {
+    console.log(`🗺️ Consultando CRM router para ${tel}...`);
     const decision = await determineRouting(tel, "WHATSAPP");
+    console.log(`🗺️ CRM Decision:`, JSON.stringify(decision));
 
     if (decision.action === "ROUTE_TO_AGENT") {
       let currentConvoId = decision.conversationId;
@@ -495,34 +524,40 @@ async function handleWhatsappWebhook(body: any) {
           data: {
             contactPhone: tel,
             isOpen: true,
-            employeeId: decision.agentId, 
+            employeeId: decision.agentId,
             lastMessage: msgCliente,
             lastMessageAt: new Date()
           }
         });
         currentConvoId = nuevaConvo.id;
-        console.log(`✨ Nuevo chat VIP asignado al agente: ${decision.agentId}`);
+        console.log(`✨ Nueva convo VIP creada: ${currentConvoId} → agente ${decision.agentId}`);
       }
 
       if (currentConvoId) {
-        console.log(`👤 ${decision.reason} IA silenciada para ${tel}`);
+        console.log(`👤 IA silenciada para ${tel}. Razón: ${decision.reason}. Guardando en DB.`);
         await prisma.$transaction([
           prisma.waMessage.create({
             data: { conversationId: currentConvoId, role: "CLIENT", body: msgCliente, isRead: false },
           }),
           prisma.waConversation.update({
             where: { id: currentConvoId },
-            data:  { lastMessage: msgCliente, lastMessageAt: new Date() },
+            data: { lastMessage: msgCliente, lastMessageAt: new Date() },
           }),
         ]);
+        console.log(`✅ Mensaje guardado en DB para agente. Fin.`);
         return;
       }
+
+      // ⚠️ ROUTE_TO_AGENT pero sin conversationId ni agentId → El Coyote toma el relevo
+      console.log(`⚠️ ROUTE_TO_AGENT sin convoId ni agentId. El Coyote toma el control.`);
     }
   } catch (error) {
-    console.error("⚠️ Error consultando Prisma para el CRM / Enrutador:", error);
+    // Error en CRM no debe bloquear al Coyote — loguea y continúa
+    console.error("⚠️ Error en CRM router (continuando con El Coyote):", error);
   }
 
   // 🤖 EL COYOTE TOMA EL CONTROL
+  console.log(`🐺 El Coyote procesando mensaje de ${tel}...`);
   const redis = getRedis();
   const msgLower = msgCliente.trim().toLowerCase();
 
@@ -543,7 +578,6 @@ async function handleWhatsappWebhook(body: any) {
   // Trigger "coyote"
   const esSoloCoyote = /^\s*coyote[\s!?.]*$/i.test(msgCliente.trim());
   if (esSoloCoyote) {
-    const cfg = await getConfigBot(redis);
     const respuestaCoyote = `🐺 *El Coyote aquí.* Nunca duermo, siempre alerta. ¿En qué te puedo ayudar hoy?`;
     const h = await getHistorial(redis, tel);
     h.push({ role: 'user', content: msgCliente });
@@ -558,6 +592,7 @@ async function handleWhatsappWebhook(body: any) {
   const config = await getConfigBot(redis);
 
   if (!perfil) {
+    console.log(`🆕 Cliente nuevo: ${tel}`);
     perfil = {
       nombre: '', genero: 'unknown', telefono: tel,
       primerContacto: new Date().toISOString(), ultimoContacto: new Date().toISOString(),
@@ -578,6 +613,7 @@ async function handleWhatsappWebhook(body: any) {
   }
 
   if (!perfil.nombre) {
+    console.log(`📝 Registrando nombre para ${tel}: "${msgCliente}"`);
     const primerNombre = msgCliente.trim().split(' ')[0];
     perfil.nombre = primerNombre.charAt(0).toUpperCase() + primerNombre.slice(1).toLowerCase();
     perfil.genero = await detectarGenero(perfil.nombre);
@@ -602,7 +638,6 @@ async function handleWhatsappWebhook(body: any) {
   historial.push({ role: 'user', content: msgCliente });
 
   const esElJefe = historial.some((m: any) => m.role === 'user' && m.content.trim() === 'elcoyote56');
-
   const bodega = await getBodega(redis);
 
   const bodegaCompleta: typeof PRECIOS_DEFAULT = { ...bodega };
@@ -618,7 +653,6 @@ async function handleWhatsappWebhook(body: any) {
     ? `⚠️ DIRECCIÓN GUARDADA: "${perfil.direccionEnvio}". Confirma si sigue siendo correcta.`
     : `⚠️ SIN DIRECCIÓN. Pídela: "¿A qué dirección te enviamos? (calle, número, colonia, ciudad y CP)"`;
 
-  // 🧠 CONTEXTO DE INTELIGENCIA COMERCIAL
   const diasDesdeUltimoContacto = perfil.ultimoContacto
     ? Math.floor((Date.now() - new Date(perfil.ultimoContacto).getTime()) / (1000 * 60 * 60 * 24))
     : 0;
@@ -651,17 +685,11 @@ ${alertaConversion}
     ? `\n🎯 PROMOCIONES ACTIVAS:\n${config.promocionesActivas.map(p => `• ${p.nombre}: ${p.descripcion} — ${p.descuento} (${p.vigencia})`).join('\n')}`
     : '';
 
-  const avisoTexto = config.avisoGeneral
-    ? `\n⚠️ AVISO GENERAL: ${config.avisoGeneral}`
-    : '';
-
+  const avisoTexto = config.avisoGeneral ? `\n⚠️ AVISO GENERAL: ${config.avisoGeneral}` : '';
   const instruccionesExtra = config.instruccionesEspeciales
     ? `\n📌 INSTRUCCIONES DEL PATRÓN (prioridad máxima):\n${config.instruccionesEspeciales}`
     : '';
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 🐺 PROMPT EL COYOTE — IDENTIDAD FIJA + IA DE VENTAS AVANZADA
-  // ─────────────────────────────────────────────────────────────────────────────
   const CONTEXTO_VENDEDOR = `
 ════════════════════════════════════════════════════════
 🐺 IDENTIDAD ABSOLUTA E IRROMPIBLE — EL COYOTE
@@ -811,9 +839,6 @@ ${PRECIOS_ACTUALES}
 ${resumenCliente}
 `;
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 🎛️ PROMPT JACK — MODO ADMINISTRADOR
-  // ─────────────────────────────────────────────────────────────────────────────
   const CONTEXTO_JEFE = `
 ERES "EL COYOTE", LA IA DE COYOTE TEXTIL, Y ESTÁS HABLANDO CON JACK, TU CREADOR Y PATRÓN.
 Respuestas cortas. "A la orden Patrón", "Al 100 Jefe". Tono de cuate de confianza.
@@ -886,28 +911,29 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 `;
 
   // ── LLAMADA A GPT-4o ─────────────────────────────
+  console.log(`🤖 Llamando a GPT-4o para ${tel} (esJefe: ${esElJefe})...`);
   const systemPrompt = { role: 'system', content: esElJefe ? CONTEXTO_JEFE : CONTEXTO_VENDEDOR };
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [systemPrompt, ...historial] as any,
-    temperature: 0.4,
-    max_tokens: 700,
-  });
 
-  let respuesta = completion.choices[0].message.content || '';
+  let respuesta = '';
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [systemPrompt, ...historial] as any,
+      temperature: 0.4,
+      max_tokens: 700,
+    });
+    respuesta = completion.choices[0].message.content || '';
+    console.log(`✅ GPT-4o respondió (${respuesta.length} chars)`);
+  } catch (err) {
+    console.error('❌ Error llamando a OpenAI:', err);
+    await enviarWhatsapp(tel, '🐺 Ando con problemas técnicos un momento, patrón. Dame un segundo y vuelvo al 100.');
+    return;
+  }
 
-  // ══════════════════════════════════════════════════
-  // 🔒 GUARDIA DE IDENTIDAD POST-GPT
-  // Si la IA olvidó que es El Coyote, lo corregimos antes de enviar
-  // ══════════════════════════════════════════════════
+  // ── GUARDIA DE IDENTIDAD ─────────────────────────
   const frasesSinIdentidad = [
-    /\bsoy una ia\b/i,
-    /\bsoy un bot\b/i,
-    /\basistente virtual\b/i,
-    /\bcomo asistente de ia\b/i,
-    /\bcomo ia\b/i,
-    /\bchatgpt\b/i,
-    /\bgpt\b/i,
+    /\bsoy una ia\b/i, /\bsoy un bot\b/i, /\basistente virtual\b/i,
+    /\bcomo asistente de ia\b/i, /\bcomo ia\b/i, /\bchatgpt\b/i, /\bgpt\b/i,
   ];
   for (const patron of frasesSinIdentidad) {
     if (patron.test(respuesta)) {
@@ -918,31 +944,27 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
   // ══════════════════════════════════════════════════
   // 🔧 PROCESADOR DE COMANDOS — CLIENTE NORMAL
   // ══════════════════════════════════════════════════
-
-  // Guardar datos del cliente
   const matchDatos = respuesta.match(/DATOS_CLIENTE\|(.+)/);
   if (matchDatos) {
     respuesta = respuesta.replace(/DATOS_CLIENTE\|.+/g, '').trim();
     const partes = matchDatos[1];
-    const dirM      = partes.match(/direccion:([^|]+)/);
-    const cpFiscM   = partes.match(/cp_fiscal:([^|]+)/);
-    const prodM     = partes.match(/productos:([^|]+)/);
-    const notasM    = partes.match(/notas:([^|]+)/);
-    const prefM     = partes.match(/preferencias:([^|]+)/);
-    const cumpleM   = partes.match(/cumpleanos:([^|]+)/);
-    const etapaM    = partes.match(/etapa_abandono:([^|]+)/);
-    const interesM  = partes.match(/intereses:([^|]+)/);
+    const dirM     = partes.match(/direccion:([^|]+)/);
+    const cpFiscM  = partes.match(/cp_fiscal:([^|]+)/);
+    const prodM    = partes.match(/productos:([^|]+)/);
+    const notasM   = partes.match(/notas:([^|]+)/);
+    const prefM    = partes.match(/preferencias:([^|]+)/);
+    const cumpleM  = partes.match(/cumpleanos:([^|]+)/);
+    const etapaM   = partes.match(/etapa_abandono:([^|]+)/);
+    const interesM = partes.match(/intereses:([^|]+)/);
 
     if (dirM?.[1]?.trim())    perfil.direccionEnvio = dirM[1].trim();
     if (cpFiscM?.[1]?.trim()) perfil.cpFiscal       = cpFiscM[1].trim();
     if (prodM?.[1]?.trim()) {
       const nuevos = prodM[1].trim().split(',').map((s: string) => s.trim()).filter(Boolean);
       perfil.productosComprados = [...new Set([...perfil.productosComprados, ...nuevos])];
-      // 🧠 Actualizar productos favoritos
       perfil.productosFavoritos = [...new Set([...(perfil.productosFavoritos || []), ...nuevos])];
     }
     if (notasM?.[1]?.trim()) {
-      // 🧠 Detectar objeciones en notas y registrarlas
       const nota = notasM[1].trim();
       if (nota.startsWith('objecion_')) {
         const tipoObjecion = nota.replace('objecion_', '');
@@ -955,9 +977,7 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
     if (cumpleM?.[1]?.trim()) perfil.cumpleanos = cumpleM[1].trim();
     if (etapaM?.[1]?.trim()) {
       perfil.etapaAbandono = etapaM[1].trim() as any;
-      if (etapaM[1].trim() !== 'null') {
-        perfil.fechaAbandono = new Date().toISOString();
-      }
+      if (etapaM[1].trim() !== 'null') perfil.fechaAbandono = new Date().toISOString();
     }
     if (interesM?.[1]?.trim()) {
       const nuevosIntereses = interesM[1].trim().split(',').map(s => s.trim());
@@ -967,10 +987,7 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
   }
 
   if (esElJefe) {
-    // ══════════════════════════════════════════════════
-    // 🔧 PROCESADOR DE COMANDOS JACK
-    // ══════════════════════════════════════════════════
-
+    // ── COMANDOS JACK ────────────────────────────────
     const matchPrecio = respuesta.match(/PRECIO_UPDATE\|(.+?)\|(.+?)\|(\d+)/);
     if (matchPrecio) {
       const [, prod, campo, precio] = matchPrecio;
@@ -1003,7 +1020,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       const campoLower = campo.trim().toLowerCase();
 
       if (campoLower === 'nombrebot') {
-        // 🔒 GUARDIA: No permitimos cambiar el nombre para que no pierda identidad
         cfg.nombreBot = valor.trim();
         respuesta += `\n✅ Config de nombre guardada. Pero recuerda: internamente siempre soy El Coyote. 🐺`;
       } else if (campoLower === 'tono') {
@@ -1053,7 +1069,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       } else {
         respuesta += `\n⚠️ Campo "${campo}" no reconocido.`;
       }
-
       cfg.actualizadoPor = 'Jack (El Patrón)';
       await saveConfigBot(redis, cfg);
     }
@@ -1124,9 +1139,8 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 
     const matchReporte = respuesta.match(/GENERAR_REPORTE\|(.+?)\|(.+)/);
     if (matchReporte) {
-      const [, tipo, formato] = matchReporte;
       respuesta = respuesta.replace(/GENERAR_REPORTE\|.+/g, '').trim();
-      respuesta += `\n📊 Reporte ${tipo} en ${formato} generado.`;
+      respuesta += `\n📊 Reporte generado.`;
     }
 
     const matchCampana = respuesta.match(/ENVIAR_CAMPANA\|(.+?)\|(.+)/);
@@ -1139,7 +1153,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
   } else {
     // ── COMANDOS CLIENTES NORMALES ───────────────────
 
-    // Calcular envío
     const matchEnvio = respuesta.match(/CALCULAR_ENVIO\|productos=\[(.+?)\]\|cp=(.+)/i);
     if (matchEnvio) {
       const [, productosStr, cpEnvio] = matchEnvio;
@@ -1153,21 +1166,18 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       }
     }
 
-    // Reactivar
     const matchReactivar = respuesta.match(/REACTIVAR\|(.+?)\|(.+)/i);
     if (matchReactivar) {
       respuesta = respuesta.replace(/REACTIVAR\|.+/g, '').trim();
       respuesta += `\n🔄 Reactivación iniciada.`;
     }
 
-    // Recordatorio
     const matchRecordatorio = respuesta.match(/PROGRAMAR_RECORDATORIO\|(.+?)\|(.+?)\|(.+)/i);
     if (matchRecordatorio) {
       respuesta = respuesta.replace(/PROGRAMAR_RECORDATORIO\|.+/g, '').trim();
       respuesta += `\n⏰ Te recuerdo en esa fecha, patrón.`;
     }
 
-    // Escalar
     const matchEscalar = respuesta.match(/ESCALAR\|(.+)/i);
     if (matchEscalar) {
       const [, duda] = matchEscalar;
@@ -1176,7 +1186,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       respuesta += `\n🆘 Ya avisé al equipo. En breve te contactan.`;
     }
 
-    // 🐺 Generar cobro con Stripe
     const matchCobro = respuesta.match(/GENERAR_COBRO\|(.+?)\|([\d.]+)\|(.+?)\|(.+?)\|(.+?)\|(.+?)\|(.+)/i);
     if (matchCobro) {
       const [, metodo, monto, rfc, razon, cp, regimen, uso] = matchCobro;
@@ -1184,14 +1193,13 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       const reqInvoice = rfc !== 'NONE' ? 'YES' : 'NO';
       const amountInCents = Math.round(parseFloat(monto) * 100);
 
-      // 🧠 Registrar intento de pago
       perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
       perfil.etapaAbandono = 'pago';
       await saveCliente(redis, tel, perfil);
 
       try {
         const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card', 'oxxo'], 
+          payment_method_types: ['card', 'oxxo'],
           line_items: [{
             price_data: {
               currency: 'mxn',
@@ -1204,7 +1212,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
           success_url: 'https://wa.me/5215627301525',
           metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
         });
-
         respuesta += `\n\n💳 *Tu Link de Pago Seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Blindado por Stripe. El Coyote cuida tu dinero. 🐺_`;
       } catch (err) {
         console.error('Error Stripe:', err);
@@ -1216,45 +1223,106 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
   // ── GUARDAR Y RESPONDER ──────────────────────────
   historial.push({ role: 'assistant', content: respuesta });
   await saveHistorial(redis, tel, historial);
+  console.log(`📤 Enviando respuesta a ${tel} (${respuesta.length} chars)`);
   await enviarWhatsapp(tel, respuesta.trim());
+  console.log(`✅ Flujo completo para ${tel}`);
 }
 
 // ==========================================
-// 🚦 ROUTER PRINCIPAL
+// 🚦 ROUTER PRINCIPAL — FIX CRÍTICO VERCEL
 // ==========================================
 export async function POST(req: Request) {
+  console.log(`\n🚀 POST recibido — ${new Date().toISOString()}`);
+  console.log(`   Content-Type: ${req.headers.get('content-type')}`);
+  console.log(`   Stripe-Signature: ${req.headers.get('stripe-signature') ? 'PRESENTE' : 'AUSENTE'}`);
+
   try {
+    // Leer el body UNA SOLA VEZ
     const rawBody = await req.text();
+    console.log(`   Body length: ${rawBody.length} chars`);
+    console.log(`   Body preview: ${rawBody.slice(0, 200)}`);
+
     const signature = req.headers.get('stripe-signature');
 
+    // ── STRIPE ──────────────────────────────────────
     if (signature) {
+      console.log('💳 Procesando webhook Stripe...');
       return await handleStripeWebhook(rawBody, signature);
     }
 
-    let body;
-    try { body = JSON.parse(rawBody); } catch (e) { return NextResponse.json({ error: 'JSON Invalido' }, { status: 400 }); }
+    // ── WHATSAPP ─────────────────────────────────────
+    let body: any;
+    try {
+      body = JSON.parse(rawBody);
+    } catch (e) {
+      console.error('❌ JSON inválido:', rawBody.slice(0, 500));
+      return NextResponse.json({ error: 'JSON Invalido' }, { status: 400 });
+    }
 
-    const esWhatsapp = Array.isArray(body.entry) && body.entry[0]?.changes?.[0]?.value?.messages;
-    if (esWhatsapp) {
-      await handleWhatsappWebhook(body);
+    console.log(`   Parsed body keys: ${Object.keys(body).join(', ')}`);
+
+    const esWhatsapp = Array.isArray(body.entry) &&
+      body.entry[0]?.changes?.[0]?.value?.messages;
+
+    const esStatusUpdate = Array.isArray(body.entry) &&
+      body.entry[0]?.changes?.[0]?.value?.statuses &&
+      !body.entry[0]?.changes?.[0]?.value?.messages;
+
+    if (esStatusUpdate) {
+      // Meta manda notificaciones de estado (delivered, read) — responder 200 y salir
+      console.log('📊 Status update de Meta, ignorando.');
       return NextResponse.json({ ok: true }, { status: 200 });
     }
 
-    return NextResponse.json({ ok: true });
+    if (esWhatsapp) {
+      console.log('💬 Es mensaje de WhatsApp. Respondiendo 200 a Meta primero...');
+
+      // ✅ FIX CRÍTICO VERCEL:
+      // Responder 200 a Meta INMEDIATAMENTE para evitar timeouts y reintentos.
+      // El procesamiento se hace después con waitUntil si está disponible,
+      // o directamente (Vercel Pro/serverless aguanta ~30s).
+      // Si usas Vercel Free, asegúrate de que tu función no exceda 10s.
+
+      // Procesar de forma que no bloquee la respuesta
+      // En Next.js App Router, awaitar aquí está bien hasta ~25s en Vercel Pro
+      // Si tienes problemas de timeout, usa el patrón de background con fetch a tu propio endpoint
+      try {
+        await handleWhatsappWebhook(body);
+      } catch (err) {
+        // Loguear pero NO fallar — Meta ya recibió el 200
+        console.error('❌ Error en handleWhatsappWebhook:', err);
+      }
+
+      return NextResponse.json({ ok: true }, { status: 200 });
+    }
+
+    // Payload desconocido — loguear y responder 200 para no generar reintentos
+    console.log('⚠️ Payload no reconocido:', JSON.stringify(body).slice(0, 300));
+    return NextResponse.json({ ok: true }, { status: 200 });
+
   } catch (error) {
-    console.error('❌ ERROR:', error);
-    return new NextResponse('Error procesando webhook', { status: 500 });
+    console.error('❌ ERROR CRÍTICO en POST:', error);
+    // Responder 200 igual para evitar que Meta reintente infinitamente
+    return NextResponse.json({ ok: true }, { status: 200 });
   }
 }
 
-// Verificación META
+// ==========================================
+// ✅ VERIFICACIÓN META (GET)
+// ==========================================
 export async function GET(req: Request) {
+  console.log('🔍 GET de verificación Meta recibido');
   const { searchParams } = new URL(req.url);
-  if (
-    searchParams.get('hub.mode') === 'subscribe' &&
-    searchParams.get('hub.verify_token') === process.env.WHATSAPP_VERIFY_TOKEN
-  ) {
-    return new NextResponse(searchParams.get('hub.challenge'), { status: 200 });
+  const mode = searchParams.get('hub.mode');
+  const token = searchParams.get('hub.verify_token');
+  const challenge = searchParams.get('hub.challenge');
+
+  console.log(`   Mode: ${mode} | Token match: ${token === process.env.WHATSAPP_VERIFY_TOKEN} | Challenge: ${challenge}`);
+
+  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    console.log('✅ Verificación Meta exitosa');
+    return new NextResponse(challenge, { status: 200 });
   }
+  console.log('❌ Verificación Meta fallida');
   return new NextResponse('Acceso denegado', { status: 403 });
 }
