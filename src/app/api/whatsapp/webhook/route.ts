@@ -467,6 +467,7 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
 // 💬 WEBHOOK WHATSAPP — PROCESAMIENTO ASYNC
 // (se llama DESPUÉS de responder 200 a Meta)
 // ==========================================
+
 async function handleWhatsappWebhook(body: any) {
   // ── VALIDACIÓN ESTRUCTURAL ───────────────────────
   const entry = body?.entry?.[0];
@@ -1232,7 +1233,11 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 // 🚦 ROUTER PRINCIPAL — FIX CRÍTICO VERCEL
 // ==========================================
 export async function POST(req: Request) {
-  console.log(`\n🚀 POST recibido — ${new Date().toISOString()}`);
+  const rawBody = await req.text();
+  console.log("🔴 RAW POST:", rawBody);  // ← primera línea
+  
+  // todo lo demás que ya tenías abajo...
+console.log(`\n🚀 POST recibido — ${new Date().toISOString()}`);
   console.log(`   Content-Type: ${req.headers.get('content-type')}`);
   console.log(`   Stripe-Signature: ${req.headers.get('stripe-signature') ? 'PRESENTE' : 'AUSENTE'}`);
 
