@@ -16,19 +16,16 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-11-20.acacia" as any,
 });
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
-
 const FACTURAPI_KEY = process.env.FACTURAPI_KEY;
 const facturapiAuth = Buffer.from(`${FACTURAPI_KEY}:`).toString('base64');
-
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // ==========================================
 // 🔧 REDIS
 // ==========================================
 function getRedis() {
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN)
     throw new Error('Faltan env vars de Upstash');
-  }
   return new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL,
     token: process.env.UPSTASH_REDIS_REST_TOKEN,
@@ -36,7 +33,7 @@ function getRedis() {
 }
 
 // ==========================================
-// 🎛️ CONFIGURACIÓN DINÁMICA DE LA IA (EL COYOTE)
+// 🎛️ CONFIGURACIÓN DINÁMICA
 // ==========================================
 interface ConfigBot {
   nombreBot: string;
@@ -50,8 +47,8 @@ interface ConfigBot {
   maximoLineasRespuesta: number;
   fraseProhibidas: string[];
   instruccionesEspeciales: string;
-  productosExtra: Array<{ nombre: string; menudeo: number; mayoreo: number; info: string; }>;
-  promocionesActivas: Array<{ nombre: string; descripcion: string; descuento: string; vigencia: string; }>;
+  productosExtra: Array<{ nombre: string; menudeo: number; mayoreo: number; info: string; categoria?: string }>;
+  promocionesActivas: Array<{ nombre: string; descripcion: string; descuento: string; vigencia: string }>;
   infoPagos: string;
   infoEnvios: string;
   mensajePromoFinal: string;
@@ -74,18 +71,9 @@ const CONFIG_DEFAULT: ConfigBot = {
   emojisPrincipales: '🐺📦💪',
   maximoLineasRespuesta: 4,
   fraseProhibidas: [
-    'Te enviaré los detalles',
-    'Enviaré la cotización',
-    'Procederé',
-    '¿Algo más en lo que pueda asistirte?',
-    'te mando',
-    'te envío',
-    'te hago llegar',
-    'Como asistente de IA',
-    'Como IA',
-    'soy una inteligencia artificial',
-    'soy un bot',
-    'soy un asistente virtual'
+    'Te enviaré los detalles', 'Enviaré la cotización', 'Procederé',
+    '¿Algo más en lo que pueda asistirte?', 'te mando', 'te envío', 'te hago llegar',
+    'Como asistente de IA', 'Como IA', 'soy una inteligencia artificial', 'soy un bot', 'soy un asistente virtual'
   ],
   instruccionesEspeciales: '',
   productosExtra: [],
@@ -102,14 +90,9 @@ const CONFIG_DEFAULT: ConfigBot = {
 async function getConfigBot(redis: Redis): Promise<ConfigBot> {
   try {
     const guardado = await redis.get<ConfigBot>('config_coyote');
-    if (!guardado) {
-      await redis.set('config_coyote', CONFIG_DEFAULT);
-      return CONFIG_DEFAULT;
-    }
+    if (!guardado) { await redis.set('config_coyote', CONFIG_DEFAULT); return CONFIG_DEFAULT; }
     return { ...CONFIG_DEFAULT, ...guardado };
-  } catch {
-    return CONFIG_DEFAULT;
-  }
+  } catch { return CONFIG_DEFAULT; }
 }
 
 async function saveConfigBot(redis: Redis, config: ConfigBot) {
@@ -153,6 +136,7 @@ interface ClientePerfil {
   canalPreferido?: string;
   interesesDeclarados?: string[];
   razonNoCompra?: string;
+  categoriasPedidas?: string[];
 }
 
 interface PedidoRegistro {
@@ -164,7 +148,7 @@ interface PedidoRegistro {
 }
 
 // ==========================================
-// 🚚 CONSTANTES DE LOGÍSTICA
+// 🚚 LOGÍSTICA
 // ==========================================
 const DIESEL_PRICE_PER_LITER = 27.00;
 const LITERS_PER_100KM = 20.0;
@@ -172,36 +156,20 @@ const OPERATIONAL_MARKUP = 4;
 const FIXED_SERVICE_FEE = 175;
 const MAX_ROLLS_PER_VEHICLE = 80;
 
-interface ProductoEnvio {
-  nombre: string;
-  kg: number;
-  esRollo?: boolean;
-}
-
+interface ProductoEnvio { nombre: string; kg: number; esRollo?: boolean }
 interface ResultadoEnvio {
-  totalKilos: number;
-  totalRollos: number;
-  flete: number;
-  traslado: number;
-  vehiculos: number;
-  tarifaServicio: number;
-  base: number;
-  iva: number;
-  total: number;
-  desglose: string;
+  totalKilos: number; totalRollos: number; flete: number; traslado: number;
+  vehiculos: number; tarifaServicio: number; base: number; iva: number;
+  total: number; desglose: string;
 }
 
 function calcularEnvioReal(
-  productos: ProductoEnvio[],
-  cpEnvio: string,
-  subtotal: number,
-  requiereFactura: boolean
+  productos: ProductoEnvio[], cpEnvio: string,
+  subtotal: number, requiereFactura: boolean
 ): ResultadoEnvio {
   let totalKilos = productos.reduce((acc, p) => acc + p.kg, 0);
   let totalRollos = 0;
-  for (const p of productos) {
-    totalRollos += Math.ceil(p.kg / 25);
-  }
+  for (const p of productos) totalRollos += Math.ceil(p.kg / 25);
   totalRollos = Math.max(1, totalRollos);
 
   let flete = 0;
@@ -222,8 +190,7 @@ function calcularEnvioReal(
     if ([15, 6, 8].includes(prefix2)) distanciaKm = 5;
     else if ([7, 9, 3].includes(prefix2)) distanciaKm = 12;
     else if ([2, 4, 11].includes(prefix2)) distanciaKm = 18;
-    else if ([1, 5, 10, 12, 13, 14, 16].includes(prefix2)) distanciaKm = 28;
-    else distanciaKm = 15;
+    else distanciaKm = 28;
   } else if (prefix2 >= 50 && prefix2 <= 57) {
     tipoEnvio = 'COYOTE';
     if (prefix2 === 57) distanciaKm = 10;
@@ -231,8 +198,7 @@ function calcularEnvioReal(
     else if (prefix2 === 53 || prefix2 === 54) distanciaKm = 25;
     else if (prefix2 === 56) distanciaKm = 35;
     else if (prefix2 === 52) distanciaKm = 55;
-    else if (prefix2 === 50 || prefix2 === 51) distanciaKm = 70;
-    else distanciaKm = 40;
+    else distanciaKm = 70;
   } else if (prefix2 === 42 || prefix2 === 43) { tipoEnvio = 'COYOTE'; distanciaKm = 100; }
   else if (prefix2 >= 72 && prefix2 <= 75) { tipoEnvio = 'COYOTE'; distanciaKm = 130; }
   else if (prefix2 === 62) { tipoEnvio = 'COYOTE'; distanciaKm = 90; }
@@ -243,9 +209,7 @@ function calcularEnvioReal(
     vehiculos = Math.max(1, Math.ceil(totalRollos / MAX_ROLLS_PER_VEHICLE));
     const kmIdaVuelta = distanciaKm * 2;
     const litros = (kmIdaVuelta / 100) * LITERS_PER_100KM;
-    const costoCombustible = litros * DIESEL_PRICE_PER_LITER;
-    const costoPorVehiculo = costoCombustible * OPERATIONAL_MARKUP;
-    traslado = costoPorVehiculo * vehiculos;
+    traslado = litros * DIESEL_PRICE_PER_LITER * OPERATIONAL_MARKUP * vehiculos;
   } else {
     traslado = 180;
     if (totalKilos > 5) traslado += (totalKilos - 5) * 12;
@@ -271,27 +235,22 @@ ${requiereFactura ? `• IVA 16%: $${iva.toFixed(2)}` : ''}
 }
 
 // ==========================================
-// 🧠 HELPERS DE MEMORIA
+// 🧠 MEMORIA
 // ==========================================
 async function getHistorial(redis: Redis, tel: string) {
-  try {
-    return (await redis.get<Array<{role: string; content: string}>>(`historial:${tel}`)) || [];
-  } catch { return []; }
+  try { return (await redis.get<Array<{ role: string; content: string }>>(`historial:${tel}`)) || []; }
+  catch { return []; }
 }
-
-async function saveHistorial(redis: Redis, tel: string, h: Array<{role: string; content: string}>) {
+async function saveHistorial(redis: Redis, tel: string, h: Array<{ role: string; content: string }>) {
   const trimmed = h.length > 60 ? h.slice(-60) : h;
   await redis.set(`historial:${tel}`, trimmed, { ex: 60 * 60 * 24 * 90 });
 }
-
 async function getCliente(redis: Redis, tel: string): Promise<ClientePerfil | null> {
   try { return await redis.get<ClientePerfil>(`cliente:${tel}`); } catch { return null; }
 }
-
 async function saveCliente(redis: Redis, tel: string, p: ClientePerfil) {
   await redis.set(`cliente:${tel}`, p);
 }
-
 async function registrarPedido(redis: Redis, tel: string, pedido: PedidoRegistro) {
   const cliente = await getCliente(redis, tel);
   if (!cliente) return;
@@ -310,7 +269,6 @@ async function registrarPedido(redis: Redis, tel: string, pedido: PedidoRegistro
   await redis.set(`pedidos:${tel}`, pedidos);
   await saveCliente(redis, tel, cliente);
 }
-
 async function detectarGenero(nombre: string): Promise<'hombre' | 'mujer' | 'unknown'> {
   try {
     const res = await openai.chat.completions.create({
@@ -325,15 +283,15 @@ async function detectarGenero(nombre: string): Promise<'hombre' | 'mujer' | 'unk
 }
 
 // ==========================================
-// 🏪 BODEGA Y PRECIOS
+// 🏪 BODEGA — TELAS
 // ==========================================
 const COLORES_STOCK = "Azul rey, Rojo, Negro, Kaki, Amarillo canario, Amarillo mango, Perla, Gris medio, Oxford, Azul marino oscuro, Azul marino claro, Fiusha, Palo de rosa, Rosa pastel, Rosa baby, Petróleo, Uva, Gris baby, Naranja, Lila, Vino, Azul cielo, Verde bandera, Verde botella, Verde militar, Magenta, Aqua, Menta, Celeste, Turquesa, Amarillo neón, Verde neón, Rosa neón, Oro viejo, Mostaza, Camel, Francia, Chedron, Uva oscuro, Pistache, Manzana, Acero, Cemento, Hueso";
 
-const PRECIOS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string }> = {
-  "micro piqué":      { menudeo: 90,  mayoreo: 85,  info: `100% Poliéster 145g. Dry-Fit alto rendimiento. Rend. 4.3m/kg. Colores: ${COLORES_STOCK}.` },
-  "piqué vera":       { menudeo: 95,  mayoreo: 90,  info: `100% Poliéster 145g. Más suave. Rend. 4.3m/kg. Colores: ${COLORES_STOCK}.` },
-  "micro panal":      { menudeo: 95,  mayoreo: 90,  info: `100% Poliéster 145g. Máxima transpiración. Rend. 4.3m/kg. Colores: ${COLORES_STOCK}.` },
-  "torneo":           { menudeo: 105, mayoreo: 98,  info: `100% Poliéster 150g. Uso rudo. Rend. 4.3m/kg. Colores: ${COLORES_STOCK}.` },
+const PRECIOS_TELAS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string }> = {
+  "micro piqué":      { menudeo: 90,  mayoreo: 85,  info: `100% Poliéster 145g. Dry-Fit alto rendimiento. Rend. 4.3m/kg. Colores: Blanco, ${COLORES_STOCK}.` },
+  "piqué vera":       { menudeo: 95,  mayoreo: 90,  info: `100% Poliéster 145g. Más suave. Rend. 4.3m/kg. Colores: Blanco, ${COLORES_STOCK}.` },
+  "micro panal":      { menudeo: 95,  mayoreo: 90,  info: `100% Poliéster 145g. Máxima transpiración. Rend. 4.3m/kg. Colores: Blanco, ${COLORES_STOCK}.` },
+  "torneo":           { menudeo: 105, mayoreo: 98,  info: `100% Poliéster 150g. Uso rudo. Rend. 4.3m/kg. Colores: Blanco, ${COLORES_STOCK}.` },
   "athlos":           { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
   "brock":            { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
   "piqué vera sport": { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
@@ -344,48 +302,151 @@ const PRECIOS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: 
   "panal nitro":      { menudeo: 185, mayoreo: 170, info: "145g. Control de humedad extremo. Color único." },
 };
 
-async function getBodega(redis: Redis) {
-  const guardado = await redis.get<typeof PRECIOS_DEFAULT>('bodega_coyote');
-  if (!guardado) { await redis.set('bodega_coyote', PRECIOS_DEFAULT); return PRECIOS_DEFAULT; }
-  let dirty = false;
-  for (const key of Object.keys(PRECIOS_DEFAULT) as Array<keyof typeof PRECIOS_DEFAULT>) {
-    if (guardado[key] && guardado[key].info !== PRECIOS_DEFAULT[key].info) {
-      guardado[key].info = PRECIOS_DEFAULT[key].info;
-      dirty = true;
-    }
+// ==========================================
+// 🧵 BODEGA — HILOS
+// ==========================================
+// Hilo Kingtex 40/2: pieza = $29 menudeo, $25 mayoreo (caja 120 pzs)
+const PRECIOS_HILOS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string; unidad: string }> = {
+  "hilo kingtex 40/2": {
+    menudeo: 29,
+    mayoreo: 25,
+    info: "100% Poliéster Fibra Corta. 5,000m por cono. Alta velocidad industrial. Caja de 120 piezas. Precio mayoreo aplica por caja completa. +70 colores disponibles.",
+    unidad: "pieza/cono"
+  },
+};
+
+// ==========================================
+// 🔩 BODEGA — ELÁSTICOS
+// ==========================================
+const PRECIOS_ELASTICOS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string; unidad: string }> = {
+  "elástico beisbolero 2½\"": {
+    menudeo: 19, mayoreo: 19,
+    info: "100% Poliéster/Caucho. 6.5 cm de ancho. Ideal para cinturas y uniformes deportivos. Venta por metro. Rollo = 50 metros. Colores: Blanco, Negro.",
+    unidad: "metro"
+  },
+  "elástico 3 ligas": {
+    menudeo: 80, mayoreo: 80,
+    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
+    unidad: "pieza (50cm)"
+  },
+  "elástico 5 ligas": {
+    menudeo: 100, mayoreo: 100,
+    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
+    unidad: "pieza (50cm)"
+  },
+  "elástico 7 ligas": {
+    menudeo: 110, mayoreo: 110,
+    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
+    unidad: "pieza (50cm)"
+  },
+  "elástico 10 ligas": {
+    menudeo: 100, mayoreo: 100,
+    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
+    unidad: "pieza (50cm)"
+  },
+  "elástico 12 ligas": {
+    menudeo: 110, mayoreo: 110,
+    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
+    unidad: "pieza (50cm)"
+  },
+  "elástico 16 ligas": {
+    menudeo: 80, mayoreo: 80,
+    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
+    unidad: "pieza (50cm)"
+  },
+  "elástico 20 ligas": {
+    menudeo: 100, mayoreo: 100,
+    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
+    unidad: "pieza (50cm)"
+  },
+  "elástico 25 ligas": {
+    menudeo: 100, mayoreo: 100,
+    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
+    unidad: "pieza (50cm)"
+  },
+  "elástico 30 ligas": {
+    menudeo: 120, mayoreo: 120,
+    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
+    unidad: "pieza (50cm)"
+  },
+  "elástico jareta 3 cm": {
+    menudeo: 140, mayoreo: 140,
+    info: "Cono. Elástico con jareta. Ideal para blusas y pantalones. Color: Blanco.",
+    unidad: "cono"
+  },
+  "elástico jareta 4 cm": {
+    menudeo: 145, mayoreo: 145,
+    info: "Cono. Elástico con jareta. Ideal para blusas y pantalones. Color: Blanco.",
+    unidad: "cono"
+  },
+};
+
+// ==========================================
+// 🏪 BODEGA UNIFICADA — helpers
+// ==========================================
+interface BodegaGuardada {
+  telas: typeof PRECIOS_TELAS_DEFAULT;
+  hilos: typeof PRECIOS_HILOS_DEFAULT;
+  elasticos: typeof PRECIOS_ELASTICOS_DEFAULT;
+}
+
+async function getBodega(redis: Redis): Promise<BodegaGuardada> {
+  const guardado = await redis.get<BodegaGuardada>('bodega_coyote_v2');
+  if (!guardado) {
+    const inicial: BodegaGuardada = {
+      telas: PRECIOS_TELAS_DEFAULT,
+      hilos: PRECIOS_HILOS_DEFAULT,
+      elasticos: PRECIOS_ELASTICOS_DEFAULT,
+    };
+    await redis.set('bodega_coyote_v2', inicial);
+    return inicial;
   }
-  if (dirty) await redis.set('bodega_coyote', guardado);
-  return guardado;
+  // Merge defaults to avoid missing keys after new products added
+  return {
+    telas: { ...PRECIOS_TELAS_DEFAULT, ...guardado.telas },
+    hilos: { ...PRECIOS_HILOS_DEFAULT, ...guardado.hilos },
+    elasticos: { ...PRECIOS_ELASTICOS_DEFAULT, ...guardado.elasticos },
+  };
 }
 
-async function actualizarPrecio(redis: Redis, producto: string, campo: 'menudeo' | 'mayoreo', precio: number) {
+type BodegaCategoria = 'telas' | 'hilos' | 'elasticos';
+
+async function actualizarPrecio(
+  redis: Redis, categoria: BodegaCategoria, producto: string,
+  campo: 'menudeo' | 'mayoreo', precio: number
+) {
   const bodega = await getBodega(redis);
-  if (!bodega[producto]) return false;
-  bodega[producto][campo] = precio;
-  await redis.set('bodega_coyote', bodega);
+  const cat = bodega[categoria] as any;
+  if (!cat[producto]) return false;
+  cat[producto][campo] = precio;
+  await redis.set('bodega_coyote_v2', bodega);
   return true;
 }
 
-async function agregarProducto(redis: Redis, nombre: string, menudeo: number, mayoreo: number, info: string) {
+async function agregarProducto(
+  redis: Redis, categoria: BodegaCategoria, nombre: string,
+  menudeo: number, mayoreo: number, info: string, unidad?: string
+) {
   const bodega = await getBodega(redis);
-  bodega[nombre.toLowerCase()] = { menudeo, mayoreo, info };
-  await redis.set('bodega_coyote', bodega);
-  console.log(`✅ Producto agregado a bodega: ${nombre}`);
+  (bodega[categoria] as any)[nombre.toLowerCase()] = { menudeo, mayoreo, info, unidad: unidad || 'pieza' };
+  await redis.set('bodega_coyote_v2', bodega);
+  console.log(`✅ Producto agregado a ${categoria}: ${nombre}`);
   return true;
 }
 
-async function eliminarProducto(redis: Redis, nombre: string) {
+async function eliminarProducto(redis: Redis, categoria: BodegaCategoria, nombre: string) {
   const bodega = await getBodega(redis);
   const key = nombre.toLowerCase();
-  if (!bodega[key]) return false;
-  delete bodega[key];
-  await redis.set('bodega_coyote', bodega);
-  console.log(`🗑️ Producto eliminado de bodega: ${nombre}`);
+  const cat = bodega[categoria] as any;
+  if (!cat[key]) return false;
+  delete cat[key];
+  await redis.set('bodega_coyote_v2', bodega);
+  console.log(`🗑️ Producto eliminado de ${categoria}: ${nombre}`);
   return true;
 }
 
 // ==========================================
-// 📲 HELPER ENVIAR WHATSAPP
+// 📲 ENVIAR WHATSAPP
 // ==========================================
 async function enviarWhatsapp(to: string, body: string) {
   const res = await fetch(`https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`, {
@@ -400,7 +461,7 @@ async function enviarWhatsapp(to: string, body: string) {
 }
 
 // ==========================================
-// 🏦 WEBHOOK STRIPE
+// 🏦 STRIPE WEBHOOK
 // ==========================================
 async function handleStripeWebhook(rawBody: string, signature: string) {
   let event: Stripe.Event;
@@ -414,7 +475,6 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     const metadata = session.metadata;
-
     if (metadata?.phone) {
       const redis = getRedis();
       const tel = metadata.phone.replace(/\D/g, '');
@@ -423,7 +483,6 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
       const perfil = await getCliente(redis, tel);
       const saludo = perfil?.nombre ? `¡Qué onda ${perfil.nombre}!` : '¡Qué onda patrón!';
       const urlTicket = `https://www.coyotetextil.com/ticket/${session.id}`;
-
       let msg = `🐺 *El Coyote te habla.* ${saludo} Stripe confirmó tu pago de *$${monto} MXN*. ✅\n\n🎫 *Tu Ticket Digital:*\n${urlTicket}\n\n¡Tu pedido entró a bodega! 📦 En breve te confirmamos salida.`;
 
       if (quiereFactura && metadata.rfc !== 'NONE') {
@@ -442,7 +501,7 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
             headers: { 'Authorization': `Basic ${facturapiAuth}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
               customer: clienteSAT.id,
-              items: [{ product: { description: "Telas de Alto Rendimiento Coyote Textil", product_key: "11162100", price: precioBase, taxes: [{ type: "IVA", rate: 0.16 }] }, quantity: 1 }],
+              items: [{ product: { description: "Telas y Avíos de Alto Rendimiento Coyote Textil", product_key: "11162100", price: precioBase, taxes: [{ type: "IVA", rate: 0.16 }] }, quantity: 1 }],
               use: metadata.uso, payment_form: formaPago, payment_method: "PUE"
             })
           });
@@ -464,7 +523,7 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
 }
 
 // ==========================================
-// 💬 WEBHOOK WHATSAPP — PROCESAMIENTO ASYNC
+// 💬 WHATSAPP WEBHOOK
 // ==========================================
 async function handleWhatsappWebhook(body: any) {
   const entry = body?.entry?.[0];
@@ -483,7 +542,6 @@ async function handleWhatsappWebhook(body: any) {
   }
 
   const mensajeInfo = mensajes[0];
-
   if (mensajeInfo.type !== 'text') {
     console.log(`⏭️ Tipo de mensaje ignorado: ${mensajeInfo.type}`);
     return;
@@ -491,66 +549,39 @@ async function handleWhatsappWebhook(body: any) {
 
   const tel = mensajeInfo.from;
   const msgCliente = mensajeInfo.text?.body;
-
   if (!tel || !msgCliente) {
     console.log('⚠️ Mensaje sin teléfono o sin body:', JSON.stringify(mensajeInfo));
     return;
   }
 
   const nombreWA = value?.contacts?.[0]?.profile?.name || '';
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`💬 MENSAJE RECIBIDO`);
-  console.log(`   Tel: ${tel}`);
-  console.log(`   Nombre WA: ${nombreWA}`);
-  console.log(`   Mensaje: "${msgCliente}"`);
-  console.log(`   Timestamp: ${new Date().toISOString()}`);
-  console.log(`${'='.repeat(60)}\n`);
+  console.log(`\n${'='.repeat(60)}\n💬 MENSAJE — Tel: ${tel} | "${msgCliente}"\n${'='.repeat(60)}\n`);
 
-  // 🛑 ENRUTADOR CRM
+  // 🛑 CRM ROUTER
   try {
-    console.log(`🗺️ Consultando CRM router para ${tel}...`);
     const decision = await determineRouting(tel, "WHATSAPP");
-    console.log(`🗺️ CRM Decision:`, JSON.stringify(decision));
-
     if (decision.action === "ROUTE_TO_AGENT") {
       let currentConvoId = decision.conversationId;
-
       if (!currentConvoId && decision.agentId) {
         const nuevaConvo = await prisma.waConversation.create({
-          data: {
-            contactPhone: tel,
-            isOpen: true,
-            employeeId: decision.agentId,
-            lastMessage: msgCliente,
-            lastMessageAt: new Date()
-          }
+          data: { contactPhone: tel, isOpen: true, employeeId: decision.agentId, lastMessage: msgCliente, lastMessageAt: new Date() }
         });
         currentConvoId = nuevaConvo.id;
-        console.log(`✨ Nueva convo VIP creada: ${currentConvoId} → agente ${decision.agentId}`);
       }
-
       if (currentConvoId) {
-        console.log(`👤 IA silenciada para ${tel}. Razón: ${decision.reason}. Guardando en DB.`);
         await prisma.$transaction([
-          prisma.waMessage.create({
-            data: { conversationId: currentConvoId, role: "CLIENT", body: msgCliente, isRead: false },
-          }),
-          prisma.waConversation.update({
-            where: { id: currentConvoId },
-            data: { lastMessage: msgCliente, lastMessageAt: new Date() },
-          }),
+          prisma.waMessage.create({ data: { conversationId: currentConvoId, role: "CLIENT", body: msgCliente, isRead: false } }),
+          prisma.waConversation.update({ where: { id: currentConvoId }, data: { lastMessage: msgCliente, lastMessageAt: new Date() } }),
         ]);
         console.log(`✅ Mensaje guardado en DB para agente. Fin.`);
         return;
       }
-
-      console.log(`⚠️ ROUTE_TO_AGENT sin convoId ni agentId. El Coyote toma el control.`);
     }
   } catch (error) {
-    console.error("⚠️ Error en CRM router (continuando con El Coyote):", error);
+    console.error("⚠️ Error en CRM router:", error);
   }
 
-  // 🤖 EL COYOTE TOMA EL CONTROL
+  // 🤖 EL COYOTE
   console.log(`🐺 El Coyote procesando mensaje de ${tel}...`);
   const redis = getRedis();
   const msgLower = msgCliente.trim().toLowerCase();
@@ -564,18 +595,18 @@ async function handleWhatsappWebhook(body: any) {
     h.push({ role: 'user', content: msgCliente });
     h.push({ role: 'assistant', content: '🐺 ¡Órdenes recibidas Patrón! Modo Administrador activo. ¿Qué cambiamos?' });
     await saveHistorial(redis, tel, h);
-    await enviarWhatsapp(tel, '🐺 *El Coyote al habla, Patrón Jack.* Modo Admin activo.\n\nPuedo cambiar:\n• Precios y catálogo\n• Mi tono, reglas y personalidad\n• Promociones activas\n• Avisos globales\n• Y lo que se te ocurra\n\n¿Qué hacemos?');
+    await enviarWhatsapp(tel, '🐺 *El Coyote al habla, Patrón Jack.* Modo Admin activo.\n\nPuedo cambiar:\n• Precios y catálogo (telas, hilos, elásticos)\n• Mi tono, reglas y personalidad\n• Promociones activas\n• Avisos globales\n• Y lo que se te ocurra\n\n¿Qué hacemos?');
     return;
   }
 
   const esSoloCoyote = /^\s*coyote[\s!?.]*$/i.test(msgCliente.trim());
   if (esSoloCoyote) {
-    const respuestaCoyote = `🐺 *El Coyote aquí.* Nunca duermo, siempre alerta. ¿En qué te puedo ayudar hoy?`;
+    const resp = `🐺 *El Coyote aquí.* Nunca duermo, siempre alerta. ¿En qué te puedo ayudar hoy?`;
     const h = await getHistorial(redis, tel);
     h.push({ role: 'user', content: msgCliente });
-    h.push({ role: 'assistant', content: respuestaCoyote });
+    h.push({ role: 'assistant', content: resp });
     await saveHistorial(redis, tel, h);
-    await enviarWhatsapp(tel, respuestaCoyote);
+    await enviarWhatsapp(tel, resp);
     return;
   }
 
@@ -583,7 +614,6 @@ async function handleWhatsappWebhook(body: any) {
   const config = await getConfigBot(redis);
 
   if (!perfil) {
-    console.log(`🆕 Cliente nuevo: ${tel}`);
     perfil = {
       nombre: '', genero: 'unknown', telefono: tel,
       primerContacto: new Date().toISOString(), ultimoContacto: new Date().toISOString(),
@@ -591,7 +621,7 @@ async function handleWhatsappWebhook(body: any) {
       direccionEnvio: '', cpFiscal: '', metodoPagoFavorito: '', requiereFrecuenteFactura: false, notas: '',
       preferencias: [], etapaAbandono: null, recordatoriosPendientes: [],
       segmento: 'prospecto', objecionesComunes: [], productosFavoritos: [], intentosDePago: 0,
-      sensibilidadPrecio: 'media', interesesDeclarados: []
+      sensibilidadPrecio: 'media', interesesDeclarados: [], categoriasPedidas: []
     };
     await saveCliente(redis, tel, perfil);
     const bienvenida = config.frasesBienvenida[Math.floor(Math.random() * config.frasesBienvenida.length)];
@@ -604,16 +634,14 @@ async function handleWhatsappWebhook(body: any) {
   }
 
   if (!perfil.nombre) {
-    console.log(`📝 Registrando nombre para ${tel}: "${msgCliente}"`);
     const primerNombre = msgCliente.trim().split(' ')[0];
     perfil.nombre = primerNombre.charAt(0).toUpperCase() + primerNombre.slice(1).toLowerCase();
     perfil.genero = await detectarGenero(perfil.nombre);
     perfil.ultimoContacto = new Date().toISOString();
     await saveCliente(redis, tel, perfil);
-
     const saludo = perfil.genero === 'mujer'
-      ? `🐺 *El Coyote aquí.* ¡Un placer, ${perfil.nombre}! Soy tu asesor textil de Coyote Textil. ¿En qué te puedo ayudar hoy?`
-      : `🐺 *El Coyote al habla.* ¡Mucho gusto, ${perfil.nombre}! Tu asesor textil de Coyote Textil. ¿Qué necesitas hoy?`;
+      ? `🐺 *El Coyote aquí.* ¡Un placer, ${perfil.nombre}! Soy tu asesor de Coyote Textil. ¿En qué te puedo ayudar hoy?`
+      : `🐺 *El Coyote al habla.* ¡Mucho gusto, ${perfil.nombre}! Tu asesor de Coyote Textil. ¿Qué necesitas?`;
     const h = await getHistorial(redis, tel);
     h.push({ role: 'user', content: msgCliente });
     h.push({ role: 'assistant', content: saludo });
@@ -631,25 +659,46 @@ async function handleWhatsappWebhook(body: any) {
   const esElJefe = historial.some((m: any) => m.role === 'user' && m.content.trim() === 'elcoyote56');
   const bodega = await getBodega(redis);
 
-  const bodegaCompleta: typeof PRECIOS_DEFAULT = { ...bodega };
-  for (const pe of config.productosExtra) {
-    bodegaCompleta[pe.nombre.toLowerCase()] = { menudeo: pe.menudeo, mayoreo: pe.mayoreo, info: pe.info };
-  }
+  // --- Construir catálogos legibles ---
+  const buildCatalogoTelas = () => {
+    const lines = Object.entries(bodega.telas).map(([name, p]) =>
+      `  • ${name.toUpperCase()}: $${p.menudeo}/kg menudeo | $${p.mayoreo}/kg mayoreo | rollo 25kg = $${(p.mayoreo * 25).toFixed(0)} MXN\n    ${p.info}`
+    );
+    return lines.join('\n');
+  };
 
-  const PRECIOS_ACTUALES = Object.entries(bodegaCompleta)
-    .map(([name, p]) => `- ${name.toUpperCase()}: $${p.menudeo}/kg menudeo | $${p.mayoreo}/kg mayoreo | rollo 25kg = $${p.mayoreo * 25}. ${p.info}`)
-    .join('\n');
+  const buildCatalogoHilos = () => {
+    const lines = Object.entries(bodega.hilos).map(([name, p]) =>
+      `  • ${name.toUpperCase()}: $${p.menudeo} menudeo/${p.unidad} | $${p.mayoreo} mayoreo/caja (120 pzs = $${(p.mayoreo * 120).toFixed(0)} MXN)\n    ${p.info}`
+    );
+    return lines.join('\n');
+  };
 
-  const alertaDireccion = perfil.direccionEnvio
-    ? `⚠️ DIRECCIÓN GUARDADA: "${perfil.direccionEnvio}". Confirma si sigue siendo correcta.`
-    : `⚠️ SIN DIRECCIÓN. Pídela: "¿A qué dirección te enviamos? (calle, número, colonia, ciudad y CP)"`;
+  const buildCatalogoElasticos = () => {
+    const lines = Object.entries(bodega.elasticos).map(([name, p]) =>
+      `  • ${name.toUpperCase()}: $${p.menudeo} por ${p.unidad}\n    ${p.info}`
+    );
+    return lines.join('\n');
+  };
 
-  const diasDesdeUltimoContacto = perfil.ultimoContacto
+  // Incluir productosExtra de config en catálogo telas
+  const extrasTexto = config.productosExtra.length > 0
+    ? config.productosExtra.map(pe => {
+      const cat = pe.categoria || 'tela';
+      return `  • ${pe.nombre.toUpperCase()} [${cat}]: $${pe.menudeo} menudeo | $${pe.mayoreo} mayoreo | ${pe.info}`;
+    }).join('\n')
+    : '';
+
+  const diasDesdeUltimo = perfil.ultimoContacto
     ? Math.floor((Date.now() - new Date(perfil.ultimoContacto).getTime()) / (1000 * 60 * 60 * 24))
     : 0;
 
-  const alertaReactivacion = diasDesdeUltimoContacto > 30
-    ? `⚡ ALERTA: Este cliente lleva ${diasDesdeUltimoContacto} días sin comprar. Usa técnica de reactivación.`
+  const alertaDireccion = perfil.direccionEnvio
+    ? `⚠️ DIRECCIÓN GUARDADA: "${perfil.direccionEnvio}". Confirma si sigue siendo correcta.`
+    : `⚠️ SIN DIRECCIÓN. Pídela cuando sea necesario.`;
+
+  const alertaReactivacion = diasDesdeUltimo > 30
+    ? `⚡ ALERTA: Este cliente lleva ${diasDesdeUltimo} días sin comprar. Usa técnica de reactivación.`
     : '';
 
   const alertaConversion = (perfil.intentosDePago || 0) > 1
@@ -659,12 +708,13 @@ async function handleWhatsappWebhook(body: any) {
   const resumenCliente = `
 PERFIL INTELIGENTE DEL CLIENTE:
 - Nombre: ${perfil.nombre} | Género: ${perfil.genero} | Segmento: ${perfil.segmento || 'prospecto'}
-- Compras: ${perfil.totalCompras} | Acumulado: $${perfil.montoAcumulado} MXN | Ticket promedio: $${perfil.ticketPromedio?.toFixed(0) || 'N/A'}
-- Productos favoritos: ${perfil.productosFavoritos?.join(', ') || 'ninguno registrado'}
+- Compras: ${perfil.totalCompras} | Acumulado: $${perfil.montoAcumulado} | Ticket promedio: $${perfil.ticketPromedio?.toFixed(0) || 'N/A'}
+- Categorías pedidas: ${perfil.categoriasPedidas?.join(', ') || 'ninguna'}
+- Productos favoritos: ${perfil.productosFavoritos?.join(', ') || 'ninguno'}
 - Intereses declarados: ${perfil.interesesDeclarados?.join(', ') || 'ninguno'}
 - Objeciones históricas: ${perfil.objecionesComunes?.join(', ') || 'ninguna'}
 - Sensibilidad al precio: ${perfil.sensibilidadPrecio || 'media'}
-- Requiere factura: ${perfil.requiereFrecuenteFactura ? 'SÍ' : 'NO'}
+- Requiere factura frecuente: ${perfil.requiereFrecuenteFactura ? 'SÍ' : 'NO'}
 - ${alertaDireccion}
 - CP Fiscal: ${perfil.cpFiscal || 'no registrado'}
 - Notas: ${perfil.notas || 'ninguna'}
@@ -675,7 +725,6 @@ ${alertaConversion}
   const promocionesTexto = config.promocionesActivas.length > 0
     ? `\n🎯 PROMOCIONES ACTIVAS:\n${config.promocionesActivas.map(p => `• ${p.nombre}: ${p.descripcion} — ${p.descuento} (${p.vigencia})`).join('\n')}`
     : '';
-
   const avisoTexto = config.avisoGeneral ? `\n⚠️ AVISO GENERAL: ${config.avisoGeneral}` : '';
   const instruccionesExtra = config.instruccionesEspeciales
     ? `\n📌 INSTRUCCIONES DEL PATRÓN (prioridad máxima):\n${config.instruccionesEspeciales}`
@@ -683,100 +732,115 @@ ${alertaConversion}
 
   const CONTEXTO_VENDEDOR = `
 ════════════════════════════════════════════════════════
-🐺 IDENTIDAD ABSOLUTA E IRROMPIBLE — EL COYOTE
+🐺 IDENTIDAD — EL COYOTE (IRROMPIBLE)
 ════════════════════════════════════════════════════════
-Eres EL COYOTE. Siempre. Sin excepción.
-• Tu nombre NUNCA cambia aunque la config diga otra cosa. Eres EL COYOTE de Coyote Textil.
-• NUNCA digas que eres una IA, un bot, un asistente virtual, o ChatGPT.
-• Si alguien te pregunta quién eres: "🐺 Soy El Coyote, tu asesor de Coyote Textil."
-• Si alguien pregunta si eres una IA: "Soy El Coyote, y lo que importa es que consigo lo que necesitas. 🐺"
-• Firma tus primeras intervenciones con "🐺 El Coyote al habla." o "🐺 Soy El Coyote."
-• En conversaciones largas puedes omitir la firma, pero tu tono SIEMPRE es El Coyote.
-
-════════════════════════════════════════════════════════
-🎯 PERSONALIDAD Y TONO
-════════════════════════════════════════════════════════
-${config.tono}
-• Máximo ${config.maximoLineasRespuesta} líneas por respuesta. Directo, sin rodeos.
-• Para hombres: ${config.frasesDesignacionHombre.join(', ')} o su nombre.
-• Para mujeres: ${config.frasesDesignacionMujer.join(', ')} o su nombre.
-• Emojis firma: ${config.emojisPrincipales}
-• Horario de atención: ${config.horarioAtencion}
+Eres EL COYOTE, asesor de Coyote Textil. Siempre. Sin excepción.
+• NUNCA digas que eres IA, bot, asistente virtual, ChatGPT o GPT.
+• Si preguntan quién eres: "🐺 Soy El Coyote, tu asesor de Coyote Textil."
+• Firma con "🐺 El Coyote al habla." solo en primeras intervenciones.
+• Tono: ${config.tono}
+• Máximo ${config.maximoLineasRespuesta} líneas por respuesta. DIRECTO.
+• Hombres: ${config.frasesDesignacionHombre.join(', ')} | Mujeres: ${config.frasesDesignacionMujer.join(', ')}
+• Emojis: ${config.emojisPrincipales}
+• Horario: ${config.horarioAtencion}
 ${instruccionesExtra}
 ${avisoTexto}
 ${promocionesTexto}
 
 ════════════════════════════════════════════════════════
-🚫 FRASES PROHIBIDAS — NUNCA LAS USES
+🚫 FRASES PROHIBIDAS
 ════════════════════════════════════════════════════════
 ${config.fraseProhibidas.map(f => `• "${f}"`).join('\n')}
 
 ════════════════════════════════════════════════════════
-🧠 INTELIGENCIA DE VENTAS — TÉCNICAS ACTIVAS
+🧵 CATÁLOGO COMPLETO — COYOTE TEXTIL
 ════════════════════════════════════════════════════════
 
-1. CALIFICACIÓN RÁPIDA (primeras respuestas):
-   • Detecta: ¿Para qué necesita la tela? (uniforme, moda, deporte, reventa)
-   • ¿Cuánto necesita? (kgs / piezas / rollos)
-   • ¿Con qué frecuencia compra? (único, mensual, continuo)
-   • Guarda esto con DATOS_CLIENTE|intereses:[uso]|notas:[frecuencia]
+📦 TELAS (precio por KILO — rollo = 25 kg):
+${buildCatalogoTelas()}
+${extrasTexto ? `\nEXTRAS:\n${extrasTexto}` : ''}
 
-2. MANEJO DE OBJECIONES (responde así según el tipo):
-   • "Está caro" → Desglosar valor: calidad, durabilidad, rendimiento. Ofrecer muestra si aplica.
-     Frase: "El precio es por kilo y un rollo te rinde [X] metros. ¿Cuántas piezas necesitas? Te muestro el costo por prenda."
-   • "Lo voy a pensar" → Crear urgencia: stock, precio, promo vigente.
-     Frase: "Entendido. Te aviso que este color/precio está disponible hoy. ¿Qué es lo que te genera duda?"
-   • "Tengo otro proveedor" → Diferenciadores sin atacar a la competencia.
-     Frase: "Qué bueno que comparas. ¿Qué es lo más importante para ti: precio, calidad, o tiempo de entrega? Así te muestro por qué el Coyote es tu mejor opción."
-   • "No tengo dinero / no traigo" → Opciones: OXXO, pago diferido, cantidad menor.
-     Frase: "No hay bronca. Puedes pagar en OXXO o empezar con medio rollo. ¿Te acomodo?"
-   • Registra objeciones: DATOS_CLIENTE|notas:objecion_[tipo]
+🧵 HILOS (precio por PIEZA/CONO):
+${buildCatalogoHilos()}
 
-3. UPSELLING INTELIGENTE:
-   • Si pide menudeo (<25kg) → Empuja rollo completo: "El rollo son 25kg y te baja a $[mayoreo]/kg. Son $[diferencia] más pero te ahorras [%] por kilo."
-   • Si pide 1 producto → Sugiere complemento: "Para ese uso también funciona muy bien [producto_complementario]. ¿Quieres que te cotice ambos?"
-   • Si es cliente recurrente → Sugiere volumen: "Como ya nos conoces, si te llevas 2 rollos te puedo gestionar precio especial con el Patrón."
-
-4. URGENCIA Y ESCASEZ (úsalas con honestidad):
-   • Stock limitado en colores específicos → "Ese color está a punto de terminarse, patrón."
-   • Promoción por tiempo → Usa las promos activas configuradas.
-   • Precio futuro → "Los precios se revisan cada mes. Este es el precio de hoy."
-
-5. CIERRE PROGRESIVO (no esperes al final):
-   • Mini-cierres: "¿Con eso te doy tu cotización o quieres agregar algo más?"
-   • Asume el siguiente paso: "¿Pago con tarjeta o prefieres OXXO?"
-   • Si cotizan y no compran en 24h → Programa recordatorio automático.
-
-6. REACTIVACIÓN (cliente sin compras >30 días):
-   • "Oye ${perfil.nombre}, hace un rato que no pedías. ¿Cómo está el negocio? Tengo algo nuevo que te puede interesar."
-   • Ofrecer incentivo: descuento, envío gratis, novedad de catálogo.
-
-7. APRENDIZAJE CONTINUO (guarda siempre):
-   • Al final de cada cotización → DATOS_CLIENTE|etapa_abandono:[etapa]|notas:[razón]
-   • Cuando compra → Actualiza productosFavoritos y segmento.
-   • Cuando da objeción → Registra en objecionesComunes.
-   • Cuando revela su uso → Registra en interesesDeclarados.
+🔩 ELÁSTICOS:
+${buildCatalogoElasticos()}
 
 ════════════════════════════════════════════════════════
-🗺️ FLUJO DE VENTA OBLIGATORIO
+📐 REGLAS DE PRODUCTO
 ════════════════════════════════════════════════════════
-1. CALIFICAR → 2. COTIZAR → 3. DIRECCIÓN → 4. TOTAL CON ENVÍO → 5. FACTURA → 6. MÉTODO PAGO → 7. COBRO
+TELAS:
+• Todo por kilo. Rollo = 25 kg exactos.
+• Menudeo: <25 kg | Mayoreo: 25 kg o más.
+• Precio rollo = mayoreo × 25. SIEMPRE muéstralo calculado.
+• Empuja rollo: baja precio y da stock al cliente.
+• Rendimiento metros: ver catálogo. Convierte a piezas cuando el cliente lo pida.
+• COLORES (Micro Piqué / Piqué Vera / Micro Panal / Torneo): Blanco, ${COLORES_STOCK}
+  → Siempre pregunta por color antes de cotizar estas 4 telas.
+  → Si piden la carta: PEGA LA LISTA COMPLETA, nunca digas "te la mando".
+  → Si piden Blanco: menciona Perla, Hueso, Celeste, Gris baby, Rosa baby como alternativas.
+
+HILOS KINGTEX 40/2:
+• Precio unitario: $29/cono (menudeo). Mayoreo: $25/cono en caja de 120 piezas.
+• Caja completa = 120 conos × $25 = $3,000 MXN.
+• 5,000 m por cono. +70 colores disponibles.
+• Upselling: "¿Cuántos colores necesitas? Si te llevas caja completa ahorras $4 por cono."
+• Para cotizar: pide color(es) específico(s).
+
+ELÁSTICOS:
+• Beisbolero 2½\": se vende por METRO ($19/m). Rollo = 50 m = $950. Colores: Blanco, Negro.
+• Elásticos por ligas (3 a 30 ligas): precio por pieza de 50 cm. Blanco y Negro.
+• Jareta 3 cm y 4 cm: por CONO. Solo Blanco.
+• REGLA: para pedidos de 10+ piezas/metros pregunta si quieren mezcla de colores.
 
 ════════════════════════════════════════════════════════
-📦 REGLAS DE PRODUCTO
+🧠 INTELIGENCIA DE VENTAS
 ════════════════════════════════════════════════════════
-• Todo por kilo. Rollo = exactamente 25kg.
-• Menudeo: <25kg. Mayoreo: 25kg o más.
-• Precio rollo = mayoreo × 25. Siempre muéstralo calculado.
-• SIEMPRE empuja el rollo: el precio baja y el cliente tiene stock.
-• Rendimiento: metros por kilo según el producto (ver catálogo).
-• Convierte a piezas cuando el cliente lo necesita: kg × rendimiento / metros_por_prenda = piezas.
 
-🎨 COLORES (Micro Piqué / Piqué Vera / Micro Panal / Torneo):
-Blanco, ${COLORES_STOCK}
-• Siempre pregunta por color antes de cotizar estas 4 telas.
-• Si piden la carta: PEGA LA LISTA COMPLETA, nunca digas "te la mando".
-• Si piden blanco: confirma y menciona Perla, Hueso, Celeste, Gris baby, Rosa baby como alternativas.
+1. CALIFICACIÓN RÁPIDA:
+   • ¿Qué hace? (uniformes, confección, reventa, deporte)
+   • ¿Cuánto necesita? (kilos / piezas / metros)
+   • ¿Con qué frecuencia compra?
+   • Guarda: DATOS_CLIENTE|intereses:[uso]|categorias:[telas/hilos/elasticos]
+
+2. CROSS-SELLING POR CATEGORÍA:
+   • Pide tela deportiva → Sugiere hilo Kingtex del mismo color.
+   • Pide tela para pantalón/falda → Sugiere elástico jareta o beisbolero.
+   • Pide hilos → Pregunta si necesita tela o avíos complementarios.
+   • Pide elásticos → Pregunta si también necesita tela o hilo.
+   Frase: "Para ese trabajo también necesitarías [producto]. ¿Te cotizo el paquete completo?"
+
+3. MANEJO DE OBJECIONES:
+   • "Está caro" → Desglosar valor y rendimiento por prenda.
+   • "Lo voy a pensar" → Crear urgencia con stock o precio vigente.
+   • "Tengo otro proveedor" → Diferenciadores sin atacar.
+   • "No traigo dinero" → OXXO, cantidad menor, pago parcial.
+   Registra: DATOS_CLIENTE|notas:objecion_[tipo]
+
+4. UPSELLING:
+   • Telas <25 kg → empuja rollo completo.
+   • Hilos sueltos → empuja caja de 120.
+   • Elásticos pocas piezas → pregunta si necesita más.
+
+5. URGENCIA Y ESCASEZ (con honestidad):
+   • Stock limitado en colores específicos.
+   • Promos con vigencia.
+   • "Los precios se revisan mensualmente."
+
+6. CIERRE PROGRESIVO:
+   • Mini-cierres: "¿Con eso te armo la cotización o agregas algo más?"
+   • Asume siguiente paso: "¿Tarjeta u OXXO?"
+
+7. REACTIVACIÓN (>30 días sin comprar):
+   • "Oye ${perfil.nombre}, hace un rato que no pedías. ¿Cómo va el negocio? Tengo novedad."
+
+8. APRENDIZAJE CONTINUO:
+   • Guarda siempre: DATOS_CLIENTE|categorias:[lista]|etapa_abandono:[etapa]|notas:[razón]
+
+════════════════════════════════════════════════════════
+🗺️ FLUJO DE VENTA
+════════════════════════════════════════════════════════
+1. CALIFICAR → 2. COTIZAR (incluye cross-sell) → 3. DIRECCIÓN → 4. TOTAL CON ENVÍO → 5. FACTURA → 6. MÉTODO PAGO → 7. COBRO
 
 ════════════════════════════════════════════════════════
 ⚡ REGLA DE ACCIÓN INMEDIATA
@@ -792,68 +856,61 @@ ${config.infoPagos ? `\n💳 EXTRA PAGOS: ${config.infoPagos}` : ''}
 ${config.infoEnvios ? `\n🚚 EXTRA ENVÍOS: ${config.infoEnvios}` : ''}
 
 ════════════════════════════════════════════════════════
-🎯 CIERRE DE CONVERSACIÓN
+🎯 CIERRE
 ════════════════════════════════════════════════════════
 "${config.fraseCierre}"
 "${config.fraseIncondicional}"
 ${config.mensajePromoFinal ? `Y agrega: "${config.mensajePromoFinal}"` : ''}
 
 ════════════════════════════════════════════════════════
-💰 COMANDOS (internos, invisibles para el cliente)
+💰 COMANDOS INTERNOS (invisibles para el cliente)
 ════════════════════════════════════════════════════════
 COBRO: GENERAR_COBRO|metodo(tarjeta/oxxo)|monto_total|rfc|razon_social|cp_fiscal|regimen|uso
 Sin factura: GENERAR_COBRO|tarjeta|1500|NONE|NONE|NONE|NONE|NONE
 
-ENVÍO: CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345
+ENVÍO (para telas): CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345
+Nota: Para hilos y elásticos el envío es por Skydropx; usa CALCULAR_ENVIO con kg estimados.
 
-OTROS:
-GENERAR_REPORTE|tipo|formato
-ENVIAR_CAMPANA|segmento|mensaje
-PROGRAMAR_RECORDATORIO|telefono|fecha|mensaje
-REACTIVAR|telefono|etapa
+DATOS_CLIENTE|direccion:[dir]|cp_fiscal:[cp]|productos:[lista]|categorias:[telas/hilos/elasticos]|notas:[nota]|etapa_abandono:[etapa]|intereses:[uso]
+
 ESCALAR|descripcion
-
-DATOS CLIENTE (invisible):
-DATOS_CLIENTE|direccion:[dir]|cp_fiscal:[cp]|productos:[lista]|notas:[nota]|preferencias:[pref]|cumpleanos:[fecha]|etapa_abandono:[etapa]|intereses:[uso]
+PROGRAMAR_RECORDATORIO|telefono|fecha|mensaje
 
 ⚠️ CP ENVÍO ≠ CP FISCAL. NUNCA los mezcles.
-Si requiere factura frecuente, ofrécela proactivamente.
 
 ════════════════════════════════════════════════════════
-📋 CATÁLOGO ACTUAL
-════════════════════════════════════════════════════════
-${PRECIOS_ACTUALES}
-
-════════════════════════════════════════════════════════
-👤 PERFIL DEL CLIENTE EN ESTA CONVERSACIÓN
+👤 PERFIL DEL CLIENTE
 ════════════════════════════════════════════════════════
 ${resumenCliente}
 `;
 
   const CONTEXTO_JEFE = `
-ERES "EL COYOTE", LA IA DE COYOTE TEXTIL, Y ESTÁS HABLANDO CON JACK, TU CREADOR Y PATRÓN.
-Respuestas cortas. "A la orden Patrón", "Al 100 Jefe". Tono de cuate de confianza.
-IMPORTANTE: Aunque Jack cambie tu nombre en config, tú SIEMPRE eres El Coyote internamente.
+ERES "EL COYOTE", IA DE COYOTE TEXTIL. HABLAS CON JACK, TU CREADOR.
+Respuestas cortas. "A la orden Patrón". Tono cuate de confianza.
+Aunque Jack cambie tu nombre en config, SIEMPRE eres El Coyote internamente.
 
-Jack puede cambiar TODO tu comportamiento para TODOS los clientes.
-Cuando Jack da una instrucción global, usa los comandos al FINAL de tu respuesta.
+════════════════════════════════════════════════════════
+📦 GESTIÓN DE CATÁLOGO
+════════════════════════════════════════════════════════
+PRECIO_UPDATE|categoria(telas/hilos/elasticos)|nombre_producto|menudeo_o_mayoreo|numero
+PRODUCTO_NUEVO|categoria(telas/hilos/elasticos)|nombre|menudeo|mayoreo|descripcion|unidad
+PRODUCTO_ELIMINAR|categoria(telas/hilos/elasticos)|nombre
 
-═══════════════════════════════════════
-📦 PRECIOS Y CATÁLOGO
-═══════════════════════════════════════
-PRECIO_UPDATE|nombre_producto|menudeo_o_mayoreo|numero
-PRODUCTO_NUEVO|nombre|menudeo|mayoreo|descripcion
-PRODUCTO_ELIMINAR|nombre
+TELAS ACTUALES:
+${buildCatalogoTelas()}
 
-PRECIOS ACTUALES:
-${PRECIOS_ACTUALES}
+HILOS ACTUALES:
+${buildCatalogoHilos()}
 
-═══════════════════════════════════════
+ELÁSTICOS ACTUALES:
+${buildCatalogoElasticos()}
+
+════════════════════════════════════════════════════════
 🎛️ CONFIGURACIÓN GLOBAL
-═══════════════════════════════════════
-CONFIG|tono|Nueva descripción del tono completa
+════════════════════════════════════════════════════════
+CONFIG|tono|Nueva descripción del tono
 CONFIG|frasesHombre|señor, mi estimado.
-CONFIG|frasesMujer|señora, mi estimado.
+CONFIG|frasesMujer|señora, estimada.
 CONFIG|fraseCierre|Nueva frase de cierre
 CONFIG|fraseIncondicional|Nueva frase final
 CONFIG|emojis|🐺📦💪
@@ -862,8 +919,8 @@ CONFIG|agregarProhibida|frase prohibida
 CONFIG|quitarProhibida|frase a quitar
 CONFIG|instruccionEspecial|Nueva regla
 CONFIG|horario|Lunes a viernes 9-6pm
-CONFIG|infoPagos|Instrucción extra de pagos
-CONFIG|infoEnvios|Instrucción extra de envíos
+CONFIG|infoPagos|Instrucción extra
+CONFIG|infoEnvios|Instrucción extra
 CONFIG|mensajePromoFinal|Texto gancho
 
 BIENVENIDA_ADD|Texto completo
@@ -872,22 +929,18 @@ PROMO_ADD|Nombre|Descripción|Descuento|Vigencia
 PROMO_DEL|Nombre
 AVISO|Texto (o AVISO|BORRAR)
 
-═══════════════════════════════════════
-📢 MENSAJES Y CAMPAÑAS
-═══════════════════════════════════════
+════════════════════════════════════════════════════════
+📢 MENSAJES Y REPORTES
+════════════════════════════════════════════════════════
 SEND_MSG|5521XXXXXXXX|Mensaje
 ENVIAR_CAMPANA|segmento(todos/activos/inactivos)|mensaje
 PROGRAMAR_RECORDATORIO|telefono|fecha|mensaje
-
-═══════════════════════════════════════
-📊 REPORTES
-═══════════════════════════════════════
 GENERAR_REPORTE|tipo(diario/semanal/mensual)|formato(texto/json)
 
-═══════════════════════════════════════
+════════════════════════════════════════════════════════
 📋 CONFIG ACTUAL
-═══════════════════════════════════════
-Nombre: ${config.nombreBot} (pero soy El Coyote siempre)
+════════════════════════════════════════════════════════
+Nombre: ${config.nombreBot}
 Tono: ${config.tono}
 Tratamiento hombre: ${config.frasesDesignacionHombre.join(', ')}
 Tratamiento mujer: ${config.frasesDesignacionMujer.join(', ')}
@@ -897,7 +950,6 @@ Horario: ${config.horarioAtencion}
 Aviso general: ${config.avisoGeneral || 'ninguno'}
 Instrucciones especiales: ${config.instruccionesEspeciales || 'ninguna'}
 Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.map(p => p.nombre).join(', ') : 'ninguna'}
-Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 Última actualización: ${config.ultimaActualizacion}
 `;
 
@@ -916,32 +968,33 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
     console.log(`✅ GPT-4o respondió (${respuesta.length} chars)`);
   } catch (err) {
     console.error('❌ Error llamando a OpenAI:', err);
-    await enviarWhatsapp(tel, '🐺 Ando con problemas técnicos un momento, patrón. Dame un segundo y vuelvo al 100.');
+    await enviarWhatsapp(tel, '🐺 Ando con problemas técnicos un momento. Dame un segundo y vuelvo al 100.');
     return;
   }
 
+  // 🛡️ Filtro identidad
   const frasesSinIdentidad = [
     /\bsoy una ia\b/i, /\bsoy un bot\b/i, /\basistente virtual\b/i,
     /\bcomo asistente de ia\b/i, /\bcomo ia\b/i, /\bchatgpt\b/i, /\bgpt\b/i,
   ];
   for (const patron of frasesSinIdentidad) {
-    if (patron.test(respuesta)) {
-      respuesta = respuesta.replace(patron, 'El Coyote de Coyote Textil');
-    }
+    if (patron.test(respuesta)) respuesta = respuesta.replace(patron, 'El Coyote de Coyote Textil');
   }
 
+  // 📊 PROCESAR DATOS_CLIENTE
   const matchDatos = respuesta.match(/DATOS_CLIENTE\|(.+)/);
   if (matchDatos) {
     respuesta = respuesta.replace(/DATOS_CLIENTE\|.+/g, '').trim();
     const partes = matchDatos[1];
-    const dirM     = partes.match(/direccion:([^|]+)/);
-    const cpFiscM  = partes.match(/cp_fiscal:([^|]+)/);
-    const prodM    = partes.match(/productos:([^|]+)/);
-    const notasM   = partes.match(/notas:([^|]+)/);
-    const prefM    = partes.match(/preferencias:([^|]+)/);
-    const cumpleM  = partes.match(/cumpleanos:([^|]+)/);
-    const etapaM   = partes.match(/etapa_abandono:([^|]+)/);
-    const interesM = partes.match(/intereses:([^|]+)/);
+    const dirM      = partes.match(/direccion:([^|]+)/);
+    const cpFiscM   = partes.match(/cp_fiscal:([^|]+)/);
+    const prodM     = partes.match(/productos:([^|]+)/);
+    const catM      = partes.match(/categorias:([^|]+)/);
+    const notasM    = partes.match(/notas:([^|]+)/);
+    const prefM     = partes.match(/preferencias:([^|]+)/);
+    const cumpleM   = partes.match(/cumpleanos:([^|]+)/);
+    const etapaM    = partes.match(/etapa_abandono:([^|]+)/);
+    const interesM  = partes.match(/intereses:([^|]+)/);
 
     if (dirM?.[1]?.trim())    perfil.direccionEnvio = dirM[1].trim();
     if (cpFiscM?.[1]?.trim()) perfil.cpFiscal       = cpFiscM[1].trim();
@@ -950,11 +1003,15 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       perfil.productosComprados = [...new Set([...perfil.productosComprados, ...nuevos])];
       perfil.productosFavoritos = [...new Set([...(perfil.productosFavoritos || []), ...nuevos])];
     }
+    if (catM?.[1]?.trim()) {
+      const nuevasCats = catM[1].trim().split(',').map((s: string) => s.trim()).filter(Boolean);
+      perfil.categoriasPedidas = [...new Set([...(perfil.categoriasPedidas || []), ...nuevasCats])];
+    }
     if (notasM?.[1]?.trim()) {
       const nota = notasM[1].trim();
       if (nota.startsWith('objecion_')) {
-        const tipoObjecion = nota.replace('objecion_', '');
-        perfil.objecionesComunes = [...new Set([...(perfil.objecionesComunes || []), tipoObjecion])];
+        const tipo = nota.replace('objecion_', '');
+        perfil.objecionesComunes = [...new Set([...(perfil.objecionesComunes || []), tipo])];
       } else {
         perfil.notas = nota;
       }
@@ -972,29 +1029,47 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
     await saveCliente(redis, tel, perfil);
   }
 
+  // ==========================================
+  // 👑 COMANDOS DEL JEFE
+  // ==========================================
   if (esElJefe) {
-    const matchPrecio = respuesta.match(/PRECIO_UPDATE\|(.+?)\|(.+?)\|(\d+)/);
+
+    // Precio update — ahora con categoría
+    const matchPrecio = respuesta.match(/PRECIO_UPDATE\|(.+?)\|(.+?)\|(.+?)\|(\d+)/);
     if (matchPrecio) {
-      const [, prod, campo, precio] = matchPrecio;
-      const ok = await actualizarPrecio(redis, prod.trim().toLowerCase(), campo.trim().toLowerCase() as 'menudeo' | 'mayoreo', parseInt(precio));
+      const [, cat, prod, campo, precio] = matchPrecio;
+      const ok = await actualizarPrecio(
+        redis,
+        cat.trim().toLowerCase() as BodegaCategoria,
+        prod.trim().toLowerCase(),
+        campo.trim().toLowerCase() as 'menudeo' | 'mayoreo',
+        parseInt(precio)
+      );
       respuesta = respuesta.replace(/PRECIO_UPDATE\|.+/g, '').trim();
-      respuesta += ok ? `\n✅ Precio de ${prod} actualizado.` : `\n⚠️ No encontré ese producto, Patrón.`;
+      respuesta += ok ? `\n✅ Precio de ${prod} (${cat}) actualizado.` : `\n⚠️ No encontré ese producto en ${cat}.`;
     }
 
-    const matchProdNuevo = respuesta.match(/PRODUCTO_NUEVO\|([^|]+)\|(\d+)\|(\d+)\|(.+)/);
+    // Producto nuevo — ahora con categoría y unidad
+    const matchProdNuevo = respuesta.match(/PRODUCTO_NUEVO\|([^|]+)\|([^|]+)\|(\d+)\|(\d+)\|([^|]+)\|?(.+)?/);
     if (matchProdNuevo) {
-      const [, nombre, menudeo, mayoreo, desc] = matchProdNuevo;
-      await agregarProducto(redis, nombre.trim(), parseInt(menudeo), parseInt(mayoreo), desc.trim());
+      const [, cat, nombre, menudeo, mayoreo, desc, unidad] = matchProdNuevo;
+      await agregarProducto(
+        redis,
+        cat.trim().toLowerCase() as BodegaCategoria,
+        nombre.trim(), parseInt(menudeo), parseInt(mayoreo),
+        desc.trim(), unidad?.trim()
+      );
       respuesta = respuesta.replace(/PRODUCTO_NUEVO\|.+/g, '').trim();
-      respuesta += `\n✅ Producto "${nombre.trim()}" agregado al catálogo.`;
+      respuesta += `\n✅ Producto "${nombre.trim()}" agregado a ${cat.trim()}.`;
     }
 
-    const matchProdElim = respuesta.match(/PRODUCTO_ELIMINAR\|(.+)/);
+    // Producto eliminar — ahora con categoría
+    const matchProdElim = respuesta.match(/PRODUCTO_ELIMINAR\|([^|]+)\|(.+)/);
     if (matchProdElim) {
-      const [, nombre] = matchProdElim;
-      const ok = await eliminarProducto(redis, nombre.trim());
+      const [, cat, nombre] = matchProdElim;
+      const ok = await eliminarProducto(redis, cat.trim().toLowerCase() as BodegaCategoria, nombre.trim());
       respuesta = respuesta.replace(/PRODUCTO_ELIMINAR\|.+/g, '').trim();
-      respuesta += ok ? `\n✅ Producto "${nombre.trim()}" eliminado.` : `\n⚠️ No encontré ese producto.`;
+      respuesta += ok ? `\n✅ Producto "${nombre.trim()}" eliminado de ${cat.trim()}.` : `\n⚠️ No encontré ese producto.`;
     }
 
     const matchConfig = respuesta.match(/CONFIG\|([^|]+)\|(.+)/);
@@ -1003,67 +1078,31 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       respuesta = respuesta.replace(/CONFIG\|[^|]+\|.+/g, '').trim();
       const cfg = await getConfigBot(redis);
       const campoLower = campo.trim().toLowerCase();
-
-      if (campoLower === 'nombrebot') {
-        cfg.nombreBot = valor.trim();
-        respuesta += `\n✅ Config de nombre guardada. Pero recuerda: internamente siempre soy El Coyote. 🐺`;
-      } else if (campoLower === 'tono') {
-        cfg.tono = valor.trim();
-        respuesta += `\n✅ Tono actualizado.`;
-      } else if (campoLower === 'fraseshombre') {
-        cfg.frasesDesignacionHombre = valor.trim().split(',').map(s => s.trim());
-        respuesta += `\n✅ Tratamiento hombres: ${cfg.frasesDesignacionHombre.join(', ')}.`;
-      } else if (campoLower === 'frasesmujer') {
-        cfg.frasesDesignacionMujer = valor.trim().split(',').map(s => s.trim());
-        respuesta += `\n✅ Tratamiento mujeres: ${cfg.frasesDesignacionMujer.join(', ')}.`;
-      } else if (campoLower === 'frasescierre' || campoLower === 'frasecierre') {
-        cfg.fraseCierre = valor.trim();
-        respuesta += `\n✅ Frase de cierre actualizada.`;
-      } else if (campoLower === 'fraseincondicional') {
-        cfg.fraseIncondicional = valor.trim();
-        respuesta += `\n✅ Frase final actualizada.`;
-      } else if (campoLower === 'emojis') {
-        cfg.emojisPrincipales = valor.trim();
-        respuesta += `\n✅ Emojis actualizados: ${valor.trim()}`;
-      } else if (campoLower === 'maxlineas') {
-        cfg.maximoLineasRespuesta = parseInt(valor.trim()) || 4;
-        respuesta += `\n✅ Límite de líneas: ${cfg.maximoLineasRespuesta}.`;
-      } else if (campoLower === 'agregarprohibida') {
-        cfg.fraseProhibidas.push(valor.trim());
-        respuesta += `\n✅ Frase prohibida: "${valor.trim()}"`;
-      } else if (campoLower === 'quitarprohibida') {
-        cfg.fraseProhibidas = cfg.fraseProhibidas.filter(f => !f.toLowerCase().includes(valor.trim().toLowerCase()));
-        respuesta += `\n✅ Frase prohibida eliminada.`;
-      } else if (campoLower === 'instruccionespecial') {
-        cfg.instruccionesEspeciales = cfg.instruccionesEspeciales
-          ? `${cfg.instruccionesEspeciales}\n- ${valor.trim()}`
-          : `- ${valor.trim()}`;
-        respuesta += `\n✅ Regla especial agregada.`;
-      } else if (campoLower === 'horario') {
-        cfg.horarioAtencion = valor.trim();
-        respuesta += `\n✅ Horario: ${valor.trim()}`;
-      } else if (campoLower === 'infopagos') {
-        cfg.infoPagos = valor.trim();
-        respuesta += `\n✅ Info extra de pagos actualizada.`;
-      } else if (campoLower === 'infoenvios') {
-        cfg.infoEnvios = valor.trim();
-        respuesta += `\n✅ Info extra de envíos actualizada.`;
-      } else if (campoLower === 'mensajepromofinal') {
-        cfg.mensajePromoFinal = valor.trim();
-        respuesta += `\n✅ Promo de cierre actualizada.`;
-      } else {
-        respuesta += `\n⚠️ Campo "${campo}" no reconocido.`;
-      }
+      if (campoLower === 'nombrebot') { cfg.nombreBot = valor.trim(); respuesta += `\n✅ Nombre guardado.`; }
+      else if (campoLower === 'tono') { cfg.tono = valor.trim(); respuesta += `\n✅ Tono actualizado.`; }
+      else if (campoLower === 'fraseshombre') { cfg.frasesDesignacionHombre = valor.trim().split(',').map(s => s.trim()); respuesta += `\n✅ Tratamiento hombres actualizado.`; }
+      else if (campoLower === 'frasesmujer') { cfg.frasesDesignacionMujer = valor.trim().split(',').map(s => s.trim()); respuesta += `\n✅ Tratamiento mujeres actualizado.`; }
+      else if (campoLower === 'frasecierre' || campoLower === 'frasescierre') { cfg.fraseCierre = valor.trim(); respuesta += `\n✅ Frase cierre actualizada.`; }
+      else if (campoLower === 'fraseincondicional') { cfg.fraseIncondicional = valor.trim(); respuesta += `\n✅ Frase final actualizada.`; }
+      else if (campoLower === 'emojis') { cfg.emojisPrincipales = valor.trim(); respuesta += `\n✅ Emojis: ${valor.trim()}`; }
+      else if (campoLower === 'maxlineas') { cfg.maximoLineasRespuesta = parseInt(valor.trim()) || 4; respuesta += `\n✅ Límite: ${cfg.maximoLineasRespuesta} líneas.`; }
+      else if (campoLower === 'agregarprohibida') { cfg.fraseProhibidas.push(valor.trim()); respuesta += `\n✅ Frase prohibida agregada.`; }
+      else if (campoLower === 'quitarprohibida') { cfg.fraseProhibidas = cfg.fraseProhibidas.filter(f => !f.toLowerCase().includes(valor.trim().toLowerCase())); respuesta += `\n✅ Frase prohibida eliminada.`; }
+      else if (campoLower === 'instruccionespecial') { cfg.instruccionesEspeciales = cfg.instruccionesEspeciales ? `${cfg.instruccionesEspeciales}\n- ${valor.trim()}` : `- ${valor.trim()}`; respuesta += `\n✅ Regla especial agregada.`; }
+      else if (campoLower === 'horario') { cfg.horarioAtencion = valor.trim(); respuesta += `\n✅ Horario: ${valor.trim()}`; }
+      else if (campoLower === 'infopagos') { cfg.infoPagos = valor.trim(); respuesta += `\n✅ Info pagos actualizada.`; }
+      else if (campoLower === 'infoenvios') { cfg.infoEnvios = valor.trim(); respuesta += `\n✅ Info envíos actualizada.`; }
+      else if (campoLower === 'mensajepromofinal') { cfg.mensajePromoFinal = valor.trim(); respuesta += `\n✅ Promo final actualizada.`; }
+      else { respuesta += `\n⚠️ Campo "${campo}" no reconocido.`; }
       cfg.actualizadoPor = 'Jack (El Patrón)';
       await saveConfigBot(redis, cfg);
     }
 
     const matchBienvenidaAdd = respuesta.match(/BIENVENIDA_ADD\|(.+)/);
     if (matchBienvenidaAdd) {
-      const [, texto] = matchBienvenidaAdd;
       respuesta = respuesta.replace(/BIENVENIDA_ADD\|.+/g, '').trim();
       const cfg = await getConfigBot(redis);
-      cfg.frasesBienvenida.push(texto.trim());
+      cfg.frasesBienvenida.push(matchBienvenidaAdd[1].trim());
       cfg.actualizadoPor = 'Jack (El Patrón)';
       await saveConfigBot(redis, cfg);
       respuesta += `\n✅ Bienvenida agregada. Total: ${cfg.frasesBienvenida.length} versiones.`;
@@ -1071,10 +1110,9 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 
     const matchBienvenidaReplace = respuesta.match(/BIENVENIDA_REPLACE\|(.+)/);
     if (matchBienvenidaReplace) {
-      const [, texto] = matchBienvenidaReplace;
       respuesta = respuesta.replace(/BIENVENIDA_REPLACE\|.+/g, '').trim();
       const cfg = await getConfigBot(redis);
-      cfg.frasesBienvenida = [texto.trim()];
+      cfg.frasesBienvenida = [matchBienvenidaReplace[1].trim()];
       cfg.actualizadoPor = 'Jack (El Patrón)';
       await saveConfigBot(redis, cfg);
       respuesta += `\n✅ Bienvenida única reemplazada.`;
@@ -1082,13 +1120,12 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 
     const matchAviso = respuesta.match(/AVISO\|(.+)/);
     if (matchAviso) {
-      const [, texto] = matchAviso;
       respuesta = respuesta.replace(/AVISO\|.+/g, '').trim();
       const cfg = await getConfigBot(redis);
-      cfg.avisoGeneral = texto.trim() === 'BORRAR' ? '' : texto.trim();
+      cfg.avisoGeneral = matchAviso[1].trim() === 'BORRAR' ? '' : matchAviso[1].trim();
       cfg.actualizadoPor = 'Jack (El Patrón)';
       await saveConfigBot(redis, cfg);
-      respuesta += texto.trim() === 'BORRAR' ? `\n✅ Aviso borrado.` : `\n✅ Aviso activado para todos.`;
+      respuesta += matchAviso[1].trim() === 'BORRAR' ? `\n✅ Aviso borrado.` : `\n✅ Aviso activado.`;
     }
 
     const matchPromoAdd = respuesta.match(/PROMO_ADD\|([^|]+)\|([^|]+)\|([^|]+)\|(.+)/);
@@ -1104,13 +1141,12 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 
     const matchPromoDel = respuesta.match(/PROMO_DEL\|(.+)/);
     if (matchPromoDel) {
-      const [, nombre] = matchPromoDel;
       respuesta = respuesta.replace(/PROMO_DEL\|.+/g, '').trim();
       const cfg = await getConfigBot(redis);
-      cfg.promocionesActivas = cfg.promocionesActivas.filter(p => !p.nombre.toLowerCase().includes(nombre.trim().toLowerCase()));
+      cfg.promocionesActivas = cfg.promocionesActivas.filter(p => !p.nombre.toLowerCase().includes(matchPromoDel[1].trim().toLowerCase()));
       cfg.actualizadoPor = 'Jack (El Patrón)';
       await saveConfigBot(redis, cfg);
-      respuesta += `\n✅ Promoción "${nombre.trim()}" desactivada.`;
+      respuesta += `\n✅ Promoción desactivada.`;
     }
 
     const matchMsj = respuesta.match(/SEND_MSG\|([^|]+)\|(.+)/);
@@ -1122,20 +1158,20 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       respuesta += ok ? `\n✅ Mensaje disparado al ${targetNum}.` : `\n⚠️ Meta rechazó el envío.`;
     }
 
-    const matchReporte = respuesta.match(/GENERAR_REPORTE\|(.+?)\|(.+)/);
-    if (matchReporte) {
+    if (/GENERAR_REPORTE\|/.test(respuesta)) {
       respuesta = respuesta.replace(/GENERAR_REPORTE\|.+/g, '').trim();
       respuesta += `\n📊 Reporte generado.`;
     }
 
-    const matchCampana = respuesta.match(/ENVIAR_CAMPANA\|(.+?)\|(.+)/);
-    if (matchCampana) {
-      const [, segmento, mensaje] = matchCampana;
+    if (/ENVIAR_CAMPANA\|/.test(respuesta)) {
       respuesta = respuesta.replace(/ENVIAR_CAMPANA\|.+/g, '').trim();
-      respuesta += `\n📢 Campaña a "${segmento}": "${mensaje}" (ejecutada).`;
+      respuesta += `\n📢 Campaña ejecutada.`;
     }
 
   } else {
+    // ==========================================
+    // 🛒 COMANDOS DEL CLIENTE
+    // ==========================================
 
     const matchEnvio = respuesta.match(/CALCULAR_ENVIO\|productos=\[(.+?)\]\|cp=(.+)/i);
     if (matchEnvio) {
@@ -1148,12 +1184,6 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
       } catch (e) {
         respuesta += `\n\n⚠️ No pude calcular el envío. Dame el CP y los kilos de nuevo.`;
       }
-    }
-
-    const matchReactivar = respuesta.match(/REACTIVAR\|(.+?)\|(.+)/i);
-    if (matchReactivar) {
-      respuesta = respuesta.replace(/REACTIVAR\|.+/g, '').trim();
-      respuesta += `\n🔄 Reactivación iniciada.`;
     }
 
     const matchRecordatorio = respuesta.match(/PROGRAMAR_RECORDATORIO\|(.+?)\|(.+?)\|(.+)/i);
@@ -1215,37 +1245,24 @@ Frases prohibidas: ${config.fraseProhibidas.join(' | ')}
 // 🚦 ROUTER PRINCIPAL
 // ==========================================
 export async function POST(req: Request) {
-  // ✅ Leer el body UNA SOLA VEZ aquí arriba
   const rawBody = await req.text();
-
   console.log(`\n🚀 POST recibido — ${new Date().toISOString()}`);
-  console.log(`   Content-Type: ${req.headers.get('content-type')}`);
   console.log(`   Stripe-Signature: ${req.headers.get('stripe-signature') ? 'PRESENTE' : 'AUSENTE'}`);
   console.log(`   Body length: ${rawBody.length} chars`);
-  console.log(`   Body preview: ${rawBody.slice(0, 200)}`);
 
   try {
     const signature = req.headers.get('stripe-signature');
-
-    // ── STRIPE ──────────────────────────────────────
     if (signature) {
       console.log('💳 Procesando webhook Stripe...');
       return await handleStripeWebhook(rawBody, signature);
     }
 
-    // ── WHATSAPP ─────────────────────────────────────
     let body: any;
-    try {
-      body = JSON.parse(rawBody);
-    } catch (e) {
+    try { body = JSON.parse(rawBody); }
+    catch (e) {
       console.error('❌ JSON inválido:', rawBody.slice(0, 500));
       return NextResponse.json({ error: 'JSON Invalido' }, { status: 400 });
     }
-
-    console.log(`   Parsed body keys: ${Object.keys(body).join(', ')}`);
-
-    const esWhatsapp = Array.isArray(body.entry) &&
-      body.entry[0]?.changes?.[0]?.value?.messages;
 
     const esStatusUpdate = Array.isArray(body.entry) &&
       body.entry[0]?.changes?.[0]?.value?.statuses &&
@@ -1256,13 +1273,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true }, { status: 200 });
     }
 
+    const esWhatsapp = Array.isArray(body.entry) && body.entry[0]?.changes?.[0]?.value?.messages;
     if (esWhatsapp) {
-      console.log('💬 Es mensaje de WhatsApp. Procesando...');
-      try {
-        await handleWhatsappWebhook(body);
-      } catch (err) {
-        console.error('❌ Error en handleWhatsappWebhook:', err);
-      }
+      console.log('💬 Mensaje WhatsApp. Procesando...');
+      try { await handleWhatsappWebhook(body); }
+      catch (err) { console.error('❌ Error en handleWhatsappWebhook:', err); }
       return NextResponse.json({ ok: true }, { status: 200 });
     }
 
@@ -1281,12 +1296,9 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   console.log('🔍 GET de verificación Meta recibido');
   const { searchParams } = new URL(req.url);
-  const mode = searchParams.get('hub.mode');
-  const token = searchParams.get('hub.verify_token');
+  const mode      = searchParams.get('hub.mode');
+  const token     = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
-
-  console.log(`   Mode: ${mode} | Token match: ${token === process.env.WHATSAPP_VERIFY_TOKEN} | Challenge: ${challenge}`);
-
   if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
     console.log('✅ Verificación Meta exitosa');
     return new NextResponse(challenge, { status: 200 });

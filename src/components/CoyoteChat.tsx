@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 // BASE DE CONOCIMIENTO COMPLETA DE PRODUCTOS
 // ============================================================
 const PRODUCTOS = [
+  // --- TELAS ---
   { id:"prod_alaska", nombre:"Alaska", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:175, precio_mayoreo:170, unidad:"Kilo", descripcion:"Tela deportiva especializada para sublimación de alta definición. Color único blanco.", origen:"Importado" },
   { id:"prod_andromeda", nombre:"Andromeda", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Tela deportiva para sublimación de alta definición.", origen:"Importado" },
   { id:"prod_apolo", nombre:"Apolo", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"150g/m²", ancho:"1.60m", rendimiento:"3.7 m/kg", precio_menudeo:160, precio_mayoreo:155, unidad:"Kilo", descripcion:"Resistencia superior a la abrasión y el pilling.", origen:"Importado" },
@@ -16,26 +17,26 @@ const PRODUCTOS = [
   { id:"prod_capriati", nombre:"Capriati", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:135, precio_mayoreo:130, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
   { id:"prod_caprice", nombre:"Caprice", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:140, precio_mayoreo:135, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
   { id:"prod_delta", nombre:"Delta", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:175, precio_mayoreo:170, unidad:"Kilo", descripcion:"Tela deportiva premium para sublimación.", origen:"Importado" },
-  { id:"prod_diablo", nombre:"Diablo", categoria:"Telas Técnicas", composicion:"100% Nylon Alta Tenacidad", gramaje:"220g/m²", ancho:"1.50m", rendimiento:"1 m/metro", precio_menudeo:88, precio_mayoreo:83, unidad:"Metro", descripcion:"Uso rudo absoluto. Resistente a la abrasión, ideal para equipo táctico y calzado. Disponible en: Perla, Marino, Vino, Blanco, Azul Rey, Rojo, Negro, Oxford.", origen:"Importado", rollo_metros:50, colores:["Perla","Marino","Vino","Blanco","Azul Rey","Rojo","Negro","Oxford"] },
+  { id:"prod_diablo", nombre:"Diablo", categoria:"Telas Técnicas", composicion:"100% Nylon Alta Tenacidad", gramaje:"220g/m²", ancho:"1.50m", rendimiento:"1 m/metro", precio_menudeo:88, precio_mayoreo:83, unidad:"Metro", descripcion:"Uso rudo absoluto. Resistente a la abrasión, ideal para equipo táctico y calzado.", origen:"Importado", rollo_metros:50, colores:["Perla","Marino","Vino","Blanco","Azul Rey","Rojo","Negro","Oxford"] },
   { id:"prod_f30", nombre:"F30", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:135, precio_mayoreo:130, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
-  { id:"prod_felpa_china", nombre:"Felpa China", categoria:"Línea Invernal", composicion:"50% Algodón / 50% Poliéster", gramaje:"280g/m²", ancho:"1.60m", rendimiento:"2.2 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kilo", descripcion:"Ideal para sudaderas, pants y ropa deportiva de invierno. Cara lisa y reverso afelpado. Colores: Marino, Negro, Blanco, Azul Rey, Vino, Rojo, Jaspe Perla, Oxford Jaspe.", origen:"Importado", rollo_kg:25, colores:["Marino","Negro","Blanco","Azul Rey","Vino","Rojo","Jaspe Perla","Oxford Jaspe"] },
-  { id:"prod_felpa_spun", nombre:"Felpa Spun", categoria:"Línea Invernal", composicion:"100% Poliéster", gramaje:"280g/m²", ancho:"1.90m", rendimiento:"2.5 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kg", descripcion:"Tejido de alto volumen y suavidad excepcional para sudaderas premium. Colores: Blanco, Rojo, Marino, Negro, Azul Rey, Vino.", origen:"Importado", rollo_kg:25, colores:["Blanco","Rojo","Marino","Negro","Azul Rey","Vino"] },
-  { id:"prod_flanel", nombre:"Flanel", categoria:"Línea Invernal", composicion:"100% Poliéster", gramaje:"260g/m²", ancho:"1.60m", rendimiento:"2.4 m/kg", precio_menudeo:125, precio_mayoreo:120, unidad:"Kilo", descripcion:"Ultra suave, afelpado y ligero. Ideal para pijamas, cobijas, sudaderas y ropa de descanso premium. Colores: Blanco, Vino, Marino, Negro, Fiusha, Palo Rosa, Rosa Pastel, Azul Rey, Naranja, Rojo.", origen:"Importado", rollo_kg:27, colores:["Blanco","Vino","Marino","Negro","Fiusha","Palo Rosa","Rosa Pastel","Azul Rey","Naranja","Rojo"] },
+  { id:"prod_felpa_china", nombre:"Felpa China", categoria:"Línea Invernal", composicion:"50% Algodón / 50% Poliéster", gramaje:"280g/m²", ancho:"1.60m", rendimiento:"2.2 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kilo", descripcion:"Ideal para sudaderas, pants y ropa deportiva de invierno. Cara lisa y reverso afelpado.", origen:"Importado", rollo_kg:25, colores:["Marino","Negro","Blanco","Azul Rey","Vino","Rojo","Jaspe Perla","Oxford Jaspe"] },
+  { id:"prod_felpa_spun", nombre:"Felpa Spun", categoria:"Línea Invernal", composicion:"100% Poliéster", gramaje:"280g/m²", ancho:"1.90m", rendimiento:"2.5 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kg", descripcion:"Tejido de alto volumen y suavidad excepcional para sudaderas premium.", origen:"Importado", rollo_kg:25, colores:["Blanco","Rojo","Marino","Negro","Azul Rey","Vino"] },
+  { id:"prod_flanel", nombre:"Flanel", categoria:"Línea Invernal", composicion:"100% Poliéster", gramaje:"260g/m²", ancho:"1.60m", rendimiento:"2.4 m/kg", precio_menudeo:125, precio_mayoreo:120, unidad:"Kilo", descripcion:"Ultra suave, afelpado y ligero. Ideal para pijamas, cobijas, sudaderas.", origen:"Importado", rollo_kg:27, colores:["Blanco","Vino","Marino","Negro","Fiusha","Palo Rosa","Rosa Pastel","Azul Rey","Naranja","Rojo"] },
   { id:"prod_granizo", nombre:"Granizo", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:115, precio_mayoreo:110, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
   { id:"prod_horous", nombre:"Horous", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.2 m/kg", precio_menudeo:160, precio_mayoreo:155, unidad:"Kilo", descripcion:"Diseño vanguardista para moda deportiva urbana.", origen:"Importado" },
   { id:"prod_inter_70", nombre:"Inter 70", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:140, precio_mayoreo:135, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
-  { id:"prod_jumanji", nombre:"Jumanji", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:145, precio_mayoreo:140, unidad:"Kilo", descripcion:"Alta elasticidad y recuperación para prendas ajustadas y de alto impacto.", origen:"Importado" },
+  { id:"prod_jumanji", nombre:"Jumanji", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:145, precio_mayoreo:140, unidad:"Kilo", descripcion:"Alta elasticidad y recuperación para prendas ajustadas.", origen:"Importado" },
   { id:"prod_kyoto", nombre:"Kyoto", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Acabado premium con tacto seda y caída espectacular.", origen:"Importado" },
   { id:"prod_licra_liluna", nombre:"Licra Liluna", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:135, precio_mayoreo:130, unidad:"Kilo", descripcion:"Alta elasticidad para prendas ajustadas.", origen:"Importado" },
   { id:"prod_licra_playera", nombre:"Licra Playera", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:130, precio_mayoreo:125, unidad:"Kilo", descripcion:"Alta elasticidad para prendas ajustadas.", origen:"Importado" },
-  { id:"prod_licra_poliester", nombre:"Licra Poliéster", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:145, precio_mayoreo:140, unidad:"Kilo", descripcion:"Alta elasticidad. Colores: Blanco, Negro, Rojo, Rey, Marino.", origen:"Importado", colores:["Blanco","Negro","Rojo","Rey","Marino"] },
-  { id:"prod_licra_saludable", nombre:"Licra Saludable", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:140, precio_mayoreo:135, unidad:"Kilo", descripcion:"Alta elasticidad. Colores: Blanco, Negro, Rojo, Rey, Marino, Militar, Perla Jaspe, Oxford Jaspe.", origen:"Importado", colores:["Blanco","Negro","Rojo","Rey","Marino","Militar","Perla Jaspe","Oxford Jaspe"] },
-  { id:"lycra_metalica", nombre:"Lycra Metálica", categoria:"Deportivo / Licra", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"1 m/metro", precio_menudeo:50, precio_mayoreo:45, unidad:"Metro", descripcion:"Licra metálica brillante para prendas deportivas, escénicas, disfraces. 13 colores metálicos disponibles.", origen:"Importado", rollo_metros:98, colores:["Oro Metálico","Plata Metálica","Naranja Metálico","Rojo Metálico","Azul Rey Metálico","Turquesa Metálico","Perla Metálico","Verde Bandera Metálico","Verde Manzana Metálico","Rosa Pastel Metálico","Fiucha Metálico","Blanco Metálico","Negro Metálico"] },
+  { id:"prod_licra_poliester", nombre:"Licra Poliéster", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:145, precio_mayoreo:140, unidad:"Kilo", descripcion:"Alta elasticidad.", origen:"Importado", colores:["Blanco","Negro","Rojo","Rey","Marino"] },
+  { id:"prod_licra_saludable", nombre:"Licra Saludable", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:140, precio_mayoreo:135, unidad:"Kilo", descripcion:"Alta elasticidad.", origen:"Importado", colores:["Blanco","Negro","Rojo","Rey","Marino","Militar","Perla Jaspe","Oxford Jaspe"] },
+  { id:"lycra_metalica", nombre:"Lycra Metálica", categoria:"Deportivo / Licra", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"1 m/metro", precio_menudeo:50, precio_mayoreo:45, unidad:"Metro", descripcion:"Licra metálica brillante para prendas deportivas, escénicas, disfraces.", origen:"Importado", rollo_metros:98, colores:["Oro Metálico","Plata Metálica","Naranja Metálico","Rojo Metálico","Azul Rey Metálico","Turquesa Metálico","Perla Metálico","Verde Bandera Metálico","Verde Manzana Metálico","Rosa Pastel Metálico","Fiucha Metálico","Blanco Metálico","Negro Metálico"] },
   { id:"prod_madelino", nombre:"Madelino", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
   { id:"prod_mercury", nombre:"Mercury", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:160, precio_mayoreo:155, unidad:"Kilo", descripcion:"Alta elasticidad para prendas ajustadas y de alto impacto.", origen:"Importado" },
   { id:"prod_micro_estrella", nombre:"Micro Estrella", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:145, precio_mayoreo:140, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
-  { id:"prod_micro_panal", nombre:"Micro Panal", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kilo", descripcion:"Estructura de panal para máxima transpiración. +38 colores disponibles.", origen:"Importado", colores:["Blanco","Camel","Mostaza","Oro Viejo","Verde Neón","Amarillo Neón","Turquesa","Aqua","Militar","Botella","Bandera","Menta","Cielo","Vino","Lila","Naranja","Gris Baby","Uva","Petróleo","Palo de Rosa","Rosa Baby","Magenta","Rosa Pastel","Fiusha","Rosa Neón","Light Blue","Azul Rey","Navy Blue","Oxford","Medio","Perla","Mango","Canario","Caqui","Negro","Rojo","Rey","Azul Francia"] },
-  { id:"prod_micropique", nombre:"Micro Piqué", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:100, precio_mayoreo:95, unidad:"Kilo", descripcion:"Tecnología Dry-Fit Calidad Gold. Ideal para uniformes deportivos. +38 colores.", origen:"Importado", colores:["Light Navy","Blanco","Gris Perla","Navy Dark Blue","Menta","Fiusha","Caqui","Uva M","Azul Acero","Vino","Beige","Camel","Gris Medio","Oxford","Militar","Rosa Baby","Amarillo Canario","Petróleo","Rosa Palo","Cielo","Mango","Turquesa","Azul Francia","Uva","Bugambilia","Oro Viejo","Mostaza","Azul Rey","Navy Blue","Naranja Neón","Naranja","Rosa Neón","Amarillo","Verde Neón","Negro","Verde Bandera","Verde Botella","Rojo"] },
+  { id:"prod_micro_panal", nombre:"Micro Panal", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kilo", descripcion:"Estructura de panal para máxima transpiración.", origen:"Importado", colores:["Blanco","Camel","Mostaza","Oro Viejo","Verde Neón","Amarillo Neón","Turquesa","Aqua","Militar","Botella","Bandera","Menta","Cielo","Vino","Lila","Naranja","Gris Baby","Uva","Petróleo","Palo de Rosa","Rosa Baby","Magenta","Rosa Pastel","Fiusha","Rosa Neón","Light Blue","Azul Rey","Navy Blue","Oxford","Medio","Perla","Mango","Canario","Caqui","Negro","Rojo","Rey","Azul Francia"] },
+  { id:"prod_micropique", nombre:"Micro Piqué", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:100, precio_mayoreo:95, unidad:"Kilo", descripcion:"Tecnología Dry-Fit Calidad Gold. Ideal para uniformes deportivos.", origen:"Importado", colores:["Light Navy","Blanco","Gris Perla","Navy Dark Blue","Menta","Fiusha","Caqui","Uva M","Azul Acero","Vino","Beige","Camel","Gris Medio","Oxford","Militar","Rosa Baby","Amarillo Canario","Petróleo","Rosa Palo","Cielo","Mango","Turquesa","Azul Francia","Uva","Bugambilia","Oro Viejo","Mostaza","Azul Rey","Navy Blue","Naranja Neón","Naranja","Rosa Neón","Amarillo","Verde Neón","Negro","Verde Bandera","Verde Botella","Rojo"] },
   { id:"prod_micropique_fusionado", nombre:"Micropiqué Fusionado", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:150, precio_mayoreo:145, unidad:"Kilo", descripcion:"Tela deportiva fusionada para sublimación.", origen:"Importado" },
   { id:"prod_microtrix", nombre:"Microtrix", categoria:"Deportivo / Licra", composicion:"Poliéster / Spandex", gramaje:"180g/m²", ancho:"1.60m", rendimiento:"3.5 m/kg", precio_menudeo:150, precio_mayoreo:145, unidad:"Kilo", descripcion:"Alta elasticidad para prendas ajustadas.", origen:"Importado" },
   { id:"prod_miky", nombre:"Miky", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:135, precio_mayoreo:130, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
@@ -45,14 +46,31 @@ const PRODUCTOS = [
   { id:"prod_panal_plus", nombre:"Panal Plus", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"3.7 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Mayor cuerpo y estructura para prendas que requieren forma.", origen:"Importado" },
   { id:"prod_phoenix", nombre:"Phoenix", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:95, precio_mayoreo:90, unidad:"Kilo", descripcion:"Tela deportiva económica para sublimación.", origen:"Importado" },
   { id:"prod_pique_lacoste", nombre:"Piqué Lacoste", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:140, precio_mayoreo:135, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
-  { id:"prod_pique_vera", nombre:"Piqué Vera", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kilo", descripcion:"Tecnología Dry-Fit con textura suave y resistente. +34 colores.", origen:"Importado", colores:["Camel","Oro Viejo","Mostaza","Verde Neón","Amarillo Neón","Turquesa","Aqua","Rosa Neón","Magenta","Militar","Botella","Verde Bandera","Cielo","Menta","Vino","Lila","Naranja","Uva","Petróleo","Rosa Pastel","Rosa Baby","Palo Rosa","Fiusha","Light Navy","Dark Navy","Gris Medio","Oxford","Gris Perla","Mango","Canario","Caqui","Negro","Rojo","Rey"] },
+  { id:"prod_pique_vera", nombre:"Piqué Vera", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:110, precio_mayoreo:105, unidad:"Kilo", descripcion:"Tecnología Dry-Fit con textura suave y resistente.", origen:"Importado", colores:["Camel","Oro Viejo","Mostaza","Verde Neón","Amarillo Neón","Turquesa","Aqua","Rosa Neón","Magenta","Militar","Botella","Verde Bandera","Cielo","Menta","Vino","Lila","Naranja","Uva","Petróleo","Rosa Pastel","Rosa Baby","Palo Rosa","Fiusha","Light Navy","Dark Navy","Gris Medio","Oxford","Gris Perla","Mango","Canario","Caqui","Negro","Rojo","Rey"] },
   { id:"prod_pique_vera_sport", nombre:"Piqué Vera Sport", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"145g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:140, precio_mayoreo:135, unidad:"Kilo", descripcion:"Versatilidad total para cualquier disciplina deportiva.", origen:"Importado" },
   { id:"prod_pixel", nombre:"Pixel", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:155, precio_mayoreo:150, unidad:"Kilo", descripcion:"Tela deportiva para sublimación.", origen:"Importado" },
-  { id:"prod_polar", nombre:"Polar", categoria:"Línea Invernal", composicion:"100% Poliéster", gramaje:"280g/m²", ancho:"1.60m", rendimiento:"2.5 m/kg", precio_menudeo:120, precio_mayoreo:115, unidad:"Kilo", descripcion:"Tela térmica con tecnología anti-pilling. Ideal para pijamas, mamelucos, cobijas y ropa para mascotas. Colores: Verde Botella, Verde Militar, Palo Rosa, Azul Rey, Vino, Marino, Fiusha, Negro, Rojo, Blanco.", origen:"Importado", rollo_kg:25, colores:["Verde Botella","Verde Militar","Palo Rosa","Azul Rey","Vino","Marino","Fiusha","Negro","Rojo","Blanco"] },
+  { id:"prod_polar", nombre:"Polar", categoria:"Línea Invernal", composicion:"100% Poliéster", gramaje:"280g/m²", ancho:"1.60m", rendimiento:"2.5 m/kg", precio_menudeo:120, precio_mayoreo:115, unidad:"Kilo", descripcion:"Tela térmica con tecnología anti-pilling. Ideal para pijamas, mamelucos, cobijas.", origen:"Importado", rollo_kg:25, colores:["Verde Botella","Verde Militar","Palo Rosa","Azul Rey","Vino","Marino","Fiusha","Negro","Rojo","Blanco"] },
   { id:"prod_saturno", nombre:"Saturno", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:165, precio_mayoreo:160, unidad:"Kilo", descripcion:"Tela deportiva premium para sublimación.", origen:"Importado" },
   { id:"prod_super_trix", nombre:"Super Trix", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"140g/m²", ancho:"1.60m", rendimiento:"4.0 m/kg", precio_menudeo:175, precio_mayoreo:170, unidad:"Kilo", descripcion:"Tela deportiva premium para sublimación.", origen:"Importado" },
-  { id:"prod_sportok", nombre:"Sportok", categoria:"Escolar / Deportivo", composicion:"100% Poliéster (Interior Afelpado)", gramaje:"260g/m²", ancho:"1.60m", rendimiento:"2.4 m/kg", precio_menudeo:80, precio_mayoreo:75, unidad:"Kg", descripcion:"Estándar para pants, sudaderas y uniformes escolares. Semi-brillante, interior afelpado, no se arruga. +49 colores.", origen:"Importado", rollo_kg:25, colores:["Francia","Marino Claro","Magenta","Chedron","Acero","Naranja Pastel","Amarillo Pastel","Petróleo","Oro Viejo","Mostaza","Palo de Rosa","Jade","Lila","Bugambilia","Fiusha","Gris Baby","Perla","Medio","Oxford","Caqui","Beige","Cafe","Camel","Rosa Pastel","Turquesa","Aqua","Menta","Morado","Uva","Rosa Baby","Cielo","Naranja Neón","Rosa Neón","Verde Neón","Amarillo Neón","Pistache","Manzana","Militar","Botella","Bandera","Naranja","Rey","Mango","Canario","Rojo","Rojo Quemado","Negro","Blanco","Marino"] },
+  { id:"prod_sportok", nombre:"Sportok", categoria:"Escolar / Deportivo", composicion:"100% Poliéster (Interior Afelpado)", gramaje:"260g/m²", ancho:"1.60m", rendimiento:"2.4 m/kg", precio_menudeo:80, precio_mayoreo:75, unidad:"Kg", descripcion:"Estándar para pants, sudaderas y uniformes escolares. Semi-brillante, interior afelpado.", origen:"Importado", rollo_kg:25, colores:["Francia","Marino Claro","Magenta","Chedron","Acero","Naranja Pastel","Amarillo Pastel","Petróleo","Oro Viejo","Mostaza","Palo de Rosa","Jade","Lila","Bugambilia","Fiusha","Gris Baby","Perla","Medio","Oxford","Caqui","Beige","Cafe","Camel","Rosa Pastel","Turquesa","Aqua","Menta","Morado","Uva","Rosa Baby","Cielo","Naranja Neón","Rosa Neón","Verde Neón","Amarillo Neón","Pistache","Manzana","Militar","Botella","Bandera","Naranja","Rey","Mango","Canario","Rojo","Rojo Quemado","Negro","Blanco","Marino"] },
   { id:"prod_torneo", nombre:"Torneo", categoria:"Deportivas / Sublimación", composicion:"100% Poliéster", gramaje:"150g/m²", ancho:"1.60m", rendimiento:"4.3 m/kg", precio_menudeo:125, precio_mayoreo:120, unidad:"Kilo", descripcion:"El estándar en durabilidad para torneos exigentes.", origen:"Importado" },
+
+  // --- ELÁSTICOS ---
+  { id: "elastico-beisbolero", nombre: "Elástico Beisbolero 2½\"", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "2½\"", ancho: "6.5 cm", rendimiento: "N/A", precio_menudeo: 19, precio_mayoreo: 19, unidad: "Metro", descripcion: "Elástico beisbolero de 2½ pulgadas (aprox. 6.5 cm). Ideal para cinturas, uniformes deportivos y aplicaciones de alta tensión.", origen: "MX", colores: ["Blanco", "Negro"] },
+  { id: "elastico-3-ligas", nombre: "Elástico 3 Ligas (50cm)", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "3 Ligas", ancho: "50 cm", rendimiento: "N/A", precio_menudeo: 80, precio_mayoreo: 80, unidad: "Pieza", descripcion: "Rollo de elástico de 3 ligas en presentación de 50 cm.", origen: "MX", colores: ["Blanco", "Negro"] },
+  { id: "elastico-5-ligas", nombre: "Elástico 5 Ligas (50cm)", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "5 Ligas", ancho: "50 cm", rendimiento: "N/A", precio_menudeo: 100, precio_mayoreo: 100, unidad: "Pieza", descripcion: "Rollo de elástico de 5 ligas en presentación de 50 cm.", origen: "MX", colores: ["Blanco", "Negro"] },
+  { id: "elastico-7-ligas", nombre: "Elástico 7 Ligas (50cm)", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "7 Ligas", ancho: "50 cm", rendimiento: "N/A", precio_menudeo: 110, precio_mayoreo: 110, unidad: "Pieza", descripcion: "Rollo de elástico de 7 ligas en presentación de 50 cm.", origen: "MX", colores: ["Blanco", "Negro"] },
+  { id: "elastico-10-ligas", nombre: "Elástico 10 Ligas (50cm)", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "10 Ligas", ancho: "50 cm", rendimiento: "N/A", precio_menudeo: 100, precio_mayoreo: 100, unidad: "Pieza", descripcion: "Rollo de elástico de 10 ligas en presentación de 50 cm.", origen: "MX", colores: ["Blanco", "Negro"] },
+  { id: "elastico-12-ligas", nombre: "Elástico 12 Ligas (50cm)", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "12 Ligas", ancho: "50 cm", rendimiento: "N/A", precio_menudeo: 110, precio_mayoreo: 110, unidad: "Pieza", descripcion: "Rollo de elástico de 12 ligas en presentación de 50 cm.", origen: "MX", colores: ["Blanco", "Negro"] },
+  { id: "elastico-16-ligas", nombre: "Elástico 16 Ligas (50cm)", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "16 Ligas", ancho: "50 cm", rendimiento: "N/A", precio_menudeo: 80, precio_mayoreo: 80, unidad: "Pieza", descripcion: "Rollo de elástico de 16 ligas en presentación de 50 cm.", origen: "MX", colores: ["Blanco", "Negro"] },
+  { id: "elastico-20-ligas", nombre: "Elástico 20 Ligas (50cm)", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "20 Ligas", ancho: "50 cm", rendimiento: "N/A", precio_menudeo: 100, precio_mayoreo: 100, unidad: "Pieza", descripcion: "Rollo de elástico de 20 ligas en presentación de 50 cm.", origen: "MX", colores: ["Blanco", "Negro"] },
+  { id: "elastico-25-ligas", nombre: "Elástico 25 Ligas (50cm)", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "25 Ligas", ancho: "50 cm", rendimiento: "N/A", precio_menudeo: 100, precio_mayoreo: 100, unidad: "Pieza", descripcion: "Rollo de elástico de 25 ligas en presentación de 50 cm.", origen: "MX", colores: ["Blanco", "Negro"] },
+  { id: "elastico-30-ligas", nombre: "Elástico 30 Ligas (50cm)", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "30 Ligas", ancho: "50 cm", rendimiento: "N/A", precio_menudeo: 120, precio_mayoreo: 120, unidad: "Pieza", descripcion: "Rollo de elástico de 30 ligas en presentación de 50 cm.", origen: "MX", colores: ["Blanco", "Negro"] },
+  { id: "elastico-jareta-3cm", nombre: "Elástico con Jareta 3 cm", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "3 cm", ancho: "3 cm", rendimiento: "N/A", precio_menudeo: 140, precio_mayoreo: 140, unidad: "Pieza", descripcion: "Elástico con jareta de 3 cm en presentación de cono. Ideal para blusas y pantalones.", origen: "MX", colores: ["Blanco"] },
+  { id: "elastico-jareta-4cm", nombre: "Elástico con Jareta 4 cm", categoria: "Insumos / Elásticos", composicion: "Poliéster / Caucho", gramaje: "4 cm", ancho: "4 cm", rendimiento: "N/A", precio_menudeo: 145, precio_mayoreo: 145, unidad: "Pieza", descripcion: "Elástico con jareta de 4 cm en presentación de cono. Ideal para blusas y pantalones.", origen: "MX", colores: ["Blanco"] },
+
+  // --- HILOS ---
+  { id: "hilo-kingtex-40-2", nombre: "Hilo Kingtex 40/2 (5,000m)", categoria: "Insumos / Hilos", composicion: "100% Poliéster Fibra Corta", gramaje: "40/2", ancho: "N/A", rendimiento: "5000 metros", precio_menudeo: 29, precio_mayoreo: 25, unidad: "Pieza", descripcion: "Hilo Kingtex 100% poliéster fibra corta. Calidad premium para costura industrial.", origen: "Importado", colores: ["Blanco Óptico", "Negro Industrial", "Crudo / Natural", "Hueso", "Perla", "Marfil", "Gris Iberia", "Gris Plata", "Gris Medio", "Gris Rata", "Gris Oxford", "Charcoal", "Azul Cielo", "Azul Turquesa", "Azul Francia", "Azul Rey", "Azul Eléctrico", "Azul Mezclilla", "Azul Marino Claro", "Azul Marino Obscuro", "Rojo Vivo", "Rojo Bandera", "Rojo Sangre", "Vino / Guinda", "Chedron", "Ladrillo", "Rosa Pastel", "Rosa Baby", "Palo de Rosa", "Fiusha", "Bugambilia", "Magenta", "Amarillo Canario", "Amarillo Oro", "Mango", "Mostaza", "Naranja", "Calabaza", "Verde Limón", "Verde Manzana", "Verde Jade", "Verde Bandera", "Verde Botella", "Verde Militar", "Beige Claro", "Arena", "Kaki", "Camel", "Café Tabaco", "Chocolate", "Lila", "Morado", "Obispo", "Uva", "Verde Neón", "Amarillo Neón", "Naranja Neón", "Rosa Neón"] }
 ];
 
 type Product = typeof PRODUCTOS[0];
@@ -70,35 +88,48 @@ const WA_NUMBER = "5531314617";
 // ============================================================
 // MOTOR DE IA: PROCESAMIENTO DE INTENCIÓN Y RESPUESTA
 // ============================================================
-function procesarMensaje(texto: string, historial: unknown) {
+function procesarMensaje(texto: string, historial: ChatMessage[]) {
   const t = texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   
-  // -- Saludos
-  if (/^(hola|buenos|buenas|saludos|hey|hi|que tal|qué tal|buen dia|buen dia)/.test(t)) {
+  // -- Verificar primero si hay consulta de producto antes de saludar
+  const prodDirecto = encontrarProducto(t);
+
+  // -- Saludos (Solo si no hay un producto mencionado)
+  if (!prodDirecto && /^(hola|buenos|buenas|saludos|hey|hi|que tal|qué tal|buen dia|buen dia)/.test(t)) {
     return { tipo: "saludo", respuesta: buildSaludo() };
   }
   
   // -- Precios / cotización
   if (/precio|costo|cuanto|cuánto|cotiza|tarifa|valor|rate/.test(t)) {
-    const prod = encontrarProducto(t);
+    const prod = prodDirecto;
     if (prod) return { tipo: "precio", respuesta: buildPrecio(prod), producto: prod };
     return { tipo: "precios_general", respuesta: buildListaPrecios(t) };
   }
   
   // -- Colores
   if (/color|colores|tonos|tono|disponible en|opciones de color/.test(t)) {
-    const prod = encontrarProducto(t);
+    const prod = prodDirecto;
     if (prod) return { tipo: "colores", respuesta: buildColores(prod), producto: prod };
     return { tipo: "colores_cat", respuesta: buildColoresCategorias() };
   }
   
   // -- Características técnicas
   if (/gramo|gramaje|composic|material|ancho|rendimiento|poliester|poliéster|nylon|spandex|tecni/.test(t)) {
-    const prod = encontrarProducto(t);
+    const prod = prodDirecto;
     if (prod) return { tipo: "ficha", respuesta: buildFichaTecnica(prod), producto: prod };
     return { tipo: "ficha_general", respuesta: buildInfoGeneral() };
   }
   
+  // -- Hilos
+  if (/hilo|hilos|kingtex|costura|cono/.test(t)) {
+    return { tipo: "hilos", respuesta: buildHilos() };
+  }
+  
+  // -- Elásticos
+  if (/elastico|elástico|ligas|jareta|resorte|beisbolero/.test(t)) {
+    return { tipo: "elasticos", respuesta: buildElasticos() };
+  }
+
   // -- Línea invernal
   if (/invier|polar|flanel|felpa|frio|frío|sudadera|pants|cobija|pijama/.test(t)) {
     return { tipo: "invernal", respuesta: buildLineaInvernal() };
@@ -120,8 +151,7 @@ function procesarMensaje(texto: string, historial: unknown) {
   }
   
   // -- Producto específico mencionado
-  const prod = encontrarProducto(t);
-  if (prod) return { tipo: "producto", respuesta: buildProductoCompleto(prod), producto: prod };
+  if (prodDirecto) return { tipo: "producto", respuesta: buildProductoCompleto(prodDirecto), producto: prodDirecto };
   
   // -- Catálogo general
   if (/catalogo|catálogo|producto|productos|todo|tienen|que venden|que tienen/.test(t)) {
@@ -140,29 +170,35 @@ function procesarMensaje(texto: string, historial: unknown) {
 function encontrarProducto(texto: string) {
   const t = texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   
-  // Buscar por nombre exacto primero
+  // Búsqueda exacta
   for (const p of PRODUCTOS) {
     const nombre = p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
     if (t.includes(nombre)) return p;
   }
   
-  // Buscar palabras clave del nombre
+  // Búsqueda difusa (Fuzzy Search ligera)
+  const palabrasBusqueda = t.split(" ");
   for (const p of PRODUCTOS) {
-    const partes = p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").split(" ");
-    if (partes.some(part => part.length > 3 && t.includes(part))) return p;
+    const partesNombre = p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").split(" ");
+    if (partesNombre.some(part => part.length > 4 && palabrasBusqueda.includes(part))) {
+      return p;
+    }
+    // Casos especiales para hilos y elásticos
+    if (t.includes('kingtex') && p.id === 'hilo-kingtex-40-2') return p;
+    if (t.includes('beisbolero') && p.id === 'elastico-beisbolero') return p;
   }
   return null;
 }
 
 // ============================================================
-// BUILDERS DE RESPUESTA (CORREGIDOS)
+// BUILDERS DE RESPUESTA
 // ============================================================
 function buildSaludo() {
-  return `¡Buen día! 👋 Le saluda el equipo de Telas El Coyote.\nSomos distribuidores mayoristas de telas técnicas e industriales con cobertura nacional. Contamos con más de ${PRODUCTOS.length} líneas de producto en las siguientes categorías:\n📦 Deportivas / Sublimación\n🏋️ Deportivo / Licra\n❄️ Línea Invernal\n🎓 Escolar / Deportivo\n🔩 Telas Técnicas\n\n¿En qué puedo orientarle el día de hoy?`;
+  return `¡Buen día! 👋 Le saluda el equipo de Telas El Coyote.\nSomos distribuidores mayoristas de telas técnicas, insumos y mercería con cobertura nacional. Contamos con múltiples líneas de producto:\n📦 Deportivas / Sublimación\n🏋️ Deportivo / Licra\n❄️ Línea Invernal\n🎓 Escolar / Deportivo\n🧵 Insumos (Hilos y Elásticos)\n🔩 Telas Técnicas\n\n¿En qué puedo orientarle el día de hoy?`;
 }
 
 function buildPrecio(p: Product) {
-  return `💰 Precios — ${p.nombre}\n\n| Modalidad | Precio por ${p.unidad} |\n|---|---|\n| Menudeo | $${p.precio_menudeo}.00 MXN |\n| Mayoreo | $${p.precio_mayoreo}.00 MXN |\n\n📌 El precio de mayoreo aplica a partir de rollos completos.\n📐 Datos clave:\n• Ancho: ${p.ancho}\n• Gramaje: ${p.gramaje}\n• Rendimiento: ${p.rendimiento}\n${p.rollo_metros ? `• Rollo: ${p.rollo_metros} metros\n` : ''}${p.rollo_kg ? `• Rollo: ${p.rollo_kg} kg\n` : ''}\n¿Le gustaría realizar una cotización formal o conocer disponibilidad de colores?`;
+  return `💰 Precios — ${p.nombre}\n\n| Modalidad | Precio por ${p.unidad} |\n|---|---|\n| Menudeo | $${p.precio_menudeo}.00 MXN |\n| Mayoreo | $${p.precio_mayoreo}.00 MXN |\n\n📌 El precio de mayoreo aplica a partir de rollos o cajas completas.\n📐 Datos clave:\n• Rendimiento/Medida: ${p.rendimiento !== 'N/A' ? p.rendimiento : p.ancho}\n${p.rollo_metros ? `• Rollo: ${p.rollo_metros} metros\n` : ''}${p.rollo_kg ? `• Rollo: ${p.rollo_kg} kg\n` : ''}\n¿Le gustaría realizar una cotización formal o conocer disponibilidad de colores?`;
 }
 
 function buildListaPrecios(t: string) {
@@ -170,6 +206,7 @@ function buildListaPrecios(t: string) {
   const esInv = /invier|polar|flanel|felpa/.test(t);
   const esLicra = /licra|lycra|elastan/.test(t);
   const esEscolar = /escolar|sportok|pants/.test(t);
+  const esInsumos = /hilo|elastico|liga|jareta/.test(t);
   
   let lista = PRODUCTOS;
   let cat = "General";
@@ -178,34 +215,50 @@ function buildListaPrecios(t: string) {
   else if (esInv) { lista = PRODUCTOS.filter(p => p.categoria === "Línea Invernal"); cat = "Línea Invernal"; }
   else if (esLicra) { lista = PRODUCTOS.filter(p => p.categoria === "Deportivo / Licra"); cat = "Deportivo / Licra"; }
   else if (esEscolar) { lista = PRODUCTOS.filter(p => p.categoria === "Escolar / Deportivo"); cat = "Escolar / Deportivo"; }
+  else if (esInsumos) { lista = PRODUCTOS.filter(p => p.categoria.includes("Insumos")); cat = "Insumos y Mercería"; }
   
   const items = lista.slice(0, 12).map(p =>
     `• *${p.nombre}* — Menudeo $${p.precio_menudeo} / Mayoreo $${p.precio_mayoreo} por ${p.unidad}`
   ).join('\n');
   
-  return `📋 *Lista de Precios — ${cat}*\n\n${items}${lista.length > 12 ? `\n\n_...y ${lista.length - 12} productos más._` : ''}\n\n¿Desea información detallada de alguna tela en particular?`;
+  return `📋 *Lista de Precios — ${cat}*\n\n${items}${lista.length > 12 ? `\n\n_...y ${lista.length - 12} productos más._` : ''}\n\n¿Desea información detallada de algún producto en particular?`;
 }
 
 function buildColores(p: Product) {
   if (!p.colores || p.colores.length === 0) {
-    return `ℹ️ *${p.nombre}* se trabaja en color único (blanco) especial para procesos de sublimación. Puede sublimar cualquier diseño a color directamente sobre esta tela.\n\n¿Le gustaría cotizar o saber más de sus características?`;
+    return `ℹ️ *${p.nombre}* se trabaja en color único. Ideal para su aplicación principal.\n\n¿Le gustaría cotizar o saber más de sus características?`;
   }
-  const colorList = p.colores.map((c: string) => `• ${c}`).join('\n');
-  return `🎨 *Colores disponibles — ${p.nombre}*\n\n${colorList}\n\n_Total: ${p.colores.length} colores en stock._\n\n¿Desea cotizar en algún color específico?`;
+  const colorList = p.colores.slice(0, 15).map((c: string) => `• ${c}`).join('\n');
+  const extras = p.colores.length > 15 ? `\n_...y ${p.colores.length - 15} tonos más._` : '';
+  return `🎨 *Colores disponibles — ${p.nombre}*\n\n${colorList}${extras}\n\n_Total: ${p.colores.length} colores en stock._\n\n¿Desea cotizar en algún color específico?`;
 }
 
 function buildColoresCategorias() {
-  const conColores = PRODUCTOS.filter(p => p.colores && p.colores.length > 0);
+  const conColores = PRODUCTOS.filter(p => p.colores && p.colores.length > 5);
   const texto = conColores.slice(0, 8).map(p => `• *${p.nombre}* — ${p.colores!.length} colores`).join('\n');
-  return `🎨 *Telas con amplia paleta de colores*\n\n${texto}\n\nMencione el nombre de la tela que le interese y le comparto el catálogo de colores completo.`;
+  return `🎨 *Productos con amplia paleta de colores*\n\n${texto}\n\nMencione el nombre del producto que le interese y le comparto el catálogo de colores.`;
 }
 
 function buildFichaTecnica(p: Product) {
-  return `🧵 Ficha Técnica — ${p.nombre}\n📁 Categoría: ${p.categoria}\n🧪 Composición: ${p.composicion}\n⚖️ Gramaje: ${p.gramaje}\n📏 Ancho: ${p.ancho}\n📦 Unidad de venta: ${p.unidad}\n📐 Rendimiento: ${p.rendimiento}\n${p.rollo_metros ? `🔄 Metros por rollo: ${p.rollo_metros}\n` : ''}${p.rollo_kg ? `🔄 Kg por rollo: ${p.rollo_kg}\n` : ''}🌍 Origen: ${p.origen}\n📝 Descripción:\n${p.descripcion}\n💰 Menudeo: $${p.precio_menudeo} / Mayoreo: $${p.precio_mayoreo} por ${p.unidad}\n\n¿Le puedo apoyar con una cotización o tiene alguna pregunta técnica adicional?`;
+  return `🧵 Ficha Técnica — ${p.nombre}\n📁 Categoría: ${p.categoria}\n🧪 Composición: ${p.composicion}\n⚖️ Gramaje: ${p.gramaje}\n📏 Ancho/Medida: ${p.ancho}\n📦 Unidad de venta: ${p.unidad}\n📐 Rendimiento: ${p.rendimiento}\n🌍 Origen: ${p.origen}\n📝 Descripción:\n${p.descripcion}\n💰 Menudeo: $${p.precio_menudeo} / Mayoreo: $${p.precio_mayoreo} por ${p.unidad}\n\n¿Le puedo apoyar con una cotización?`;
+}
+
+function buildHilos() {
+  const hilos = PRODUCTOS.filter(p => p.categoria === "Insumos / Hilos");
+  const p = hilos[0];
+  return `🧵 *Insumos: Hilos para Confección*\n\nContamos con la línea premium:\n• *${p.nombre}*\n\n💰 *Precios:*\nMenudeo: $${p.precio_menudeo}.00 MXN x pieza\nMayoreo: $${p.precio_mayoreo}.00 MXN x pieza (Caja con 120 pzs)\n\n🎨 *Catálogo de Colores:*\nManejamos más de ${p.colores?.length} tonos en stock, incluyendo neutros, escolares, neones y de alta visibilidad.\n\nEscriba "colores kingtex" para ver la lista completa.`;
+}
+
+function buildElasticos() {
+  const elasticos = PRODUCTOS.filter(p => p.categoria === "Insumos / Elásticos");
+  const beisbolero = elasticos.find(e => e.id === "elastico-beisbolero");
+  const jaretas = elasticos.filter(e => e.id.includes("jareta"));
+  
+  return `📏 *Insumos: Elásticos y Resortes*\n\nContamos con 3 líneas principales:\n\n1️⃣ *Elástico por Ligas (Rollos de 50cm)*\nDesde 3 hasta 30 ligas. Precios entre $80 y $120 MXN por rollo.\n\n2️⃣ *${beisbolero?.nombre}*\n$${beisbolero?.precio_menudeo} MXN por ${beisbolero?.unidad}. Ideal para cinturas deportivas.\n\n3️⃣ *Elásticos con Jareta*\n• 3 cm — $${jaretas[0]?.precio_menudeo} MXN\n• 4 cm — $${jaretas[1]?.precio_menudeo} MXN\n\nTodos disponibles en Blanco y Negro (excepto jaretas, solo blanco).\n¿Qué tipo de elástico necesita para su producción?`;
 }
 
 function buildInfoGeneral() {
-  return `🔬 Información Técnica General\nToda nuestra línea textil es de origen importado con los siguientes estándares:\n\n🏅 Deportivas / Sublimación\n— Composición: 100% Poliéster\n— Gramajes: 140–185 g/m²\n— Ancho: 1.60m\n— Rendimiento: 3.7–4.3 m/kg\n\n🏋️ Deportivo / Licra\n— Composición: Poliéster / Spandex\n— Gramaje: 180 g/m²\n— Rendimiento: 3.5 m/kg\n\n❄️ Línea Invernal\n— Composición: 100% Poliéster o 50/50 Algodón/Poliéster\n— Gramajes: 260–280 g/m²\n— Rendimiento: 2.2–2.5 m/kg\n\n🔩 Telas Técnicas (Diablo)\n— Composición: 100% Nylon Alta Tenacidad\n— Gramaje: 220 g/m²\n\n¿De qué línea específica necesita más información?`;
+  return `🔬 Información Técnica General\n\n🏅 Deportivas / Sublimación\n— 100% Poliéster | 140–185 g/m² | Rendimiento: 3.7–4.3 m/kg\n\n🏋️ Deportivo / Licra\n— Poliéster / Spandex | 180 g/m² | Rendimiento: 3.5 m/kg\n\n❄️ Línea Invernal\n— 100% Poliéster o 50/50 | 260–280 g/m² | Rendimiento: 2.2–2.5 m/kg\n\n🧵 Insumos\n— Hilos: Kingtex 40/2 (5,000m)\n— Elásticos: Beisbolero (6.5cm), Ligas (50cm), Jaretas.\n\n¿De qué línea necesita más información?`;
 }
 
 function buildLineaInvernal() {
@@ -213,30 +266,27 @@ function buildLineaInvernal() {
   const lista = inv.map(p =>
     `*${p.nombre}* — $${p.precio_menudeo}/$${p.precio_mayoreo} por ${p.unidad}\n  ${p.composicion} | ${p.gramaje} | ${p.colores ? p.colores.length + ' colores' : 'color único'}`
   ).join('\n\n');
-  return `❄️ *Línea Invernal — Catálogo Completo*\n\n${lista}\n\n🧥 Ideales para: sudaderas, pants, pijamas, cobijas, uniformes escolares y ropa de invierno.\n\n¿Le interesa alguna en particular?`;
+  return `❄️ *Línea Invernal — Catálogo Completo*\n\n${lista}\n\n🧥 Ideales para: sudaderas, pants, pijamas, cobijas y uniformes escolares.\n\n¿Le interesa alguna en particular?`;
 }
 
 function buildSublimaciom() {
   const subs = PRODUCTOS.filter(p => p.categoria === "Deportivas / Sublimación");
   const rangoPrecio = { min: Math.min(...subs.map(p=>p.precio_menudeo)), max: Math.max(...subs.map(p=>p.precio_menudeo)) };
-  return `🎽 Línea Deportiva para Sublimación\nContamos con ${subs.length} referencias especializadas en sublimación:\n\n💡 ¿Por qué nuestras telas para sublimación?\n✅ 100% Poliéster de alta calidad\n✅ Gramajes entre 140–185 g/m²\n✅ Ancho estándar de 1.60m\n✅ Rendimiento de 3.7 a 4.3 metros por kilo\n✅ Acabado blanco óptico para máxima fidelidad de color\n\n💰 Rango de precios: $${rangoPrecio.min}–$${rangoPrecio.max} por kilo (menudeo)\n\nDestacadas:\n• Delta / Alaska / Super Trix — $175/kg (premium)\n• Panal Nitro — $185/kg (control de humedad extremo)\n• Micro Piqué / Micro Panal — desde $100/kg\n• Phoenix / Azucena — desde $95/kg (económicas)\n\n¿Desea que le asesore en la selección según su aplicación específica?`;
+  return `🎽 Línea Deportiva para Sublimación\nContamos con ${subs.length} referencias especializadas:\n\n✅ 100% Poliéster de alta calidad\n✅ Gramajes entre 140–185 g/m²\n✅ Acabado blanco óptico para máxima fidelidad de color\n\n💰 Rango de precios: $${rangoPrecio.min}–$${rangoPrecio.max} por kilo (menudeo)\n\nDestacadas:\n• Delta / Super Trix — $175/kg (premium)\n• Panal Nitro — $185/kg (control de humedad)\n• Micro Piqué / Micro Panal — desde $100/kg\n\n¿Desea asesoría técnica?`;
 }
 
 function buildLicras() {
   const licras = PRODUCTOS.filter(p => p.categoria === "Deportivo / Licra");
   const lista = licras.map(p => `• *${p.nombre}* — $${p.precio_menudeo}/$${p.precio_mayoreo} por ${p.unidad}`).join('\n');
-  return `🏋️ *Línea Deportivo / Licra*\n\n${lista}\n\n🔍 Todas con composición *Poliéster / Spandex* excepto Lycra Metálica (100% Poliéster).\n\nℹ️ La *Lycra Metálica* es nuestra propuesta más especial: 13 colores metálicos, vendida por metro a $50/$45.\n\n¿Le interesa alguna referencia específica?`;
+  return `🏋️ *Línea Deportivo / Licra*\n\n${lista}\n\n🔍 Todas con composición *Poliéster / Spandex* excepto Lycra Metálica (100% Poliéster, 13 colores).\n\n¿Le interesa alguna referencia específica?`;
 }
 
 function buildMayoreo() {
-  const conRollo = PRODUCTOS.filter(p => p.rollo_metros || p.rollo_kg);
-  return `📦 Información sobre Rollos y Compras a Mayoreo\n\nPara compras al precio de mayoreo se requiere adquirir el rollo completo:\n${conRollo.map(p =>
-    `• *${p.nombre}* — Rollo de ${p.rollo_metros ? p.rollo_metros + ' metros' : p.rollo_kg + ' kg'} | $${p.precio_mayoreo} por ${p.unidad}`
-  ).join('\n')}\n\nPara las telas vendidas por kilo sin especificación de rollo, el precio mayoreo también aplica por rollo completo (aprox. 25–30 kg).\n\n💬 Para confirmar disponibilidad exacta y lotes disponibles, comuníquese directamente con nuestro equipo de ventas.`;
+  return `📦 Información sobre Mayoreo\n\nPara compras al precio de mayoreo:\n• *Telas por Kilo:* Aplica comprando el rollo completo (aprox. 25–30 kg).\n• *Telas por Metro:* Aplica comprando el rollo cerrado (ej. Diablo 50m).\n• *Hilos:* Aplica comprando la caja cerrada (120 pzs).\n• *Elásticos:* Aplica en compras por volumen según la presentación.\n\n💬 Para confirmar disponibilidad exacta, comuníquese con nuestro equipo de ventas.`;
 }
 
 function buildProductoCompleto(p: Product) {
-  return `📦 ${p.nombre}\n🏷️ Categoría: ${p.categoria}\n🧪 Composición: ${p.composicion}\n⚖️ Gramaje: ${p.gramaje} | 📏 Ancho: ${p.ancho}\n📐 Rendimiento: ${p.rendimiento}\n💰 Precios:\n• Menudeo: $${p.precio_menudeo}.00 MXN / ${p.unidad}\n• Mayoreo: $${p.precio_mayoreo}.00 MXN / ${p.unidad}\n${p.colores ? `🎨 *${p.colores.length} colores disponibles*\nEscriba "colores ${p.nombre}" para verlos.\n` : `✏️ Color único — ideal para sublimación\n`}\n📝 ${p.descripcion}\n\n¿Desea cotizar, conocer los colores disponibles o hablar con un asesor?`;
+  return `📦 ${p.nombre}\n🏷️ Categoría: ${p.categoria}\n🧪 Composición: ${p.composicion}\n📏 Medida/Ancho: ${p.ancho}\n💰 Precios:\n• Menudeo: $${p.precio_menudeo}.00 MXN / ${p.unidad}\n• Mayoreo: $${p.precio_mayoreo}.00 MXN / ${p.unidad}\n${p.colores ? `🎨 *${p.colores.length} colores disponibles*\n` : `✏️ Color único\n`}\n📝 ${p.descripcion}\n\n¿Desea cotizar, ver colores o hablar con un asesor?`;
 }
 
 function buildCatalogo() {
@@ -245,20 +295,20 @@ function buildCatalogo() {
     if (!porCat[p.categoria]) porCat[p.categoria] = [];
     porCat[p.categoria].push(p.nombre);
   }
-  let texto = `🗂️ *Catálogo General — Telas El Coyote*\n\nContamos con *${PRODUCTOS.length} líneas de producto*:\n\n`;
+  let texto = `🗂️ *Catálogo General — Telas El Coyote*\n\n`;
   for (const [cat, prods] of Object.entries(porCat)) {
     texto += `*${cat}* (${prods.length})\n${prods.join(', ')}\n\n`;
   }
-  texto += `Mencione el nombre de cualquier tela para ver ficha técnica, precios y colores.`;
+  texto += `Mencione el nombre de cualquier producto para ver ficha técnica y precios.`;
   return texto;
 }
 
 function buildContacto() {
-  return `✅ Conectar con un Asesor de Ventas\n\nNuestro equipo está listo para atenderle con:\n📋 Cotizaciones personalizadas\n📦 Consulta de inventario en tiempo real\n🚚 Información sobre envíos y logística\n💳 Condiciones de pago\n\nPara continuar la conversación directamente en WhatsApp, presione el botón de abajo. 👇`;
+  return `✅ Conectar con un Asesor de Ventas\n\nNuestro equipo está listo para atenderle con:\n📋 Cotizaciones personalizadas\n📦 Consulta de inventario en tiempo real\n🚚 Envíos y logística\n\nPara continuar directamente en WhatsApp, presione el botón de abajo. 👇`;
 }
 
 function buildDefault(texto: string) {
-  return `Gracias por su mensaje.\n\nPara brindarle la mejor asesoría, permítame orientarle. Puedo ayudarle con:\n• 🔍 Búsqueda de telas — dígame el nombre o el tipo\n• 💰 Precios y cotizaciones — menudeo y mayoreo\n• 🎨 Paleta de colores disponibles por tela\n• 📐 Fichas técnicas — composición, gramaje, rendimiento\n• ❄️ Línea invernal — felpa, polar, flanel, sportok\n• 🎽 Deportivas — sublimación, licras, dry-fit\n• 📦 Pedidos y mayoreo — rollos completos\n\n¿Sobre cuál de estos temas le puedo orientar?`;
+  return `Gracias por su mensaje.\n\nPuedo ayudarle con la siguiente información:\n• 🔍 Búsqueda de telas y mercería\n• 💰 Precios de menudeo y mayoreo\n• 🎨 Paleta de colores disponibles\n• 📐 Fichas técnicas\n• ❄️ Línea invernal (felpa, polar)\n• 🎽 Deportivas y Sublimación\n• 🧵 Insumos (Hilos Kingtex y Elásticos)\n\n¿Sobre qué producto le puedo orientar?`;
 }
 
 // ============================================================
@@ -266,23 +316,25 @@ function buildDefault(texto: string) {
 // ============================================================
 function getSugerencias(tipo: string): string[] {
   const map: Record<string, string[]> = {
-    saludo: ["Ver catálogo", "Precios generales", "Línea invernal", "Telas para sublimación"],
-    catalogo: ["Precios Sportok", "Colores Micro Piqué", "Línea invernal", "Licras disponibles"],
+    saludo: ["Ver catálogo", "Precios generales", "Línea invernal", "Hilos y Elásticos"],
+    catalogo: ["Telas Sublimación", "Línea invernal", "Catálogo de Hilos", "Elásticos"],
     invernal: ["Precio Polar", "Colores Flanel", "Precio Felpa China", "Cotizar rollo"],
     sublimacion: ["Precio Alaska", "Precio Micro Piqué", "Colores Micro Panal", "Hablar con asesor"],
     licras: ["Precio Licra Saludable", "Colores Lycra Metálica", "Precio Mercury", "Cotizar"],
-    mayoreo: ["Rollo Sportok", "Rollo Polar", "Cotizar pedido", "Hablar con asesor"],
+    mayoreo: ["Rollo Sportok", "Rollo Polar", "Caja de Hilos", "Hablar con asesor"],
+    hilos: ["Colores Kingtex", "Precios Mayoreo", "Elásticos", "Hablar con asesor"],
+    elasticos: ["Elástico Beisbolero", "Elástico 10 ligas", "Elástico con Jareta", "Hilos"],
     producto: ["Ver precios", "Ver colores", "Ficha técnica", "Hablar con asesor"],
     precio: ["Ver colores", "Ficha técnica", "Comprar ahora", "Hablar con asesor"],
     colores: ["Ver precio", "Cotizar", "Hablar con asesor"],
     contacto: [],
-    default: ["Ver catálogo", "Telas para sublimación", "Línea invernal", "Hablar con asesor"],
+    default: ["Ver catálogo", "Línea invernal", "Hilos y Elásticos", "Hablar con asesor"],
   };
   return map[tipo] || map.default;
 }
 
 // ============================================================
-// COMPONENTE PRINCIPAL (COMPLETO Y CORREGIDO)
+// COMPONENTE PRINCIPAL
 // ============================================================
 export default function CoyoteWhatsApp() {
   const [isOpen, setIsOpen] = useState(false);
@@ -347,7 +399,7 @@ export default function CoyoteWhatsApp() {
   const openWhatsApp = (msg = '') => {
     const text = msg
       ? `Hola, me interesa: ${msg}`
-      : `Hola, vengo del chat de El Coyote y deseo más información sobre sus telas.`;
+      : `Hola, vengo del chat de El Coyote y deseo más información.`;
     window.open(`https://wa.me/52${WA_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -661,9 +713,7 @@ export default function CoyoteWhatsApp() {
       `}</style>
 
       <div className="wa-widget">
-        {/* Ventana del chat */}
         <div className={`wa-window ${isOpen ? 'open' : 'closed'}`}>
-          {/* Header */}
           <div className="wa-header">
             <div className="wa-avatar">🐺</div>
             <div className="wa-header-info">
@@ -673,7 +723,6 @@ export default function CoyoteWhatsApp() {
             <button className="wa-header-close" onClick={() => setIsOpen(false)}>✕</button>
           </div>
 
-          {/* === BANNER "COTIZAR AHORA" === */}
           <div className="wa-banner">
             🚀 ¡Cotizar Ahora!
             <button
@@ -694,10 +743,8 @@ export default function CoyoteWhatsApp() {
             </button>
           </div>
 
-          {/* Fondo tipo WhatsApp */}
           <div className="wa-bg" />
 
-          {/* Mensajes */}
           <div ref={scrollRef} className="wa-messages">
             <div className="wa-date-sep"><span>Hoy</span></div>
             {messages.map((msg, i) => (
@@ -719,7 +766,6 @@ export default function CoyoteWhatsApp() {
             )}
           </div>
 
-          {/* Sugerencias */}
           {sugerencias.length > 0 && !typing && (
             <div className="wa-suggestions">
               {sugerencias.map((s, i) => (
@@ -728,7 +774,6 @@ export default function CoyoteWhatsApp() {
             </div>
           )}
 
-          {/* Botón WhatsApp siempre visible */}
           <button
             className="wa-wa-btn"
             onClick={() => {
@@ -742,7 +787,6 @@ export default function CoyoteWhatsApp() {
             Continuar en WhatsApp
           </button>
 
-          {/* Input */}
           <div className="wa-input-area">
             <div className="wa-input-wrap">
               <textarea
@@ -767,7 +811,6 @@ export default function CoyoteWhatsApp() {
           </div>
         </div>
 
-        {/* FAB */}
         <button className="wa-fab" onClick={() => setIsOpen(o => !o)}>
           <div className="wa-fab-ping" />
           {!isOpen && <div className="wa-badge">1</div>}
