@@ -61,7 +61,7 @@ export default function WhatsappClient({
   const [activeId,     setActiveId]     = useState<string | null>(convos[0]?.id ?? null);
   const [search,       setSearch]       = useState("");
   const [input,        setInput]        = useState("");
-  const [messages,     setMessages]     = useState<WaMessage[]>([]); // 🛡️ Blindado: inicializado como array
+  const [messages,     setMessages]     = useState<WaMessage[]>([]); 
   const [loadingMsgs,  setLoadingMsgs]  = useState(false);
   const [isPending,    startT]          = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -129,6 +129,7 @@ export default function WhatsappClient({
       setConvos((prev) => [newConvo, ...prev.filter(c => c.id !== newConvo.id)]);
       setActiveId(newConvo.id);
       setShowNewChat(false);
+      setContactSearch(""); // Limpiar buscador
     } catch (error) {
       console.error(error);
     }
@@ -174,8 +175,13 @@ export default function WhatsappClient({
 
   const filtered = convos.filter((c) =>
     getContactName(c).toLowerCase().includes(search.toLowerCase()) ||
-    (c.lastMessage ?? "").toLowerCase().includes(search.toLowerCase())
+    (c.lastMessage ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (c.contactPhone ?? "").includes(search)
   );
+
+  // Helper para saber si el texto del buscador parece un número de teléfono nuevo
+  const isSearchPhone = contactSearch.replace(/\D/g, '').length >= 10;
+  const cleanSearchPhone = contactSearch.replace(/\D/g, '');
 
   return (
     <div className="flex-1 flex min-h-0 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden relative shadow-2xl">
@@ -187,16 +193,26 @@ export default function WhatsappClient({
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-[#111] border border-white/10 rounded-3xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl">
               <div className="p-5 border-b border-white/10 flex items-center justify-between">
                 <h3 className="text-white font-bold">Nuevo Mensaje</h3>
-                <button onClick={() => setShowNewChat(false)} className="text-zinc-400 hover:text-white"><X size={20}/></button>
+                <button onClick={() => { setShowNewChat(false); setContactSearch(""); }} className="text-zinc-400 hover:text-white"><X size={20}/></button>
               </div>
               <div className="p-4">
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                  <input value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} placeholder="Buscar cliente..." className="w-full bg-zinc-900 border border-white/5 rounded-xl py-2 pl-9 text-sm text-white focus:outline-none" />
+                  <input 
+                    value={contactSearch} 
+                    onChange={(e) => setContactSearch(e.target.value)} 
+                    placeholder="Buscar cliente o escribir 10 dígitos..." 
+                    className="w-full bg-zinc-900 border border-white/5 rounded-xl py-2 pl-9 text-sm text-white focus:outline-none" 
+                  />
                 </div>
               </div>
               <div className="max-h-[300px] overflow-y-auto p-2">
-                {contacts.filter(c => (c.name || "").toLowerCase().includes(contactSearch.toLowerCase())).map(contact => (
+                
+                {/* 1. MOSTRAR CONTACTOS EXISTENTES QUE COINCIDAN (POR NOMBRE O TELÉFONO) */}
+                {contacts.filter(c => 
+                  (c.name || "").toLowerCase().includes(contactSearch.toLowerCase()) || 
+                  (c.phone || "").includes(contactSearch)
+                ).map(contact => (
                   <button key={contact.id} onClick={() => startNewChat(contact)} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all text-left">
                     <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">{getInitials(contact.name || "C")}</div>
                     <div>
@@ -205,6 +221,32 @@ export default function WhatsappClient({
                     </div>
                   </button>
                 ))}
+
+                {/* 2. BOTÓN MÁGICO PARA NÚMEROS NUEVOS NO REGISTRADOS */}
+                {isSearchPhone && (
+                  <motion.button 
+                    initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+                    onClick={() => startNewChat({ id: `nuevo-${Date.now()}`, name: "Nuevo Prospecto", phone: cleanSearchPhone })} 
+                    className="w-full flex items-center gap-3 p-3 mt-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all text-left group"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-emerald-500 text-black flex items-center justify-center font-bold shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+                      <Send size={18} className="translate-x-0.5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-emerald-400">Iniciar chat con número nuevo</p>
+                      <p className="text-xs text-emerald-500/70 font-mono">+{cleanSearchPhone}</p>
+                    </div>
+                  </motion.button>
+                )}
+
+                {/* Si no hay resultados y no es un número */}
+                {!isSearchPhone && contactSearch.length > 0 && contacts.filter(c => (c.name || "").toLowerCase().includes(contactSearch.toLowerCase()) || (c.phone || "").includes(contactSearch)).length === 0 && (
+                  <div className="p-6 text-center text-zinc-500 text-sm">
+                    No se encontraron clientes.<br/>
+                    Escribe un número de 10 dígitos para iniciar un chat nuevo.
+                  </div>
+                )}
+
               </div>
             </motion.div>
           </motion.div>
@@ -216,8 +258,6 @@ export default function WhatsappClient({
         <div className="p-5 border-b border-white/[0.04]">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Inbox</h2>
-            
-            {/* ✅ BOTÓN DE NUEVO CHAT MEJORADO ✅ */}
             <button 
               onClick={() => setShowNewChat(true)} 
               className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20 hover:bg-emerald-500 hover:text-black transition-all text-xs font-bold tracking-wide"
@@ -225,11 +265,10 @@ export default function WhatsappClient({
               <Plus size={14} />
               Nuevo Chat
             </button>
-
           </div>
           <div className="relative">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar chat..." className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2 pl-9 pr-3 text-xs text-white focus:outline-none" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar chat o número..." className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2 pl-9 pr-3 text-xs text-white focus:outline-none" />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-0">
