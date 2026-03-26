@@ -1280,7 +1280,12 @@ export async function POST(req: Request) {
       !body.entry[0]?.changes?.[0]?.value?.messages;
 
     if (esStatusUpdate) {
-      console.log('📊 Status update de Meta, ignorando.');
+      const statusObj = body.entry[0].changes[0].value.statuses[0];
+      if (statusObj.status === "failed") {
+        console.error("❌ ERROR DE ENTREGA DE META:", JSON.stringify(statusObj.errors, null, 2));
+      } else {
+        console.log(`📊 Status update de Meta: ${statusObj.status} (Ignorando)`);
+      }
       return NextResponse.json({ ok: true }, { status: 200 });
     }
 
