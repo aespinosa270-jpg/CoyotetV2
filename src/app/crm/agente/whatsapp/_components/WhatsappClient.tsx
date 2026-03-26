@@ -72,7 +72,7 @@ export default function WhatsappClient({
 
   const activeConvo = convos.find((c) => c.id === activeId) ?? null;
 
-  // 1. Cargar contactos (✅ CORREGIDO para producción: /api/whatsapp/contacts)
+  // 1. Cargar contactos
   useEffect(() => {
     if (showNewChat && contacts.length === 0) {
       fetch('/api/whatsapp/contacts')
@@ -82,7 +82,7 @@ export default function WhatsappClient({
     }
   }, [showNewChat, contacts.length]);
 
-  // 2. Carga inicial de mensajes (✅ CORREGIDO para producción: /api/whatsapp/messages)
+  // 2. Carga inicial de mensajes
   useEffect(() => {
     if (!activeId) return;
     setLoadingMsgs(true);
@@ -98,7 +98,7 @@ export default function WhatsappClient({
       });
   }, [activeId]);
 
-  // 3. Polling (✅ CORREGIDO para producción: /api/whatsapp/messages)
+  // 3. Polling
   useEffect(() => {
     if (!activeId) return;
     const interval = setInterval(() => {
@@ -118,7 +118,6 @@ export default function WhatsappClient({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ✅ CORREGIDO para producción: /api/whatsapp/send
   const startNewChat = async (contact: any) => {
     try {
       const res = await fetch('/api/whatsapp/send', {
@@ -135,13 +134,11 @@ export default function WhatsappClient({
     }
   };
 
-  // ✅ CORREGIDO para producción: /api/whatsapp/send
   const handleSend = () => {
     const body = input.trim();
     if (!body || !activeId) return;
     setInput("");
 
-    // Optimistic UI para que el agente vea su mensaje al instante
     const optimistic: WaMessage = {
       id: `tmp-${Date.now()}`,
       role: "AGENT",
@@ -158,12 +155,11 @@ export default function WhatsappClient({
         const response = await fetch("/api/whatsapp/send", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
-          // Aseguramos de enviar los datos que el nuevo endpoint espera
           body:    JSON.stringify({ 
             conversationId: activeId, 
             body: body, 
             employeeId: employeeId,
-            phone: activeConvo?.contactPhone // Mandamos el tel por si acaso
+            phone: activeConvo?.contactPhone 
           }),
         });
 
@@ -220,9 +216,16 @@ export default function WhatsappClient({
         <div className="p-5 border-b border-white/[0.04]">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Inbox</h2>
-            <button onClick={() => setShowNewChat(true)} className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20 hover:bg-emerald-500 hover:text-black transition-all">
-              <Plus size={16} />
+            
+            {/* ✅ BOTÓN DE NUEVO CHAT MEJORADO ✅ */}
+            <button 
+              onClick={() => setShowNewChat(true)} 
+              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20 hover:bg-emerald-500 hover:text-black transition-all text-xs font-bold tracking-wide"
+            >
+              <Plus size={14} />
+              Nuevo Chat
             </button>
+
           </div>
           <div className="relative">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
