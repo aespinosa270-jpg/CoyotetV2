@@ -497,7 +497,13 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  const tel = mensajeInfo.from;
+  // 🛡️ LIMPIADOR DE "521" DE MÉXICO PARA NÚMEROS ENTRANTES
+  let tel = mensajeInfo.from;
+  if (tel && tel.startsWith("521") && tel.length === 13) {
+    tel = tel.replace(/^521/, "52");
+    console.log(`🧹 Número mexicano limpiado en Webhook: convertido a ${tel}`);
+  }
+
   const msgCliente = mensajeInfo.text?.body;
   if (!tel || !msgCliente) {
     console.log('⚠️ Mensaje sin teléfono o sin body:', JSON.stringify(mensajeInfo));
@@ -526,7 +532,7 @@ async function handleWhatsappWebhook(body: any) {
             data: { 
               lastMessage: msgCliente, 
               lastMessageAt: new Date(),
-              unreadCount: { increment: 1 } // ✅ FIX 1: Incrementar contador de no leídos
+              unreadCount: { increment: 1 } 
             } 
           }),
         ]);
