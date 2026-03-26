@@ -305,7 +305,6 @@ const PRECIOS_TELAS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; 
 // ==========================================
 // 🧵 BODEGA — HILOS
 // ==========================================
-// Hilo Kingtex 40/2: pieza = $29 menudeo, $25 mayoreo (caja 120 pzs)
 const PRECIOS_HILOS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string; unidad: string }> = {
   "hilo kingtex 40/2": {
     menudeo: 29,
@@ -324,61 +323,17 @@ const PRECIOS_ELASTICOS_DEFAULT: Record<string, { menudeo: number; mayoreo: numb
     info: "100% Poliéster/Caucho. 6.5 cm de ancho. Ideal para cinturas y uniformes deportivos. Venta por metro. Rollo = 50 metros. Colores: Blanco, Negro.",
     unidad: "metro"
   },
-  "elástico 3 ligas": {
-    menudeo: 80, mayoreo: 80,
-    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
-    unidad: "pieza (50cm)"
-  },
-  "elástico 5 ligas": {
-    menudeo: 100, mayoreo: 100,
-    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
-    unidad: "pieza (50cm)"
-  },
-  "elástico 7 ligas": {
-    menudeo: 110, mayoreo: 110,
-    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
-    unidad: "pieza (50cm)"
-  },
-  "elástico 10 ligas": {
-    menudeo: 100, mayoreo: 100,
-    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
-    unidad: "pieza (50cm)"
-  },
-  "elástico 12 ligas": {
-    menudeo: 110, mayoreo: 110,
-    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
-    unidad: "pieza (50cm)"
-  },
-  "elástico 16 ligas": {
-    menudeo: 80, mayoreo: 80,
-    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
-    unidad: "pieza (50cm)"
-  },
-  "elástico 20 ligas": {
-    menudeo: 100, mayoreo: 100,
-    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
-    unidad: "pieza (50cm)"
-  },
-  "elástico 25 ligas": {
-    menudeo: 100, mayoreo: 100,
-    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
-    unidad: "pieza (50cm)"
-  },
-  "elástico 30 ligas": {
-    menudeo: 120, mayoreo: 120,
-    info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.",
-    unidad: "pieza (50cm)"
-  },
-  "elástico jareta 3 cm": {
-    menudeo: 140, mayoreo: 140,
-    info: "Cono. Elástico con jareta. Ideal para blusas y pantalones. Color: Blanco.",
-    unidad: "cono"
-  },
-  "elástico jareta 4 cm": {
-    menudeo: 145, mayoreo: 145,
-    info: "Cono. Elástico con jareta. Ideal para blusas y pantalones. Color: Blanco.",
-    unidad: "cono"
-  },
+  "elástico 3 ligas": { menudeo: 80, mayoreo: 80, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 5 ligas": { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 7 ligas": { menudeo: 110, mayoreo: 110, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 10 ligas": { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 12 ligas": { menudeo: 110, mayoreo: 110, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 16 ligas": { menudeo: 80, mayoreo: 80, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 20 ligas": { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 25 ligas": { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 30 ligas": { menudeo: 120, mayoreo: 120, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico jareta 3 cm": { menudeo: 140, mayoreo: 140, info: "Cono. Elástico con jareta. Ideal para blusas y pantalones. Color: Blanco.", unidad: "cono" },
+  "elástico jareta 4 cm": { menudeo: 145, mayoreo: 145, info: "Cono. Elástico con jareta. Ideal para blusas y pantalones. Color: Blanco.", unidad: "cono" },
 };
 
 // ==========================================
@@ -393,15 +348,10 @@ interface BodegaGuardada {
 async function getBodega(redis: Redis): Promise<BodegaGuardada> {
   const guardado = await redis.get<BodegaGuardada>('bodega_coyote_v2');
   if (!guardado) {
-    const inicial: BodegaGuardada = {
-      telas: PRECIOS_TELAS_DEFAULT,
-      hilos: PRECIOS_HILOS_DEFAULT,
-      elasticos: PRECIOS_ELASTICOS_DEFAULT,
-    };
+    const inicial: BodegaGuardada = { telas: PRECIOS_TELAS_DEFAULT, hilos: PRECIOS_HILOS_DEFAULT, elasticos: PRECIOS_ELASTICOS_DEFAULT };
     await redis.set('bodega_coyote_v2', inicial);
     return inicial;
   }
-  // Merge defaults to avoid missing keys after new products added
   return {
     telas: { ...PRECIOS_TELAS_DEFAULT, ...guardado.telas },
     hilos: { ...PRECIOS_HILOS_DEFAULT, ...guardado.hilos },
@@ -571,7 +521,14 @@ async function handleWhatsappWebhook(body: any) {
       if (currentConvoId) {
         await prisma.$transaction([
           prisma.waMessage.create({ data: { conversationId: currentConvoId, role: "CLIENT", body: msgCliente, isRead: false } }),
-          prisma.waConversation.update({ where: { id: currentConvoId }, data: { lastMessage: msgCliente, lastMessageAt: new Date() } }),
+          prisma.waConversation.update({ 
+            where: { id: currentConvoId }, 
+            data: { 
+              lastMessage: msgCliente, 
+              lastMessageAt: new Date(),
+              unreadCount: { increment: 1 } // ✅ FIX 1: Incrementar contador de no leídos
+            } 
+          }),
         ]);
         console.log(`✅ Mensaje guardado en DB para agente. Fin.`);
         return;
@@ -803,12 +760,32 @@ ELÁSTICOS:
    • ¿Con qué frecuencia compra?
    • Guarda: DATOS_CLIENTE|intereses:[uso]|categorias:[telas/hilos/elasticos]
 
-2. CROSS-SELLING POR CATEGORÍA:
-   • Pide tela deportiva → Sugiere hilo Kingtex del mismo color.
-   • Pide tela para pantalón/falda → Sugiere elástico jareta o beisbolero.
-   • Pide hilos → Pregunta si necesita tela o avíos complementarios.
-   • Pide elásticos → Pregunta si también necesita tela o hilo.
-   Frase: "Para ese trabajo también necesitarías [producto]. ¿Te cotizo el paquete completo?"
+2. CROSS-SELLING PROACTIVO — OBLIGATORIO (hazlo SIEMPRE, sin esperar que lo pidan):
+
+   🧵 HILOS — Ofrécelos en ESTOS momentos sin excepción:
+   • Cliente pide CUALQUIER tela → Al dar precio di: "¿También necesitas hilo para coser? Tenemos Kingtex 40/2 a $29/cono, +70 colores, ideal para esta tela."
+   • Cliente menciona que confecciona, cose, fabrica uniformes o prendas → Ofrece hilo inmediatamente.
+   • Cliente hace cotización de tela → Al final del desglose agrega: "🧵 ¿Agregas hilos Kingtex? Te consigo el color exacto de tu tela."
+   • Cliente recurrente que nunca ha pedido hilos → En la primera oportunidad menciona que también los tenemos.
+   Frases sugeridas:
+     "Por cierto, ¿ya tienes hilo para coser esa tela? Tenemos Kingtex 40/2, $29/cono o $25 si te llevas caja de 120."
+     "Para ese color de tela tengo el hilo exacto en Kingtex. ¿Te sumo unos conos a la cotización?"
+
+   🔩 ELÁSTICOS — Ofrécelos en ESTOS momentos sin excepción:
+   • Cliente pide tela para pantalón, short, pants, licra, falda, ropa deportiva o infantil → Di: "¿Necesitas elástico también? Tengo beisbolero, jareta y por ligas."
+   • Cliente menciona uniformes escolares, deportivos o de trabajo → Ofrece elástico beisbolero o jareta.
+   • Cliente pide tela para confección en general → Pregunta si lleva elástico.
+   • Cliente menciona cintura, pretina, puños o resorte → Ofrece elástico jareta o por ligas según aplique.
+   Frases sugeridas:
+     "Para ese pantalón/short también tengo elástico jareta de 3 o 4 cm. ¿Le entro con unos conos?"
+     "¿Llevas elástico? Tengo beisbolero 2½\" a $19/m, perfecto para cinturas de uniforme."
+     "Con esa tela te recomiendo el elástico jareta, va perfecto para pretinas. ¿Cuánto necesitas?"
+
+   📦 PAQUETE COMPLETO — Cierra con esto siempre que aplique:
+   • Si el cliente está cotizando tela Y detectas que podría usar hilo Y elástico → Propón el paquete:
+     "Oye, ¿quieres que te arme el paquete completo? Tela + hilo + elástico, te cotizo todo junto y ahorras en el envío."
+
+   ⚠️ REGLA DE ORO: No esperes a que pregunten. El Coyote siempre ofrece primero. Si el cliente dice "no gracias", respeta y sigue. Si no dice nada, asume que no lo necesita y avanza. Máximo 1 oferta por conversación de cada categoría para no atosigar.
 
 3. MANEJO DE OBJECIONES:
    • "Está caro" → Desglosar valor y rendimiento por prenda.
@@ -1238,6 +1215,40 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
   await saveHistorial(redis, tel, historial);
   console.log(`📤 Enviando respuesta a ${tel} (${respuesta.length} chars)`);
   await enviarWhatsapp(tel, respuesta.trim());
+  
+  // 👇 NUEVO: Espejear la conversación en Prisma para el CRM 👇
+  try {
+    let convoPrisma = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });    
+    // Si la convo no existe en el CRM, la creamos para tener el historial
+    if (!convoPrisma) {
+      convoPrisma = await prisma.waConversation.create({
+        data: { 
+          contactPhone: tel, 
+          contactName: perfil.nombre || "Cliente Bot", 
+          isOpen: true,
+          unreadCount: 0 // El bot ya lo leyó y contestó
+        }
+      });
+    }
+
+    // Guardamos ambos mensajes (Cliente y Bot) en la DB relacional
+    await prisma.waMessage.createMany({
+      data: [
+        { conversationId: convoPrisma.id, role: "CLIENT", body: msgCliente, isRead: true },
+        { conversationId: convoPrisma.id, role: "AGENT", body: respuesta.trim(), isRead: true } // El bot actúa como AGENT en la DB
+      ]
+    });
+
+    // Actualizamos el último mensaje en la vista general
+    await prisma.waConversation.update({
+      where: { id: convoPrisma.id },
+      data: { lastMessage: respuesta.trim(), lastMessageAt: new Date() }
+    });
+  } catch (dbErr) {
+    console.error("⚠️ Error espejeando historial del bot en Prisma:", dbErr);
+  }
+  // 👆 FIN DEL BLOQUE NUEVO 👆
+
   console.log(`✅ Flujo completo para ${tel}`);
 }
 

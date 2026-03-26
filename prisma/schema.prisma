@@ -179,7 +179,7 @@ model User {
   deals                        Deal[]
   waConversations              WaConversation[]
   passwordResetToken           PasswordResetToken?
-  ticketMessages               TicketMessage[]     // NUEVO: relación con TicketMessage
+  ticketMessages               TicketMessage[]
 }
 
 // ==========================================================
@@ -205,8 +205,8 @@ model Employee {
   role            EmployeeRole     @default(VENDEDORA)
   isActive        Boolean          @default(true)
   commissionRate  Float            @default(0.03)
-  status          String           @default("offline") // NUEVO
-  lastActiveAt    DateTime?                            // NUEVO
+  status          String           @default("offline")
+  lastActiveAt    DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -214,7 +214,7 @@ model Employee {
   attendances     Attendance[]
   interactions    Interaction[]
   assignedTickets Ticket[]
-  ticketMessages  TicketMessage[]                      // NUEVO: relación con TicketMessage
+  ticketMessages  TicketMessage[]
   telemetry       Telemetry[]
   routeOrders     RouteOrder[]
   deals           Deal[]
@@ -358,41 +358,41 @@ model Commission {
 // 5. E-COMMERCE & LOGISTICA DE COMPRA
 // ==========================================================
 model Order {
-  id             String         @id @default(cuid())
-  orderNumber    String         @unique @default(cuid())
+  id             String              @id @default(cuid())
+  orderNumber    String              @unique @default(cuid())
   userId         String?
-  user           User?          @relation(fields: [userId], references: [id])
-  subtotal       Float          @default(0)
-  freightCost    Float          @default(0)
-  shippingCost   Float          @default(0)
-  serviceFee     Float          @default(0)
-  taxIVA         Float          @default(0)
+  user           User?               @relation(fields: [userId], references: [id])
+  subtotal       Float               @default(0)
+  freightCost    Float               @default(0)
+  shippingCost   Float               @default(0)
+  serviceFee     Float               @default(0)
+  taxIVA         Float               @default(0)
   total          Float
-  status         OrderStatus    @default(PENDING)
+  status         OrderStatus         @default(PENDING)
   evidenceUrl    String?
   deliveryLat    Float?
   deliveryLng    Float?
-  paymentMethod  String         @default("card")
+  paymentMethod  String              @default("card")
   paymentId      String?
-  logisticsType  LogisticsType  @default(SKYDROPX_NACIONAL)
-  pickupLocation PickupLocation @default(GUATEMALA_97)
-  vehiclesNeeded Int            @default(1)
+  logisticsType  LogisticsType       @default(SKYDROPX_NACIONAL)
+  pickupLocation PickupLocation      @default(GUATEMALA_97)
+  vehiclesNeeded Int                 @default(1)
   trackingNumber String?
   trackingUrl    String?
   customerName   String
   customerEmail  String
   customerPhone  String?
   address        String?
-  wantsInvoice   Boolean        @default(false)
+  wantsInvoice   Boolean             @default(false)
   invoiceStatus  String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
   items          OrderItem[]
   tickets        Ticket[]
   movements      InventoryMovement[]
   vehicleId      String?
-  vehicle        Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicle        Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 }
 
 model OrderItem {
@@ -450,8 +450,8 @@ model Interaction {
   user           User            @relation(fields: [userId], references: [id])
   type           InteractionType
   summary        String
-  content        Json?           // NUEVO
-  status         String          @default("open") // NUEVO
+  content        Json?
+  status         String          @default("open")
   pipelineStatus PipelineStatus?
   date           DateTime        @default(now())
   nextFollowUp   DateTime?
@@ -467,25 +467,24 @@ model ShippingZone {
 }
 
 model Ticket {
-  id           String         @id @default(cuid())
-  ticketNumber String         @unique @default(dbgenerated("concat('TK-', substr(gen_random_uuid()::text, 1, 6))"))
+  id           String          @id @default(cuid())
+  ticketNumber String          @unique @default(dbgenerated("concat('TK-', substr(gen_random_uuid()::text, 1, 6))"))
   userId       String
-  user         User           @relation(fields: [userId], references: [id])
+  user         User            @relation(fields: [userId], references: [id])
   employeeId   String?
-  employee     Employee?      @relation(fields: [employeeId], references: [id])
+  employee     Employee?       @relation(fields: [employeeId], references: [id])
   orderId      String?
-  order        Order?         @relation(fields: [orderId], references: [id])
+  order        Order?          @relation(fields: [orderId], references: [id])
   subject      String
   description  String
-  status       TicketStatus   @default(ABIERTO)
-  priority     TicketPriority @default(MEDIA)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  status       TicketStatus    @default(ABIERTO)
+  priority     TicketPriority  @default(MEDIA)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
-  messages     TicketMessage[] // NUEVO: relación con TicketMessage
+  messages     TicketMessage[]
 }
 
-// NUEVO: MODELO TICKET MESSAGE
 model TicketMessage {
   id         String    @id @default(cuid())
   ticketId   String
@@ -495,7 +494,7 @@ model TicketMessage {
   userId     String?
   user       User?     @relation(fields: [userId], references: [id])
   body       String
-  isInternal Boolean   @default(false) // true = nota interna (solo agentes la ven)
+  isInternal Boolean   @default(false)
   createdAt  DateTime  @default(now())
 }
 
@@ -503,15 +502,15 @@ model TicketMessage {
 // 7. FLOTILLA AVANZADA Y RUTAS
 // ==========================================================
 model Vehicle {
-  id              String        @id @default(cuid())
-  plate           String        @unique
+  id              String         @id @default(cuid())
+  plate           String         @unique
   model           String
-  lastMaintenance DateTime      @default(now())
+  lastMaintenance DateTime       @default(now())
   nextMaintenance DateTime
-  mileage         Float         @default(0)
-  status          VehicleStatus @default(ACTIVE)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  mileage         Float          @default(0)
+  status          VehicleStatus  @default(ACTIVE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   orders          Order[]
   logs            VehicleLog[]
@@ -591,16 +590,16 @@ model IssueLog {
 }
 
 // ==========================================================
-// 8. WHATSAPP CHAT (SIMULADO / API-READY)
+// 8. WHATSAPP CHAT (META API READY)
 // ==========================================================
 model WaConversation {
   id            String      @id @default(cuid())
-  employeeId    String
-  employee      Employee    @relation(fields: [employeeId], references: [id])
+  employeeId    String?     // ✅ Opcional: para cuando atiende el Bot
+  employee      Employee?   @relation(fields: [employeeId], references: [id])
   userId        String?
   user          User?       @relation(fields: [userId], references: [id])
   contactName   String?
-  contactPhone  String?
+  contactPhone  String      @unique // ✅ Requerido y Único para buscar conversaciones
   isOpen        Boolean     @default(true)
   lastMessage   String?
   lastMessageAt DateTime?
@@ -613,6 +612,7 @@ model WaConversation {
 
 model WaMessage {
   id             String         @id @default(cuid())
+  waId           String?        @unique // ✅ NUEVO: Evita duplicar mensajes que Meta reenvíe
   conversationId String
   conversation   WaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           WaMessageRole
