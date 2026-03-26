@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     const { conversationId, body, employeeId, isInitial, phone, name } = data;
 
     // =========================================================================
-    // CASO 1: CREAR NUEVA CONVERSACIÓN DESDE EL MODAL (Aún no se envía mensaje)
+    // CASO 1: CREAR NUEVA CONVERSACIÓN DESDE EL MODAL
     // =========================================================================
     if (isInitial && !body) {
       let convo = await prisma.waConversation.findUnique({
@@ -74,7 +74,21 @@ export async function POST(request: Request) {
       });
     }
 
-    // 3. Disparar el mensaje a la API de Meta Cloud (Versión de Producción)
+    // 🛡️ LIMPIADOR AGRESIVO DE NÚMEROS (MATA EL 521 DE LOS CHATS VIEJOS)
+    let cleanPhone = targetPhone.replace(/\D/g, ''); // Quita espacios, símbolos, etc.
+    
+    // Si empieza con 521 y tiene 13 dígitos, le quitamos el '1'
+    if (cleanPhone.startsWith("521") && cleanPhone.length === 13) {
+      cleanPhone = cleanPhone.replace(/^521/, "52");
+    } 
+    // Si el agente puso solo 10 dígitos, le agregamos el 52
+    else if (cleanPhone.length === 10) {
+      cleanPhone = "52" + cleanPhone;
+    }
+
+    console.log(`📞 [DEBUG] Teléfono DB: ${targetPhone} -> Limpiado para Meta: ${cleanPhone}`);
+
+    // 3. Disparar el mensaje a la API de Meta Cloud usando el número limpio
     const TOKEN = process.env.WHATSAPP_TOKEN;
     const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
@@ -89,11 +103,11 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           messaging_product: "whatsapp",
           recipient_type: "individual",
-          to: targetPhone,
+          to: cleanPhone, // <--- AQUÍ SE USA EL NÚMERO YA PURIFICADO
           type: "text",
           text: {
             preview_url: false,
-            body: body, // El texto literal que escribió tu agente en el CRM
+            body: body, 
           },
         }),
       }
@@ -101,7 +115,7 @@ export async function POST(request: Request) {
 
     const metaData = await metaResponse.json();
 
-    // Si Meta lo rechaza (ej. la ventana de 24hrs se cerró)
+    // Si Meta lo rechaza
     if (!metaResponse.ok) {
       console.error("❌ Error de Meta enviando WA:", metaData);
       return NextResponse.json({ error: metaData.error?.message || "Error de Meta" }, { status: 400 });
@@ -116,17 +130,18 @@ export async function POST(request: Request) {
         role: "AGENT", 
         body: body,
         conversationId: conversationId,
-        isRead: true, // Fue enviado por nosotros, ya está "leído"
+        isRead: true, 
       },
     });
 
-    // 5. Actualizar el chat principal (Para que suba hasta arriba en el panel izquierdo)
+    // 5. Actualizar el chat principal
     await prisma.waConversation.update({
       where: { id: conversationId },
       data: {
         lastMessage: body,
         lastMessageAt: new Date(),
-        unreadCount: 0, // Quitamos la burbujita verde de no leídos
+        unreadCount: 0,
+        contactPhone: cleanPhone // <--- ACTUALIZAMOS EL NÚMERO EN LA DB PARA EL FUTURO
       },
     });
 
