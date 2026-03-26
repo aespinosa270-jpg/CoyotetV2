@@ -72,24 +72,23 @@ export default function WhatsappClient({
 
   const activeConvo = convos.find((c) => c.id === activeId) ?? null;
 
-  // 1. Cargar contactos (Ajustado a tu ruta /api/crm/chat/...)
+  // 1. Cargar contactos (✅ CORREGIDO para producción: /api/whatsapp/contacts)
   useEffect(() => {
     if (showNewChat && contacts.length === 0) {
-      fetch('/api/crm/chat/contacts')
+      fetch('/api/whatsapp/contacts')
         .then(r => r.json())
         .then(data => setContacts(Array.isArray(data) ? data : []))
         .catch(() => setContacts([]));
     }
   }, [showNewChat, contacts.length]);
 
-  // 2. Carga inicial de mensajes (CON VALIDACIÓN DE ARRAY)
+  // 2. Carga inicial de mensajes (✅ CORREGIDO para producción: /api/whatsapp/messages)
   useEffect(() => {
     if (!activeId) return;
     setLoadingMsgs(true);
-    fetch(`/api/crm/chat/messages?conversationId=${activeId}`)
+    fetch(`/api/whatsapp/messages?conversationId=${activeId}`)
       .then((r) => r.json())
       .then((data) => { 
-        // 🛡️ Si data no es un array (ej. un objeto de error), seteamos array vacío
         setMessages(Array.isArray(data) ? data : []); 
         setLoadingMsgs(false); 
       })
@@ -99,11 +98,11 @@ export default function WhatsappClient({
       });
   }, [activeId]);
 
-  // 3. Polling (CON VALIDACIÓN DE ARRAY)
+  // 3. Polling (✅ CORREGIDO para producción: /api/whatsapp/messages)
   useEffect(() => {
     if (!activeId) return;
     const interval = setInterval(() => {
-      fetch(`/api/crm/chat/messages?conversationId=${activeId}`)
+      fetch(`/api/whatsapp/messages?conversationId=${activeId}`)
         .then((r) => r.json())
         .then((data) => {
           if (Array.isArray(data) && data.length > messages.length) {
@@ -119,9 +118,10 @@ export default function WhatsappClient({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // ✅ CORREGIDO para producción: /api/whatsapp/send
   const startNewChat = async (contact: any) => {
     try {
-      const res = await fetch('/api/crm/chat/send', {
+      const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json'},
         body: JSON.stringify({ userId: contact.id, phone: contact.phone, name: contact.name, employeeId, isInitial: true })
@@ -135,11 +135,13 @@ export default function WhatsappClient({
     }
   };
 
+  // ✅ CORREGIDO para producción: /api/whatsapp/send
   const handleSend = () => {
     const body = input.trim();
     if (!body || !activeId) return;
     setInput("");
 
+    // Optimistic UI para que el agente vea su mensaje al instante
     const optimistic: WaMessage = {
       id: `tmp-${Date.now()}`,
       role: "AGENT",
@@ -153,13 +155,23 @@ export default function WhatsappClient({
 
     startT(async () => {
       try {
-        await fetch("/api/crm/chat/send", {
+        const response = await fetch("/api/whatsapp/send", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ conversationId: activeId, body, employeeId }),
+          // Aseguramos de enviar los datos que el nuevo endpoint espera
+          body:    JSON.stringify({ 
+            conversationId: activeId, 
+            body: body, 
+            employeeId: employeeId,
+            phone: activeConvo?.contactPhone // Mandamos el tel por si acaso
+          }),
         });
+
+        if (!response.ok) {
+           console.error("Error devuelto por el servidor:", await response.text());
+        }
       } catch (err) {
-        console.error("Fallo al enviar:", err);
+        console.error("Fallo crìtico al enviar:", err);
       }
     });
   };
@@ -255,7 +267,7 @@ export default function WhatsappClient({
             </div>
           </div>
 
-          {/* MENSAJES (🛡️ BLINDADO CON EL FALLBACK []) */}
+          {/* MENSAJES */}
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800">
             {loadingMsgs ? (
               <div className="h-full flex items-center justify-center opacity-20"><Loader2 className="animate-spin text-white" /></div>
