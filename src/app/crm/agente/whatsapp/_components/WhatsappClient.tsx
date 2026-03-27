@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Send, Plus, Phone, MoreVertical,
-  CheckCheck, MessageSquare, Circle, X, Loader2, Smile, Paperclip
+  CheckCheck, MessageSquare, Circle, X, Loader2, Smile, Paperclip, FileText
 } from "lucide-react";
 
 // --- TIPOS ---
@@ -13,6 +13,7 @@ type WaMessage = {
   role:     "AGENT" | "CLIENT" | "CUSTOMER";
   body:     string;
   mediaUrl: string | null;
+  mediaType: string | null; // <-- Importante para saber si es imagen, audio, etc.
   isRead:   boolean;
   sentAt:   string;
 };
@@ -64,7 +65,10 @@ export default function WhatsappClient({
   const [messages,     setMessages]     = useState<WaMessage[]>([]); 
   const [loadingMsgs,  setLoadingMsgs]  = useState(false);
   const [isPending,    startT]          = useTransition();
+  const [isUploading,  setIsUploading]  = useState(false); // <-- Estado de subida
+  
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // <-- Referencia al input invisible
 
   const [showNewChat, setShowNewChat] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
@@ -129,12 +133,13 @@ export default function WhatsappClient({
       setConvos((prev) => [newConvo, ...prev.filter(c => c.id !== newConvo.id)]);
       setActiveId(newConvo.id);
       setShowNewChat(false);
-      setContactSearch(""); // Limpiar buscador
+      setContactSearch(""); 
     } catch (error) {
       console.error(error);
     }
   };
 
+  // ENVIAR TEXTO
   const handleSend = () => {
     const body = input.trim();
     if (!body || !activeId) return;
@@ -145,6 +150,7 @@ export default function WhatsappClient({
       role: "AGENT",
       body,
       mediaUrl: null,
+      mediaType: null,
       isRead: false,
       sentAt: new Date().toISOString(),
     };
@@ -153,7 +159,7 @@ export default function WhatsappClient({
 
     startT(async () => {
       try {
-        const response = await fetch("/api/whatsapp/send", {
+        await fetch("/api/whatsapp/send", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ 
@@ -163,14 +169,31 @@ export default function WhatsappClient({
             phone: activeConvo?.contactPhone 
           }),
         });
-
-        if (!response.ok) {
-           console.error("Error devuelto por el servidor:", await response.text());
-        }
       } catch (err) {
-        console.error("Fallo crìtico al enviar:", err);
+        console.error("Fallo crítico al enviar:", err);
       }
     });
+  };
+
+  // 📁 MANEJO DE ARCHIVOS (SUBIDA)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeId) return;
+
+    setIsUploading(true);
+    
+    // Aquí construiremos la llamada a Supabase Storage y a Meta
+    // Por ahora, solo lo logueamos para el siguiente paso.
+    console.log("Archivo seleccionado listo para subir:", file.name, file.type);
+    
+    // Simulamos la espera para que veas el loader
+    setTimeout(() => {
+      setIsUploading(false);
+      alert("Listo para el backend de Storage. ¡Dile a Gemini que te pase la ruta API de Media!");
+    }, 1500);
+
+    // Reseteamos el input
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const filtered = convos.filter((c) =>
@@ -179,13 +202,21 @@ export default function WhatsappClient({
     (c.contactPhone ?? "").includes(search)
   );
 
-  // Helper para saber si el texto del buscador parece un número de teléfono nuevo
   const isSearchPhone = contactSearch.replace(/\D/g, '').length >= 10;
   const cleanSearchPhone = contactSearch.replace(/\D/g, '');
 
   return (
     <div className="flex-1 flex min-h-0 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden relative shadow-2xl">
       
+      {/* INPUT INVISIBLE DE ARCHIVOS */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileUpload} 
+        className="hidden" 
+        accept="image/*,audio/*,application/pdf" 
+      />
+
       {/* MODAL NUEVO CHAT */}
       <AnimatePresence>
         {showNewChat && (
@@ -207,8 +238,6 @@ export default function WhatsappClient({
                 </div>
               </div>
               <div className="max-h-[300px] overflow-y-auto p-2">
-                
-                {/* 1. MOSTRAR CONTACTOS EXISTENTES QUE COINCIDAN (POR NOMBRE O TELÉFONO) */}
                 {contacts.filter(c => 
                   (c.name || "").toLowerCase().includes(contactSearch.toLowerCase()) || 
                   (c.phone || "").includes(contactSearch)
@@ -221,8 +250,6 @@ export default function WhatsappClient({
                     </div>
                   </button>
                 ))}
-
-                {/* 2. BOTÓN MÁGICO PARA NÚMEROS NUEVOS NO REGISTRADOS */}
                 {isSearchPhone && (
                   <motion.button 
                     initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
@@ -238,15 +265,6 @@ export default function WhatsappClient({
                     </div>
                   </motion.button>
                 )}
-
-                {/* Si no hay resultados y no es un número */}
-                {!isSearchPhone && contactSearch.length > 0 && contacts.filter(c => (c.name || "").toLowerCase().includes(contactSearch.toLowerCase()) || (c.phone || "").includes(contactSearch)).length === 0 && (
-                  <div className="p-6 text-center text-zinc-500 text-sm">
-                    No se encontraron clientes.<br/>
-                    Escribe un número de 10 dígitos para iniciar un chat nuevo.
-                  </div>
-                )}
-
               </div>
             </motion.div>
           </motion.div>
@@ -280,7 +298,9 @@ export default function WhatsappClient({
                   <p className="text-[12px] font-bold text-zinc-200 truncate">{getContactName(c)}</p>
                   <span className="text-[9px] text-zinc-600 font-mono">{timeLabel(c.lastMessageAt)}</span>
                 </div>
-                <p className="text-[11px] text-zinc-500 truncate italic">{c.lastMessage ?? "Inicia el chat..."}</p>
+                <p className="text-[11px] text-zinc-500 truncate italic">
+                  {c.messages?.[c.messages.length - 1]?.mediaUrl ? '📸 Archivo adjunto' : (c.lastMessage ?? "Inicia el chat...")}
+                </p>
               </div>
               {c.unreadCount > 0 && <span className="w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center text-[8px] font-black text-black">{c.unreadCount}</span>}
             </button>
@@ -304,12 +324,14 @@ export default function WhatsappClient({
               </div>
             </div>
             <div className="flex items-center gap-4 text-zinc-500">
-              <Phone size={18} className="hover:text-emerald-400 cursor-pointer transition-colors" />
+              <a href={`tel:+${activeConvo.contactPhone}`} className="hover:text-emerald-400 cursor-pointer transition-colors" title="Llamada normal">
+                <Phone size={18} />
+              </a>
               <MoreVertical size={18} className="hover:text-white cursor-pointer transition-colors" />
             </div>
           </div>
 
-          {/* MENSAJES */}
+          {/* MENSAJES (AHORA SOPORTAN MULTIMEDIA) */}
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800">
             {loadingMsgs ? (
               <div className="h-full flex items-center justify-center opacity-20"><Loader2 className="animate-spin text-white" /></div>
@@ -319,7 +341,23 @@ export default function WhatsappClient({
                 return (
                   <motion.div key={msg.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${isMe ? "bg-emerald-600 text-white rounded-br-none shadow-lg shadow-emerald-900/20" : "bg-zinc-800 text-zinc-100 rounded-bl-none border border-white/5"}`}>
-                      <p className="leading-relaxed whitespace-pre-wrap">{msg.body}</p>
+                      
+                      {/* RENDERIZADO DE MULTIMEDIA */}
+                      {msg.mediaUrl && (
+                        <div className="mb-2 overflow-hidden rounded-xl bg-black/20">
+                          {msg.mediaType === "image" && <img src={msg.mediaUrl} alt="Imagen enviada" className="max-w-full max-h-60 object-cover" />}
+                          {msg.mediaType === "audio" && <audio src={msg.mediaUrl} controls className="w-full max-w-[250px] h-10" />}
+                          {msg.mediaType === "document" && (
+                            <a href={msg.mediaUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 p-3 text-emerald-300 hover:text-emerald-400 underline">
+                              <FileText size={20} /> Ver Documento adjunto
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {/* TEXTO DEL MENSAJE */}
+                      {msg.body && <p className="leading-relaxed whitespace-pre-wrap">{msg.body}</p>}
+
                       <div className={`flex items-center gap-1 mt-1 opacity-50 ${isMe ? "justify-end" : "justify-start"}`}>
                         <span className="text-[9px] font-mono">{new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         {isMe && <CheckCheck size={12} className={msg.isRead ? "text-sky-300" : "text-white"} />}
@@ -336,11 +374,25 @@ export default function WhatsappClient({
           <div className="px-6 py-4 bg-[#0d0d0d] border-t border-white/[0.04]">
             <div className="flex items-center gap-3">
               <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 flex items-center gap-3 focus-within:border-emerald-500/40 transition-all">
+                
+                {isUploading ? (
+                  <Loader2 size={20} className="text-emerald-500 animate-spin" />
+                ) : (
+                  <Paperclip size={20} className="text-zinc-500 hover:text-white cursor-pointer transition-colors" onClick={() => fileInputRef.current?.click()} />
+                )}
+
                 <Smile size={20} className="text-zinc-500 hover:text-emerald-400 cursor-pointer" />
-                <Paperclip size={20} className="text-zinc-500 hover:text-white cursor-pointer" />
-                <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()} placeholder="Escribe un mensaje..." className="flex-1 bg-transparent text-sm text-white focus:outline-none" />
+                
+                <input 
+                  value={input} 
+                  onChange={(e) => setInput(e.target.value)} 
+                  onKeyDown={(e) => e.key === "Enter" && handleSend()} 
+                  placeholder={isUploading ? "Subiendo archivo..." : "Escribe un mensaje..."} 
+                  disabled={isUploading}
+                  className="flex-1 bg-transparent text-sm text-white focus:outline-none disabled:opacity-50" 
+                />
               </div>
-              <button onClick={handleSend} disabled={!input.trim() || isPending} className="w-12 h-12 bg-emerald-500 text-black rounded-2xl flex items-center justify-center hover:bg-emerald-400 active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20">
+              <button onClick={handleSend} disabled={!input.trim() || isPending || isUploading} className="w-12 h-12 bg-emerald-500 text-black rounded-2xl flex items-center justify-center hover:bg-emerald-400 active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20">
                 {isPending ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} className="translate-x-0.5" />}
               </button>
             </div>
