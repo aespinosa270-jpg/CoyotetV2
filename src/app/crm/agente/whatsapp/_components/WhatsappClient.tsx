@@ -13,7 +13,7 @@ type WaMessage = {
   role:     "AGENT" | "CLIENT" | "CUSTOMER";
   body:     string;
   mediaUrl: string | null;
-  mediaType: string | null; // <-- Importante para saber si es imagen, audio, etc.
+  mediaType: string | null;
   isRead:   boolean;
   sentAt:   string;
 };
@@ -49,6 +49,9 @@ function getInitials(name: string) {
   return name.trim().split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
+// Emojis rápidos para el CRM
+const QUICK_EMOJIS = ["🐺", "📦", "💪", "👍", "🔥", "✅", "😅", "🙏", "👀", "😎", "🚀", "💰", "🧵", "👕", "🇲🇽", "📍"];
+
 export default function WhatsappClient({
   conversaciones,
   employeeId,
@@ -65,7 +68,8 @@ export default function WhatsappClient({
   const [messages,     setMessages]     = useState<WaMessage[]>([]); 
   const [loadingMsgs,  setLoadingMsgs]  = useState(false);
   const [isPending,    startT]          = useTransition();
-  const [isUploading,  setIsUploading]  = useState(false); // <-- Estado de subida
+  const [isUploading,  setIsUploading]  = useState(false);
+  const [showEmojis,   setShowEmojis]   = useState(false); // <-- Estado para el menú de emojis
   
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null); // <-- Referencia al input invisible
@@ -144,6 +148,7 @@ export default function WhatsappClient({
     const body = input.trim();
     if (!body || !activeId) return;
     setInput("");
+    setShowEmojis(false); // Cerrar emojis al enviar
 
     const optimistic: WaMessage = {
       id: `tmp-${Date.now()}`,
@@ -175,25 +180,38 @@ export default function WhatsappClient({
     });
   };
 
-  // 📁 MANEJO DE ARCHIVOS (SUBIDA)
+  // 📁 MANEJO DE ARCHIVOS REAL AL BACKEND
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeId) return;
 
     setIsUploading(true);
     
-    // Aquí construiremos la llamada a Supabase Storage y a Meta
-    // Por ahora, solo lo logueamos para el siguiente paso.
-    console.log("Archivo seleccionado listo para subir:", file.name, file.type);
-    
-    // Simulamos la espera para que veas el loader
-    setTimeout(() => {
-      setIsUploading(false);
-      alert("Listo para el backend de Storage. ¡Dile a Gemini que te pase la ruta API de Media!");
-    }, 1500);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("conversationId", activeId);
+    formData.append("employeeId", employeeId);
 
-    // Reseteamos el input
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    try {
+      const res = await fetch("/api/whatsapp/send-media", {
+        method: "POST",
+        body: formData
+      });
+      
+      const newMsg = await res.json();
+      
+      if(res.ok) {
+         setMessages((prev) => [...prev, newMsg]);
+      } else {
+         console.error("Error al subir archivo:", newMsg);
+         alert("Hubo un error enviando el archivo a Meta.");
+      }
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   const filtered = convos.filter((c) =>
@@ -208,7 +226,7 @@ export default function WhatsappClient({
   return (
     <div className="flex-1 flex min-h-0 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden relative shadow-2xl">
       
-      {/* INPUT INVISIBLE DE ARCHIVOS */}
+      {/* 📁 INPUT INVISIBLE DE ARCHIVOS (ESENCIAL PARA EL CLIP) */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -331,8 +349,8 @@ export default function WhatsappClient({
             </div>
           </div>
 
-          {/* MENSAJES (AHORA SOPORTAN MULTIMEDIA) */}
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800">
+          {/* MENSAJES (SOPORTAN MULTIMEDIA) */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800" onClick={() => setShowEmojis(false)}>
             {loadingMsgs ? (
               <div className="h-full flex items-center justify-center opacity-20"><Loader2 className="animate-spin text-white" /></div>
             ) : (
@@ -344,9 +362,9 @@ export default function WhatsappClient({
                       
                       {/* RENDERIZADO DE MULTIMEDIA */}
                       {msg.mediaUrl && (
-                        <div className="mb-2 overflow-hidden rounded-xl bg-black/20">
-                          {msg.mediaType === "image" && <img src={msg.mediaUrl} alt="Imagen enviada" className="max-w-full max-h-60 object-cover" />}
-                          {msg.mediaType === "audio" && <audio src={msg.mediaUrl} controls className="w-full max-w-[250px] h-10" />}
+                        <div className="mb-2 overflow-hidden rounded-xl bg-black/20 flex flex-col items-center justify-center">
+                          {msg.mediaType === "image" && <img src={msg.mediaUrl} alt="Imagen" className="max-w-full max-h-60 object-cover rounded-lg" />}
+                          {msg.mediaType === "audio" && <audio src={msg.mediaUrl} controls className="w-full max-w-[250px] h-10 mt-1" />}
                           {msg.mediaType === "document" && (
                             <a href={msg.mediaUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 p-3 text-emerald-300 hover:text-emerald-400 underline">
                               <FileText size={20} /> Ver Documento adjunto
@@ -370,18 +388,51 @@ export default function WhatsappClient({
             <div ref={bottomRef} className="h-2" />
           </div>
 
-          {/* Input */}
+          {/* Input Area */}
           <div className="px-6 py-4 bg-[#0d0d0d] border-t border-white/[0.04]">
             <div className="flex items-center gap-3">
-              <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 flex items-center gap-3 focus-within:border-emerald-500/40 transition-all">
+              <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 flex items-center gap-3 focus-within:border-emerald-500/40 transition-all relative">
                 
+                {/* 📎 BOTÓN DE ADJUNTAR */}
                 {isUploading ? (
                   <Loader2 size={20} className="text-emerald-500 animate-spin" />
                 ) : (
-                  <Paperclip size={20} className="text-zinc-500 hover:text-white cursor-pointer transition-colors" onClick={() => fileInputRef.current?.click()} />
+                  <Paperclip 
+                    size={20} 
+                    className="text-zinc-500 hover:text-emerald-400 cursor-pointer transition-colors" 
+                    onClick={() => fileInputRef.current?.click()} 
+                  />
                 )}
 
-                <Smile size={20} className="text-zinc-500 hover:text-emerald-400 cursor-pointer" />
+                {/* 😄 BOTÓN DE EMOJIS */}
+                <div className="relative flex items-center">
+                  <Smile 
+                    size={20} 
+                    className={`cursor-pointer transition-colors ${showEmojis ? 'text-emerald-400' : 'text-zinc-500 hover:text-emerald-400'}`}
+                    onClick={() => setShowEmojis(!showEmojis)} 
+                  />
+                  
+                  <AnimatePresence>
+                    {showEmojis && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }} 
+                        animate={{ opacity: 1, y: 0, scale: 1 }} 
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }} 
+                        className="absolute bottom-10 left-0 bg-[#111] border border-zinc-800 rounded-xl p-3 shadow-2xl flex flex-wrap gap-2 w-56 z-50"
+                      >
+                        {QUICK_EMOJIS.map(emoji => (
+                          <button 
+                            key={emoji} 
+                            onClick={() => { setInput(prev => prev + emoji); setShowEmojis(false); }} 
+                            className="text-xl hover:scale-125 transition-transform hover:bg-white/5 p-1 rounded-md"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
                 
                 <input 
                   value={input} 
