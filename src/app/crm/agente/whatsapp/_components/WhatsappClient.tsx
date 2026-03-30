@@ -12,13 +12,13 @@ import { supabase } from "@/lib/supabase"; // 🚀 MOTOR REALTIME
 // --- TIPOS ---
 type WaMessage = {
   id:       string;
-  role:     "AGENT" | "CLIENT" | "CUSTOMER";
+  role:     string; // Relajado para no pelear con los Enums de Prisma
   body:     string;
   mediaUrl: string | null;
   mediaType: string | null;
   isRead:   boolean;
   sentAt:   string;
-  waId?:    string;
+  waId:     string | null; // 🚨 Corregido para que coincida perfecto con Prisma
 };
 
 type Conversacion = {
@@ -121,7 +121,7 @@ export default function WhatsappClient({
           const nuevoMensaje = payload.new as WaMessage;
           setMessages((prev) => {
             // Evitar duplicados por Optimistic UI
-            if (prev.some(m => m.id === nuevoMensaje.id || m.waId === nuevoMensaje.waId)) return prev;
+            if (prev.some(m => m.id === nuevoMensaje.id || (m.waId && m.waId === nuevoMensaje.waId))) return prev;
             return [...prev, nuevoMensaje];
           });
         }
@@ -169,6 +169,7 @@ export default function WhatsappClient({
       mediaType: null,
       isRead: false,
       sentAt: new Date().toISOString(),
+      waId: null,
     };
     
     setMessages((prev) => [...prev, optimistic]);
