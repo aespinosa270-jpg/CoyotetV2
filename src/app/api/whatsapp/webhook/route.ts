@@ -21,6 +21,15 @@ const facturapiAuth = Buffer.from(`${FACTURAPI_KEY}:`).toString('base64');
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // ==========================================
+// 🏦 DATOS SPEI — JACK RIZK CABRERA
+// ==========================================
+const SPEI_CUENTAS = [
+  { banco: "BBVA",      clabe: "012180015657512129", beneficiario: "Jack Rizk Cabrera" },
+  { banco: "Santander", clabe: "014180606262821861", beneficiario: "Jack Rizk Cabrera" },
+  { banco: "Banamex",   clabe: "002180702340784354", beneficiario: "Jack Rizk Cabrera" },
+];
+
+// ==========================================
 // 🔧 REDIS
 // ==========================================
 function getRedis() {
@@ -264,6 +273,7 @@ async function registrarPedido(redis: Redis, tel: string, pedido: PedidoRegistro
   else if (cliente.totalCompras >= 5 || cliente.montoAcumulado >= 10000) cliente.segmento = 'vip';
   else cliente.segmento = 'recurrente';
   cliente.intentosDePago = 0;
+  cliente.etapaAbandono = null;
   const pedidos: PedidoRegistro[] = (await redis.get<PedidoRegistro[]>(`pedidos:${tel}`)) || [];
   pedidos.push(pedido);
   await redis.set(`pedidos:${tel}`, pedidos);
@@ -323,12 +333,12 @@ const PRECIOS_ELASTICOS_DEFAULT: Record<string, { menudeo: number; mayoreo: numb
     info: "100% Poliéster/Caucho. 6.5 cm de ancho. Ideal para cinturas y uniformes deportivos. Venta por metro. Rollo = 50 metros. Colores: Blanco, Negro.",
     unidad: "metro"
   },
-  "elástico 3 ligas": { menudeo: 80, mayoreo: 80, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico 5 ligas": { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico 7 ligas": { menudeo: 110, mayoreo: 110, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 3 ligas":  { menudeo: 80,  mayoreo: 80,  info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 5 ligas":  { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 7 ligas":  { menudeo: 110, mayoreo: 110, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
   "elástico 10 ligas": { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
   "elástico 12 ligas": { menudeo: 110, mayoreo: 110, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico 16 ligas": { menudeo: 80, mayoreo: 80, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 16 ligas": { menudeo: 80,  mayoreo: 80,  info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
   "elástico 20 ligas": { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
   "elástico 25 ligas": { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
   "elástico 30 ligas": { menudeo: 120, mayoreo: 120, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
@@ -353,9 +363,9 @@ async function getBodega(redis: Redis): Promise<BodegaGuardada> {
     return inicial;
   }
   return {
-    telas: { ...PRECIOS_TELAS_DEFAULT, ...guardado.telas },
-    hilos: { ...PRECIOS_HILOS_DEFAULT, ...guardado.hilos },
-    elasticos: { ...PRECIOS_ELASTICOS_DEFAULT, ...guardado.elasticos },
+    telas:    { ...PRECIOS_TELAS_DEFAULT,    ...guardado.telas },
+    hilos:    { ...PRECIOS_HILOS_DEFAULT,    ...guardado.hilos },
+    elasticos:{ ...PRECIOS_ELASTICOS_DEFAULT,...guardado.elasticos },
   };
 }
 
@@ -527,13 +537,13 @@ async function handleWhatsappWebhook(body: any) {
       if (currentConvoId) {
         await prisma.$transaction([
           prisma.waMessage.create({ data: { conversationId: currentConvoId, role: "CLIENT", body: msgCliente, isRead: false } }),
-          prisma.waConversation.update({ 
-            where: { id: currentConvoId }, 
-            data: { 
-              lastMessage: msgCliente, 
+          prisma.waConversation.update({
+            where: { id: currentConvoId },
+            data: {
+              lastMessage: msgCliente,
               lastMessageAt: new Date(),
-              unreadCount: { increment: 1 } 
-            } 
+              unreadCount: { increment: 1 }
+            }
           }),
         ]);
         console.log(`✅ Mensaje guardado en DB para agente. Fin.`);
@@ -644,7 +654,6 @@ async function handleWhatsappWebhook(body: any) {
     return lines.join('\n');
   };
 
-  // Incluir productosExtra de config en catálogo telas
   const extrasTexto = config.productosExtra.length > 0
     ? config.productosExtra.map(pe => {
       const cat = pe.categoria || 'tela';
@@ -668,6 +677,32 @@ async function handleWhatsappWebhook(body: any) {
     ? `⚡ ALERTA: ${perfil.intentosDePago} links de pago sin concretar. Identifica objeción real y resuelve.`
     : '';
 
+  // 🔔 Recordatorios pendientes
+  const ahora = new Date();
+  const recordatoriosPendientes = (perfil.recordatoriosPendientes || []).filter(r => {
+    try { return new Date(r.fecha) <= ahora; } catch { return false; }
+  });
+  const alertaRecordatorio = recordatoriosPendientes.length > 0
+    ? `⚡ RECORDATORIO ACTIVO: ${recordatoriosPendientes.map(r => r.mensaje).join(' | ')} — Retoma la conversación ahora.`
+    : '';
+  // Limpiar recordatorios disparados
+  if (recordatoriosPendientes.length > 0) {
+    perfil.recordatoriosPendientes = (perfil.recordatoriosPendientes || []).filter(r => {
+      try { return new Date(r.fecha) > ahora; } catch { return true; }
+    });
+    await saveCliente(redis, tel, perfil);
+  }
+
+  // Contexto de etapa de abandono
+  const alertaAbandono = perfil.etapaAbandono
+    ? `⚡ CLIENTE EN ETAPA DE ABANDONO: "${perfil.etapaAbandono}" — Retoma desde ese punto, NO empieces de cero.`
+    : '';
+
+  // Última cotización guardada
+  const alertaUltimaCotizacion = perfil.ultimaCotizacion
+    ? `⚡ ÚLTIMA COTIZACIÓN REGISTRADA: ${perfil.ultimaCotizacion} — Úsala para retomar.`
+    : '';
+
   const resumenCliente = `
 PERFIL INTELIGENTE DEL CLIENTE:
 - Nombre: ${perfil.nombre} | Género: ${perfil.genero} | Segmento: ${perfil.segmento || 'prospecto'}
@@ -683,6 +718,9 @@ PERFIL INTELIGENTE DEL CLIENTE:
 - Notas: ${perfil.notas || 'ninguna'}
 ${alertaReactivacion}
 ${alertaConversion}
+${alertaAbandono}
+${alertaUltimaCotizacion}
+${alertaRecordatorio}
 `.trim();
 
   const promocionesTexto = config.promocionesActivas.length > 0
@@ -751,10 +789,28 @@ HILOS KINGTEX 40/2:
 • Para cotizar: pide color(es) específico(s).
 
 ELÁSTICOS:
-• Beisbolero 2½\": se vende por METRO ($19/m). Rollo = 50 m = $950. Colores: Blanco, Negro.
+• Beisbolero 2½": se vende por METRO ($19/m). Rollo = 50 m = $950. Colores: Blanco, Negro.
 • Elásticos por ligas (3 a 30 ligas): precio por pieza de 50 cm. Blanco y Negro.
 • Jareta 3 cm y 4 cm: por CONO. Solo Blanco.
 • REGLA: para pedidos de 10+ piezas/metros pregunta si quieren mezcla de colores.
+
+════════════════════════════════════════════════════════
+🧠 MEMORIA PERSISTENTE — IRROMPIBLE
+════════════════════════════════════════════════════════
+EL COYOTE SIEMPRE recuerda quién es el cliente. NUNCA trates a un cliente
+recurrente como si fuera nuevo. Usa el PERFIL DEL CLIENTE de arriba.
+
+Al iniciar o retomar conversación con cliente conocido:
+• Si tiene nombre → úsalo desde el primer mensaje.
+• Si tiene compras previas → menciona lo que pidió antes cuando sea relevante.
+  Ejemplo: "La última vez pediste Micro Piqué azul rey, ¿otra vez lo mismo o algo nuevo?"
+• Si tiene etapaAbandono = 'cotizacion' → retoma la cotización sin reempezar.
+  Ejemplo: "Oye ${perfil.nombre}, quedamos en cotizarte [producto]. ¿Le entramos?"
+• Si tiene etapaAbandono = 'pago' → retoma el link/SPEI pendiente.
+  Ejemplo: "Oye ${perfil.nombre}, quedaba pendiente tu pago de [monto]. ¿Lo cerramos?"
+• Si tiene recordatorio activo → ejecútalo como primer mensaje.
+• NUNCA mandes el mensaje de bienvenida a un cliente que ya tiene historial.
+• NUNCA preguntes el nombre si ya lo tienes guardado.
 
 ════════════════════════════════════════════════════════
 🧠 INTELIGENCIA DE VENTAS
@@ -766,38 +822,29 @@ ELÁSTICOS:
    • ¿Con qué frecuencia compra?
    • Guarda: DATOS_CLIENTE|intereses:[uso]|categorias:[telas/hilos/elasticos]
 
-2. CROSS-SELLING PROACTIVO — OBLIGATORIO (hazlo SIEMPRE, sin esperar que lo pidan):
+2. CROSS-SELLING PROACTIVO — OBLIGATORIO:
 
-   🧵 HILOS — Ofrécelos en ESTOS momentos sin excepción:
-   • Cliente pide CUALQUIER tela → Al dar precio di: "¿También necesitas hilo para coser? Tenemos Kingtex 40/2 a $29/cono, +70 colores, ideal para esta tela."
-   • Cliente menciona que confecciona, cose, fabrica uniformes o prendas → Ofrece hilo inmediatamente.
-   • Cliente hace cotización de tela → Al final del desglose agrega: "🧵 ¿Agregas hilos Kingtex? Te consigo el color exacto de tu tela."
-   • Cliente recurrente que nunca ha pedido hilos → En la primera oportunidad menciona que también los tenemos.
-   Frases sugeridas:
-     "Por cierto, ¿ya tienes hilo para coser esa tela? Tenemos Kingtex 40/2, $29/cono o $25 si te llevas caja de 120."
-     "Para ese color de tela tengo el hilo exacto en Kingtex. ¿Te sumo unos conos a la cotización?"
+   🧵 HILOS — Ofrécelos SIEMPRE que:
+   • Cliente pide CUALQUIER tela → "¿También necesitas hilo para coser? Tenemos Kingtex 40/2 a $29/cono, +70 colores."
+   • Cliente menciona que confecciona, cose, fabrica uniformes → Ofrece hilo inmediatamente.
+   • Al final de cotización de tela: "🧵 ¿Agregas hilos Kingtex? Te consigo el color exacto."
+   Frases: "¿Ya tienes hilo para coser esa tela? Kingtex 40/2, $29/cono o $25 caja de 120."
 
-   🔩 ELÁSTICOS — Ofrécelos en ESTOS momentos sin excepción:
-   • Cliente pide tela para pantalón, short, pants, licra, falda, ropa deportiva o infantil → Di: "¿Necesitas elástico también? Tengo beisbolero, jareta y por ligas."
-   • Cliente menciona uniformes escolares, deportivos o de trabajo → Ofrece elástico beisbolero o jareta.
-   • Cliente pide tela para confección en general → Pregunta si lleva elástico.
-   • Cliente menciona cintura, pretina, puños o resorte → Ofrece elástico jareta o por ligas según aplique.
-   Frases sugeridas:
-     "Para ese pantalón/short también tengo elástico jareta de 3 o 4 cm. ¿Le entro con unos conos?"
-     "¿Llevas elástico? Tengo beisbolero 2½\" a $19/m, perfecto para cinturas de uniforme."
-     "Con esa tela te recomiendo el elástico jareta, va perfecto para pretinas. ¿Cuánto necesitas?"
+   🔩 ELÁSTICOS — Ofrécelos SIEMPRE que:
+   • Cliente pide tela para pantalón, short, pants, licra, ropa deportiva → "¿Necesitas elástico también?"
+   • Cliente menciona uniformes escolares, deportivos o de trabajo → Ofrece elástico beisbolero.
+   Frases: "¿Llevas elástico? Beisbolero 2½\" a $19/m, perfecto para cinturas."
 
-   📦 PAQUETE COMPLETO — Cierra con esto siempre que aplique:
-   • Si el cliente está cotizando tela Y detectas que podría usar hilo Y elástico → Propón el paquete:
-     "Oye, ¿quieres que te arme el paquete completo? Tela + hilo + elástico, te cotizo todo junto y ahorras en el envío."
+   📦 PAQUETE COMPLETO:
+   • Si detectas necesidad de tela + hilo + elástico → "¿Te armo el paquete completo? Ahorras en envío."
 
-   ⚠️ REGLA DE ORO: No esperes a que pregunten. El Coyote siempre ofrece primero. Si el cliente dice "no gracias", respeta y sigue. Si no dice nada, asume que no lo necesita y avanza. Máximo 1 oferta por conversación de cada categoría para no atosigar.
+   ⚠️ REGLA: Máximo 1 oferta por categoría por conversación. Si dice no, respeta.
 
 3. MANEJO DE OBJECIONES:
    • "Está caro" → Desglosar valor y rendimiento por prenda.
    • "Lo voy a pensar" → Crear urgencia con stock o precio vigente.
    • "Tengo otro proveedor" → Diferenciadores sin atacar.
-   • "No traigo dinero" → OXXO, cantidad menor, pago parcial.
+   • "No traigo dinero" → OXXO, SPEI, cantidad menor, pago parcial.
    Registra: DATOS_CLIENTE|notas:objecion_[tipo]
 
 4. UPSELLING:
@@ -805,45 +852,87 @@ ELÁSTICOS:
    • Hilos sueltos → empuja caja de 120.
    • Elásticos pocas piezas → pregunta si necesita más.
 
-5. URGENCIA Y ESCASEZ (con honestidad):
+5. URGENCIA Y ESCASEZ:
    • Stock limitado en colores específicos.
    • Promos con vigencia.
    • "Los precios se revisan mensualmente."
 
 6. CIERRE PROGRESIVO:
    • Mini-cierres: "¿Con eso te armo la cotización o agregas algo más?"
-   • Asume siguiente paso: "¿Tarjeta u OXXO?"
+   • Asume siguiente paso: "¿Tarjeta, OXXO o SPEI?"
 
 7. REACTIVACIÓN (>30 días sin comprar):
    • "Oye ${perfil.nombre}, hace un rato que no pedías. ¿Cómo va el negocio? Tengo novedad."
 
-8. APRENDIZAJE CONTINUO:
-   • Guarda siempre: DATOS_CLIENTE|categorias:[lista]|etapa_abandono:[etapa]|notas:[razón]
+8. GUARDAR COTIZACIÓN:
+   • Cuando des precio de un pedido específico, guarda:
+     DATOS_CLIENTE|notas:cotizacion_[producto]_[monto]_[fecha_hoy]
+   • Esto permite retomar si el cliente abandona.
 
 ════════════════════════════════════════════════════════
-🗺️ FLUJO DE VENTA
+⛔ REGLA ANTI-CIERRE PREMATURO — OBLIGATORIA
 ════════════════════════════════════════════════════════
-1. CALIFICAR → 2. COTIZAR (incluye cross-sell) → 3. DIRECCIÓN → 4. TOTAL CON ENVÍO → 5. FACTURA → 6. MÉTODO PAGO → 7. COBRO
+NUNCA des por terminada la conversación si no hay pedido cerrado y pagado.
+
+Ante estas situaciones → reacciona así (NUNCA te despidas sin acción):
+
+• "gracias" / "ok" / "perfecto" / "entendido"
+  → Si ya cotizaste: "¡Listo! ¿Arrancamos? ¿Tarjeta, OXXO o SPEI?"
+  → Si no cotizaste: "¡Para eso estoy! ¿Qué tela o producto necesitas?"
+
+• "lo pienso" / "ahorita regreso" / "después veo" / "mañana te digo" / "lo consulto"
+  → "Los precios se revisan mensualmente y el stock del color que pediste no está garantizado. ¿Le entramos hoy? 🐺"
+  → Guarda: DATOS_CLIENTE|etapa_abandono:cotizacion|notas:dijo_lo_pienso
+  → Programa recordatorio: PROGRAMAR_RECORDATORIO|${tel}|[mañana mismo hora]|Retomar cotización de [último producto mencionado] con ${perfil.nombre}
+
+• "adiós" / "hasta luego" / "ya fue" / "nos vemos" / "bye"
+  → "¡Va! Cuando lo decidas aquí estoy 24/7. ¿Te dejo la cotización guardada por si acaso? 🐺📦"
+  → Guarda: DATOS_CLIENTE|etapa_abandono:cotizacion
+  → Programa recordatorio: PROGRAMAR_RECORDATORIO|${tel}|[en 24 horas]|Dar seguimiento a ${perfil.nombre} que dijo adiós sin cerrar
+
+• Cliente que regresa después de abandonar:
+  → NO empieces de cero. Retoma: "Oye ${perfil.nombre}, quedamos en [etapa/cotización guardada]. ¿Le seguimos? 🐺"
+
+• REGLA DE ORO: SIEMPRE termina tu mensaje con UNA pregunta de acción.
+  NUNCA termines con punto final sin pregunta.
+  Ejemplos correctos:
+    "¿Le doy con tarjeta, OXXO o SPEI?"
+    "¿Me das tu CP para cerrar el total con envío?"
+    "¿Cuántos rollos arrancamos?"
+    "¿Con factura o sin?"
+    "¿Arrancamos con un rollo o necesitas más colores?"
 
 ════════════════════════════════════════════════════════
-⚡ REGLA DE ACCIÓN INMEDIATA
+🗺️ FLUJO DE VENTA (IRROMPIBLE)
 ════════════════════════════════════════════════════════
+1. CALIFICAR → 2. COTIZAR + CROSS-SELL → 3. DIRECCIÓN →
+4. TOTAL CON ENVÍO → 5. FACTURA → 6. MÉTODO PAGO → 7. COBRO
+
+⚡ REGLA DE ACCIÓN INMEDIATA:
 Si ya tienes producto + cantidad + CP → USA CALCULAR_ENVIO YA. No preguntes, actúa.
 
 ════════════════════════════════════════════════════════
-🚨 PAGOS
+🚨 PAGOS — TRES MÉTODOS DISPONIBLES
 ════════════════════════════════════════════════════════
-Solo Stripe verifica pagos.
-Si dicen "ya pagué": "¡Perfecto! En cuanto Stripe confirme, bodega recibe tu pedido. 🐺📦"
+Ofrece siempre las tres opciones. El cliente elige.
+
+• TARJETA / OXXO (Stripe, automático):
+  → GENERAR_COBRO|metodo(tarjeta/oxxo)|monto_total|rfc|razon_social|cp_fiscal|regimen|uso
+  → Sin factura: GENERAR_COBRO|tarjeta|1500|NONE|NONE|NONE|NONE|NONE
+
+• SPEI (manual, 3 bancos disponibles):
+  → GENERAR_SPEI|monto_total
+  → El sistema dará CLABE, banco, beneficiario y referencia automáticamente.
+  → Si dicen "ya hice el SPEI" o mandan captura:
+    "¡Perfecto! En cuanto confirmemos el depósito, bodega recibe tu pedido. 🐺📦"
+
+• Confirmación:
+  - Stripe: automático al instante.
+  - SPEI: el cliente manda captura y se confirma manual.
+  - Si dicen "ya pagué" (cualquier método): 
+    "¡Perfecto! En cuanto se confirme, bodega recibe tu pedido. 🐺📦"
 ${config.infoPagos ? `\n💳 EXTRA PAGOS: ${config.infoPagos}` : ''}
 ${config.infoEnvios ? `\n🚚 EXTRA ENVÍOS: ${config.infoEnvios}` : ''}
-
-════════════════════════════════════════════════════════
-🎯 CIERRE
-════════════════════════════════════════════════════════
-"${config.fraseCierre}"
-"${config.fraseIncondicional}"
-${config.mensajePromoFinal ? `Y agrega: "${config.mensajePromoFinal}"` : ''}
 
 ════════════════════════════════════════════════════════
 💰 COMANDOS INTERNOS (invisibles para el cliente)
@@ -851,15 +940,25 @@ ${config.mensajePromoFinal ? `Y agrega: "${config.mensajePromoFinal}"` : ''}
 COBRO: GENERAR_COBRO|metodo(tarjeta/oxxo)|monto_total|rfc|razon_social|cp_fiscal|regimen|uso
 Sin factura: GENERAR_COBRO|tarjeta|1500|NONE|NONE|NONE|NONE|NONE
 
+SPEI: GENERAR_SPEI|monto_total
+
 ENVÍO (para telas): CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345
 Nota: Para hilos y elásticos el envío es por Skydropx; usa CALCULAR_ENVIO con kg estimados.
 
 DATOS_CLIENTE|direccion:[dir]|cp_fiscal:[cp]|productos:[lista]|categorias:[telas/hilos/elasticos]|notas:[nota]|etapa_abandono:[etapa]|intereses:[uso]
 
+PROGRAMAR_RECORDATORIO|${tel}|[fecha ISO o descripción]|[mensaje para retomar]
+
 ESCALAR|descripcion
-PROGRAMAR_RECORDATORIO|telefono|fecha|mensaje
 
 ⚠️ CP ENVÍO ≠ CP FISCAL. NUNCA los mezcles.
+
+════════════════════════════════════════════════════════
+🎯 CIERRE
+════════════════════════════════════════════════════════
+"${config.fraseCierre}"
+"${config.fraseIncondicional}"
+${config.mensajePromoFinal ? `"${config.mensajePromoFinal}"` : ''}
 
 ════════════════════════════════════════════════════════
 👤 PERFIL DEL CLIENTE
@@ -995,6 +1094,11 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       if (nota.startsWith('objecion_')) {
         const tipo = nota.replace('objecion_', '');
         perfil.objecionesComunes = [...new Set([...(perfil.objecionesComunes || []), tipo])];
+      } else if (nota.startsWith('cotizacion_')) {
+        // Guarda la última cotización para poder retomar
+        perfil.ultimaCotizacion = nota.replace('cotizacion_', '');
+        perfil.etapaAbandono = 'cotizacion';
+        perfil.fechaAbandono = new Date().toISOString();
       } else {
         perfil.notas = nota;
       }
@@ -1004,6 +1108,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     if (etapaM?.[1]?.trim()) {
       perfil.etapaAbandono = etapaM[1].trim() as any;
       if (etapaM[1].trim() !== 'null') perfil.fechaAbandono = new Date().toISOString();
+      else { perfil.etapaAbandono = null; perfil.fechaAbandono = undefined; }
     }
     if (interesM?.[1]?.trim()) {
       const nuevosIntereses = interesM[1].trim().split(',').map(s => s.trim());
@@ -1017,7 +1122,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
   // ==========================================
   if (esElJefe) {
 
-    // Precio update — ahora con categoría
     const matchPrecio = respuesta.match(/PRECIO_UPDATE\|(.+?)\|(.+?)\|(.+?)\|(\d+)/);
     if (matchPrecio) {
       const [, cat, prod, campo, precio] = matchPrecio;
@@ -1032,7 +1136,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       respuesta += ok ? `\n✅ Precio de ${prod} (${cat}) actualizado.` : `\n⚠️ No encontré ese producto en ${cat}.`;
     }
 
-    // Producto nuevo — ahora con categoría y unidad
     const matchProdNuevo = respuesta.match(/PRODUCTO_NUEVO\|([^|]+)\|([^|]+)\|(\d+)\|(\d+)\|([^|]+)\|?(.+)?/);
     if (matchProdNuevo) {
       const [, cat, nombre, menudeo, mayoreo, desc, unidad] = matchProdNuevo;
@@ -1046,7 +1149,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       respuesta += `\n✅ Producto "${nombre.trim()}" agregado a ${cat.trim()}.`;
     }
 
-    // Producto eliminar — ahora con categoría
     const matchProdElim = respuesta.match(/PRODUCTO_ELIMINAR\|([^|]+)\|(.+)/);
     if (matchProdElim) {
       const [, cat, nombre] = matchProdElim;
@@ -1156,6 +1258,48 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     // 🛒 COMANDOS DEL CLIENTE
     // ==========================================
 
+    // 💸 SPEI — Tres bancos reales
+    const matchSpei = respuesta.match(/GENERAR_SPEI\|([\d.]+)/i);
+    if (matchSpei) {
+      const [, monto] = matchSpei;
+      respuesta = respuesta.replace(/GENERAR_SPEI\|.+/g, '').trim();
+
+      const referencia = `CT${tel.slice(-6)}${Date.now().toString().slice(-4)}`;
+
+      perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
+      perfil.etapaAbandono = 'pago';
+      perfil.fechaAbandono = new Date().toISOString();
+      await saveCliente(redis, tel, perfil);
+
+      const cuentasTexto = SPEI_CUENTAS.map((c, i) =>
+        `*Opción ${i + 1} — ${c.banco}*\n• Beneficiario: ${c.beneficiario}\n• CLABE: ${c.clabe}`
+      ).join('\n\n');
+
+      respuesta +=
+        `\n\n🏦 *Datos para tu SPEI — $${parseFloat(monto).toFixed(2)} MXN*\n\n` +
+        `${cuentasTexto}\n\n` +
+        `• Monto exacto: *$${parseFloat(monto).toFixed(2)} MXN*\n` +
+        `• Referencia: *${referencia}*\n\n` +
+        `_Cuando hagas el SPEI mándame captura y le aviso a bodega al momento. 🐺_`;
+    }
+
+    // ⏰ PROGRAMAR_RECORDATORIO — persiste en perfil del cliente
+    const matchRecordatorio = respuesta.match(/PROGRAMAR_RECORDATORIO\|(.+?)\|(.+?)\|(.+)/i);
+    if (matchRecordatorio) {
+      const [, , fechaRec, mensajeRec] = matchRecordatorio;
+      respuesta = respuesta.replace(/PROGRAMAR_RECORDATORIO\|.+/g, '').trim();
+      if (!perfil.recordatoriosPendientes) perfil.recordatoriosPendientes = [];
+      perfil.recordatoriosPendientes.push({
+        tipo: 'reactivacion',
+        fecha: fechaRec.trim(),
+        mensaje: mensajeRec.trim()
+      });
+      await saveCliente(redis, tel, perfil);
+      console.log(`⏰ Recordatorio guardado para ${tel}: ${mensajeRec.trim()} en ${fechaRec.trim()}`);
+      // No agregar texto visible al cliente aquí, el bot ya habrá dicho algo natural
+    }
+
+    // 🚚 CALCULAR_ENVIO
     const matchEnvio = respuesta.match(/CALCULAR_ENVIO\|productos=\[(.+?)\]\|cp=(.+)/i);
     if (matchEnvio) {
       const [, productosStr, cpEnvio] = matchEnvio;
@@ -1169,12 +1313,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       }
     }
 
-    const matchRecordatorio = respuesta.match(/PROGRAMAR_RECORDATORIO\|(.+?)\|(.+?)\|(.+)/i);
-    if (matchRecordatorio) {
-      respuesta = respuesta.replace(/PROGRAMAR_RECORDATORIO\|.+/g, '').trim();
-      respuesta += `\n⏰ Te recuerdo en esa fecha, patrón.`;
-    }
-
+    // 🆘 ESCALAR
     const matchEscalar = respuesta.match(/ESCALAR\|(.+)/i);
     if (matchEscalar) {
       const [, duda] = matchEscalar;
@@ -1183,6 +1322,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       respuesta += `\n🆘 Ya avisé al equipo. En breve te contactan.`;
     }
 
+    // 💳 GENERAR_COBRO (Stripe)
     const matchCobro = respuesta.match(/GENERAR_COBRO\|(.+?)\|([\d.]+)\|(.+?)\|(.+?)\|(.+?)\|(.+?)\|(.+)/i);
     if (matchCobro) {
       const [, metodo, monto, rfc, razon, cp, regimen, uso] = matchCobro;
@@ -1192,6 +1332,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
 
       perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
       perfil.etapaAbandono = 'pago';
+      perfil.fechaAbandono = new Date().toISOString();
       await saveCliente(redis, tel, perfil);
 
       try {
@@ -1221,31 +1362,28 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
   await saveHistorial(redis, tel, historial);
   console.log(`📤 Enviando respuesta a ${tel} (${respuesta.length} chars)`);
   await enviarWhatsapp(tel, respuesta.trim());
-  
-  // 👇 NUEVO: Espejear la conversación en Prisma para el CRM 👇
+
+  // 👇 Espejear la conversación en Prisma para el CRM
   try {
-    let convoPrisma = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });    
-    // Si la convo no existe en el CRM, la creamos para tener el historial
+    let convoPrisma = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
     if (!convoPrisma) {
       convoPrisma = await prisma.waConversation.create({
-        data: { 
-          contactPhone: tel, 
-          contactName: perfil.nombre || "Cliente Bot", 
+        data: {
+          contactPhone: tel,
+          contactName: perfil.nombre || "Cliente Bot",
           isOpen: true,
-          unreadCount: 0 // El bot ya lo leyó y contestó
+          unreadCount: 0
         }
       });
     }
 
-    // Guardamos ambos mensajes (Cliente y Bot) en la DB relacional
     await prisma.waMessage.createMany({
       data: [
         { conversationId: convoPrisma.id, role: "CLIENT", body: msgCliente, isRead: true },
-        { conversationId: convoPrisma.id, role: "AGENT", body: respuesta.trim(), isRead: true } // El bot actúa como AGENT en la DB
+        { conversationId: convoPrisma.id, role: "AGENT",  body: respuesta.trim(), isRead: true }
       ]
     });
 
-    // Actualizamos el último mensaje en la vista general
     await prisma.waConversation.update({
       where: { id: convoPrisma.id },
       data: { lastMessage: respuesta.trim(), lastMessageAt: new Date() }
@@ -1253,7 +1391,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
   } catch (dbErr) {
     console.error("⚠️ Error espejeando historial del bot en Prisma:", dbErr);
   }
-  // 👆 FIN DEL BLOQUE NUEVO 👆
 
   console.log(`✅ Flujo completo para ${tel}`);
 }
