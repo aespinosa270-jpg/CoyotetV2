@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { supabase } from "@/lib/supabase"; 
+import { createTrace } from "@/lib/tracer"; // 🕵️‍♂️ EL OJO DE DIOS (Rastreabilidad)
 
 export async function POST(request: Request) {
   try {
@@ -105,6 +106,16 @@ export async function POST(request: Request) {
         lastMessageAt: new Date(), 
         employeeId: employeeId 
       }
+    });
+
+    // 🕵️‍♂️ 8. RASTREABILIDAD ENTERPRISE: Dejar el Trace inborrable del Agente
+    await createTrace({
+      employeeId: employeeId,
+      phone: cleanPhone,
+      type: "WHATSAPP",
+      summary: `Envío de archivo: ${file.name} (${metaType})`,
+      content: { messageId: waId, fileName: file.name, mediaUrl: mediaUrl, metaType: metaType },
+      actionName: "ENVIO_MULTIMEDIA_AGENTE"
     });
 
     return NextResponse.json(newMessage);

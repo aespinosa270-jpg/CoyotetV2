@@ -66,7 +66,7 @@ export default function MisInteraccionesClient({
     const matchSearch =
       (i.user?.name  ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (i.user?.email ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      i.summary.toLowerCase().includes(search.toLowerCase());
+      (i.summary || "").toLowerCase().includes(search.toLowerCase());
     const matchType = filterType === "TODOS" || i.type === filterType;
     return matchSearch && matchType;
   });
@@ -121,7 +121,7 @@ export default function MisInteraccionesClient({
           filtered.map((i, idx) => {
             const cfg      = TYPE_CFG[i.type];
             const isOpen   = expanded === i.id;
-            const hasSummary = i.summary?.length > 0;
+            const hasSummary = i.summary && i.summary.length > 0;
 
             return (
               <motion.div key={i.id}

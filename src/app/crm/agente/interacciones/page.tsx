@@ -9,14 +9,14 @@ async function getMisInteracciones(employeeId: string) {
 
   const interactions = await prisma.interaction.findMany({
     where:   { employeeId },
-    include: { user: { select: { id: true, name: true, email: true } } },
+    include: { user: { select: { id: true, name: true, email: true, phone: true } } }, // Agregué phone para el CRM
     orderBy: { date: "desc" },
     take:    200,
   });
 
   const totalHoy      = interactions.filter((i) => new Date(i.date) >= today).length;
   const conFollowUp   = interactions.filter((i) => i.nextFollowUp).length;
-  const contestadas   = interactions.filter((i) => i.summary?.length > 0).length;
+  const contestadas   = interactions.filter((i) => i.summary && i.summary.length > 0).length;
   const tasaResp      = interactions.length > 0
     ? Math.round((contestadas / interactions.length) * 100)
     : 0;
@@ -32,10 +32,10 @@ async function getMisInteracciones(employeeId: string) {
       ...i,
       date:         i.date.toISOString(),
       nextFollowUp: i.nextFollowUp?.toISOString() ?? null,
-      user: {
+      user: i.user ? {
         ...i.user,
-        name: i.user?.name ?? i.user?.email ?? "Cliente",
-      },
+        name: i.user.name ?? i.user.email ?? "Cliente",
+      } : null,
     })),
     kpis: { totalHoy, conFollowUp, tasaResp, total: interactions.length },
     porTipo,
@@ -66,10 +66,10 @@ export default async function MisInteraccionesPage() {
       {/* KPIs */}
       <div className="grid grid-cols-4 gap-3 shrink-0">
         {[
-          { label: "Hoy",             value: kpis.totalHoy,   color: "text-white"       },
-          { label: "Total",           value: kpis.total,      color: "text-[#FDCB02]"  },
-          { label: "Tasa Resumen",    value: `${kpis.tasaResp}%`, color: "text-emerald-400" },
-          { label: "Con Follow-Up",   value: kpis.conFollowUp,color: "text-sky-400"     },
+          { label: "Hoy",            value: kpis.totalHoy,   color: "text-white"       },
+          { label: "Total",          value: kpis.total,      color: "text-[#FDCB02]"  },
+          { label: "Tasa Resumen",   value: `${kpis.tasaResp}%`, color: "text-emerald-400" },
+          { label: "Con Follow-Up",  value: kpis.conFollowUp,color: "text-sky-400"     },
         ].map((k) => (
           <div key={k.label} className="bg-[#0a0a0a] border border-white/[0.03] p-4 rounded-2xl">
             <p className="text-[8px] uppercase font-black tracking-widest text-zinc-600 mb-1">{k.label}</p>
