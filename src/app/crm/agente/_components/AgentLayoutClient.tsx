@@ -74,50 +74,51 @@ export default function AgentLayoutClient({
       : pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <div className="flex h-screen bg-[#030303] text-white overflow-hidden font-sans">
+    // 🏢 FONDO CLARO CORPORATIVO Y TEXTO NEGRO
+    <div className="flex h-screen bg-[#F8F9FA] text-black overflow-hidden font-sans">
 
       {/* Overlay móvil */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div key="overlay"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/70 md:hidden"
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
             onClick={() => setMobileOpen(false)}
           />
         )}
       </AnimatePresence>
 
-      {/* ── SIDEBAR ── */}
+      {/* ── SIDEBAR (Blanco con acentos limpios) ── */}
       <aside className={`
         fixed md:static inset-y-0 left-0 z-50
         w-60 flex flex-col
-        bg-[#050505] border-r border-white/[0.05]
+        bg-white border-r border-gray-200 shadow-sm
         transition-transform duration-300
         ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
       `}>
 
         {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-5 border-b border-white/[0.05] shrink-0">
+        <div className="h-16 flex items-center justify-between px-5 border-b border-gray-100 shrink-0">
           <div>
-            <p className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Portal</p>
-            <h1 className="text-base font-[1000] uppercase tracking-tighter text-white leading-none">
+            <p className="text-[8px] font-black uppercase tracking-[0.3em] text-gray-400">Portal</p>
+            <h1 className="text-base font-[1000] uppercase tracking-tighter text-black leading-none">
               COYOTE <span className="text-[#FDCB02]">CRM</span>
             </h1>
           </div>
           <button className="md:hidden" onClick={() => setMobileOpen(false)}>
-            <X size={16} className="text-zinc-500" />
+            <X size={16} className="text-gray-400 hover:text-black" />
           </button>
         </div>
 
         {/* Perfil compacto */}
-        <div className="px-4 py-4 border-b border-white/[0.04] shrink-0">
+        <div className="px-4 py-4 border-b border-gray-100 shrink-0 bg-gray-50/50">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#FDCB02] text-black text-xs font-black flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-black text-[#FDCB02] text-xs font-black flex items-center justify-center shrink-0 shadow-sm">
               {initials}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-white truncate">{employee.name}</p>
-              <p className="text-[9px] text-zinc-600 uppercase tracking-widest">
+              <p className="text-xs font-bold text-black truncate">{employee.name}</p>
+              <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">
                 {ROLE_LABEL[employee.role]}
               </p>
             </div>
@@ -132,7 +133,7 @@ export default function AgentLayoutClient({
         <nav className="flex-1 overflow-y-auto py-4 px-3 [&::-webkit-scrollbar]:w-0">
 
           {/* Sección principal */}
-          <p className="text-[8px] font-black uppercase tracking-[0.25em] text-zinc-700 mb-3 px-2">
+          <p className="text-[8px] font-black uppercase tracking-[0.25em] text-gray-400 mb-3 px-2">
             Mi Espacio
           </p>
           <div className="flex flex-col gap-0.5 mb-4">
@@ -143,17 +144,17 @@ export default function AgentLayoutClient({
                   onClick={() => { router.push(item.href); setMobileOpen(false); }}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all ${
                     active
-                      ? "bg-[#FDCB02] text-black"
-                      : "text-zinc-500 hover:text-white hover:bg-white/[0.04]"
+                      ? "bg-[#FDCB02] text-black shadow-sm"
+                      : "text-gray-600 hover:text-black hover:bg-gray-100"
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <item.icon size={13} className={active ? "text-black" : ""} />
+                    <item.icon size={13} className={active ? "text-black" : "text-gray-400"} />
                     {item.name}
                   </div>
                   {item.href === "/crm/agente/tickets" && notifCount > 0 && (
                     <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${
-                      active ? "bg-black/20 text-black" : "bg-red-500 text-white"
+                      active ? "bg-black/20 text-black" : "bg-red-500 text-white shadow-sm"
                     }`}>
                       {notifCount}
                     </span>
@@ -165,7 +166,7 @@ export default function AgentLayoutClient({
           </div>
 
           {/* Sección herramientas */}
-          <p className="text-[8px] font-black uppercase tracking-[0.25em] text-zinc-700 mb-3 px-2">
+          <p className="text-[8px] font-black uppercase tracking-[0.25em] text-gray-400 mb-3 px-2">
             Herramientas
           </p>
           <div className="flex flex-col gap-0.5">
@@ -178,16 +179,16 @@ export default function AgentLayoutClient({
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all ${
                     active
                       ? isWA
-                        ? "bg-emerald-500 text-black"
-                        : "bg-[#FDCB02] text-black"
-                      : "text-zinc-500 hover:text-white hover:bg-white/[0.04]"
+                        ? "bg-emerald-500 text-white shadow-sm"
+                        : "bg-[#FDCB02] text-black shadow-sm"
+                      : "text-gray-600 hover:text-black hover:bg-gray-100"
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <item.icon size={13} className={active ? "text-black" : isWA ? "text-emerald-400" : ""} />
+                    <item.icon size={13} className={active ? (isWA ? "text-white" : "text-black") : "text-gray-400"} />
                     {item.name}
                   </div>
-                  {active && <ChevronRight size={11} className="text-black/40 ml-auto" />}
+                  {active && <ChevronRight size={11} className={isWA ? "text-white/60 ml-auto" : "text-black/40 ml-auto"} />}
                 </button>
               );
             })}
@@ -195,10 +196,10 @@ export default function AgentLayoutClient({
         </nav>
 
         {/* Logout */}
-        <div className="p-3 border-t border-white/[0.05] shrink-0">
+        <div className="p-3 border-t border-gray-100 shrink-0 bg-gray-50/50">
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider text-zinc-600 hover:text-red-400 hover:bg-red-500/5 transition-all"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider text-gray-600 hover:text-red-600 hover:bg-red-50 transition-all border border-transparent hover:border-red-100"
           >
             <LogOut size={13} /> Cerrar Sesión
           </button>
@@ -206,18 +207,18 @@ export default function AgentLayoutClient({
       </aside>
 
       {/* ── ÁREA PRINCIPAL ── */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F8F9FA]">
 
-        {/* Navbar */}
-        <header className="h-16 border-b border-white/[0.05] bg-[#050505]/90 backdrop-blur-md flex items-center justify-between px-4 md:px-6 shrink-0 z-30">
+        {/* Navbar (Clara) */}
+        <header className="h-16 border-b border-gray-200 bg-white/90 backdrop-blur-md flex items-center justify-between px-4 md:px-6 shrink-0 z-30">
           <div className="flex items-center gap-4">
             <button className="md:hidden" onClick={() => setMobileOpen(true)}>
-              <Menu size={20} className="text-zinc-400" />
+              <Menu size={20} className="text-gray-600" />
             </button>
-            <div className="hidden md:flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600">
+            <div className="hidden md:flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
               <span>CRM</span>
               <ChevronRight size={10} />
-              <span className="text-white">
+              <span className="text-black">
                 {MENU.find((m) => isActive(m.href))?.name ?? "Dashboard"}
               </span>
             </div>
@@ -225,16 +226,16 @@ export default function AgentLayoutClient({
 
           <div className="flex items-center gap-4">
             {/* Bell */}
-            <Link href="/crm/agente/tickets" className="relative text-zinc-500 hover:text-white transition-colors">
+            <Link href="/crm/agente/tickets" className="relative text-gray-500 hover:text-black transition-colors">
               <Bell size={17} />
               {notifCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 border-2 border-[#050505] rounded-full flex items-center justify-center text-[7px] font-black text-white">
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[7px] font-black text-white shadow-sm">
                   {notifCount > 9 ? "9+" : notifCount}
                 </span>
               )}
             </Link>
 
-            <div className="w-px h-5 bg-white/[0.06]" />
+            <div className="w-px h-5 bg-gray-200" />
 
             {/* Avatar dropdown */}
             <div ref={profileRef} className="relative">
@@ -243,14 +244,14 @@ export default function AgentLayoutClient({
                 className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
               >
                 <div className="hidden md:block text-right">
-                  <p className="text-[10px] font-bold text-white uppercase tracking-wider leading-none">
+                  <p className="text-[10px] font-bold text-black uppercase tracking-wider leading-none">
                     {employee.name.split(" ")[0]}
                   </p>
-                  <p className="text-[9px] text-[#FDCB02] font-mono mt-0.5">
+                  <p className="text-[9px] text-gray-500 font-bold mt-0.5">
                     {ROLE_LABEL[employee.role]}
                   </p>
                 </div>
-                <div className="w-8 h-8 rounded-lg bg-[#FDCB02] text-black flex items-center justify-center font-black text-xs shadow-[0_0_12px_rgba(253,203,2,0.15)]">
+                <div className="w-8 h-8 rounded-lg bg-black text-[#FDCB02] flex items-center justify-center font-black text-xs shadow-sm">
                   {initials}
                 </div>
               </button>
@@ -262,28 +263,28 @@ export default function AgentLayoutClient({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
                     transition={{ duration: 0.12 }}
-                    className="absolute right-0 mt-3 w-48 bg-[#0a0a0a] border border-zinc-800 rounded-2xl shadow-2xl py-2 z-50"
+                    className="absolute right-0 mt-3 w-48 bg-white border border-gray-200 rounded-2xl shadow-xl py-2 z-50"
                   >
-                    <div className="px-4 py-3 border-b border-zinc-800 mb-1">
-                      <p className="text-xs font-bold text-white">{employee.name}</p>
-                      <p className="text-[10px] text-zinc-500 truncate">{employee.email}</p>
+                    <div className="px-4 py-3 border-b border-gray-100 mb-1">
+                      <p className="text-xs font-bold text-black">{employee.name}</p>
+                      <p className="text-[10px] text-gray-500 truncate">{employee.email}</p>
                     </div>
                     <Link href="/crm/agente/checador"
                       onClick={() => setProfileOpen(false)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] text-zinc-400 hover:bg-white/[0.04] font-bold uppercase tracking-widest transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] text-gray-600 hover:bg-gray-50 hover:text-black font-bold uppercase tracking-widest transition-colors"
                     >
-                      <Clock size={13} /> Mi Checador
+                      <Clock size={13} className="text-gray-400" /> Mi Checador
                     </Link>
                     <Link href="/crm/agente/wallet"
                       onClick={() => setProfileOpen(false)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] text-zinc-400 hover:bg-white/[0.04] font-bold uppercase tracking-widest transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] text-gray-600 hover:bg-gray-50 hover:text-black font-bold uppercase tracking-widest transition-colors"
                     >
-                      <Wallet size={13} /> Mi Wallet
+                      <Wallet size={13} className="text-gray-400" /> Mi Wallet
                     </Link>
-                    <div className="border-t border-zinc-800 my-1" />
+                    <div className="border-t border-gray-100 my-1" />
                     <button
                       onClick={() => signOut({ callbackUrl: "/login" })}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] text-red-500 hover:bg-red-500/10 font-bold uppercase tracking-widest transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] text-red-600 hover:bg-red-50 font-bold uppercase tracking-widest transition-colors"
                     >
                       <LogOut size={13} /> Cerrar Sesión
                     </button>
@@ -295,7 +296,7 @@ export default function AgentLayoutClient({
         </header>
 
         {/* Contenido */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-[#030303] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-[#F8F9FA] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
           {children}
         </div>
       </main>
