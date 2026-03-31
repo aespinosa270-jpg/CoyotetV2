@@ -73,6 +73,9 @@ export default function WhatsappClient({
   const [isUploading,  setIsUploading]  = useState(false);
   const [showEmojis,   setShowEmojis]   = useState(false); 
   
+  // 🧠 ESTADO DEL PERFIL DE INTELIGENCIA
+  const [clientProfile, setClientProfile] = useState({ ordersCount: 0, ltv: 0, loading: false });
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null); 
 
@@ -108,7 +111,29 @@ export default function WhatsappClient({
       });
   }, [activeId]);
 
-  // 3. 🚀 SUPABASE REALTIME: Latencia Cero (Adiós al Polling)
+  // 3. 🧠 CARGAR INTELIGENCIA DEL CLIENTE (LTV y Órdenes)
+  useEffect(() => {
+    if (!activeConvo) return;
+    
+    const fetchProfile = async () => {
+      setClientProfile((p) => ({ ...p, loading: true }));
+      const userId = activeConvo.user?.id || "";
+      const phone = activeConvo.contactPhone || "";
+      
+      try {
+        const res = await fetch(`/api/whatsapp/client-profile?userId=${userId}&phone=${phone}`);
+        const data = await res.json();
+        setClientProfile({ ordersCount: data.ordersCount || 0, ltv: data.ltv || 0, loading: false });
+      } catch (error) {
+        console.error("Error cargando perfil", error);
+        setClientProfile((p) => ({ ...p, loading: false }));
+      }
+    };
+
+    fetchProfile();
+  }, [activeId, activeConvo?.user?.id, activeConvo?.contactPhone]);
+
+  // 4. 🚀 SUPABASE REALTIME: Latencia Cero (Adiós al Polling)
   useEffect(() => {
     if (!activeId) return;
 
@@ -426,7 +451,7 @@ export default function WhatsappClient({
 
           <div className="flex-1 overflow-y-auto p-6 space-y-8 [&::-webkit-scrollbar]:w-0">
             
-            {/* Métricas / Inteligencia (Mock visual Enterprise) */}
+            {/* Métricas / Inteligencia REAL */}
             <div>
               <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 flex items-center gap-2">
                 <Activity size={14} /> Inteligencia CRM
@@ -434,11 +459,22 @@ export default function WhatsappClient({
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-3 flex flex-col">
                   <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Órdenes Totales</p>
-                  <p className="text-lg font-black text-white mt-auto">0</p>
+                  <p className="text-lg font-black text-white mt-auto">
+                    {clientProfile.loading ? <Loader2 size={16} className="animate-spin text-zinc-600" /> : clientProfile.ordersCount}
+                  </p>
                 </div>
                 <div className="bg-zinc-900/50 border border-emerald-900/30 rounded-xl p-3 flex flex-col">
                   <p className="text-[10px] text-emerald-500/70 uppercase font-bold mb-1">Life Time Value</p>
-                  <p className="text-lg font-black text-emerald-400 mt-auto">$0<span className="text-[10px] text-emerald-500/50 ml-1">MXN</span></p>
+                  <div className="text-lg font-black text-emerald-400 mt-auto flex items-center">
+                    {clientProfile.loading ? (
+                       <Loader2 size={16} className="animate-spin text-emerald-800" />
+                    ) : (
+                       <>
+                         ${clientProfile.ltv.toLocaleString('es-MX')}
+                         <span className="text-[10px] text-emerald-500/50 ml-1">MXN</span>
+                       </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
