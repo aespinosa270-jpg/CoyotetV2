@@ -4,7 +4,7 @@ import { Redis } from '@upstash/redis';
 import Stripe from 'stripe';
 import { prisma } from "@/lib/prisma";
 import { determineRouting } from "@/lib/crm-router";
-import { createTrace } from "@/lib/traces"; // ← IMPORTACIÓN AGREGADA
+import { createTrace } from "@/lib/tracer"; // ← IMPORTACIÓN AGREGADA
 
 // ==========================================
 // 🔑 LLAVES MAESTRAS
