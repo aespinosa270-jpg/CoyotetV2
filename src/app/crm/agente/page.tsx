@@ -26,9 +26,9 @@ async function getAgenteDashboard(employeeId: string) {
     prisma.deal.count({
       where: { employeeId, status: { notIn: ["CERRADO_GANADO", "CERRADO_PERDIDO"] } },
     }),
-    // Clientes únicos con deals ganados
+    // 🐛 FIX: Clientes únicos asignados al agente (Sin importar el estatus del deal)
     prisma.deal.findMany({
-      where:  { employeeId, status: "CERRADO_GANADO" },
+      where:  { employeeId }, 
       select: { userId: true },
       distinct: ["userId"],
     }),
@@ -72,7 +72,7 @@ async function getAgenteDashboard(employeeId: string) {
 
   return {
     misDeals,
-    misClientes:         misClientes.length,
+    misClientes:         misClientes.length, // 👈 Ahora sumará correctamente
     misTickets,
     misInteracciones,
     misPedidos,
@@ -107,10 +107,10 @@ export default async function AgenteDashboardPage() {
   const d = await getAgenteDashboard(employee.id);
 
   const kpis = [
-    { label: "Deals Activos",      value: d.misDeals,           icon: Target,      color: "text-[#FDCB02]", href: "/crm/agente/pipeline"      },
-    { label: "Mis Clientes",       value: d.misClientes,        icon: Users,       color: "text-sky-400",   href: "/crm/agente/clientes"      },
-    { label: "Tickets Pendientes", value: d.misTickets,         icon: Ticket,      color: d.misTickets > 0 ? "text-red-400" : "text-emerald-400", href: "/crm/agente/tickets" },
-    { label: "Interacciones Hoy",  value: d.misInteracciones,   icon: PhoneCall,   color: "text-violet-400",href: "/crm/agente/interacciones"  },
+    { label: "Deals Activos",      value: d.misDeals,          icon: Target,      color: "text-[#FDCB02]", href: "/crm/agente/pipeline"      },
+    { label: "Mis Clientes",       value: d.misClientes,        icon: Users,       color: "text-blue-500",  href: "/crm/agente/clientes"      },
+    { label: "Tickets Pendientes", value: d.misTickets,         icon: Ticket,      color: d.misTickets > 0 ? "text-red-500" : "text-emerald-500", href: "/crm/agente/tickets" },
+    { label: "Interacciones Hoy",  value: d.misInteracciones,   icon: PhoneCall,   color: "text-violet-500",href: "/crm/agente/interacciones"  },
   ];
 
   const TYPE_LABEL: Record<string, string> = {
@@ -123,13 +123,13 @@ export default async function AgenteDashboardPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-8">
 
-      {/* Header */}
-      <div className="border-b border-white/[0.06] pb-6">
-        <p className="text-[9px] tracking-[0.3em] text-zinc-600 uppercase mb-1">Mi Panel</p>
-        <h1 className="text-3xl font-[1000] uppercase tracking-tighter text-white leading-none">
+      {/* Header - FIXED THEME */}
+      <div className="border-b border-gray-200 pb-6">
+        <p className="text-[9px] tracking-[0.3em] text-gray-500 uppercase mb-1">Mi Panel</p>
+        <h1 className="text-3xl font-[1000] uppercase tracking-tighter text-black leading-none">
           Hola, <span className="text-[#FDCB02]">{employee.name.split(" ")[0]}</span>
         </h1>
-        <p className="text-xs text-zinc-600 font-mono mt-2 uppercase tracking-widest">
+        <p className="text-xs text-gray-500 font-mono mt-2 uppercase tracking-widest font-bold">
           Resumen de tu actividad comercial
         </p>
       </div>
@@ -138,66 +138,66 @@ export default async function AgenteDashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((kpi, i) => (
           <Link key={i} href={kpi.href}
-            className="bg-[#0a0a0a] border border-white/[0.04] p-5 rounded-2xl relative overflow-hidden group hover:border-white/10 transition-all flex flex-col justify-between h-32"
+            className="bg-white border border-gray-200 p-5 rounded-2xl relative overflow-hidden group hover:border-gray-300 hover:shadow-md transition-all flex flex-col justify-between h-32 shadow-sm"
           >
             <div className="flex justify-between items-start">
-              <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">{kpi.label}</span>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">{kpi.label}</span>
               <kpi.icon size={15} className={kpi.color} />
             </div>
             <div>
-              <p className="text-4xl font-[900] text-white tracking-tighter">{kpi.value}</p>
+              <p className="text-4xl font-[900] text-black tracking-tighter">{kpi.value}</p>
             </div>
             <ArrowUpRight size={12}
-              className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600"
+              className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400"
             />
-            <div className={`absolute -bottom-8 -right-8 w-24 h-24 blur-[40px] rounded-full opacity-5 group-hover:opacity-15 transition-opacity ${kpi.color}`} />
+            <div className={`absolute -bottom-8 -right-8 w-24 h-24 blur-[40px] rounded-full opacity-10 group-hover:opacity-20 transition-opacity ${kpi.color}`} />
           </Link>
         ))}
       </div>
 
       {/* Ventas del mes */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-[#FDCB02]/5 border border-[#FDCB02]/20 rounded-2xl p-6 relative overflow-hidden">
-          <TrendingUp className="absolute -right-3 -bottom-3 text-[#FDCB02]/10" size={80} />
-          <p className="text-[9px] font-black uppercase tracking-widest text-[#FDCB02] mb-2">Ventas Este Mes</p>
-          <p className="text-3xl font-mono font-bold text-white">{fmtShort(d.ventasMes)}</p>
-          <p className="text-[10px] text-zinc-500 mt-1 uppercase tracking-widest">
+        <div className="bg-[#FDCB02]/10 border border-[#FDCB02]/30 rounded-2xl p-6 relative overflow-hidden shadow-sm">
+          <TrendingUp className="absolute -right-3 -bottom-3 text-[#FDCB02]/20" size={80} />
+          <p className="text-[9px] font-black uppercase tracking-widest text-yellow-600 mb-2">Ventas Este Mes</p>
+          <p className="text-3xl font-mono font-bold text-black">{fmtShort(d.ventasMes)}</p>
+          <p className="text-[10px] text-gray-600 mt-1 uppercase tracking-widest font-bold">
             {d.dealsGanadosMes} deal{d.dealsGanadosMes !== 1 ? "s" : ""} cerrado{d.dealsGanadosMes !== 1 ? "s" : ""}
           </p>
         </div>
 
-        <div className="bg-[#0a0a0a] border border-white/[0.04] rounded-2xl p-6">
-          <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-2">Pedidos Activos</p>
-          <p className="text-3xl font-mono font-bold text-white">{d.misPedidos}</p>
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2">Pedidos Activos</p>
+          <p className="text-3xl font-mono font-bold text-black">{d.misPedidos}</p>
           <Link href="/crm/agente/pedidos"
-            className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-[#FDCB02] transition-colors uppercase tracking-widest mt-2 font-bold"
+            className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-black transition-colors uppercase tracking-widest mt-2 font-bold"
           >
             Ver pedidos <ArrowRight size={10} />
           </Link>
         </div>
 
         {/* Tickets urgentes */}
-        <div className="bg-[#0a0a0a] border border-red-500/10 rounded-2xl p-5 flex flex-col">
-          <p className="text-[9px] font-black uppercase tracking-widest text-red-400 mb-3">
+        <div className="bg-white border border-red-100 rounded-2xl p-5 flex flex-col shadow-sm">
+          <p className="text-[9px] font-black uppercase tracking-widest text-red-500 mb-3">
             Mis Urgentes
           </p>
           {d.ticketsUrgentes.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <CheckCircle2 size={24} className="text-emerald-500 mx-auto mb-2" />
-                <p className="text-[10px] text-zinc-700 uppercase tracking-widest">Sin urgentes</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Sin urgentes</p>
               </div>
             </div>
           ) : (
             <div className="space-y-2 flex-1">
               {d.ticketsUrgentes.map((t) => (
                 <Link key={t.id} href="/crm/agente/tickets"
-                  className="flex items-start gap-2 p-2 rounded-lg bg-red-500/5 border border-red-500/10 hover:border-red-500/30 transition-colors block"
+                  className="flex items-start gap-2 p-2 rounded-lg bg-red-50 border border-red-100 hover:border-red-200 transition-colors block"
                 >
                   <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1 shrink-0 animate-pulse" />
                   <div className="min-w-0">
-                    <p className="text-[10px] font-bold text-zinc-300 truncate">{t.subject}</p>
-                    <p className="text-[9px] font-mono text-zinc-600">{t.ticketNumber}</p>
+                    <p className="text-[10px] font-bold text-black truncate">{t.subject}</p>
+                    <p className="text-[9px] font-mono text-gray-500">{t.ticketNumber}</p>
                   </div>
                 </Link>
               ))}
@@ -207,41 +207,41 @@ export default async function AgenteDashboardPage() {
       </div>
 
       {/* Últimas interacciones */}
-      <div className="bg-[#0a0a0a] border border-white/[0.04] rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/[0.04] flex items-center justify-between">
-          <h3 className="text-xs font-[900] uppercase tracking-widest text-white flex items-center gap-2">
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-xs font-[900] uppercase tracking-widest text-black flex items-center gap-2">
             <PhoneCall size={13} className="text-[#FDCB02]" /> Últimas Interacciones
           </h3>
           <Link href="/crm/agente/interacciones"
-            className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 hover:text-[#FDCB02] transition-colors flex items-center gap-1"
+            className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-black transition-colors flex items-center gap-1"
           >
             Ver todas <ArrowRight size={11} />
           </Link>
         </div>
         {d.ultimasInteracciones.length === 0 ? (
-          <p className="text-[10px] text-zinc-700 text-center py-8 uppercase tracking-widest">
+          <p className="text-[10px] text-gray-500 text-center py-8 uppercase tracking-widest font-bold">
             Sin interacciones registradas
           </p>
         ) : (
-          <div className="divide-y divide-white/[0.03]">
+          <div className="divide-y divide-gray-100">
             {d.ultimasInteracciones.map((i) => (
-              <div key={i.id} className="flex items-center justify-between px-6 py-3">
+              <div key={i.id} className="flex items-center justify-between px-6 py-3 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
-                    <PhoneCall size={11} className="text-zinc-500" />
+                  <div className="w-7 h-7 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
+                    <PhoneCall size={11} className="text-gray-500" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-zinc-300 truncate">
+                    <p className="text-xs font-bold text-black truncate">
                       {i.user?.name ?? i.user?.email ?? "Cliente"}
                     </p>
-                    <p className="text-[9px] text-zinc-600 uppercase tracking-widest">
+                    <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">
                       {TYPE_LABEL[i.type] ?? i.type}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Clock size={10} className="text-zinc-700" />
-                  <p className="text-[10px] font-mono text-zinc-600">
+                  <Clock size={10} className="text-gray-400" />
+                  <p className="text-[10px] font-mono text-gray-500">
                     {new Date(i.date).toLocaleDateString("es-MX", {
                       day: "2-digit", month: "short",
                     })}
