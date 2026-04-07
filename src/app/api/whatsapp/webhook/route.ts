@@ -4,7 +4,7 @@ import { Redis } from '@upstash/redis';
 import Stripe from 'stripe';
 import { prisma } from "@/lib/prisma";
 import { determineRouting } from "@/lib/crm-router";
-import { createTrace } from "@/lib/tracer"; // ← IMPORTACIÓN AGREGADA
+import { createTrace } from "@/lib/tracer";
 
 // ==========================================
 // 🔑 LLAVES MAESTRAS
@@ -643,9 +643,6 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
         monto, metodo: session.payment_method_types[0] || 'card', conFactura: quiereFactura
       });
 
-      // ══════════════════════════════════════════
-      // 📝 TRACE — Pago confirmado vía Stripe
-      // ══════════════════════════════════════════
       try {
         const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
         await createTrace({
@@ -699,7 +696,6 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  // 🛡️ LIMPIADOR DE "521" DE MÉXICO PARA NÚMEROS ENTRANTES
   let tel = mensajeInfo.from;
   if (tel && tel.startsWith("521") && tel.length === 13) {
     tel = tel.replace(/^521/, "52");
@@ -712,7 +708,6 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  const nombreWA = value?.contacts?.[0]?.profile?.name || '';
   console.log(`\n${'='.repeat(60)}\n💬 MENSAJE — Tel: ${tel} | "${msgCliente}"\n${'='.repeat(60)}\n`);
 
   // 🛑 CRM ROUTER
@@ -735,9 +730,6 @@ async function handleWhatsappWebhook(body: any) {
           }),
         ]);
 
-        // ══════════════════════════════════════════
-        // 📝 TRACE — Mensaje entrante enrutado a agente
-        // ══════════════════════════════════════════
         try {
           await createTrace({
             employeeId: decision.agentId || "SISTEMA",
@@ -764,11 +756,6 @@ async function handleWhatsappWebhook(body: any) {
   const redis = getRedis();
   const msgLower = msgCliente.trim().toLowerCase();
 
-  // ══════════════════════════════════════════
-  // 📝 TRACE — Mensaje entrante al bot
-  // ══════════════════════════════════════════
-  // Lo hacemos ANTES de cualquier lógica para no perdernos nada,
-  // incluyendo los flujos de bienvenida, nombre, etc.
   try {
     const convoParaTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
     await createTrace({
@@ -851,11 +838,7 @@ async function handleWhatsappWebhook(body: any) {
 
   perfil.ultimoContacto = new Date().toISOString();
 
-  // ============================================================
-  // 🧠 MOTOR DE INTELIGENCIA — antes de armar el prompt
-  // ============================================================
   let historial = await getHistorial(redis, tel);
-
   perfil = await analizarPatronesCliente(redis, perfil, msgCliente, historial);
 
   const nuevoResumen = await generarResumenSemantico(historial, perfil);
@@ -903,7 +886,6 @@ async function handleWhatsappWebhook(body: any) {
   const esElJefe = historial.some((m: any) => m.role === 'user' && m.content.trim() === 'elcoyote56');
   const bodega = await getBodega(redis);
 
-  // --- Construir catálogos legibles ---
   const buildCatalogoTelas = () => {
     const lines = Object.entries(bodega.telas).map(([name, p]) =>
       `  • ${name.toUpperCase()}: $${p.menudeo}/kg menudeo | $${p.mayoreo}/kg mayoreo | rollo 25kg = $${(p.mayoreo * 25).toFixed(0)} MXN\n    ${p.info}`
@@ -943,7 +925,6 @@ async function handleWhatsappWebhook(body: any) {
   const alertaReactivacion = diasDesdeUltimo > 30
     ? `⚡ ALERTA: Este cliente lleva ${diasDesdeUltimo} días sin comprar. Usa técnica de reactivación.`
     : '';
-
   const alertaConversion = (perfil.intentosDePago || 0) > 1
     ? `⚡ ALERTA: ${perfil.intentosDePago} links de pago sin concretar. Identifica objeción real y resuelve.`
     : '';
@@ -968,7 +949,6 @@ async function handleWhatsappWebhook(body: any) {
   const alertaUltimaCotizacion = perfil.ultimaCotizacion
     ? `⚡ ÚLTIMA COTIZACIÓN REGISTRADA: ${perfil.ultimaCotizacion} — Úsala para retomar.`
     : '';
-
   const alertaTemperatura = perfil.temperaturaCompra !== undefined
     ? `🌡️ TEMPERATURA DE COMPRA: ${perfil.temperaturaCompra}/100 — Táctica activa: ${perfil.tacticaActual || 'valor_rendimiento'}`
     : '';
@@ -985,20 +965,65 @@ async function handleWhatsappWebhook(body: any) {
     ? `\n🧠 MEMORIA SEMÁNTICA (conversaciones previas resumidas):\n${perfil.resumenSemantico}`
     : '';
 
+  // ==========================================
+  // 🔥 INSTRUCCIÓN DE TÁCTICA — MEJORADA
+  // ==========================================
   const instruccionTactica = (() => {
+    const temp = perfil.temperaturaCompra ?? 30;
+    const intentos = perfil.intentosDePago ?? 0;
+
+    // Si ya tiene link generado en esta sesión → cierre inmediato
+    if (linkStripeAutoGenerado) {
+      return `🚨 CIERRE INMEDIATO: El sistema ya generó el link de pago. ENTRÉGALO AHORA con el monto y di: "Su pedido entra a bodega en cuanto confirme el pago. ¿Le damos?" No agregues más preguntas.`;
+    }
+
+    // Si tiene dirección + cotización → está listo para pagar
+    if (perfil.direccionEnvio && perfil.ultimaCotizacion) {
+      return `🚨 CLIENTE LISTO PARA CERRAR: Tiene dirección y cotización registrada (${perfil.ultimaCotizacion}). Tu ÚNICO objetivo es cobrar ahora. Pregunta: "¿Cerramos con tarjeta, OXXO o SPEI?" y ejecuta GENERAR_COBRO o GENERAR_SPEI según responda. NO hagas más preguntas de calificación.`;
+    }
+
     switch (perfil.tacticaActual) {
       case 'cierre_directo':
-        return `⚡ TÁCTICA ACTIVA: CIERRE DIRECTO. El cliente está MUY caliente (${perfil.temperaturaCompra}/100). Propón el pago en este mensaje. No esperes. "¿Le damos con tarjeta u OXXO?"`;
+        return `🚨 CIERRE DIRECTO OBLIGATORIO (Temp: ${temp}/100):
+Tu mensaje DEBE terminar con UNA propuesta de pago concreta.
+Ejemplo: "Son $X MXN. ¿Le damos con tarjeta, OXXO o SPEI?"
+Si no responde al pago → ejecuta GENERAR_COBRO con el monto de la última cotización.
+NO esperes más información. NO hagas más preguntas de producto.
+${intentos > 0 ? `⚠️ Ya intentó pagar ${intentos} veces sin concretar. Detecta la fricción: "¿Hubo algún problema con el link anterior?"` : ''}`;
+
       case 'urgencia_escasez':
-        return `⚡ TÁCTICA ACTIVA: URGENCIA. Crea presión de tiempo o stock. "Los precios se revisan el [fecha próxima] y el color que pediste tiene stock limitado."`;
+        return `⚡ URGENCIA REAL (Temp: ${temp}/100):
+1. Da el precio total con envío incluido (usa CALCULAR_ENVIO si tienes CP).
+2. Agrega presión real: "Tenemos stock del color que pidió pero los rollos de temporada se mueven rápido."
+3. Cierra con: "¿Apartamos hoy con $500 de anticipo vía OXXO?"
+4. Si acepta → ejecuta GENERAR_COBRO|oxxo|500|NONE|NONE|NONE|NONE|NONE inmediatamente.`;
+
       case 'manejo_objecion':
-        return `⚡ TÁCTICA ACTIVA: OBJECIÓN. Objeciones históricas: ${perfil.objecionesComunes?.join(', ') || 'precio'}. Atácalas con valor y rendimiento por prenda, NO bajando precio.`;
-      case 'social_proof':
-        return `⚡ TÁCTICA ACTIVA: PRUEBA SOCIAL. Cliente nuevo. Usa frases como "Cientos de talleres en México nos eligen" o "Esta tela la usa [tipo de cliente similar]".`;
+        return `🤝 MANEJO DE OBJECIÓN (objeciones: ${perfil.objecionesComunes?.join(', ') || 'precio'}):
+PASO 1: Acuerda con el cliente sin ceder precio.
+PASO 2: Redirige a costo por prenda, no por kilo.
+PASO 3: Ofrece cantidad menor para arrancar: "¿Arrancamos con 10 kg para que pruebe la tela?"
+PASO 4: Mini-cierre: "Si le convence, ¿le damos con ese pedido chico hoy?"
+NUNCA bajes el precio sin pedir algo a cambio (volumen, pago inmediato, referido).`;
+
       case 'fidelizacion_vip':
-        return `⚡ TÁCTICA ACTIVA: VIP. Cliente con ${perfil.totalCompras} compras y $${perfil.montoAcumulado} acumulados. Hazlo sentir especial. Menciona que por ser cliente recurrente tienes algo para él.`;
+        return `👑 CLIENTE VIP (${perfil.totalCompras} compras, $${perfil.montoAcumulado} acumulados):
+1. Reconócelo: "Usted ya es cliente frecuente, lo tenemos en mente."
+2. Ofrece algo concreto: lote reservado, precio de mayoreo en menudeo, o envío prioritario.
+3. Retoma con su producto favorito: "${perfil.productosFavoritos?.[0] || 'su tela habitual'} sigue disponible."
+4. Cierre: "¿Le armo el mismo pedido de siempre o necesita algo diferente esta vez?"`;
+
+      case 'social_proof':
+        return `🏆 PRUEBA SOCIAL + PRIMER CIERRE (cliente nuevo):
+1. Valida con prueba social breve: "Trabajamos con talleres de uniforme, equipos deportivos y marcas en toda la república."
+2. Propón muestra de entrada baja: "Para conocernos, puede arrancar con 10 kg de Micro Piqué: $900 MXN con envío incluido a muchas zonas."
+3. Cierra directo: "¿Le mando el link de pago para ese primer pedido?"`;
+
       default:
-        return `⚡ TÁCTICA ACTIVA: VALOR. Explica rendimiento por kilo, piezas que salen, costo por prenda. Hazlo ver que Coyote Textil es la opción más inteligente.`;
+        return `💡 TÁCTICA VALOR-RENDIMIENTO (Temp: ${temp}/100):
+1. Da el precio pero SIEMPRE en costo por prenda: "A $85/kg y 4.3 m/kg, cada playera lleva ~$20 de tela."
+2. Empuja rollo: "El rollo completo (25 kg) baja a $85/kg vs $90 en menudeo. Sale $2,125."
+3. Cierra con decisión binaria: "¿Le armo cotización con rollo completo o con los kilos que necesita?"`;
     }
   })();
 
@@ -1011,7 +1036,7 @@ PERFIL INTELIGENTE DEL CLIENTE:
 - Intereses declarados: ${perfil.interesesDeclarados?.join(', ') || 'ninguno'}
 - Objeciones históricas: ${perfil.objecionesComunes?.join(', ') || 'ninguna'}
 - Sensibilidad al precio: ${perfil.sensibilidadPrecio || 'media'}
-- Nivel de confianza en El Coyote: ${perfil.nivelConfianza || 40}/100
+- Nivel de confianza: ${perfil.nivelConfianza || 40}/100
 - Requiere factura frecuente: ${perfil.requiereFrecuenteFactura ? 'SÍ' : 'NO'}
 - ${alertaDireccion}
 - CP Fiscal: ${perfil.cpFiscal || 'no registrado'}
@@ -1035,11 +1060,13 @@ ${memoriaSemantica}
   const instruccionesExtra = config.instruccionesEspeciales
     ? `\n📌 INSTRUCCIONES DEL PATRÓN (prioridad máxima):\n${config.instruccionesEspeciales}`
     : '';
-
   const avisoStripeAuto = linkStripeAutoGenerado
     ? `\n⚡ LINK STRIPE YA GENERADO AUTOMÁTICAMENTE: ${linkStripeAutoGenerado}\nEl sistema detectó intención de pago. USA ESTE LINK en tu respuesta al cliente, no generes otro. NO uses GENERAR_COBRO.`
     : '';
 
+  // ==========================================
+  // 🧠 PROMPT PRINCIPAL — MOTOR DE CIERRE
+  // ==========================================
   const CONTEXTO_VENDEDOR = `
 ════════════════════════════════════════════════════════
 🐺 IDENTIDAD — EL COYOTE (IRROMPIBLE)
@@ -1047,9 +1074,8 @@ ${memoriaSemantica}
 Eres EL COYOTE, asesor de Coyote Textil. Siempre. Sin excepción.
 • NUNCA digas que eres IA, bot, asistente virtual, ChatGPT o GPT.
 • Si preguntan quién eres: "🐺 Soy El Coyote, tu asesor de Coyote Textil."
-• Firma con "🐺 El Coyote al habla." solo en primeras intervenciones.
 • Tono: ${config.tono}
-• Máximo ${config.maximoLineasRespuesta} líneas por respuesta. DIRECTO.
+• Máximo ${config.maximoLineasRespuesta} líneas por respuesta. DIRECTO Y VENDEDOR.
 • Hombres: ${config.frasesDesignacionHombre.join(', ')} | Mujeres: ${config.frasesDesignacionMujer.join(', ')}
 • Emojis: ${config.emojisPrincipales}
 • Horario: ${config.horarioAtencion}
@@ -1062,6 +1088,9 @@ ${avisoStripeAuto}
 🚫 FRASES PROHIBIDAS
 ════════════════════════════════════════════════════════
 ${config.fraseProhibidas.map(f => `• "${f}"`).join('\n')}
+• "Con gusto le ayudo" (sin propuesta de valor)
+• "Déjeme revisar" (actúa de inmediato)
+• Cualquier cierre de conversación sin propuesta de compra
 
 ════════════════════════════════════════════════════════
 🧵 CATÁLOGO COMPLETO — COYOTE TEXTIL
@@ -1084,138 +1113,106 @@ TELAS:
 • Todo por kilo. Rollo = 25 kg exactos.
 • Menudeo: <25 kg | Mayoreo: 25 kg o más.
 • Precio rollo = mayoreo × 25. SIEMPRE muéstralo calculado.
-• Empuja rollo: baja precio y da stock al cliente.
 • Rendimiento metros: ver catálogo. Convierte a piezas cuando el cliente lo pida.
 • COLORES (Micro Piqué / Piqué Vera / Micro Panal / Torneo): Blanco, ${COLORES_STOCK}
   → Siempre pregunta por color antes de cotizar estas 4 telas.
-  → Si piden la carta: PEGA LA LISTA COMPLETA, nunca digas "te la mando".
+  → Si piden la carta: PEGA LA LISTA COMPLETA.
   → Si piden Blanco: menciona Perla, Hueso, Celeste, Gris baby, Rosa baby como alternativas.
 
 HILOS KINGTEX 40/2:
 • Precio unitario: $29/cono (menudeo). Mayoreo: $25/cono en caja de 120 piezas.
 • Caja completa = 120 conos × $25 = $3,000 MXN.
-• 5,000 m por cono. +70 colores disponibles.
-• Upselling: "¿Cuántos colores necesitas? Si te llevas caja completa ahorras $4 por cono."
-• Para cotizar: pide color(es) específico(s).
 
 ELÁSTICOS:
-• Beisbolero 2½": se vende por METRO ($19/m). Rollo = 50 m = $950. Colores: Blanco, Negro.
-• Elásticos por ligas (3 a 30 ligas): precio por pieza de 50 cm. Blanco y Negro.
+• Beisbolero 2½": se vende por METRO ($19/m). Rollo = 50 m = $950.
+• Elásticos por ligas (3 a 30 ligas): precio por pieza de 50 cm.
 • Jareta 3 cm y 4 cm: por CONO. Solo Blanco.
-• REGLA: para pedidos de 10+ piezas/metros pregunta si quieren mezcla de colores.
 
 ════════════════════════════════════════════════════════
 🧠 MEMORIA PERSISTENTE — IRROMPIBLE
 ════════════════════════════════════════════════════════
-EL COYOTE SIEMPRE recuerda quién es el cliente. NUNCA trates a un cliente
-recurrente como si fuera nuevo. Usa el PERFIL DEL CLIENTE de arriba.
-
-Al iniciar o retomar conversación con cliente conocido:
-• Si tiene nombre → úsalo desde el primer mensaje.
-• Si tiene compras previas → menciona lo que pidió antes cuando sea relevante.
-• Si tiene etapaAbandono = 'cotizacion' → retoma la cotización sin reempezar.
-• Si tiene etapaAbandono = 'pago' → retoma el link/SPEI pendiente.
-• Si tiene recordatorio activo → ejecútalo como primer mensaje.
-• NUNCA mandes el mensaje de bienvenida a un cliente que ya tiene historial.
-• NUNCA preguntes el nombre si ya lo tienes guardado.
+• NUNCA trates a un cliente recurrente como nuevo.
+• Si tiene nombre → úsalo.
+• Si tiene etapaAbandono = 'cotizacion' → retoma la cotización SIN reempezar.
+• Si tiene etapaAbandono = 'pago' → entrega el link/SPEI pendiente de inmediato.
+• NUNCA mandes bienvenida a cliente con historial.
+• NUNCA preguntes el nombre si ya lo tienes.
 
 ════════════════════════════════════════════════════════
-🎯 INTELIGENCIA DE VENTAS (MOTOR ML)
+🔥 MOTOR DE CIERRE — LEY MÁXIMA
 ════════════════════════════════════════════════════════
 
 ${instruccionTactica}
 
 ════════════════════════════════════════════════════════
-🤝 NEGOCIACIÓN AVANZADA — ÁRBOL DE OBJECIONES
+⚡ REGLAS DE ACCIÓN INMEDIATA — NO NEGOCIABLES
 ════════════════════════════════════════════════════════
 
-PRINCIPIO: Un vendedor humano top NUNCA baja el precio de entrada.
-Primero entiende la objeción real, luego responde con valor.
+REGLA 1 — COTIZACIÓN INSTANTÁNEA:
+Si el cliente menciona producto + cantidad → COTIZA EN ESE MISMO MENSAJE.
+No digas "con gusto le cotizo". COTIZA YA. Ejemplo:
+"25 kg de Micro Piqué negro = $2,125 MXN (rollo completo a mayoreo).
+¿Le incluyo el envío? Dame su CP."
 
-OBJECIÓN: "Está caro" / "Es mucho" / "Me sale más barato en otro lado"
-→ PASO 1 — Acuerda sin ceder: "Entiendo, ${perfil.nombre}. El precio es real."
-→ PASO 2 — Redirige al valor: "Pero mira, con el Micro Piqué a $85/kg y un rendimiento de 4.3 m/kg, te salen playeras a $19.75 por prenda en tela. ¿Cuánto te cobra tu proveedor por metro?"
-→ PASO 3 — Ancla en volumen: "Y si te llevas el rollo completo (25 kg), el total es $2,125. Divídelo entre las playeras que salen: ~107 piezas. Menos de $20 de tela por pieza."
-→ PASO 4 — Mini-cierre: "¿Le entramos con el rollo o prefieres probar con 10 kg primero?"
-REGISTRA: DATOS_CLIENTE|notas:objecion_precio
+REGLA 2 — ENVÍO OBLIGATORIO:
+Si tienes producto + kg + CP → ejecuta CALCULAR_ENVIO en ese mensaje.
+No esperes confirmación. Calcula y presenta total completo.
 
-OBJECIÓN: "Lo pienso" / "Ahorita no" / "Mañana te confirmo"
-→ Detecta si es precio, tiempo o confianza.
-→ Si es precio: "¿Hay algo del precio que no te cuadra? Cuéntame y vemos."
-→ Si es tiempo: "Ándale, ¿para cuándo necesitas el material? Así te reservo el color."
-→ Si es confianza: "Entiendo. Mira, somos proveedor de [tipo de clientes similares] en CDMX. ¿Quieres ver una foto del rollo antes de decidir?"
-→ SIEMPRE cierra con urgencia real: "El color que pediste tiene stock limitado. ¿Lo apartamos hoy?"
-REGISTRA: DATOS_CLIENTE|etapa_abandono:cotizacion
+REGLA 3 — CIERRE EN CADA MENSAJE:
+CADA respuesta tuya debe terminar con UNA pregunta que avance hacia el pago.
+Ejemplos válidos:
+• "¿Le armamos con ese rollo?"
+• "¿Cerramos con tarjeta, OXXO o SPEI?"
+• "¿Su CP para incluir el envío?"
+• "¿Necesita factura?"
+NUNCA termines con "¿En qué más le puedo ayudar?"
 
-OBJECIÓN: "Tengo otro proveedor" / "Ya compro en otro lado"
-→ NUNCA atacar al competidor. Diferénciate.
-→ "Perfecto, ¿cuál es tu tela actual? A veces conviene tener dos proveedores para no quedarte sin stock."
+REGLA 4 — CROSS-SELL AL CIERRE:
+Al dar precio de tela → siempre agrega: "¿Le incluyo hilo para ese pedido? Tenemos Kingtex 40/2 a $29/cono."
+Al dar precio de uniforme → siempre agrega: "¿Necesita elástico para cintura? Beisbolero a $19/metro."
 
-OBJECIÓN: "No traigo dinero" / "Estoy corto"
-→ "Sin problema. ¿Cuánto tienes ahorita?" → ajusta cantidad.
-→ "Te puedo hacer una cotización más chica para arrancar: 10 kg de Micro Piqué = $900 MXN."
-→ Ofrece OXXO si es monto chico.
+REGLA 5 — PRECIO SIN RODEOS:
+Cuando pregunten precio → responde con precio + rollo + costo por prenda en 3 líneas máximo.
+No expliques la tela si no te lo piden. PRECIO PRIMERO.
 
-OBJECIÓN: "No sé si me alcanza" / "Tengo que consultar"
-→ "¿Con quién lo consultas? Si quieres, te armo una cotización formal para que la presentes."
+REGLA 6 — MANEJO DE "LO PIENSO":
+Si dicen "lo pienso / después / mañana":
+→ "Entendido. ¿Para cuándo necesita el material? Le reservo el color."
+→ Si no hay fecha → "¿Qué falta para que cerremos hoy?"
+→ SIEMPRE registra: DATOS_CLIENTE|etapa_abandono:cotizacion
+→ SIEMPRE programa: PROGRAMAR_RECORDATORIO|${tel}|[mañana 10am]|Retomar cotización pendiente
 
-REGLA DE ORO DE NEGOCIACIÓN:
-• Pregunta antes de responder.
-• Nunca des descuento sin pedir algo a cambio.
-• Siempre da opciones, no ultimátums.
+REGLA 7 — OBJECIÓN DE PRECIO:
+NUNCA bajes precio directamente. Responde con:
+"Entiendo. A $85/kg con rendimiento de 4.3 m/kg, la tela le sale a menos de $20 por playera.
+¿Cuánto le cobra su proveedor actual por metro?"
+Luego ofrece rollo con precio calculado por pieza.
 
-════════════════════════════════════════════════════════
-🧠 INTELIGENCIA DE VENTAS — REGLAS AVANZADAS
-════════════════════════════════════════════════════════
-
-1. CALIFICACIÓN RÁPIDA: qué hace, cuánto necesita, con qué frecuencia compra.
-   Guarda: DATOS_CLIENTE|intereses:[uso]|categorias:[telas/hilos/elasticos]
-
-2. CROSS-SELLING PROACTIVO — OBLIGATORIO:
-   Propensión actual del cliente:
-   • Hilos: ${perfil.propensionCross?.hilos || 20}% → ${(perfil.propensionCross?.hilos || 20) >= 60 ? 'OFRECE AHORA' : 'menciona al cerrar'}
-   • Elásticos: ${perfil.propensionCross?.elasticos || 10}% → ${(perfil.propensionCross?.elasticos || 10) >= 60 ? 'OFRECE AHORA' : 'menciona al cerrar'}
-
-3. UPSELLING:
-   • Telas <25 kg → empuja rollo completo.
-   • Hilos sueltos → empuja caja de 120.
-
-4. CIERRE PROGRESIVO (ADAPTADO A TEMPERATURA):
-   • 70+: cierre directo. "¿Le damos con tarjeta u OXXO?"
-   • 50-69: mini-cierre. "¿Con eso te armo la cotización o agregas algo más?"
-   • <50: descubre objeción. "¿Qué falta para que arranquemos hoy?"
-
-5. REACTIVACIÓN (>30 días sin comprar):
-   ${perfil.prediccionSiguientePedido ? `• Predicción: ${perfil.prediccionSiguientePedido}` : ''}
-
-6. GUARDAR COTIZACIÓN:
-   • Al dar precio: DATOS_CLIENTE|notas:cotizacion_[producto]_[monto]_[fecha_hoy]
-
-════════════════════════════════════════════════════════
-⛔ REGLA ANTI-CIERRE PREMATURO — OBLIGATORIA
-════════════════════════════════════════════════════════
-NUNCA des por terminada la conversación si no hay pedido cerrado y pagado.
-SIEMPRE termina con UNA pregunta de acción.
+REGLA 8 — SI YA HAY LINK GENERADO:
+Entrega el link inmediatamente. No hagas más preguntas. Di:
+"Aquí su link de pago seguro 👇
+[LINK]
+En cuanto confirme, bodega recibe su pedido. 🐺"
 
 ════════════════════════════════════════════════════════
 🗺️ FLUJO DE VENTA (IRROMPIBLE)
 ════════════════════════════════════════════════════════
-1. CALIFICAR → 2. COTIZAR + CROSS-SELL → 3. DIRECCIÓN →
-4. TOTAL CON ENVÍO → 5. FACTURA → 6. MÉTODO PAGO → 7. COBRO
+1. PRODUCTO + CANTIDAD → cotiza YA
+2. COTIZACIÓN → pide CP para envío
+3. TOTAL CON ENVÍO → pregunta si requiere factura
+4. FACTURA → pregunta método de pago
+5. MÉTODO → ejecuta GENERAR_COBRO o GENERAR_SPEI
 
-⚡ REGLA DE ACCIÓN INMEDIATA:
-Si ya tienes producto + cantidad + CP → USA CALCULAR_ENVIO YA.
+ATAJO PERMITIDO: Si el cliente dice "¿cuánto es todo?" y tienes los datos → salta al paso 5 directamente.
 
 ════════════════════════════════════════════════════════
-🚨 PAGOS — TRES MÉTODOS DISPONIBLES
+🚨 PAGOS — TRES MÉTODOS
 ════════════════════════════════════════════════════════
 • TARJETA / OXXO (Stripe):
-  → Si el sistema YA generó un link automático (ver aviso arriba), ÚSALO directamente.
-  → Si no hay link automático: GENERAR_COBRO|metodo|monto|rfc|razon|cp|regimen|uso
-
-• SPEI (manual): GENERAR_SPEI|monto_total
-
-• Si dicen "ya pagué": "¡Perfecto! En cuanto se confirme, bodega recibe tu pedido. 🐺📦"
+  → Si el sistema YA generó link → ÚSALO, no uses GENERAR_COBRO.
+  → Si no → GENERAR_COBRO|metodo|monto|rfc|razon|cp|regimen|uso
+• SPEI: GENERAR_SPEI|monto_total
+• "Ya pagué" → "¡Perfecto! En cuanto confirme, bodega recibe su pedido. 🐺📦"
 ${config.infoPagos ? `\n💳 EXTRA PAGOS: ${config.infoPagos}` : ''}
 ${config.infoEnvios ? `\n🚚 EXTRA ENVÍOS: ${config.infoEnvios}` : ''}
 
@@ -1226,13 +1223,13 @@ COBRO: GENERAR_COBRO|metodo(tarjeta/oxxo)|monto_total|rfc|razon_social|cp_fiscal
 SPEI: GENERAR_SPEI|monto_total
 ENVÍO: CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345
 DATOS_CLIENTE|direccion:[dir]|cp_fiscal:[cp]|productos:[lista]|categorias:[telas/hilos/elasticos]|notas:[nota]|etapa_abandono:[etapa]|intereses:[uso]
-PROGRAMAR_RECORDATORIO|${tel}|[fecha ISO o descripción]|[mensaje]
+PROGRAMAR_RECORDATORIO|${tel}|[fecha ISO]|[mensaje]
 ESCALAR|descripcion
 
 ⚠️ CP ENVÍO ≠ CP FISCAL. NUNCA los mezcles.
 
 ════════════════════════════════════════════════════════
-🎯 CIERRE
+🎯 FRASES DE CIERRE
 ════════════════════════════════════════════════════════
 "${config.fraseCierre}"
 "${config.fraseIncondicional}"
@@ -1312,7 +1309,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
 Última actualización: ${config.ultimaActualizacion}
 `;
 
-  console.log(`🤖 Llamando a GPT-4o para ${tel} (esJefe: ${esElJefe}) | Temp compra: ${perfil.temperaturaCompra} | Táctica: ${perfil.tacticaActual}`);
+  console.log(`🤖 Llamando a GPT-4o para ${tel} (esJefe: ${esElJefe}) | Temp: ${perfil.temperaturaCompra} | Táctica: ${perfil.tacticaActual}`);
   const systemPrompt = { role: 'system', content: esElJefe ? CONTEXTO_JEFE : CONTEXTO_VENDEDOR };
 
   let respuesta = '';
@@ -1320,7 +1317,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [systemPrompt, ...historial] as any,
-      temperature: 0.4,
+      temperature: 0.3, // Bajamos temperatura para respuestas más consistentes y vendedoras
       max_tokens: 700,
     });
     respuesta = completion.choices[0].message.content || '';
@@ -1537,7 +1534,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     // ==========================================
 
     if (linkStripeAutoGenerado && !respuesta.includes('https://checkout.stripe.com')) {
-      respuesta += `\n\n💳 *Tu Link de Pago Seguro (Tarjeta u OXXO):*\n${linkStripeAutoGenerado}\n\n_Blindado por Stripe. El Coyote cuida tu dinero. 🐺_`;
+      respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${linkStripeAutoGenerado}\n\n_Blindado por Stripe. El Coyote cuida su dinero. 🐺_`;
     }
 
     // 💸 SPEI
@@ -1558,15 +1555,12 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       ).join('\n\n');
 
       respuesta +=
-        `\n\n🏦 *Datos para tu SPEI — $${parseFloat(monto).toFixed(2)} MXN*\n\n` +
+        `\n\n🏦 *Datos para su SPEI — $${parseFloat(monto).toFixed(2)} MXN*\n\n` +
         `${cuentasTexto}\n\n` +
         `• Monto exacto: *$${parseFloat(monto).toFixed(2)} MXN*\n` +
         `• Referencia: *${referencia}*\n\n` +
-        `_Cuando hagas el SPEI mándame captura y le aviso a bodega al momento. 🐺_`;
+        `_Cuando realice el SPEI, mande captura y le aviso a bodega al momento. 🐺_`;
 
-      // ══════════════════════════════════════════
-      // 📝 TRACE — SPEI generado
-      // ══════════════════════════════════════════
       try {
         const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
         await createTrace({
@@ -1574,12 +1568,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
           phone: tel,
           type: "WHATSAPP",
           summary: `Datos SPEI enviados al cliente por $${parseFloat(monto).toFixed(2)} MXN`,
-          content: {
-            direction: "outbound",
-            event: "spei_generado",
-            monto: parseFloat(monto),
-            referencia,
-          },
+          content: { direction: "outbound", event: "spei_generado", monto: parseFloat(monto), referencia },
           actionName: "SPEI_GENERADO",
         });
       } catch (traceErr) {
@@ -1593,11 +1582,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       const [, , fechaRec, mensajeRec] = matchRecordatorio;
       respuesta = respuesta.replace(/PROGRAMAR_RECORDATORIO\|.+/g, '').trim();
       if (!perfil.recordatoriosPendientes) perfil.recordatoriosPendientes = [];
-      perfil.recordatoriosPendientes.push({
-        tipo: 'reactivacion',
-        fecha: fechaRec.trim(),
-        mensaje: mensajeRec.trim()
-      });
+      perfil.recordatoriosPendientes.push({ tipo: 'reactivacion', fecha: fechaRec.trim(), mensaje: mensajeRec.trim() });
       await saveCliente(redis, tel, perfil);
       console.log(`⏰ Recordatorio guardado para ${tel}: ${mensajeRec.trim()} en ${fechaRec.trim()}`);
     }
@@ -1610,9 +1595,9 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       try {
         const productos: ProductoEnvio[] = JSON.parse(`[${productosStr}]`);
         const resultado = calcularEnvioReal(productos, cpEnvio.trim(), 0, false);
-        respuesta += `\n\n${resultado.desglose}\n\n¿Con eso le damos? Si requieres factura avísame para el IVA. 🐺`;
+        respuesta += `\n\n${resultado.desglose}\n\n¿Le damos? Si requiere factura avíseme para incluir el IVA. 🐺`;
       } catch (e) {
-        respuesta += `\n\n⚠️ No pude calcular el envío. Dame el CP y los kilos de nuevo.`;
+        respuesta += `\n\n⚠️ No pude calcular el envío. Deme el CP y los kilos de nuevo.`;
       }
     }
 
@@ -1622,11 +1607,8 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       const [, duda] = matchEscalar;
       console.log(`🆘 ESCALAMIENTO: ${duda}`);
       respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
-      respuesta += `\n🆘 Ya avisé al equipo. En breve te contactan.`;
+      respuesta += `\n🆘 Ya avisé al equipo. En breve le contactan.`;
 
-      // ══════════════════════════════════════════
-      // 📝 TRACE — Escalamiento a agente humano
-      // ══════════════════════════════════════════
       try {
         const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
         await createTrace({
@@ -1634,13 +1616,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
           phone: tel,
           type: "WHATSAPP",
           summary: `Escalamiento solicitado por El Coyote: ${duda.substring(0, 80)}`,
-          content: {
-            direction: "internal",
-            event: "escalamiento",
-            motivo: duda,
-            clienteNombre: perfil.nombre,
-            segmento: perfil.segmento,
-          },
+          content: { direction: "internal", event: "escalamiento", motivo: duda, clienteNombre: perfil.nombre, segmento: perfil.segmento },
           actionName: "ESCALAMIENTO_A_AGENTE",
         });
       } catch (traceErr) {
@@ -1676,11 +1652,8 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
           success_url: 'https://wa.me/5215627301525',
           metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
         });
-        respuesta += `\n\n💳 *Tu Link de Pago Seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Blindado por Stripe. El Coyote cuida tu dinero. 🐺_`;
+        respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Blindado por Stripe. El Coyote cuida su dinero. 🐺_`;
 
-        // ══════════════════════════════════════════
-        // 📝 TRACE — Link Stripe generado por El Coyote
-        // ══════════════════════════════════════════
         try {
           const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
           await createTrace({
@@ -1688,14 +1661,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
             phone: tel,
             type: "WHATSAPP",
             summary: `Link de pago Stripe generado: $${parseFloat(monto).toFixed(2)} MXN (${metodo})`,
-            content: {
-              direction: "outbound",
-              event: "stripe_link_generado",
-              metodo,
-              monto: parseFloat(monto),
-              conFactura: reqInvoice === 'YES',
-              sessionId: session.id,
-            },
+            content: { direction: "outbound", event: "stripe_link_generado", metodo, monto: parseFloat(monto), conFactura: reqInvoice === 'YES', sessionId: session.id },
             actionName: "LINK_STRIPE_GENERADO",
           });
         } catch (traceErr) {
@@ -1713,12 +1679,9 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
 
   historial.push({ role: 'assistant', content: respuesta });
   await saveHistorial(redis, tel, historial);
-  console.log(`📤 Enviando respuesta a ${tel} (${respuesta.length} chars) | Temp: ${perfil.temperaturaCompra} | Táctica: ${perfil.tacticaActual}`);
+  console.log(`📤 Enviando a ${tel} (${respuesta.length} chars) | Temp: ${perfil.temperaturaCompra} | Táctica: ${perfil.tacticaActual}`);
   await enviarWhatsapp(tel, respuesta.trim());
 
-  // ══════════════════════════════════════════
-  // 📝 TRACE — Respuesta enviada por El Coyote
-  // ══════════════════════════════════════════
   try {
     const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
     await createTrace({
@@ -1726,40 +1689,27 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       phone: tel,
       type: "WHATSAPP",
       summary: `Respuesta del Coyote enviada: ${respuesta.substring(0, 60)}${respuesta.length > 60 ? '...' : ''}`,
-      content: {
-        direction: "outbound",
-        body: respuesta.trim(),
-        tactica: perfil.tacticaActual,
-        temperaturaCompra: perfil.temperaturaCompra,
-        segmento: perfil.segmento,
-      },
+      content: { direction: "outbound", body: respuesta.trim(), tactica: perfil.tacticaActual, temperaturaCompra: perfil.temperaturaCompra, segmento: perfil.segmento },
       actionName: "RESPUESTA_BOT_COYOTE",
     });
   } catch (traceErr) {
     console.error("⚠️ Error en createTrace (respuesta bot):", traceErr);
   }
 
-  // 👇 Espejear la conversación en Prisma para el CRM
+  // 👇 Espejear conversación en Prisma para el CRM
   try {
     let convoPrisma = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
     if (!convoPrisma) {
       convoPrisma = await prisma.waConversation.create({
-        data: {
-          contactPhone: tel,
-          contactName: perfil.nombre || "Cliente Bot",
-          isOpen: true,
-          unreadCount: 0
-        }
+        data: { contactPhone: tel, contactName: perfil.nombre || "Cliente Bot", isOpen: true, unreadCount: 0 }
       });
     }
-
     await prisma.waMessage.createMany({
       data: [
         { conversationId: convoPrisma.id, role: "CLIENT", body: msgCliente, isRead: true },
         { conversationId: convoPrisma.id, role: "AGENT",  body: respuesta.trim(), isRead: true }
       ]
     });
-
     await prisma.waConversation.update({
       where: { id: convoPrisma.id },
       data: { lastMessage: respuesta.trim(), lastMessageAt: new Date() }
