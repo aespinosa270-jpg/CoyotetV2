@@ -17,7 +17,8 @@ type Interaction = {
   date:           string;
   nextFollowUp:   string | null;
   pipelineStatus: PipelineStatus | null;
-  employee:       { id: string; name: string };
+  // 🔥 FIX 1: Le avisamos a TypeScript que el empleado puede no existir (ser nulo)
+  employee:       { id: string; name: string } | null;
   user:           { id: string; name: string; email: string };
 };
 
@@ -60,9 +61,10 @@ export default function InteraccionesClient({
 
   const lista    = interactions ?? [];
   const filtered = lista.filter((i) => {
+    // 🔥 FIX 2: Validamos con `?.` que el empleado exista antes de buscar en su nombre
     const matchSearch =
       i.user.name?.toLowerCase().includes(search.toLowerCase())     ||
-      i.employee.name.toLowerCase().includes(search.toLowerCase())  ||
+      i.employee?.name.toLowerCase().includes(search.toLowerCase()) ||
       i.summary.toLowerCase().includes(search.toLowerCase());
     const matchType = typeFilt === "TODOS" || i.type === typeFilt;
     return matchSearch && matchType;
@@ -141,13 +143,18 @@ export default function InteraccionesClient({
                     </div>
                   </td>
 
-                  {/* Agente */}
+                  {/* 🔥 FIX 3: Agente (Con fallback visual si el empleado es null) */}
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded bg-[#FDCB02] text-black text-[8px] font-black flex items-center justify-center shrink-0">
-                        {item.employee.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                      <div className={`w-6 h-6 rounded ${item.employee ? 'bg-[#FDCB02] text-black' : 'bg-purple-900/40 text-purple-400 border border-purple-800/50'} text-[8px] font-black flex items-center justify-center shrink-0`}>
+                        {item.employee 
+                          ? item.employee.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+                          : "🤖"
+                        }
                       </div>
-                      <span className="text-[10px] text-zinc-400 truncate max-w-[80px]">{item.employee.name}</span>
+                      <span className={`text-[10px] truncate max-w-[80px] ${item.employee ? 'text-zinc-400' : 'text-purple-400 font-bold tracking-widest'}`}>
+                        {item.employee ? item.employee.name : "SISTEMA"}
+                      </span>
                     </div>
                   </td>
 
