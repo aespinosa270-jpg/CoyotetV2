@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { PickupLocation, MovementType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth"; // 🔥 Recuperamos la seguridad
+import { createTrace } from "@/lib/tracer"; // 🔥 Recuperamos el Gran Hermano
 
 export type RegisterMovementInput = {
   type: MovementType;
@@ -34,51 +36,15 @@ export async function registerMovementAction(
   if (quantity <= 0)       return { success: false, error: "La cantidad debe ser mayor a 0." };
   if (rollCount < 0)       return { success: false, error: "Rollos no puede ser negativo." };
 
-  // FIX: Prisma no acepta `string | null` directamente en el unique compuesto.
-  // Hay que construir el where condicionalmente según si colorId existe o no.
-  // Cuando colorId es null, usamos un raw where con AND para evitar el type error.
-  const inventoryWhere = colorId
-    ? { productId_colorId_location: { productId, colorId, location } }
-    : { productId_colorId_location: { productId, colorId: null as unknown as string, location } };
-  //                                                     ↑ workaround tipado de Prisma
-
-  // Alternativa más limpia si la anterior te sigue dando problemas en strict mode:
-  // usar findFirst en lugar del unique compuesto
-  // const inventoryWhere = { productId, colorId: colorId ?? null, location };
-
   try {
-    // Validación de stock (solo SALIDA)
-    if (type === "SALIDA") {
-      const stock = await prisma.inventory.findFirst({
-        where: {
-          productId,
-          colorId: colorId ?? null,
-          location,
-        },
-      });
+    const session = await auth();
+    const employeeId = session?.user?.id || null;
 
-      if (!stock) {
-        return {
-          success: false,
-          error: `No hay inventario para este producto en ${location}.`,
-        };
-      }
-      if (stock.quantity < quantity) {
-        return {
-          success: false,
-          error: `Stock insuficiente en ${location}. Disponible: ${stock.quantity.toFixed(2)} — Solicitado: ${quantity.toFixed(2)}.`,
-        };
-      }
-      if (stock.rollCount < rollCount) {
-        return {
-          success: false,
-          error: `Rollos insuficientes en ${location}. Disponibles: ${stock.rollCount} — Solicitados: ${rollCount}.`,
-        };
-      }
-    }
+    // 🔥 FIX: Eliminamos las validaciones de "stock insuficiente" para que la operación 
+    // fluya en el mundo real, permitiendo números negativos temporales si es necesario.
 
     const result = await prisma.$transaction(async (tx) => {
-      // PASO 1 — Kardex inmutable
+      // PASO 1 — Kardex inmutable (La bitácora física)
       const movement = await tx.inventoryMovement.create({
         data: {
           type,
@@ -97,16 +63,14 @@ export async function registerMovementAction(
       const delta     = type === "ENTRADA" ?  quantity  : -quantity;
       const rollDelta = type === "ENTRADA" ?  rollCount : -rollCount;
 
-      // PASO 2 — Upsert de stock
-      // FIX: usamos updateMany + create por separado para evitar el problema
-      // de tipos en el where del upsert con colorId nullable.
+      // PASO 2 — Upsert de stock (A prueba de balas con tu lógica de findFirst)
       const existing = await tx.inventory.findFirst({
         where: { productId, colorId: colorId ?? null, location },
       });
 
       if (existing) {
         await tx.inventory.update({
-          where: { id: existing.id }, // ← usamos el PK, sin ambigüedad de tipos
+          where: { id: existing.id }, // ← PK directo, cero ambigüedad
           data: {
             quantity:  { increment: delta },
             rollCount: { increment: rollDelta },
@@ -126,6 +90,16 @@ export async function registerMovementAction(
 
       return movement;
     });
+
+    // 🕵️‍♂️ PASO 3 — RASTRO DE AUDITORÍA (Gran Hermano)
+    if (employeeId) {
+      await createTrace({
+        employeeId: employeeId,
+        actionName: "INVENTORY_MOVEMENT",
+        summary: `Registró una ${type} de ${quantity.toFixed(2)} unidades en ${location}.`,
+        content: { movementId: result.id, productId, quantity, location }
+      });
+    }
 
     revalidatePath("/crm/admin/inventario");
     revalidatePath("/crm/admin/inventario/historial");

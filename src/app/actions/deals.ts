@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { PipelineStatus, PickupLocation } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth"; // 🔥 Recuperamos la seguridad
+import { createTrace } from "@/lib/tracer"; // 🔥 Recuperamos el Gran Hermano
 import { registerMovementAction } from "./inventory"; 
 
 // ─── TYPES ───────────────────────────────────────────────────────────────────
@@ -13,7 +15,7 @@ export type CreateDealInput = {
   employeeId: string;
   value:      number;
   productId?: string;
-  color?:     string; // Mapeado a 'color' según tu schema
+  color?:     string;
   quantity?:  number;
   userId?:    string;
 };
@@ -33,6 +35,9 @@ export async function createDealAction(input: CreateDealInput): Promise<DealResu
   if (value < 0)        return { success: false, error: "El valor no puede ser negativo." };
 
   try {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error("Acceso denegado");
+
     const deal = await prisma.deal.create({
       data: {
         title, company, employeeId, value,
@@ -43,6 +48,15 @@ export async function createDealAction(input: CreateDealInput): Promise<DealResu
         status:    "PROSPECTO",
       },
     });
+
+    // 🕵️‍♂️ RASTRO DE AUDITORÍA
+    await createTrace({
+      employeeId: session.user.id,
+      actionName: "CREATE_DEAL",
+      summary: `Creó el prospecto "${title}" para ${company} ($${value})`,
+      content: { dealId: deal.id, input }
+    });
+
     revalidatePath("/crm/admin/leads");
     return { success: true, dealId: deal.id };
   } catch (err) {
@@ -55,6 +69,13 @@ export async function moveDealAction(dealId: string, status: PipelineStatus): Pr
   if (!dealId) return { success: false, error: "ID de Deal no proporcionado." };
 
   try {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error("Acceso denegado");
+    const agentId = session.user.id;
+    const agentName = session.user.name || "Agente";
+
+    let commissionMsg = "";
+
     const result = await prisma.$transaction(async (tx) => {
       const deal = await tx.deal.findUnique({
         where: { id: dealId },
@@ -63,12 +84,13 @@ export async function moveDealAction(dealId: string, status: PipelineStatus): Pr
 
       if (!deal) throw new Error("El Deal no existe en la base de datos.");
 
-      if (status === "CERRADO_GANADO") {
+      // 1. LÓGICA DE INVENTARIO Y COMISIONES AL GANAR
+      if (status === "CERRADO_GANADO" && deal.status !== "CERRADO_GANADO") {
         if (!deal.productId || !deal.quantity) {
-          throw new Error("Información insuficiente: El deal requiere producto y cantidad.");
+          throw new Error("El deal requiere producto y cantidad para poder cerrarse.");
         }
 
-        // 🔥 FIX: Mapeamos deal.color (del schema) a colorId (de la acción de inventario)
+        // Descontar Inventario
         const invRes = await registerMovementAction({
           type: "SALIDA",
           productId: deal.productId,
@@ -82,14 +104,46 @@ export async function moveDealAction(dealId: string, status: PipelineStatus): Pr
         });
 
         if (!invRes.success) {
-          throw new Error(invRes.error);
+          throw new Error(`Inventario: ${invRes.error}`);
         }
+
+        // Generar Comisión
+        const rate = deal.employee.commissionRate || 0;
+        const amount = deal.value * rate;
+        
+        if (amount > 0) {
+          await tx.commission.upsert({
+            where: { dealId: deal.id },
+            update: { amount, rate, status: "PENDIENTE" },
+            create: { employeeId: deal.employeeId, dealId: deal.id, amount, rate, status: "PENDIENTE" }
+          });
+          commissionMsg = ` 💰 Comisión de $${amount} generada. 📦 Inventario descontado.`;
+        } else {
+          commissionMsg = ` 📦 Inventario descontado. (Sin comisión asignada)`;
+        }
+      } 
+      // 2. LÓGICA DE REVERSO (Si lo regresan por error)
+      else if (deal.status === "CERRADO_GANADO" && status !== "CERRADO_GANADO") {
+        await tx.commission.updateMany({
+          where: { dealId: deal.id, status: "PENDIENTE" },
+          data: { status: "RECHAZADA", notes: "Trato devuelto desde GANADO." }
+        });
+        commissionMsg = ` 📉 Comisión cancelada. (⚠️ ATENCIÓN: El inventario requiere ajuste manual).`;
       }
 
+      // 3. ACTUALIZAR ESTADO
       return await tx.deal.update({
         where: { id: dealId },
         data: { status }
       });
+    });
+
+    // 🕵️‍♂️ RASTRO DE AUDITORÍA
+    await createTrace({
+      employeeId: agentId,
+      actionName: "UPDATE_PIPELINE",
+      summary: `${agentName} movió "${result.title}" a ${status}.${commissionMsg}`,
+      content: { dealId, newStatus: status }
     });
 
     revalidatePath("/crm/admin/leads");
@@ -104,7 +158,18 @@ export async function moveDealAction(dealId: string, status: PipelineStatus): Pr
 
 export async function deleteDealAction(dealId: string): Promise<DealResult> {
   try {
+    const session = await auth();
     await prisma.deal.delete({ where: { id: dealId } });
+    
+    if (session?.user?.id) {
+      await createTrace({
+        employeeId: session.user.id,
+        actionName: "DELETE_DEAL",
+        summary: `Eliminó un trato comercial del pipeline.`,
+        content: { dealId }
+      });
+    }
+
     revalidatePath("/crm/admin/leads");
     return { success: true, dealId };
   } catch (err) {
@@ -113,7 +178,7 @@ export async function deleteDealAction(dealId: string): Promise<DealResult> {
   }
 }
 
-// ─── QUERIES ────────────────────────────────────────────────────────────────
+// ─── QUERIES (Quedan igual a tu versión) ────────────────────────────────────
 
 export async function getDealsByStatus() {
   const deals = await prisma.deal.findMany({

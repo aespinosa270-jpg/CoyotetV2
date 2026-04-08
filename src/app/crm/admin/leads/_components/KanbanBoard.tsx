@@ -7,6 +7,10 @@ import { Plus, ChevronRight, ChevronLeft, Trophy, XCircle, TrendingUp, MessageCi
 import Link from "next/link";
 import ModalNuevoDeal from "@/app/crm/admin/leads/_components/ModalNuevoDeal";
 
+// 🔥 IMPORTACIONES PARA EL DRAG & DROP
+import { DndContext, DragEndEvent, closestCorners, useDraggable, useDroppable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
+
 // ── TYPES ─────────────────────────────────────────────────────────────────────
 
 export type DealRow = {
@@ -32,8 +36,8 @@ const STAGES: {
   border: string;
   icon:   React.ElementType;
 }[] = [
-  { status: "PROSPECTO",       label: "Prospecto",   accent: "text-zinc-400",   border: "border-zinc-700",    icon: Target        },
-  { status: "COTIZANDO",       label: "Cotizando",   accent: "text-sky-400",    border: "border-sky-800",     icon: MessageCircle },
+  { status: "PROSPECTO",       label: "Prospecto",   accent: "text-zinc-400",    border: "border-zinc-700",    icon: Target        },
+  { status: "COTIZANDO",       label: "Cotizando",   accent: "text-sky-400",     border: "border-sky-800",     icon: MessageCircle },
   { status: "NEGOCIACION",     label: "Negociación", accent: "text-amber-400",  border: "border-amber-800",   icon: TrendingUp    },
   { status: "CERRADO_GANADO",  label: "✓ Ganado",    accent: "text-emerald-400",border: "border-emerald-800", icon: Trophy        },
   { status: "CERRADO_PERDIDO", label: "Perdido",     accent: "text-red-400",    border: "border-red-900",     icon: XCircle       },
@@ -70,6 +74,29 @@ export default function KanbanBoard({
     setShowModal(false);
   };
 
+  // 🔥 LÓGICA DE DRAG & DROP
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over) return; // Se soltó en el vacío
+
+    const dealId = String(active.id);
+    const toStatus = String(over.id) as PipelineStatus;
+
+    // Buscamos en qué columna estaba originalmente
+    let fromStatus: PipelineStatus | null = null;
+    for (const status of Object.keys(columns) as PipelineStatus[]) {
+      if (columns[status].some(d => d.id === dealId)) {
+        fromStatus = status;
+        break;
+      }
+    }
+
+    if (!fromStatus || fromStatus === toStatus) return;
+
+    handleMove(dealId, fromStatus, toStatus);
+  };
+
   return (
     <>
       <div className="shrink-0 flex justify-end">
@@ -81,51 +108,22 @@ export default function KanbanBoard({
         </button>
       </div>
 
-      {/* Kanban */}
-      <div className="flex-1 overflow-x-auto min-h-0">
-        <div className="flex gap-3 h-full min-w-[960px] pb-4">
-          {STAGES.map((stage, idx) => {
-            const Icon   = stage.icon;
-            const deals  = columns[stage.status];
-            const total  = deals.reduce((s, d) => s + d.value, 0);
-
-            return (
-              <div key={stage.status} className={`flex flex-col flex-1 rounded-xl border ${stage.border} bg-zinc-950/50 min-w-[180px]`}>
-                {/* Column header */}
-                <div className="px-3 py-3 border-b border-white/5 flex items-center justify-between shrink-0">
-                  <span className={`flex items-center gap-1.5 text-[10px] font-[900] uppercase tracking-widest ${stage.accent}`}>
-                    <Icon size={12} /> {stage.label}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] text-zinc-600 font-mono">${(total/1000).toFixed(0)}k</span>
-                    <span className="bg-zinc-800 text-zinc-400 text-[9px] font-black px-1.5 py-0.5 rounded">{deals.length}</span>
-                  </div>
-                </div>
-
-                {/* Cards */}
-                <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                  {deals.length === 0 && (
-                    <p className="text-[9px] text-zinc-700 text-center uppercase tracking-widest pt-8">Vacío</p>
-                  )}
-                  {deals.map((deal) => (
-                    <DealCard
-                      key={deal.id}
-                      deal={deal}
-                      stageIdx={idx}
-                      onMoveLeft={idx > 0
-                        ? () => handleMove(deal.id, deal.status, STAGES[idx - 1].status)
-                        : undefined}
-                      onMoveRight={idx < STAGES.length - 1
-                        ? () => handleMove(deal.id, deal.status, STAGES[idx + 1].status)
-                        : undefined}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+      {/* 🔥 ENVOLVEMOS EL TABLERO EN EL CONTEXTO DND */}
+      <DndContext collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+        <div className="flex-1 overflow-x-auto min-h-0">
+          <div className="flex gap-3 h-full min-w-[960px] pb-4">
+            {STAGES.map((stage, idx) => (
+              <DroppableColumn 
+                key={stage.status}
+                stage={stage}
+                idx={idx}
+                deals={columns[stage.status]}
+                handleMove={handleMove}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      </DndContext>
 
       {showModal && (
         <ModalNuevoDeal
@@ -139,21 +137,79 @@ export default function KanbanBoard({
   );
 }
 
-// ── DEAL CARD ─────────────────────────────────────────────────────────────────
+// ── DROPPABLE COLUMN (NUEVO COMPONENTE) ───────────────────────────────────────
+function DroppableColumn({ stage, idx, deals, handleMove }: { stage: typeof STAGES[0], idx: number, deals: DealRow[], handleMove: any }) {
+  const Icon = stage.icon;
+  const total = deals.reduce((s, d) => s + d.value, 0);
+
+  // 🔥 Hook para que la columna acepte tarjetas
+  const { isOver, setNodeRef } = useDroppable({ id: stage.status });
+
+  return (
+    <div 
+      ref={setNodeRef} // Inyectamos la referencia droppable
+      className={`flex flex-col flex-1 rounded-xl border transition-colors ${stage.border} ${isOver ? 'bg-zinc-900/80' : 'bg-zinc-950/50'} min-w-[180px]`}
+    >
+      {/* Column header */}
+      <div className="px-3 py-3 border-b border-white/5 flex items-center justify-between shrink-0">
+        <span className={`flex items-center gap-1.5 text-[10px] font-[900] uppercase tracking-widest ${stage.accent}`}>
+          <Icon size={12} /> {stage.label}
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-zinc-600 font-mono">${(total/1000).toFixed(0)}k</span>
+          <span className="bg-zinc-800 text-zinc-400 text-[9px] font-black px-1.5 py-0.5 rounded">{deals.length}</span>
+        </div>
+      </div>
+
+      {/* Cards */}
+      <div className="flex-1 overflow-y-auto p-2 space-y-2">
+        {deals.length === 0 && (
+          <p className="text-[9px] text-zinc-700 text-center uppercase tracking-widest pt-8 pointer-events-none">Vacío</p>
+        )}
+        {deals.map((deal) => (
+          <DealCard
+            key={deal.id}
+            deal={deal}
+            onMoveLeft={idx > 0 ? () => handleMove(deal.id, deal.status, STAGES[idx - 1].status) : undefined}
+            onMoveRight={idx < STAGES.length - 1 ? () => handleMove(deal.id, deal.status, STAGES[idx + 1].status) : undefined}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── DEAL CARD (ACTUALIZADA CON DRAG) ──────────────────────────────────────────
 
 function DealCard({
-  deal, stageIdx, onMoveLeft, onMoveRight,
+  deal, onMoveLeft, onMoveRight,
 }: {
   deal:        DealRow;
-  stageIdx:    number;
   onMoveLeft?:  () => void;
   onMoveRight?: () => void;
 }) {
   const initials = deal.employee.name
     .split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
+  // 🔥 Hook para que la tarjeta se pueda arrastrar
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: deal.id,
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.5 : 1, // Efecto fantasma al arrastrar
+    zIndex: isDragging ? 50 : 1,
+  };
+
   return (
-    <div className="bg-zinc-900 border border-zinc-800 hover:border-zinc-600 rounded-lg p-3 group transition-all cursor-default">
+    <div
+      ref={setNodeRef} // Inyectamos la ref
+      style={style}
+      {...listeners} // Escucha el click/arrastre
+      {...attributes} // Atributos de accesibilidad
+      className="bg-zinc-900 border border-zinc-800 hover:border-zinc-600 rounded-lg p-3 group transition-all cursor-grab active:cursor-grabbing relative"
+    >
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="min-w-0">
           <p className="text-[9px] text-zinc-500 uppercase tracking-widest truncate">{deal.company}</p>
@@ -178,7 +234,11 @@ function DealCard({
           <span className="text-[9px] text-zinc-500 truncate max-w-[65px]">{deal.employee.name}</span>
         </div>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Mantenemos los botones, pero les detenemos la propagación para que no interfieran con el drag */}
+        <div 
+          className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          onPointerDown={(e) => e.stopPropagation()} // 🔥 EVITA QUE ARRASTRE AL DAR CLIC EN BOTONES
+        >
           {onMoveLeft && (
             <button onClick={onMoveLeft}
               className="w-5 h-5 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center transition-colors">

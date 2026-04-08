@@ -102,7 +102,8 @@ export default function ModalNuevoDeal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-8 py-6 space-y-5">
+        {/* 🔥 FIX: Le agregamos el ID al form */}
+        <form id="nuevo-deal-form" onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-8 py-6 space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={lbl}><Target size={10} className="inline mr-1" /> Título *</label>
@@ -173,8 +174,10 @@ export default function ModalNuevoDeal({
         </form>
 
         <div className="px-8 py-6 border-t border-zinc-900 shrink-0 bg-[#0a0a0a]">
+          {/* 🔥 FIX: Cambiamos el botón para que sea type="submit" y apunte al form */}
           <button
-            onClick={handleSubmit}
+            type="submit"
+            form="nuevo-deal-form"
             disabled={isPending || success || !form.title || !form.company || !form.employeeId}
             className={`w-full h-14 rounded-2xl flex items-center justify-center gap-3 font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg ${
               success 

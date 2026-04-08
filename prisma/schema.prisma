@@ -198,35 +198,38 @@ model PasswordResetToken {
 // 2. LA JAURIA (EQUIPO INTERNO)
 // ==========================================================
 model Employee {
-  id              String           @id @default(cuid())
-  name            String
-  email           String           @unique
-  password        String
-  role            EmployeeRole     @default(VENDEDORA)
-  isActive        Boolean          @default(true)
-  commissionRate  Float            @default(0.03)
-  status          String           @default("offline")
-  lastActiveAt    DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id             String           @id @default(cuid())
+  name           String
+  email          String           @unique
+  password       String
+  role           EmployeeRole     @default(VENDEDORA)
+  isActive       Boolean          @default(true)
+  commissionRate Float            @default(0.03)
+  status         String           @default("offline")
+  lastActiveAt   DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
-  logs            AuditLog[]
-  attendances     Attendance[]
-  interactions    Interaction[]
+  logs           AuditLog[]
+  attendances    Attendance[]
+  interactions   Interaction[]
   assignedTickets Ticket[]
-  ticketMessages  TicketMessage[]
-  telemetry       Telemetry[]
-  routeOrders     RouteOrder[]
-  deals           Deal[]
-  commissions     Commission[]
+  ticketMessages TicketMessage[]
+  telemetry      Telemetry[]
+  routeOrders    RouteOrder[]
+  deals          Deal[]
+  commissions    Commission[]
   waConversations WaConversation[]
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  timestamp  DateTime @default(now())
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id])
+  id         String    @id @default(cuid())
+  timestamp  DateTime  @default(now())
+  
+  // 🔥 FIX: Hechos opcionales para permitir rastros del sistema
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  
   action     String
   resourceId String?
   ipAddress  String?
@@ -293,21 +296,21 @@ model Inventory {
 }
 
 model InventoryMovement {
-  id           String         @id @default(cuid())
+  id           String        @id @default(cuid())
   productId    String
-  product      Product        @relation(fields: [productId], references: [id])
+  product      Product       @relation(fields: [productId], references: [id])
   colorId      String?
-  color        ProductColor?  @relation(fields: [colorId], references: [id])
+  color        ProductColor? @relation(fields: [colorId], references: [id])
   location     PickupLocation
   type         MovementType
   quantity     Float
-  rollCount    Int            @default(0)
+  rollCount    Int           @default(0)
   provider     String?
-  authorizedBy String
+  authorizedBy String        // ✅ Nota: Como es String (sin relación) puedes pasar "SISTEMA" aquí sin problemas.
   notes        String?
   orderId      String?
-  order        Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  createdAt    DateTime       @default(now())
+  order        Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt    DateTime      @default(now())
 }
 
 // ==========================================================
@@ -444,8 +447,11 @@ model AttendanceBreak {
 
 model Interaction {
   id             String          @id @default(cuid())
-  employeeId     String
-  employee       Employee        @relation(fields: [employeeId], references: [id])
+  
+  // 🔥 FIX: Hechos opcionales para permitir interacciones de bots/sistema
+  employeeId     String?
+  employee       Employee?       @relation(fields: [employeeId], references: [id])
+  
   userId         String
   user           User            @relation(fields: [userId], references: [id])
   type           InteractionType
@@ -467,20 +473,20 @@ model ShippingZone {
 }
 
 model Ticket {
-  id           String          @id @default(cuid())
-  ticketNumber String          @unique @default(dbgenerated("concat('TK-', substr(gen_random_uuid()::text, 1, 6))"))
+  id           String         @id @default(cuid())
+  ticketNumber String         @unique @default(dbgenerated("concat('TK-', substr(gen_random_uuid()::text, 1, 6))"))
   userId       String
-  user         User            @relation(fields: [userId], references: [id])
+  user         User           @relation(fields: [userId], references: [id])
   employeeId   String?
-  employee     Employee?       @relation(fields: [employeeId], references: [id])
+  employee     Employee?      @relation(fields: [employeeId], references: [id])
   orderId      String?
-  order        Order?          @relation(fields: [orderId], references: [id])
+  order        Order?         @relation(fields: [orderId], references: [id])
   subject      String
   description  String
-  status       TicketStatus    @default(ABIERTO)
-  priority     TicketPriority  @default(MEDIA)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  status       TicketStatus   @default(ABIERTO)
+  priority     TicketPriority @default(MEDIA)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   messages     TicketMessage[]
 }
@@ -502,15 +508,15 @@ model TicketMessage {
 // 7. FLOTILLA AVANZADA Y RUTAS
 // ==========================================================
 model Vehicle {
-  id              String         @id @default(cuid())
-  plate           String         @unique
+  id              String        @id @default(cuid())
+  plate           String        @unique
   model           String
-  lastMaintenance DateTime       @default(now())
+  lastMaintenance DateTime      @default(now())
   nextMaintenance DateTime
-  mileage         Float          @default(0)
-  status          VehicleStatus  @default(ACTIVE)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  mileage         Float         @default(0)
+  status          VehicleStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   orders          Order[]
   logs            VehicleLog[]
