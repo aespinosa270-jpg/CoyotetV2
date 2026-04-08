@@ -25,9 +25,14 @@ export default async function LlamadasPage() {
   const formattedLogs = rawInteractions.map((interaction) => ({
     id: interaction.id.slice(-6).toUpperCase(), // Acortamos el CUID para que parezca folio (ej. Q3F9A1)
     type: 'saliente', // Tu DB no especifica entrante/saliente aún
-    agent: interaction.employee.name, 
-    client: interaction.user.name || 'Cliente sin nombre',
-    company: interaction.user.rfc || 'Sin Empresa', // Usamos el RFC u otro campo temporalmente
+    
+    // 🔥 FIX 1: Protección contra empleado nulo
+    agent: interaction.employee?.name || '🤖 SISTEMA', 
+    
+    // 🔥 FIX 2: Protección contra usuario nulo
+    client: interaction.user?.name || 'Cliente sin nombre',
+    company: (interaction.user as any)?.rfc || 'Sin Empresa', // Usamos el RFC u otro campo temporalmente
+    
     duration: "00:00", // No tienes columna de duración en tu DB
     status: "contestada", // No tienes status de éxito/falla de llamada en tu DB
     date: new Intl.DateTimeFormat('es-MX', { 
