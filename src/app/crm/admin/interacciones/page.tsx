@@ -1,72 +1,50 @@
 import { prisma } from "@/lib/prisma";
 import InteraccionesClient from "./_components/InteraccionesClient";
 
-async function getInteraccionesData() {
-  const interactions = await prisma.interaction.findMany({
+// Forzamos a que esta ruta sea dinámica para que siempre traiga los chats más frescos
+export const dynamic = 'force-dynamic';
+
+async function getChatData() {
+  const conversations = await prisma.waConversation.findMany({
     include: {
       employee: { select: { id: true, name: true } },
-      user:     { select: { id: true, name: true, email: true } },
+      user: { 
+        include: {
+          orders: {
+            where: { status: { in: ["PENDING", "PROCESSING", "PAID"] } },
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
+        }
+      },
+      messages: {
+        orderBy: { sentAt: 'asc' }, 
+      }
     },
-    orderBy: { date: "desc" },
-    take: 200,
+    orderBy: { updatedAt: "desc" },
+    take: 50,
   });
 
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-
-  const totalHoy    = interactions.filter((i) => new Date(i.date) >= hoy).length;
-  const contestadas = interactions.filter((i) => i.summary?.length > 0).length;
-  const tasaResp    = interactions.length > 0
-    ? Math.round((contestadas / interactions.length) * 100)
-    : 0;
-
-  return {
-    interactions: interactions.map((i) => ({
-      ...i,
-      date:         i.date.toISOString(),
-      nextFollowUp: i.nextFollowUp?.toISOString() ?? null,
-      user: {
-        ...i.user,
-        name: i.user.name ?? i.user.email,
-      },
-    })),
-    totalHoy,
-    tasaResp,
-  };
+  return conversations;
 }
 
 export default async function InteraccionesPage() {
-  const { interactions, totalHoy, tasaResp } = await getInteraccionesData();
+  const conversations = await getChatData();
 
   return (
-    <div className="h-full flex flex-col gap-4 overflow-hidden">
-
-      {/* Header */}
-      <div className="flex items-end justify-between shrink-0">
+    // Le quitamos márgenes extra para que abarque todo el alto disponible
+    <div className="h-full flex flex-col overflow-hidden bg-[#0a0a0a] pb-4">
+      {/* Mini-Header discreto para no robar espacio al chat */}
+      <div className="flex items-end justify-between shrink-0 mb-3 px-2">
         <div>
-          <p className="text-[9px] tracking-[0.3em] text-zinc-500 uppercase mb-0.5">CRM / Actividad</p>
-          <h1 className="text-2xl font-black uppercase tracking-tighter text-white italic">
-            Registro de <span className="text-[#FDCB02]">Interacciones</span>
+          <p className="text-[9px] tracking-[0.3em] text-zinc-500 uppercase mb-0.5">CRM / Centro de Comando</p>
+          <h1 className="text-xl font-black uppercase tracking-tighter text-white italic">
+            WhatsApp <span className="text-[#FDCB02]">Live</span>
           </h1>
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-4 gap-3 shrink-0">
-        {[
-          { label: "Interacciones Hoy",   value: totalHoy,                                          color: "text-white"       },
-          { label: "Total Registradas",   value: interactions.length,                               color: "text-[#FDCB02]"  },
-          { label: "Tasa de Seguimiento", value: `${tasaResp}%`,                                    color: "text-emerald-400" },
-          { label: "Con Follow-Up",       value: interactions.filter((i) => i.nextFollowUp).length, color: "text-blue-400"    },
-        ].map((s) => (
-          <div key={s.label} className="bg-[#0a0a0a] border border-white/[0.03] p-4 rounded-2xl">
-            <p className="text-[8px] uppercase font-black tracking-widest text-zinc-600 mb-1">{s.label}</p>
-            <p className={`text-xl font-mono font-bold ${s.color}`}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      <InteraccionesClient interactions={interactions} />
+      <InteraccionesClient initialConversations={conversations} />
     </div>
   );
 }

@@ -136,6 +136,13 @@ enum BreakType {
   ENTRENAMIENTO
 }
 
+// ✅ NUEVO: Enum para saber quién tiene el control del chat
+enum ChatHandler {
+  BOT
+  AGENT
+  ADMIN
+}
+
 // ==========================================================
 // 1. USUARIO / CLIENTE (B2B & B2C)
 // ==========================================================
@@ -198,38 +205,40 @@ model PasswordResetToken {
 // 2. LA JAURIA (EQUIPO INTERNO)
 // ==========================================================
 model Employee {
-  id             String           @id @default(cuid())
-  name           String
-  email          String           @unique
-  password       String
-  role           EmployeeRole     @default(VENDEDORA)
-  isActive       Boolean          @default(true)
-  commissionRate Float            @default(0.03)
-  status         String           @default("offline")
-  lastActiveAt   DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id                 String           @id @default(cuid())
+  name               String
+  email              String           @unique
+  password           String
+  role               EmployeeRole     @default(VENDEDORA)
+  isActive           Boolean          @default(true)
+  
+  // ✅ NUEVO: Controles estrictos de auditoría y bloqueos
+  isBlocked          Boolean          @default(false) // Bloqueo total (no puede iniciar sesión)
+  suspendedFunctions String[]         // Array para quitar funciones específicas ej. ["SEND_WHATSAPP"]
+  
+  commissionRate     Float            @default(0.03)
+  status             String           @default("offline")
+  lastActiveAt       DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
-  logs           AuditLog[]
-  attendances    Attendance[]
-  interactions   Interaction[]
-  assignedTickets Ticket[]
-  ticketMessages TicketMessage[]
-  telemetry      Telemetry[]
-  routeOrders    RouteOrder[]
-  deals          Deal[]
-  commissions    Commission[]
-  waConversations WaConversation[]
+  logs               AuditLog[]
+  attendances        Attendance[]
+  interactions       Interaction[]
+  assignedTickets    Ticket[]
+  ticketMessages     TicketMessage[]
+  telemetry          Telemetry[]
+  routeOrders        RouteOrder[]
+  deals              Deal[]
+  commissions        Commission[]
+  waConversations    WaConversation[]
 }
 
 model AuditLog {
   id         String    @id @default(cuid())
   timestamp  DateTime  @default(now())
-  
-  // 🔥 FIX: Hechos opcionales para permitir rastros del sistema
   employeeId String?
   employee   Employee? @relation(fields: [employeeId], references: [id])
-  
   action     String
   resourceId String?
   ipAddress  String?
@@ -282,35 +291,35 @@ model ProductColor {
 }
 
 model Inventory {
-  id        String        @id @default(cuid())
+  id        String         @id @default(cuid())
   productId String
-  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   colorId   String?
-  color     ProductColor? @relation(fields: [colorId], references: [id])
+  color     ProductColor?  @relation(fields: [colorId], references: [id])
   location  PickupLocation
   quantity  Float
-  rollCount Int           @default(0)
-  updatedAt DateTime      @updatedAt
+  rollCount Int            @default(0)
+  updatedAt DateTime       @updatedAt
 
   @@unique([productId, colorId, location])
 }
 
 model InventoryMovement {
-  id           String        @id @default(cuid())
+  id           String         @id @default(cuid())
   productId    String
-  product      Product       @relation(fields: [productId], references: [id])
+  product      Product        @relation(fields: [productId], references: [id])
   colorId      String?
-  color        ProductColor? @relation(fields: [colorId], references: [id])
+  color        ProductColor?  @relation(fields: [colorId], references: [id])
   location     PickupLocation
   type         MovementType
   quantity     Float
-  rollCount    Int           @default(0)
+  rollCount    Int            @default(0)
   provider     String?
-  authorizedBy String        // ✅ Nota: Como es String (sin relación) puedes pasar "SISTEMA" aquí sin problemas.
+  authorizedBy String
   notes        String?
   orderId      String?
-  order        Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  createdAt    DateTime      @default(now())
+  order        Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
 }
 
 // ==========================================================
@@ -361,41 +370,48 @@ model Commission {
 // 5. E-COMMERCE & LOGISTICA DE COMPRA
 // ==========================================================
 model Order {
-  id             String              @id @default(cuid())
-  orderNumber    String              @unique @default(cuid())
-  userId         String?
-  user           User?               @relation(fields: [userId], references: [id])
-  subtotal       Float               @default(0)
-  freightCost    Float               @default(0)
-  shippingCost   Float               @default(0)
-  serviceFee     Float               @default(0)
-  taxIVA         Float               @default(0)
-  total          Float
-  status         OrderStatus         @default(PENDING)
-  evidenceUrl    String?
-  deliveryLat    Float?
-  deliveryLng    Float?
-  paymentMethod  String              @default("card")
-  paymentId      String?
-  logisticsType  LogisticsType       @default(SKYDROPX_NACIONAL)
-  pickupLocation PickupLocation      @default(GUATEMALA_97)
-  vehiclesNeeded Int                 @default(1)
-  trackingNumber String?
-  trackingUrl    String?
-  customerName   String
-  customerEmail  String
-  customerPhone  String?
-  address        String?
-  wantsInvoice   Boolean             @default(false)
-  invoiceStatus  String?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  id                String              @id @default(cuid())
+  orderNumber       String              @unique @default(cuid())
+  userId            String?
+  user              User?               @relation(fields: [userId], references: [id])
+  subtotal          Float               @default(0)
+  freightCost       Float               @default(0)
+  shippingCost      Float               @default(0)
+  serviceFee        Float               @default(0)
+  taxIVA            Float               @default(0)
+  total             Float
+  status            OrderStatus         @default(PENDING)
+  evidenceUrl       String?
+  deliveryLat       Float?
+  deliveryLng       Float?
+  paymentMethod     String              @default("card")
+  paymentId         String?
+  logisticsType     LogisticsType       @default(SKYDROPX_NACIONAL)
+  pickupLocation    PickupLocation      @default(GUATEMALA_97)
+  
+  // ✅ NUEVO: Logística y Auditoría de Pickup
+  pickupIdPhotoUrl  String?             // Foto INE
+  pickupPlateNumber String?             // Placas del carro
+  pickupConfirmedBy String?             // Quién del admin le dio salida
+  pickupConfirmedAt DateTime?           // Cuándo salió de la bodega
 
-  items          OrderItem[]
-  tickets        Ticket[]
-  movements      InventoryMovement[]
-  vehicleId      String?
-  vehicle        Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehiclesNeeded    Int                 @default(1)
+  trackingNumber    String?
+  trackingUrl       String?
+  customerName      String
+  customerEmail     String
+  customerPhone     String?
+  address           String?
+  wantsInvoice      Boolean             @default(false)
+  invoiceStatus     String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  items             OrderItem[]
+  tickets           Ticket[]
+  movements         InventoryMovement[]
+  vehicleId         String?
+  vehicle           Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 }
 
 model OrderItem {
@@ -447,11 +463,8 @@ model AttendanceBreak {
 
 model Interaction {
   id             String          @id @default(cuid())
-  
-  // 🔥 FIX: Hechos opcionales para permitir interacciones de bots/sistema
   employeeId     String?
   employee       Employee?       @relation(fields: [employeeId], references: [id])
-  
   userId         String
   user           User            @relation(fields: [userId], references: [id])
   type           InteractionType
@@ -508,15 +521,15 @@ model TicketMessage {
 // 7. FLOTILLA AVANZADA Y RUTAS
 // ==========================================================
 model Vehicle {
-  id              String        @id @default(cuid())
-  plate           String        @unique
+  id              String         @id @default(cuid())
+  plate           String         @unique
   model           String
-  lastMaintenance DateTime      @default(now())
+  lastMaintenance DateTime       @default(now())
   nextMaintenance DateTime
-  mileage         Float         @default(0)
-  status          VehicleStatus @default(ACTIVE)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  mileage         Float          @default(0)
+  status          VehicleStatus  @default(ACTIVE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   orders          Order[]
   logs            VehicleLog[]
@@ -599,26 +612,32 @@ model IssueLog {
 // 8. WHATSAPP CHAT (META API READY)
 // ==========================================================
 model WaConversation {
-  id            String      @id @default(cuid())
-  employeeId    String?     // ✅ Opcional: para cuando atiende el Bot
-  employee      Employee?   @relation(fields: [employeeId], references: [id])
-  userId        String?
-  user          User?       @relation(fields: [userId], references: [id])
-  contactName   String?
-  contactPhone  String      @unique // ✅ Requerido y Único para buscar conversaciones
-  isOpen        Boolean     @default(true)
-  lastMessage   String?
-  lastMessageAt DateTime?
-  unreadCount   Int         @default(0)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id                  String      @id @default(cuid())
+  employeeId          String?
+  employee            Employee?   @relation(fields: [employeeId], references: [id])
+  userId              String?
+  user                User?       @relation(fields: [userId], references: [id])
+  contactName         String?
+  contactPhone        String      @unique
+  isOpen              Boolean     @default(true)
+  
+  // ✅ NUEVO: Parámetros del Motor de Handoff (IA vs Humano)
+  handledBy           ChatHandler @default(BOT)
+  lastAdminMessageAt  DateTime?   
+  aiResumePausedUntil DateTime?   
 
-  messages      WaMessage[]
+  lastMessage         String?
+  lastMessageAt       DateTime?
+  unreadCount         Int         @default(0)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  messages            WaMessage[]
 }
 
 model WaMessage {
   id             String         @id @default(cuid())
-  waId           String?        @unique // ✅ NUEVO: Evita duplicar mensajes que Meta reenvíe
+  waId           String?        @unique
   conversationId String
   conversation   WaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           WaMessageRole
