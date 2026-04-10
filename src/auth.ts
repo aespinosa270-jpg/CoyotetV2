@@ -1,10 +1,10 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
+// import { PrismaAdapter } from "@auth/prisma-adapter"; // 👈 Comentado porque no se usa con JWT y tabla custom
 import { prisma } from "@/lib/prisma";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  // adapter: PrismaAdapter(prisma), // 👈 Desactivado: Evita que NextAuth busque las tablas por defecto (User, Session)
   session: { 
     strategy: "jwt" // 👈 Obligatorio cuando usas Credentials (usuario/password)
   }, 
@@ -19,22 +19,41 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
+        console.log("🔴 1. RECIBIDO DEL FORMULARIO:", credentials);
+
         if (!credentials?.email || !credentials?.password) {
+          console.log("🔴 FALLO: Faltan credenciales");
           return null;
         }
 
+        // Limpiamos espacios accidentales que puedan venir del input
+        const emailInput = (credentials.email as string).trim();
+
         // 1. Buscamos al Agente (Employee) en tu BD
         const employee = await prisma.employee.findUnique({
-          where: { email: credentials.email as string }
+          where: { email: emailInput }
         });
 
-        if (!employee) return null;
+        console.log("🔴 2. ENCONTRADO EN PRISMA:", employee ? `Sí, ID: ${employee.id}` : "NULL (No existe)");
+
+        if (!employee) {
+          console.log("🔴 FALLO: Prisma no encontró el correo exacto:", emailInput);
+          return null;
+        }
 
         // 2. Validar contraseña 
+        console.log("🔴 3. PASSWORD EN BD:", employee.password);
+        console.log("🔴 4. PASSWORD INGRESADO:", credentials.password);
+
         // ⚠️ Nota: Si usas contraseñas encriptadas después, cambia esto por bcrypt.compare
         const isValid = employee.password === credentials.password; 
 
-        if (!isValid) return null;
+        if (!isValid) {
+          console.log("🔴 FALLO: Las contraseñas no hacen match exacto.");
+          return null;
+        }
+
+        console.log("🟢 LOGIN EXITOSO. Pasando al JWT...");
 
         // 3. Retornamos los datos que van al token
         return {
