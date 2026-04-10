@@ -148,6 +148,9 @@ async function saveConfigBot(redis: Redis, config: ConfigBot) {
 // ==========================================
 interface ClientePerfil {
   nombre: string;
+  correoElectronico?: string;       // ← NUEVO
+  correoVerificado?: boolean;       // ← NUEVO
+  privacidadAceptada?: boolean;     // ← NUEVO
   genero: 'hombre' | 'mujer' | 'unknown';
   telefono: string;
   primerContacto: string;
@@ -854,16 +857,38 @@ async function handleWhatsappWebhook(body: any) {
   let perfil = await getCliente(redis, tel);
   const config = await getConfigBot(redis);
 
+  // ── CLIENTE NUEVO: crear perfil y enviar bienvenida ──────────────────────────
   if (!perfil) {
     perfil = {
-      nombre: '', genero: 'unknown', telefono: tel,
-      primerContacto: new Date().toISOString(), ultimoContacto: new Date().toISOString(),
-      totalCompras: 0, montoAcumulado: 0, productosComprados: [],
-      direccionEnvio: '', cpFiscal: '', metodoPagoFavorito: '', requiereFrecuenteFactura: false, notas: '',
-      preferencias: [], etapaAbandono: null, recordatoriosPendientes: [],
-      segmento: 'prospecto', objecionesComunes: [], productosFavoritos: [], intentosDePago: 0,
-      sensibilidadPrecio: 'media', interesesDeclarados: [], categoriasPedidas: [],
-      temperaturaCompra: 30, tacticaActual: 'social_proof', nivelConfianza: 40,
+      nombre: '',
+      correoElectronico: '',
+      correoVerificado: false,
+      privacidadAceptada: false,
+      genero: 'unknown',
+      telefono: tel,
+      primerContacto: new Date().toISOString(),
+      ultimoContacto: new Date().toISOString(),
+      totalCompras: 0,
+      montoAcumulado: 0,
+      productosComprados: [],
+      direccionEnvio: '',
+      cpFiscal: '',
+      metodoPagoFavorito: '',
+      requiereFrecuenteFactura: false,
+      notas: '',
+      preferencias: [],
+      etapaAbandono: null,
+      recordatoriosPendientes: [],
+      segmento: 'prospecto',
+      objecionesComunes: [],
+      productosFavoritos: [],
+      intentosDePago: 0,
+      sensibilidadPrecio: 'media',
+      interesesDeclarados: [],
+      categoriasPedidas: [],
+      temperaturaCompra: 30,
+      tacticaActual: 'social_proof',
+      nivelConfianza: 40,
       propensionCross: { hilos: 20, elasticos: 10, volumenExtra: 15 },
     };
     await saveCliente(redis, tel, perfil);
@@ -876,23 +901,134 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
+  // ==========================================
+  // ✅ PASO 1 — VERIFICACIÓN DE NOMBRE
+  // ==========================================
   if (!perfil.nombre) {
-    const primerNombre = msgCliente.trim().split(' ')[0];
-    perfil.nombre = primerNombre.charAt(0).toUpperCase() + primerNombre.slice(1).toLowerCase();
-    perfil.genero = await detectarGenero(perfil.nombre);
-    perfil.ultimoContacto = new Date().toISOString();
-    await saveCliente(redis, tel, perfil);
-    const saludo = perfil.genero === 'mujer'
-      ? `🐺 *El Coyote aquí.* Un placer, ${perfil.nombre}. Soy su asesor en Coyote Textil. ¿En qué le puedo servir hoy?`
-      : `🐺 *El Coyote al habla.* Mucho gusto, ${perfil.nombre}. Su asesor en Coyote Textil. ¿Qué necesita?`;
-    const h = await getHistorial(redis, tel);
-    h.push({ role: 'user', content: msgCliente });
-    h.push({ role: 'assistant', content: saludo });
-    await saveHistorial(redis, tel, h);
-    await enviarWhatsapp(tel, saludo);
-    return;
+    const primerNombre = msgCliente.trim().split(/\s+/)[0];
+    // Detectar si parece un nombre real (≥2 chars, sin símbolos de pregunta ni números)
+    const pareceNombre = primerNombre.length >= 2 && !/[¿?!0-9@]/.test(primerNombre);
+
+    if (pareceNombre) {
+      perfil.nombre = primerNombre.charAt(0).toUpperCase() + primerNombre.slice(1).toLowerCase();
+      perfil.genero = await detectarGenero(perfil.nombre);
+      perfil.ultimoContacto = new Date().toISOString();
+      await saveCliente(redis, tel, perfil);
+
+      // Inmediatamente pedir el correo como verificación
+      const pedirCorreo = `🐺 *El Coyote al habla.* Mucho gusto, *${perfil.nombre}*. Para verificar su cuenta y enviarle cotizaciones, actualizaciones y facturación, ¿me comparte su correo electrónico por favor?`;
+      const h = await getHistorial(redis, tel);
+      h.push({ role: 'user', content: msgCliente });
+      h.push({ role: 'assistant', content: pedirCorreo });
+      await saveHistorial(redis, tel, h);
+      await enviarWhatsapp(tel, pedirCorreo);
+      return;
+    } else {
+      // No parece nombre — insistir
+      const insistirNombre = `🐺 Para darle atención personalizada, necesito saber su nombre. ¿Con quién tengo el gusto?`;
+      const h = await getHistorial(redis, tel);
+      h.push({ role: 'user', content: msgCliente });
+      h.push({ role: 'assistant', content: insistirNombre });
+      await saveHistorial(redis, tel, h);
+      await enviarWhatsapp(tel, insistirNombre);
+      return;
+    }
   }
 
+  // ==========================================
+  // ✅ PASO 2 — VERIFICACIÓN DE CORREO
+  // ==========================================
+  if (!perfil.correoElectronico) {
+    const regexCorreo = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
+    const matchCorreo = msgCliente.match(regexCorreo);
+
+    if (matchCorreo) {
+      perfil.correoElectronico = matchCorreo[0].toLowerCase();
+      perfil.correoVerificado = true;
+      perfil.ultimoContacto = new Date().toISOString();
+      await saveCliente(redis, tel, perfil);
+
+      // Confirmar correo y mostrar aviso de privacidad
+      const confirmacionYPrivacidad =
+        `✅ Correo registrado: *${perfil.correoElectronico}*\n\n` +
+        `¡Hola! 👋 Antes de continuar, queremos informarle que tratamos sus datos personales conforme a nuestro Aviso de Privacidad.\n` +
+        `Puede consultarlo aquí: https://www.coyotetextil.com/privacy\n\n` +
+        `¿Nos autoriza a enviarle promociones, actualizaciones y comunicaciones comerciales por correo electrónico y WhatsApp?\n` +
+        `Responda *SÍ* o *NO*.`;
+      const h = await getHistorial(redis, tel);
+      h.push({ role: 'user', content: msgCliente });
+      h.push({ role: 'assistant', content: confirmacionYPrivacidad });
+      await saveHistorial(redis, tel, h);
+      await enviarWhatsapp(tel, confirmacionYPrivacidad);
+      return;
+    } else {
+      // No detectó correo — insistir amablemente
+      const insistirCorreo =
+        `🐺 Para verificar su cuenta y poder enviarle cotizaciones y facturación, necesito su correo electrónico. ` +
+        `¿Me lo comparte por favor? (Ejemplo: nombre@empresa.com)`;
+      const h = await getHistorial(redis, tel);
+      h.push({ role: 'user', content: msgCliente });
+      h.push({ role: 'assistant', content: insistirCorreo });
+      await saveHistorial(redis, tel, h);
+      await enviarWhatsapp(tel, insistirCorreo);
+      return;
+    }
+  }
+
+  // ==========================================
+  // ✅ PASO 3 — AVISO DE PRIVACIDAD
+  // ==========================================
+  if (!perfil.privacidadAceptada) {
+    const respondioSi = /^\s*(sí|si|yes|acepto|autorizo|de acuerdo|ok|okay)\s*$/i.test(msgCliente.trim());
+    const respondioNo = /^\s*(no|nope|no gracias)\s*$/i.test(msgCliente.trim());
+
+    if (respondioSi) {
+      perfil.privacidadAceptada = true;
+      perfil.ultimoContacto = new Date().toISOString();
+      await saveCliente(redis, tel, perfil);
+
+      const saludo = perfil.genero === 'mujer'
+        ? `🐺 ¡Perfecto, ${perfil.nombre}! Queda registrada su autorización. Estamos listos para ayudarle. ¿En qué le puedo servir hoy?`
+        : `🐺 ¡Perfecto, ${perfil.nombre}! Queda registrada su autorización. Estamos listos para atenderle. ¿Qué necesita?`;
+      const h = await getHistorial(redis, tel);
+      h.push({ role: 'user', content: msgCliente });
+      h.push({ role: 'assistant', content: saludo });
+      await saveHistorial(redis, tel, h);
+      await enviarWhatsapp(tel, saludo);
+      return;
+    } else if (respondioNo) {
+      perfil.privacidadAceptada = false;
+      perfil.ultimoContacto = new Date().toISOString();
+      await saveCliente(redis, tel, perfil);
+
+      const respuestaNo =
+        `Entendido, respetamos su decisión. 🐺\n\n` +
+        `Sus datos solo se usarán para gestionar su pedido. ` +
+        `¿En qué le puedo ayudar hoy?`;
+      const h = await getHistorial(redis, tel);
+      h.push({ role: 'user', content: msgCliente });
+      h.push({ role: 'assistant', content: respuestaNo });
+      await saveHistorial(redis, tel, h);
+      await enviarWhatsapp(tel, respuestaNo);
+      return;
+    } else {
+      // No respondió claramente — reenviar aviso
+      const reenviarAviso =
+        `🐺 Necesito su respuesta para continuar. ¿Nos autoriza a enviarle promociones, actualizaciones y comunicaciones comerciales?\n\n` +
+        `🔒 Aviso de Privacidad: https://www.coyotetextil.com/privacy\n\n` +
+        `Responda *SÍ* o *NO* por favor.`;
+      const h = await getHistorial(redis, tel);
+      h.push({ role: 'user', content: msgCliente });
+      h.push({ role: 'assistant', content: reenviarAviso });
+      await saveHistorial(redis, tel, h);
+      await enviarWhatsapp(tel, reenviarAviso);
+      return;
+    }
+  }
+
+  // ==========================================
+  // 🐺 FLUJO NORMAL DE VENTA (verificación completa)
+  // ==========================================
   perfil.ultimoContacto = new Date().toISOString();
 
   let historial = await getHistorial(redis, tel);
@@ -1049,6 +1185,7 @@ NUNCA baje el precio sin obtener algo a cambio.`;
   const resumenCliente = `
 PERFIL DEL CLIENTE:
 - Nombre: ${perfil.nombre} | Género: ${perfil.genero} | Segmento: ${perfil.segmento || 'prospecto'}
+- Correo: ${perfil.correoElectronico || 'NO REGISTRADO'} | Privacidad: ${perfil.privacidadAceptada ? 'ACEPTADA' : 'NO ACEPTADA'}
 - Compras: ${perfil.totalCompras} | Acumulado: $${perfil.montoAcumulado} | Ticket promedio: $${perfil.ticketPromedio?.toFixed(0) || 'N/A'}
 - Categorías pedidas: ${perfil.categoriasPedidas?.join(', ') || 'ninguna'}
 - Productos favoritos: ${perfil.productosFavoritos?.join(', ') || 'ninguno'}
@@ -1245,7 +1382,7 @@ Entréguelo de inmediato. Sin más preguntas:
 • Si tiene etapaAbandono = 'cotizacion' → retome SIN reiniciar.
 • Si tiene etapaAbandono = 'pago' → entregue el link/SPEI pendiente de inmediato.
 • NUNCA envíe bienvenida a cliente con historial.
-• NUNCA pregunte el nombre si ya lo tiene.
+• NUNCA pregunte el nombre ni el correo si ya los tiene registrados.
 
 ════════════════════════════════════════════════════════
 🚨 PAGOS — TRES MÉTODOS
