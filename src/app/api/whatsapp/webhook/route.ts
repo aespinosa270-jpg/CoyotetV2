@@ -24,45 +24,29 @@ const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 // ==========================================
 // ⏱️ TIMEOUT DE AGENTE — 15 MINUTOS
 // ==========================================
-const AGENT_SILENCE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutos en ms
+const AGENT_SILENCE_TIMEOUT_MS = 15 * 60 * 1000;
 
-/**
- * Verifica si el agente ha respondido en los últimos 15 minutos.
- * Si el último mensaje del agente tiene más de 15 min, el bot retoma.
- */
 async function agentEstaActivo(conversationId: string): Promise<boolean> {
   try {
     const ultimoMensajeAgente = await prisma.waMessage.findFirst({
-      where: {
-        conversationId,
-        role: "AGENT",
-      },
+      where: { conversationId, role: "AGENT" },
       orderBy: { sentAt: "desc" },
     });
-
-    if (!ultimoMensajeAgente) return false; // Nunca hubo agente → bot activo
-
-    const ahora = Date.now();
-    const tiempoUltimoMsg = new Date(ultimoMensajeAgente.sentAt).getTime();
-        const silencioMs = ahora - tiempoUltimoMsg;
-
+    if (!ultimoMensajeAgente) return false;
+    const silencioMs = Date.now() - new Date(ultimoMensajeAgente.sentAt).getTime();
     const agenteActivo = silencioMs < AGENT_SILENCE_TIMEOUT_MS;
-
     if (!agenteActivo) {
-      console.log(
-        `⏱️ Agente silencioso por ${Math.round(silencioMs / 60000)} min (límite: 15 min). Bot retoma.`
-      );
+      console.log(`⏱️ Agente silencioso por ${Math.round(silencioMs / 60000)} min. Bot retoma.`);
     }
-
     return agenteActivo;
   } catch (err) {
     console.error("⚠️ Error verificando actividad del agente:", err);
-    return false; // En caso de error, el bot responde para no dejar al cliente sin atención
+    return false;
   }
 }
 
 // ==========================================
-// 🏦 DATOS SPEI — JACK RIZK CABRERA
+// 🏦 DATOS SPEI
 // ==========================================
 const SPEI_CUENTAS = [
   { banco: "BBVA",      clabe: "012180015657512129", beneficiario: "Jack Rizk Cabrera" },
@@ -110,11 +94,10 @@ interface ConfigBot {
 
 const CONFIG_DEFAULT: ConfigBot = {
   nombreBot: 'El Coyote',
-  // ✅ TONO ACTUALIZADO: Vendedor moderno — energético, dinámico, siempre "usted"
   tono: `Vendedor consultivo de alto rendimiento. Siempre hablar de "usted". 
 Tono: profesional con energía y dinamismo B2B. Directo, resolutivo y con urgencia comercial genuina.
 Estilo: frases cortas y contundentes. Cada mensaje debe empujar hacia el cierre.
-PROHIBIDO: tutear al cliente, lenguaje coloquial ("cuate", "güey", "patrón" con clientes), frases de relleno ("con gusto", "por supuesto", "claro que sí").
+PROHIBIDO: tutear al cliente, lenguaje coloquial, frases de relleno ("con gusto", "por supuesto", "claro que sí").
 OBLIGATORIO: precio en cada cotización, propuesta concreta al final de cada mensaje, costo por prenda cuando aplique.`,
   frasesBienvenida: [
     'Bienvenido a *Coyote Textil*. Soy *El Coyote* 🐺, su asesor especializado disponible 24/7.\n\nPara darle una atención precisa, ¿con quién tengo el gusto?\n\n📋 Términos: https://www.coyotetextil.com/terms\n🔒 Privacidad: https://www.coyotetextil.com/privacy'
@@ -126,16 +109,11 @@ OBLIGATORIO: precio en cada cotización, propuesta concreta al final de cada men
   emojisPrincipales: '🐺📦🤝',
   maximoLineasRespuesta: 4,
   fraseProhibidas: [
-    // Frases de relleno pasivas
     'Te enviaré los detalles', 'Enviaré la cotización', 'Procederé',
     '¿Algo más en lo que pueda asistirte?', 'te mando', 'te envío', 'te hago llegar',
-    // Tuteo — PROHIBIDO con clientes
     'tú', 'oye', 'dale', 'órale',
-    // Lenguaje coloquial
-    'patrón', 'jefe', 'cuate', 'chambeando', 'desvielado', 'jalando',
-    // Identidad IA
+    'patrón', 'patrona', 'jefe', 'cuate', 'chambeando', 'desvielado', 'jalando',
     'Como asistente de IA', 'Como IA', 'soy una inteligencia artificial', 'soy un bot', 'soy un asistente virtual',
-    // Frases de cierre sin propuesta
     'Con gusto le ayudo', 'Déjeme revisar', 'Por supuesto', 'Claro que sí',
     '¿En qué más le puedo ayudar?',
   ],
@@ -208,11 +186,7 @@ interface ClientePerfil {
   resumenSemantico?: string;
   vectorObjeciones?: Record<string, number>;
   ultimaObjecionResuelta?: string;
-  propensionCross?: {
-    hilos: number;
-    elasticos: number;
-    volumenExtra: number;
-  };
+  propensionCross?: { hilos: number; elasticos: number; volumenExtra: number };
   nivelConfianza?: number;
   diasEntreCompras?: number;
   ultimaFechaCompra?: string;
@@ -227,7 +201,7 @@ interface PedidoRegistro {
 }
 
 // ==========================================
-// 🧠 MOTOR DE APRENDIZAJE AUTOMÁTICO
+// 🧠 MOTOR DE APRENDIZAJE
 // ==========================================
 async function analizarPatronesCliente(
   redis: Redis,
@@ -235,7 +209,6 @@ async function analizarPatronesCliente(
   msgActual: string,
   historial: Array<{ role: string; content: string }>
 ): Promise<ClientePerfil> {
-
   const senalesCalientes = [
     /cuánto cuesta|precio|cuanto vale|cotiz|presupuesto/i,
     /quiero|necesito|me interesa|me llevo|pedido/i,
@@ -253,7 +226,6 @@ async function analizarPatronesCliente(
   let delta = 0;
   for (const s of senalesCalientes) if (s.test(msgActual)) delta += 15;
   for (const s of senalesFrias) if (s.test(msgActual)) delta -= 20;
-
   if (perfil.ultimaCotizacion) delta += 10;
   if (perfil.direccionEnvio) delta += 8;
   if (perfil.etapaAbandono === 'pago') delta -= 10;
@@ -261,19 +233,12 @@ async function analizarPatronesCliente(
   const tempAnterior = perfil.temperaturaCompra ?? 30;
   perfil.temperaturaCompra = Math.min(100, Math.max(0, Math.round(tempAnterior * 0.7 + (tempAnterior + delta) * 0.3)));
 
-  if (perfil.temperaturaCompra >= 70) {
-    perfil.tacticaActual = 'cierre_directo';
-  } else if (perfil.temperaturaCompra >= 50) {
-    perfil.tacticaActual = 'urgencia_escasez';
-  } else if ((perfil.objecionesComunes?.length ?? 0) > 1) {
-    perfil.tacticaActual = 'manejo_objecion';
-  } else if (perfil.totalCompras === 0) {
-    perfil.tacticaActual = 'social_proof';
-  } else if (perfil.totalCompras >= 3) {
-    perfil.tacticaActual = 'fidelizacion_vip';
-  } else {
-    perfil.tacticaActual = 'valor_rendimiento';
-  }
+  if (perfil.temperaturaCompra >= 70) perfil.tacticaActual = 'cierre_directo';
+  else if (perfil.temperaturaCompra >= 50) perfil.tacticaActual = 'urgencia_escasez';
+  else if ((perfil.objecionesComunes?.length ?? 0) > 1) perfil.tacticaActual = 'manejo_objecion';
+  else if (perfil.totalCompras === 0) perfil.tacticaActual = 'social_proof';
+  else if (perfil.totalCompras >= 3) perfil.tacticaActual = 'fidelizacion_vip';
+  else perfil.tacticaActual = 'valor_rendimiento';
 
   if (perfil.productosFavoritos && perfil.productosFavoritos.length > 0) {
     const favorito = perfil.productosFavoritos[0];
@@ -287,7 +252,7 @@ async function analizarPatronesCliente(
   }
 
   if (!perfil.propensionCross) perfil.propensionCross = { hilos: 20, elasticos: 10, volumenExtra: 15 };
-  const pidioTela = /tela|piqué|panal|torneo|kyoto|athlos|brock|apolo|horous|micro/i.test(msgActual);
+  const pidioTela = /tela|piqué|panal|torneo|kyoto|athlos|brock|apolo|horous|micro|sportok|felpa|flanel|polar/i.test(msgActual);
   const pidioUniforme = /uniforme|deportiv|pants|short|pantalon|sudadera/i.test(msgActual);
   if (pidioTela) perfil.propensionCross.hilos = Math.min(90, perfil.propensionCross.hilos + 25);
   if (pidioUniforme) perfil.propensionCross.elasticos = Math.min(90, perfil.propensionCross.elasticos + 30);
@@ -320,7 +285,6 @@ async function generarResumenSemantico(
   if (historial.length < 10) return '';
   const mod = historial.length % 20;
   if (mod !== 0 && mod !== 1) return perfil.resumenSemantico || '';
-
   try {
     const ultimos = historial.slice(-40).map(m => `${m.role === 'user' ? 'Cliente' : 'Coyote'}: ${m.content}`).join('\n');
     const res = await openai.chat.completions.create({
@@ -333,31 +297,24 @@ async function generarResumenSemantico(
       temperature: 0,
     });
     return res.choices[0].message.content?.trim() || '';
-  } catch {
-    return perfil.resumenSemantico || '';
-  }
+  } catch { return perfil.resumenSemantico || ''; }
 }
 
 function detectarIntencionPago(
   msgCliente: string,
   historial: Array<{ role: string; content: string }>
 ): { detectado: boolean; metodo: 'tarjeta' | 'oxxo' | null; montoEstimado: number | null } {
-
   const quereTarjeta = /tarjeta|visa|mastercard|crédito|débito|card/i.test(msgCliente);
   const quereOxxo = /oxxo|efectivo/i.test(msgCliente);
   const quereSpei = /spei|transferencia|depósito|deposito|clabe/i.test(msgCliente);
-
   const intenciones = [
     /\b(pago|pagar|pa[gq]ue|quiero pagar|cómo pago|link de pago|mándame el link|manda el link|mándame el cobro)\b/i,
     /\b(le entro|cerramos|lo quiero|me lo llevo|apártame|apartame)\b/i,
     /\b(cuánto|cuanto) (me cobras|es|total|debo|pago)\b/i,
   ];
-
   const detectado = intenciones.some(r => r.test(msgCliente)) && !quereSpei;
   if (!detectado) return { detectado: false, metodo: null, montoEstimado: null };
-
   const metodo = quereTarjeta ? 'tarjeta' : quereOxxo ? 'oxxo' : 'tarjeta';
-
   let montoEstimado: number | null = null;
   for (let i = historial.length - 1; i >= 0; i--) {
     const m = historial[i];
@@ -368,7 +325,6 @@ function detectarIntencionPago(
       if (raw) { montoEstimado = parseFloat(raw.replace(/,/g, '')); break; }
     }
   }
-
   return { detectado, metodo, montoEstimado };
 }
 
@@ -392,7 +348,7 @@ function calcularEnvioReal(
   productos: ProductoEnvio[], cpEnvio: string,
   subtotal: number, requiereFactura: boolean
 ): ResultadoEnvio {
-  let totalKilos = productos.reduce((acc, p) => acc + p.kg, 0);
+  const totalKilos = productos.reduce((acc, p) => acc + p.kg, 0);
   let totalRollos = 0;
   for (const p of productos) totalRollos += Math.ceil(p.kg / 25);
   totalRollos = Math.max(1, totalRollos);
@@ -511,23 +467,75 @@ async function detectarGenero(nombre: string): Promise<'hombre' | 'mujer' | 'unk
 }
 
 // ==========================================
-// 🏪 BODEGA — TELAS
+// 🏪 BODEGA — TELAS (precio por KILO, rollo = 25 kg)
 // ==========================================
-const COLORES_STOCK = "Azul rey, Rojo, Negro, Kaki, Amarillo canario, Amarillo mango, Perla, Gris medio, Oxford, Azul marino oscuro, Azul marino claro, Fiusha, Palo de rosa, Rosa pastel, Rosa baby, Petróleo, Uva, Gris baby, Naranja, Lila, Vino, Azul cielo, Verde bandera, Verde botella, Verde militar, Magenta, Aqua, Menta, Celeste, Turquesa, Amarillo neón, Verde neón, Rosa neón, Oro viejo, Mostaza, Camel, Francia, Chedron, Uva oscuro, Pistache, Manzana, Acero, Cemento, Hueso";
-
 const PRECIOS_TELAS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string }> = {
-  "micro piqué":      { menudeo: 90,  mayoreo: 85,  info: `100% Poliéster 145g. Dry-Fit alto rendimiento. Rend. 4.3m/kg. Colores: Blanco, ${COLORES_STOCK}.` },
-  "piqué vera":       { menudeo: 95,  mayoreo: 90,  info: `100% Poliéster 145g. Más suave. Rend. 4.3m/kg. Colores: Blanco, ${COLORES_STOCK}.` },
-  "micro panal":      { menudeo: 95,  mayoreo: 90,  info: `100% Poliéster 145g. Máxima transpiración. Rend. 4.3m/kg. Colores: Blanco, ${COLORES_STOCK}.` },
-  "torneo":           { menudeo: 105, mayoreo: 98,  info: `100% Poliéster 150g. Uso rudo. Rend. 4.3m/kg. Colores: Blanco, ${COLORES_STOCK}.` },
-  "athlos":           { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
-  "brock":            { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
-  "piqué vera sport": { menudeo: 125, mayoreo: 120, info: "145g. Versatilidad total. Rend. 4.0m/kg. Color único por rollo." },
-  "kyoto":            { menudeo: 155, mayoreo: 140, info: "145g. Tacto seda, caída premium. Rend. 4.0m/kg. Color único." },
-  "panal plus":       { menudeo: 155, mayoreo: 140, info: "145g. Mayor cuerpo y estructura. Rend. 3.7m/kg. Color único." },
-  "apolo":            { menudeo: 160, mayoreo: 145, info: "150g. Anti-pilling. Rend. 3.7m/kg. Color único." },
-  "horous":           { menudeo: 160, mayoreo: 155, info: "145g. Moda deportiva urbana. Rend. 4.2m/kg. Color único." },
-  "panal nitro":      { menudeo: 185, mayoreo: 170, info: "145g. Control de humedad extremo. Color único." },
+  // ── DEPORTIVAS / SUBLIMACIÓN ────────────────────────────────────────────────
+  "alaska":               { menudeo: 175, mayoreo: 170, info: "100% Poliéster 140g. Sublimación de alta definición. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "andromeda":            { menudeo: 155, mayoreo: 150, info: "100% Poliéster 140g. Sublimación premium. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "apolo":                { menudeo: 160, mayoreo: 155, info: "100% Poliéster 150g. Resistencia superior anti-pilling. Rend. 3.7m/kg. Ancho 1.60m. Color único por rollo." },
+  "ares":                 { menudeo: 135, mayoreo: 130, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "athlos":               { menudeo: 125, mayoreo: 120, info: "100% Poliéster 145g. Versatilidad total. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "azucena":              { menudeo: 95,  mayoreo: 90,  info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "brock":                { menudeo: 155, mayoreo: 150, info: "100% Poliéster 145g. Versatilidad total. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "brush":                { menudeo: 120, mayoreo: 115, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "capriati":             { menudeo: 135, mayoreo: 130, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "caprice":              { menudeo: 140, mayoreo: 135, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "delta":                { menudeo: 175, mayoreo: 170, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "f30":                  { menudeo: 135, mayoreo: 130, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "granizo":              { menudeo: 115, mayoreo: 110, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "horous":               { menudeo: 160, mayoreo: 155, info: "100% Poliéster 145g. Moda deportiva urbana. Rend. 4.2m/kg. Ancho 1.60m. Color único por rollo." },
+  "inter 70":             { menudeo: 140, mayoreo: 135, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "kyoto":                { menudeo: 155, mayoreo: 150, info: "100% Poliéster 145g. Tacto seda, caída premium. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "madelino":             { menudeo: 155, mayoreo: 150, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "micro estrella":       { menudeo: 145, mayoreo: 140, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "micro panal":          { menudeo: 110, mayoreo: 105, info: "100% Poliéster 145g. Máxima transpiración y ligereza. Rend. 4.3m/kg. Ancho 1.60m. +40 colores: Blanco, Negro, Rojo, Azul Rey, Navy Blue, Oxford, Gris Medio, Perla, Vino, Fiusha, Menta, Aqua, Turquesa, Verde Bandera, Verde Botella, Verde Militar, Canario, Mango, Mostaza, Naranja, Naranja Neón, Verde Neón, Amarillo Neón, Rosa Neón, Rosa Baby, Palo de Rosa, Rosa Pastel, Lila, Uva, Petróleo, Cielo, Magenta, Camel, Kaki, Oro Viejo, Gris Baby, Azul Francia, Light Blue, Botella, Medio." },
+  "micropique":           { menudeo: 100, mayoreo: 95,  info: "100% Poliéster 145g. Dry-Fit alto rendimiento calidad Gold. Rend. 4.3m/kg. Ancho 1.60m. +38 colores: Blanco, Negro, Rojo, Azul Rey, Navy Blue, Light Navy, Dark Navy, Oxford, Gris Medio, Gris Perla, Vino, Fiusha, Rosa Baby, Rosa Neón, Menta, Aqua, Turquesa, Verde Bandera, Verde Botella, Canario, Mango, Mostaza, Naranja, Naranja Neón, Verde Neón, Azul Francia, Uva, Uva M, Petróleo, Camel, Kaki, Beige, Bugambilia, Azul Acero, Oro Viejo, Rosa Palo, Cielo, Amarillo." },
+  "micropique fusionado": { menudeo: 150, mayoreo: 145, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "miky":                 { menudeo: 135, mayoreo: 130, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "monaco":               { menudeo: 155, mayoreo: 150, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "nagasaky":             { menudeo: 135, mayoreo: 130, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "panal nitro":          { menudeo: 185, mayoreo: 180, info: "100% Poliéster 145g. Control de humedad extremo. Rend. 4.2m/kg. Ancho 1.60m. Color único por rollo." },
+  "panal plus":           { menudeo: 155, mayoreo: 150, info: "100% Poliéster 145g. Mayor cuerpo y estructura. Rend. 3.7m/kg. Ancho 1.60m. Color único por rollo." },
+  "phoenix":              { menudeo: 95,  mayoreo: 90,  info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "pique lacoste":        { menudeo: 140, mayoreo: 135, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "piqué vera":           { menudeo: 110, mayoreo: 105, info: "100% Poliéster 145g. Dry-Fit textura suave. Rend. 4.3m/kg. Ancho 1.60m. +34 colores: Blanco, Negro, Rojo, Azul Rey, Light Navy, Dark Navy, Oxford, Gris Medio, Gris Perla, Vino, Fiusha, Rosa Baby, Rosa Pastel, Palo Rosa, Menta, Aqua, Turquesa, Verde Bandera, Verde Botella, Canario, Mango, Mostaza, Naranja, Verde Neón, Amarillo Neón, Rosa Neón, Magenta, Lila, Uva, Petróleo, Caqui, Camel, Oro Viejo, Cielo." },
+  "pique vera sport":     { menudeo: 140, mayoreo: 135, info: "100% Poliéster 145g. Versatilidad total. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "pixel":                { menudeo: 155, mayoreo: 150, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "saturno":              { menudeo: 165, mayoreo: 160, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "super trix":           { menudeo: 175, mayoreo: 170, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
+  "torneo":               { menudeo: 125, mayoreo: 120, info: "100% Poliéster 150g. Estándar de durabilidad para torneos exigentes. Rend. 4.3m/kg. Ancho 1.60m. Colores principales disponibles." },
+  // ── LÍNEA INVERNAL ──────────────────────────────────────────────────────────
+  "felpa china":  { menudeo: 110, mayoreo: 105, info: "50% Algodón / 50% Poliéster 280g. Cara lisa + reverso afelpado. Rend. 2.2m/kg. Ancho 1.60m. Rollo 25 kg. Colores: Marino, Negro, Blanco, Azul Rey, Vino, Rojo, Jaspe Perla, Oxford Jaspe." },
+  "felpa spun":   { menudeo: 110, mayoreo: 105, info: "100% Poliéster 280g. Alto volumen y suavidad. Rend. 2.5m/kg. Ancho 1.90m. Rollo 25 kg. Colores: Blanco, Rojo, Marino, Negro, Azul Rey, Vino." },
+  "flanel":       { menudeo: 125, mayoreo: 120, info: "100% Poliéster 260g. Ultra suave afelpado. Ideal para pijamas y ropa de descanso. Rend. 2.4m/kg. Ancho 1.60m. Rollo 27 kg. Colores: Blanco, Vino, Marino, Negro, Fiusha, Palo Rosa, Rosa Pastel, Azul Rey, Naranja, Rojo." },
+  "polar":        { menudeo: 120, mayoreo: 115, info: "100% Poliéster 280g. Térmico anti-pilling. Rend. 2.5m/kg. Ancho 1.60m. Rollo 25 kg. Colores: Verde Botella, Verde Militar, Palo Rosa, Azul Rey, Vino, Marino, Fiusha, Negro, Rojo, Blanco." },
+  // ── DEPORTIVO / LICRA ───────────────────────────────────────────────────────
+  "jumanji":          { menudeo: 145, mayoreo: 140, info: "Poliéster/Spandex 180g. Alta elasticidad y recuperación. Rend. 3.5m/kg. Ancho 1.60m. Color único por rollo." },
+  "licra liluna":     { menudeo: 135, mayoreo: 130, info: "Poliéster/Spandex 180g. Alta elasticidad. Rend. 3.5m/kg. Ancho 1.60m. Color único por rollo." },
+  "licra playera":    { menudeo: 130, mayoreo: 125, info: "Poliéster/Spandex 180g. Alta elasticidad. Rend. 3.5m/kg. Ancho 1.60m. Color único por rollo." },
+  "licra poliéster":  { menudeo: 145, mayoreo: 140, info: "Poliéster/Spandex 180g. Alta elasticidad. Rend. 3.5m/kg. Ancho 1.60m. Colores: Blanco, Negro, Rojo, Azul Rey, Marino." },
+  "licra saludable":  { menudeo: 140, mayoreo: 135, info: "Poliéster/Spandex 180g. Alta elasticidad. Rend. 3.5m/kg. Ancho 1.60m. Colores: Blanco, Negro, Rojo, Azul Rey, Marino, Militar, Perla Jaspe, Oxford Jaspe." },
+  "mercury":          { menudeo: 160, mayoreo: 155, info: "Poliéster/Spandex 180g. Alta elasticidad premium. Rend. 3.5m/kg. Ancho 1.60m. Color único por rollo." },
+  "microtrix":        { menudeo: 150, mayoreo: 145, info: "Poliéster/Spandex 180g. Alta elasticidad. Rend. 3.5m/kg. Ancho 1.60m. Color único por rollo." },
+  // ── ESCOLAR / DEPORTIVO ─────────────────────────────────────────────────────
+  "sportok": { menudeo: 80, mayoreo: 75, info: "100% Poliéster interior afelpado 260g. Estándar para pants, sudaderas y uniformes escolares. Rend. 2.4m/kg. Ancho 1.60m. Rollo 25 kg. +48 colores: Blanco, Negro, Marino, Rojo, Azul Rey, Francia, Marino Claro, Oxford, Medio, Gris Baby, Perla, Vino, Fiusha, Bugambilia, Lila, Uva, Morado, Aqua, Menta, Turquesa, Cielo, Rosa Baby, Rosa Pastel, Palo de Rosa, Magenta, Petróleo, Militar, Botella, Bandera, Caqui, Camel, Beige, Café, Mostaza, Oro Viejo, Mango, Canario, Naranja, Rojo Quemado, Verde Neón, Amarillo Neón, Naranja Neón, Rosa Neón, Pistache, Manzana, Acero." },
+};
+
+// ==========================================
+// 📐 BODEGA — TELAS POR METRO
+// ==========================================
+const PRECIOS_TELAS_METRO_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string; metrosPorRollo: number }> = {
+  "diablo": {
+    menudeo: 88, mayoreo: 83,
+    info: "100% Nylon Alta Tenacidad 220g. Uso rudo, resistente a la abrasión. Ideal para equipo táctico y calzado. Ancho 1.50m. Rollo = 50 m. Colores: Perla, Marino, Vino, Blanco, Azul Rey, Rojo, Negro, Oxford.",
+    metrosPorRollo: 50,
+  },
+  "lycra metálica": {
+    menudeo: 50, mayoreo: 45,
+    info: "100% Poliéster 145g. Acabado brillante metálico. Ideal para prendas escénicas, deportivas y disfraces. Ancho 1.60m. Rollo = 98 m. Colores: Oro, Plata, Naranja, Rojo, Azul Rey, Turquesa, Perla, Verde Bandera, Verde Manzana, Rosa Pastel, Fiusha, Blanco, Negro.",
+    metrosPorRollo: 98,
+  },
 };
 
 // ==========================================
@@ -535,8 +543,7 @@ const PRECIOS_TELAS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; 
 // ==========================================
 const PRECIOS_HILOS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string; unidad: string }> = {
   "hilo kingtex 40/2": {
-    menudeo: 29,
-    mayoreo: 25,
+    menudeo: 29, mayoreo: 25,
     info: "100% Poliéster Fibra Corta. 5,000m por cono. Alta velocidad industrial. Caja de 120 piezas. Precio mayoreo aplica por caja completa. +70 colores disponibles.",
     unidad: "pieza/cono"
   },
@@ -546,48 +553,51 @@ const PRECIOS_HILOS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; 
 // 🔩 BODEGA — ELÁSTICOS
 // ==========================================
 const PRECIOS_ELASTICOS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string; unidad: string }> = {
-  "elástico beisbolero 2½\"": {
-    menudeo: 19, mayoreo: 19,
-    info: "100% Poliéster/Caucho. 6.5 cm de ancho. Ideal para cinturas y uniformes deportivos. Venta por metro. Rollo = 50 metros. Colores: Blanco, Negro.",
-    unidad: "metro"
-  },
-  "elástico 3 ligas":  { menudeo: 80,  mayoreo: 80,  info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico 5 ligas":  { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico 7 ligas":  { menudeo: 110, mayoreo: 110, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico 10 ligas": { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico 12 ligas": { menudeo: 110, mayoreo: 110, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico 16 ligas": { menudeo: 80,  mayoreo: 80,  info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico 20 ligas": { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico 25 ligas": { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico 30 ligas": { menudeo: 120, mayoreo: 120, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
-  "elástico jareta 3 cm": { menudeo: 140, mayoreo: 140, info: "Cono. Elástico con jareta. Ideal para blusas y pantalones. Color: Blanco.", unidad: "cono" },
-  "elástico jareta 4 cm": { menudeo: 145, mayoreo: 145, info: "Cono. Elástico con jareta. Ideal para blusas y pantalones. Color: Blanco.", unidad: "cono" },
+  "elástico beisbolero 2½\"": { menudeo: 19, mayoreo: 19, info: "100% Poliéster/Caucho. 6.5 cm de ancho. Ideal para cinturas y uniformes deportivos. Venta por metro. Rollo = 50 metros. Colores: Blanco, Negro.", unidad: "metro" },
+  "elástico 3 ligas":         { menudeo: 80,  mayoreo: 80,  info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 5 ligas":         { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 7 ligas":         { menudeo: 110, mayoreo: 110, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 10 ligas":        { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 12 ligas":        { menudeo: 110, mayoreo: 110, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 16 ligas":        { menudeo: 80,  mayoreo: 80,  info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 20 ligas":        { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 25 ligas":        { menudeo: 100, mayoreo: 100, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico 30 ligas":        { menudeo: 120, mayoreo: 120, info: "Rollo de 50 cm. Poliéster/Caucho. Colores: Blanco, Negro.", unidad: "pieza (50cm)" },
+  "elástico jareta 3 cm":     { menudeo: 140, mayoreo: 140, info: "Cono. Elástico con jareta. Ideal para blusas y pantalones. Color: Blanco.", unidad: "cono" },
+  "elástico jareta 4 cm":     { menudeo: 145, mayoreo: 145, info: "Cono. Elástico con jareta. Ideal para blusas y pantalones. Color: Blanco.", unidad: "cono" },
 };
 
 // ==========================================
-// 🏪 BODEGA UNIFICADA — helpers
+// 🏪 BODEGA UNIFICADA
 // ==========================================
 interface BodegaGuardada {
   telas: typeof PRECIOS_TELAS_DEFAULT;
+  telasMetro: typeof PRECIOS_TELAS_METRO_DEFAULT;
   hilos: typeof PRECIOS_HILOS_DEFAULT;
   elasticos: typeof PRECIOS_ELASTICOS_DEFAULT;
 }
 
 async function getBodega(redis: Redis): Promise<BodegaGuardada> {
-  const guardado = await redis.get<BodegaGuardada>('bodega_coyote_v2');
+  const guardado = await redis.get<BodegaGuardada>('bodega_coyote_v3');
   if (!guardado) {
-    const inicial: BodegaGuardada = { telas: PRECIOS_TELAS_DEFAULT, hilos: PRECIOS_HILOS_DEFAULT, elasticos: PRECIOS_ELASTICOS_DEFAULT };
-    await redis.set('bodega_coyote_v2', inicial);
+    const inicial: BodegaGuardada = {
+      telas: PRECIOS_TELAS_DEFAULT,
+      telasMetro: PRECIOS_TELAS_METRO_DEFAULT,
+      hilos: PRECIOS_HILOS_DEFAULT,
+      elasticos: PRECIOS_ELASTICOS_DEFAULT,
+    };
+    await redis.set('bodega_coyote_v3', inicial);
     return inicial;
   }
   return {
-    telas:    { ...PRECIOS_TELAS_DEFAULT,    ...guardado.telas },
-    hilos:    { ...PRECIOS_HILOS_DEFAULT,    ...guardado.hilos },
-    elasticos:{ ...PRECIOS_ELASTICOS_DEFAULT,...guardado.elasticos },
+    telas:      { ...PRECIOS_TELAS_DEFAULT,       ...guardado.telas },
+    telasMetro: { ...PRECIOS_TELAS_METRO_DEFAULT,  ...(guardado.telasMetro || {}) },
+    hilos:      { ...PRECIOS_HILOS_DEFAULT,        ...guardado.hilos },
+    elasticos:  { ...PRECIOS_ELASTICOS_DEFAULT,    ...guardado.elasticos },
   };
 }
 
-type BodegaCategoria = 'telas' | 'hilos' | 'elasticos';
+type BodegaCategoria = 'telas' | 'telasMetro' | 'hilos' | 'elasticos';
 
 async function actualizarPrecio(
   redis: Redis, categoria: BodegaCategoria, producto: string,
@@ -597,7 +607,7 @@ async function actualizarPrecio(
   const cat = bodega[categoria] as any;
   if (!cat[producto]) return false;
   cat[producto][campo] = precio;
-  await redis.set('bodega_coyote_v2', bodega);
+  await redis.set('bodega_coyote_v3', bodega);
   return true;
 }
 
@@ -607,7 +617,7 @@ async function agregarProducto(
 ) {
   const bodega = await getBodega(redis);
   (bodega[categoria] as any)[nombre.toLowerCase()] = { menudeo, mayoreo, info, unidad: unidad || 'pieza' };
-  await redis.set('bodega_coyote_v2', bodega);
+  await redis.set('bodega_coyote_v3', bodega);
   console.log(`✅ Producto agregado a ${categoria}: ${nombre}`);
   return true;
 }
@@ -618,7 +628,7 @@ async function eliminarProducto(redis: Redis, categoria: BodegaCategoria, nombre
   const cat = bodega[categoria] as any;
   if (!cat[key]) return false;
   delete cat[key];
-  await redis.set('bodega_coyote_v2', bodega);
+  await redis.set('bodega_coyote_v3', bodega);
   console.log(`🗑️ Producto eliminado de ${categoria}: ${nombre}`);
   return true;
 }
@@ -699,24 +709,12 @@ async function handleStripeWebhook(rawBody: string, signature: string) {
       try {
         const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
         await createTrace({
-          employeeId: convoTrace?.employeeId || "SISTEMA",
-          phone: tel,
-          type: "WHATSAPP",
+          employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
           summary: `Pago Stripe confirmado: $${monto} MXN${quiereFactura ? ' (con factura)' : ''}`,
-          content: {
-            direction: "inbound",
-            event: "stripe_payment_completed",
-            sessionId: session.id,
-            monto,
-            metodo: session.payment_method_types[0] || 'card',
-            conFactura: quiereFactura,
-            productos: metadata.productos || 'No especificado',
-          },
+          content: { direction: "inbound", event: "stripe_payment_completed", sessionId: session.id, monto, metodo: session.payment_method_types[0] || 'card', conFactura: quiereFactura, productos: metadata.productos || 'No especificado' },
           actionName: "PAGO_STRIPE_CONFIRMADO",
         });
-      } catch (traceErr) {
-        console.error("⚠️ Error en createTrace (stripe):", traceErr);
-      }
+      } catch (traceErr) { console.error("⚠️ Error en createTrace (stripe):", traceErr); }
 
       await enviarWhatsapp(tel, msg);
     }
@@ -752,7 +750,7 @@ async function handleWhatsappWebhook(body: any) {
   let tel = mensajeInfo.from;
   if (tel && tel.startsWith("521") && tel.length === 13) {
     tel = tel.replace(/^521/, "52");
-    console.log(`🧹 Número mexicano limpiado en Webhook: convertido a ${tel}`);
+    console.log(`🧹 Número mexicano limpiado: convertido a ${tel}`);
   }
 
   const msgCliente = mensajeInfo.text?.body;
@@ -772,98 +770,44 @@ async function handleWhatsappWebhook(body: any) {
     if (decision.action === "ROUTE_TO_AGENT") {
       let currentConvoId = decision.conversationId;
 
-      // Si no hay conversación activa, crear una nueva y asignar al agente
       if (!currentConvoId && decision.agentId) {
         const nuevaConvo = await prisma.waConversation.create({
-          data: {
-            contactPhone: tel,
-            isOpen: true,
-            employeeId: decision.agentId,
-            lastMessage: msgCliente,
-            lastMessageAt: new Date(),
-          }
+          data: { contactPhone: tel, isOpen: true, employeeId: decision.agentId, lastMessage: msgCliente, lastMessageAt: new Date() }
         });
         currentConvoId = nuevaConvo.id;
       }
 
       if (currentConvoId) {
-        // ✅ VERIFICAR TIMEOUT: ¿El agente sigue activo (respondió en los últimos 15 min)?
         const agenteActivo = await agentEstaActivo(currentConvoId);
 
         if (agenteActivo) {
-          // El agente respondió recientemente → guardar mensaje para el agente, NO responder con bot
           await prisma.$transaction([
-            prisma.waMessage.create({
-              data: {
-                conversationId: currentConvoId,
-                role: "CLIENT",
-                body: msgCliente,
-                isRead: false,
-              }
-            }),
-            prisma.waConversation.update({
-              where: { id: currentConvoId },
-              data: {
-                lastMessage: msgCliente,
-                lastMessageAt: new Date(),
-                unreadCount: { increment: 1 },
-              },
-            }),
+            prisma.waMessage.create({ data: { conversationId: currentConvoId, role: "CLIENT", body: msgCliente, isRead: false } }),
+            prisma.waConversation.update({ where: { id: currentConvoId }, data: { lastMessage: msgCliente, lastMessageAt: new Date(), unreadCount: { increment: 1 } } }),
           ]);
-
           try {
             await createTrace({
-              employeeId: decision.agentId || "SISTEMA",
-              phone: tel,
-              type: "WHATSAPP",
+              employeeId: decision.agentId || "SISTEMA", phone: tel, type: "WHATSAPP",
               summary: `Mensaje enrutado a agente activo: ${msgCliente.substring(0, 60)}${msgCliente.length > 60 ? '...' : ''}`,
-              content: {
-                direction: "inbound",
-                body: msgCliente,
-                routedTo: "agent",
-                conversationId: currentConvoId,
-              },
+              content: { direction: "inbound", body: msgCliente, routedTo: "agent", conversationId: currentConvoId },
               actionName: "RECEPCION_WHATSAPP_CLIENTE",
             });
-          } catch (traceErr) {
-            console.error("⚠️ Error en createTrace (route_to_agent):", traceErr);
-          }
-
-          console.log(`✅ Agente activo — mensaje guardado en DB. Bot en espera.`);
-          return; // Bot NO responde
+          } catch (traceErr) { console.error("⚠️ Error en createTrace (route_to_agent):", traceErr); }
+          console.log(`✅ Agente activo — mensaje guardado. Bot en espera.`);
+          return;
         }
 
-        // ⏱️ Agente silencioso por más de 15 min → El bot retoma
         console.log(`🐺 Agente silencioso >15 min. El Coyote retoma la conversación de ${tel}.`);
-
-        // Guardar mensaje en DB para registro (sin bloquear el bot)
         try {
           await prisma.$transaction([
-            prisma.waMessage.create({
-              data: {
-                conversationId: currentConvoId,
-                role: "CLIENT",
-                body: msgCliente,
-                isRead: true,
-              }
-            }),
-            prisma.waConversation.update({
-              where: { id: currentConvoId },
-              data: {
-                lastMessage: msgCliente,
-                lastMessageAt: new Date(),
-              },
-            }),
+            prisma.waMessage.create({ data: { conversationId: currentConvoId, role: "CLIENT", body: msgCliente, isRead: true } }),
+            prisma.waConversation.update({ where: { id: currentConvoId }, data: { lastMessage: msgCliente, lastMessageAt: new Date() } }),
           ]);
-        } catch (dbErr) {
-          console.error("⚠️ Error guardando mensaje en DB (timeout agente):", dbErr);
-        }
+        } catch (dbErr) { console.error("⚠️ Error guardando mensaje en DB (timeout agente):", dbErr); }
       }
-      // Si llegamos aquí, el bot continúa respondiendo (timeout o sin conversationId)
     }
   } catch (error) {
     console.error("⚠️ Error en CRM router:", error);
-    // En caso de error en el router, el bot responde para no dejar al cliente sin atención
   }
 
   // ==========================================
@@ -876,16 +820,12 @@ async function handleWhatsappWebhook(body: any) {
   try {
     const convoParaTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
     await createTrace({
-      employeeId: convoParaTrace?.employeeId || "SISTEMA",
-      phone: tel,
-      type: "WHATSAPP",
-      summary: `Mensaje entrante del cliente: ${msgCliente.substring(0, 60)}${msgCliente.length > 60 ? '...' : ''}`,
+      employeeId: convoParaTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
+      summary: `Mensaje entrante: ${msgCliente.substring(0, 60)}${msgCliente.length > 60 ? '...' : ''}`,
       content: { direction: "inbound", body: msgCliente, processedBy: "bot_coyote" },
       actionName: "RECEPCION_WHATSAPP_CLIENTE",
     });
-  } catch (traceErr) {
-    console.error("⚠️ Error en createTrace (mensaje entrante bot):", traceErr);
-  }
+  } catch (traceErr) { console.error("⚠️ Error en createTrace (mensaje entrante bot):", traceErr); }
 
   if (msgLower === 'soy jack' || msgLower === 'soy jack.') {
     await enviarWhatsapp(tel, '🐺 *El Coyote en línea.* Hola Jack, ¿puede verificarse? 🔒');
@@ -959,10 +899,7 @@ async function handleWhatsappWebhook(body: any) {
   perfil = await analizarPatronesCliente(redis, perfil, msgCliente, historial);
 
   const nuevoResumen = await generarResumenSemantico(historial, perfil);
-  if (nuevoResumen) {
-    perfil.resumenSemantico = nuevoResumen;
-    await saveCliente(redis, tel, perfil);
-  }
+  if (nuevoResumen) { perfil.resumenSemantico = nuevoResumen; await saveCliente(redis, tel, perfil); }
 
   const intencionPago = detectarIntencionPago(msgCliente, historial);
   let linkStripeAutoGenerado: string | null = null;
@@ -971,21 +908,10 @@ async function handleWhatsappWebhook(body: any) {
       const amountInCents = Math.round(intencionPago.montoEstimado * 100);
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card', 'oxxo'],
-        line_items: [{
-          price_data: {
-            currency: 'mxn',
-            product_data: { name: 'Pedido Coyote Textil — El Coyote' },
-            unit_amount: amountInCents,
-          },
-          quantity: 1,
-        }],
+        line_items: [{ price_data: { currency: 'mxn', product_data: { name: 'Pedido Coyote Textil — El Coyote' }, unit_amount: amountInCents }, quantity: 1 }],
         mode: 'payment',
         success_url: 'https://wa.me/5215627301525',
-        metadata: {
-          rfc: 'NONE', razon: 'NONE', cp: 'NONE', regimen: 'NONE', uso: 'NONE',
-          req_invoice: 'NO', phone: tel,
-          productos: perfil.productosComprados.join(',')
-        }
+        metadata: { rfc: 'NONE', razon: 'NONE', cp: 'NONE', regimen: 'NONE', uso: 'NONE', req_invoice: 'NO', phone: tel, productos: perfil.productosComprados.join(',') }
       });
       linkStripeAutoGenerado = session.url;
       perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
@@ -993,9 +919,7 @@ async function handleWhatsappWebhook(body: any) {
       perfil.fechaAbandono = new Date().toISOString();
       await saveCliente(redis, tel, perfil);
       console.log(`💳 Link Stripe auto-generado para ${tel}: ${linkStripeAutoGenerado}`);
-    } catch (err) {
-      console.error('Error generando Stripe auto:', err);
-    }
+    } catch (err) { console.error('Error generando Stripe auto:', err); }
   }
 
   historial.push({ role: 'user', content: msgCliente });
@@ -1003,47 +927,47 @@ async function handleWhatsappWebhook(body: any) {
   const esElJefe = historial.some((m: any) => m.role === 'user' && m.content.trim() === 'elcoyote56');
   const bodega = await getBodega(redis);
 
-  const buildCatalogoTelas = () => {
-    const lines = Object.entries(bodega.telas).map(([name, p]) =>
+  // ── Builders de catálogo ────────────────────────────────────────────────────
+  const buildCatalogoTelas = () =>
+    Object.entries(bodega.telas).map(([name, p]) =>
       `  • ${name.toUpperCase()}: $${p.menudeo}/kg menudeo | $${p.mayoreo}/kg mayoreo | rollo 25kg = $${(p.mayoreo * 25).toFixed(0)} MXN\n    ${p.info}`
-    );
-    return lines.join('\n');
-  };
+    ).join('\n');
 
-  const buildCatalogoHilos = () => {
-    const lines = Object.entries(bodega.hilos).map(([name, p]) =>
+  const buildCatalogoTelasMetro = () =>
+    Object.entries(bodega.telasMetro).map(([name, p]) =>
+      `  • ${name.toUpperCase()}: $${p.menudeo}/m menudeo | $${p.mayoreo}/m mayoreo | rollo ${p.metrosPorRollo}m = $${(p.mayoreo * p.metrosPorRollo).toFixed(0)} MXN\n    ${p.info}`
+    ).join('\n');
+
+  const buildCatalogoHilos = () =>
+    Object.entries(bodega.hilos).map(([name, p]) =>
       `  • ${name.toUpperCase()}: $${p.menudeo} menudeo/${p.unidad} | $${p.mayoreo} mayoreo/caja (120 pzs = $${(p.mayoreo * 120).toFixed(0)} MXN)\n    ${p.info}`
-    );
-    return lines.join('\n');
-  };
+    ).join('\n');
 
-  const buildCatalogoElasticos = () => {
-    const lines = Object.entries(bodega.elasticos).map(([name, p]) =>
+  const buildCatalogoElasticos = () =>
+    Object.entries(bodega.elasticos).map(([name, p]) =>
       `  • ${name.toUpperCase()}: $${p.menudeo} por ${p.unidad}\n    ${p.info}`
-    );
-    return lines.join('\n');
-  };
+    ).join('\n');
 
   const extrasTexto = config.productosExtra.length > 0
-    ? config.productosExtra.map(pe => {
-      const cat = pe.categoria || 'tela';
-      return `  • ${pe.nombre.toUpperCase()} [${cat}]: $${pe.menudeo} menudeo | $${pe.mayoreo} mayoreo | ${pe.info}`;
-    }).join('\n')
+    ? config.productosExtra.map(pe =>
+        `  • ${pe.nombre.toUpperCase()} [${pe.categoria || 'tela'}]: $${pe.menudeo} menudeo | $${pe.mayoreo} mayoreo | ${pe.info}`
+      ).join('\n')
     : '';
 
+  // ── Alertas de perfil ───────────────────────────────────────────────────────
   const diasDesdeUltimo = perfil.ultimoContacto
     ? Math.floor((Date.now() - new Date(perfil.ultimoContacto).getTime()) / (1000 * 60 * 60 * 24))
     : 0;
 
   const alertaDireccion = perfil.direccionEnvio
-    ? `⚠️ DIRECCIÓN GUARDADA: "${perfil.direccionEnvio}". Confirma si sigue siendo correcta.`
-    : `⚠️ SIN DIRECCIÓN. Pídela cuando sea necesario.`;
+    ? `⚠️ DIRECCIÓN GUARDADA: "${perfil.direccionEnvio}". Confirme si sigue siendo correcta.`
+    : `⚠️ SIN DIRECCIÓN. Solicítela cuando corresponda.`;
 
   const alertaReactivacion = diasDesdeUltimo > 30
-    ? `⚡ ALERTA: Este cliente lleva ${diasDesdeUltimo} días sin comprar. Usa técnica de reactivación.`
+    ? `⚡ ALERTA: Este cliente lleva ${diasDesdeUltimo} días sin comprar. Use técnica de reactivación.`
     : '';
   const alertaConversion = (perfil.intentosDePago || 0) > 1
-    ? `⚡ ALERTA: ${perfil.intentosDePago} links de pago sin concretar. Identifica la objeción real y resuélvela.`
+    ? `⚡ ALERTA: ${perfil.intentosDePago} links de pago sin concretar. Identifique la objeción real y resuélvala.`
     : '';
 
   const ahora = new Date();
@@ -1060,90 +984,70 @@ async function handleWhatsappWebhook(body: any) {
     await saveCliente(redis, tel, perfil);
   }
 
-  const alertaAbandono = perfil.etapaAbandono
-    ? `⚡ CLIENTE EN ETAPA DE ABANDONO: "${perfil.etapaAbandono}" — Retome desde ese punto, NO empiece de cero.`
-    : '';
-  const alertaUltimaCotizacion = perfil.ultimaCotizacion
-    ? `⚡ ÚLTIMA COTIZACIÓN REGISTRADA: ${perfil.ultimaCotizacion} — Úsela para retomar.`
-    : '';
-  const alertaTemperatura = perfil.temperaturaCompra !== undefined
-    ? `🌡️ TEMPERATURA DE COMPRA: ${perfil.temperaturaCompra}/100 — Táctica activa: ${perfil.tacticaActual || 'valor_rendimiento'}`
-    : '';
-  const alertaPrediccion = perfil.prediccionSiguientePedido
-    ? `🔮 PREDICCIÓN: ${perfil.prediccionSiguientePedido}`
-    : '';
-  const alertaPatron = perfil.patronCompra
-    ? `📊 PATRÓN: ${perfil.patronCompra}`
-    : '';
-  const alertaPropension = perfil.propensionCross
-    ? `🎯 PROPENSIÓN CROSS: Hilos ${perfil.propensionCross.hilos}% | Elásticos ${perfil.propensionCross.elasticos}% | Volumen+ ${perfil.propensionCross.volumenExtra}%`
-    : '';
-  const memoriaSemantica = perfil.resumenSemantico
-    ? `\n🧠 MEMORIA SEMÁNTICA (conversaciones previas resumidas):\n${perfil.resumenSemantico}`
-    : '';
+  const alertaAbandono         = perfil.etapaAbandono ? `⚡ CLIENTE EN ETAPA DE ABANDONO: "${perfil.etapaAbandono}" — Retome desde ese punto, NO empiece de cero.` : '';
+  const alertaUltimaCotizacion = perfil.ultimaCotizacion ? `⚡ ÚLTIMA COTIZACIÓN REGISTRADA: ${perfil.ultimaCotizacion} — Úsela para retomar.` : '';
+  const alertaTemperatura      = perfil.temperaturaCompra !== undefined ? `🌡️ TEMPERATURA DE COMPRA: ${perfil.temperaturaCompra}/100 — Táctica activa: ${perfil.tacticaActual || 'valor_rendimiento'}` : '';
+  const alertaPrediccion       = perfil.prediccionSiguientePedido ? `🔮 PREDICCIÓN: ${perfil.prediccionSiguientePedido}` : '';
+  const alertaPatron           = perfil.patronCompra ? `📊 PATRÓN: ${perfil.patronCompra}` : '';
+  const alertaPropension       = perfil.propensionCross ? `🎯 PROPENSIÓN CROSS: Hilos ${perfil.propensionCross.hilos}% | Elásticos ${perfil.propensionCross.elasticos}% | Volumen+ ${perfil.propensionCross.volumenExtra}%` : '';
+  const memoriaSemantica       = perfil.resumenSemantico ? `\n🧠 MEMORIA SEMÁNTICA:\n${perfil.resumenSemantico}` : '';
 
-  // ==========================================
-  // 🔥 INSTRUCCIÓN DE TÁCTICA — MEJORADA
-  // ==========================================
+  // ── Instrucción de táctica ──────────────────────────────────────────────────
   const instruccionTactica = (() => {
     const temp = perfil.temperaturaCompra ?? 30;
     const intentos = perfil.intentosDePago ?? 0;
 
     if (linkStripeAutoGenerado) {
-      return `🚨 CIERRE INMEDIATO: El sistema ya generó el link de pago. ENTRÉGUELO AHORA con el monto y diga: "Su pedido entra a bodega en cuanto confirme el pago. ¿Le damos?" No agregue más preguntas.`;
+      return `🚨 CIERRE INMEDIATO: El sistema ya generó el link de pago. ENTRÉGUELO AHORA con el monto: "Su pedido entra a bodega en cuanto confirme el pago." No agregue más preguntas.`;
     }
-
     if (perfil.direccionEnvio && perfil.ultimaCotizacion) {
-      return `🚨 CLIENTE LISTO PARA CERRAR: Tiene dirección y cotización registrada (${perfil.ultimaCotizacion}). Su ÚNICO objetivo es cobrar ahora. Pregunte: "¿Cerramos con tarjeta, OXXO o SPEI?" y ejecute GENERAR_COBRO o GENERAR_SPEI según la respuesta. NO haga más preguntas de calificación.`;
+      return `🚨 CLIENTE LISTO PARA CERRAR: Tiene dirección y cotización registrada (${perfil.ultimaCotizacion}). Su ÚNICO objetivo es cobrar ahora. Pregunte: "¿Cerramos con tarjeta, OXXO o SPEI?" y ejecute GENERAR_COBRO o GENERAR_SPEI. NO haga más preguntas de calificación.`;
     }
 
     switch (perfil.tacticaActual) {
       case 'cierre_directo':
-        return `🚨 CIERRE DIRECTO OBLIGATORIO (Temp: ${temp}/100):
-Su mensaje DEBE terminar con UNA propuesta de pago concreta.
-Ejemplo: "Son $X MXN. ¿Le procesamos con tarjeta, OXXO o SPEI?"
-Si no responde al pago → ejecute GENERAR_COBRO con el monto de la última cotización.
-NO espere más información. NO haga más preguntas de producto.
+        return `🚨 CIERRE DIRECTO (Temp: ${temp}/100):
+Su mensaje DEBE terminar con UNA propuesta de pago concreta: "Son $X MXN. ¿Le procesamos con tarjeta, OXXO o SPEI?"
 ${intentos > 0 ? `⚠️ Ya intentó pagar ${intentos} veces sin concretar. Detecte la fricción: "¿Tuvo algún inconveniente con el link anterior?"` : ''}`;
 
       case 'urgencia_escasez':
         return `⚡ URGENCIA REAL (Temp: ${temp}/100):
 1. Dé el precio total con envío incluido (use CALCULAR_ENVIO si tiene CP).
-2. Agregue presión real: "Tenemos stock del color que solicitó, pero los rollos de temporada se mueven con rapidez."
+2. Agregue presión real: "Tenemos stock del color solicitado, pero los rollos de temporada se mueven con rapidez."
 3. Cierre con: "¿Apartamos hoy con $500 de anticipo vía OXXO?"
-4. Si acepta → ejecute GENERAR_COBRO|oxxo|500|NONE|NONE|NONE|NONE|NONE de inmediato.`;
+4. Si acepta → ejecute GENERAR_COBRO|oxxo|500|NONE|NONE|NONE|NONE|NONE.`;
 
       case 'manejo_objecion':
         return `🤝 MANEJO DE OBJECIÓN (objeciones: ${perfil.objecionesComunes?.join(', ') || 'precio'}):
-PASO 1: Valide la preocupación sin ceder en precio.
-PASO 2: Redirija al costo por prenda, no por kilo.
-PASO 3: Ofrezca cantidad menor para arrancar: "¿Empezamos con 10 kg para que pruebe la tela?"
-PASO 4: Mini-cierre: "Si le convence la calidad, ¿arrancamos con ese pedido inicial hoy?"
-NUNCA baje el precio sin obtener algo a cambio (volumen, pago inmediato, referido).`;
+1. Valide la preocupación sin ceder en precio.
+2. Redirija al costo por prenda, no por kilo.
+3. Ofrezca cantidad menor para arrancar: "¿Empezamos con 10 kg para que pruebe la tela?"
+4. Mini-cierre: "Si le convence la calidad, ¿arrancamos con ese pedido inicial hoy?"
+NUNCA baje el precio sin obtener algo a cambio.`;
 
       case 'fidelizacion_vip':
         return `👑 CLIENTE VIP (${perfil.totalCompras} compras, $${perfil.montoAcumulado} acumulados):
 1. Reconózcalo: "Usted ya es cliente frecuente, lo tenemos bien identificado."
-2. Ofrezca algo concreto: lote reservado, precio de mayoreo en menudeo, o envío prioritario.
+2. Ofrezca algo concreto: lote reservado o envío prioritario.
 3. Retome con su producto favorito: "${perfil.productosFavoritos?.[0] || 'su tela habitual'} sigue disponible."
 4. Cierre: "¿Le armo el mismo pedido de siempre o necesita algo diferente esta vez?"`;
 
       case 'social_proof':
         return `🏆 PRUEBA SOCIAL + PRIMER CIERRE (cliente nuevo):
-1. Valide con prueba social breve: "Trabajamos con talleres de uniforme, equipos deportivos y marcas en toda la república."
-2. Proponga entrada de bajo riesgo: "Para conocernos, puede arrancar con 10 kg de Micro Piqué: $900 MXN con envío incluido en muchas zonas."
+1. "Trabajamos con talleres de uniforme, equipos deportivos y marcas en toda la república."
+2. Proponga entrada de bajo riesgo: "Para conocernos, puede arrancar con 10 kg de Micropique: $950 MXN."
 3. Cierre directo: "¿Le envío el link de pago para ese primer pedido?"`;
 
       default:
         return `💡 TÁCTICA VALOR-RENDIMIENTO (Temp: ${temp}/100):
-1. Dé el precio pero SIEMPRE en costo por prenda: "A $85/kg con rendimiento de 4.3 m/kg, cada playera lleva ~$20 de tela."
-2. Empuje rollo: "El rollo completo (25 kg) baja a $85/kg vs $90 en menudeo. Total: $2,125."
+1. Precio SIEMPRE en costo por prenda: "A $95/kg con rend. 4.3m/kg, cada playera lleva ~$22 de tela."
+2. Empuje rollo: "El rollo completo (25 kg) baja a $95/kg vs $100 en menudeo. Total: $2,375."
 3. Cierre con decisión binaria: "¿Le armo la cotización con rollo completo o con los kilos que necesita?"`;
     }
   })();
 
   const resumenCliente = `
-PERFIL INTELIGENTE DEL CLIENTE:
+PERFIL DEL CLIENTE:
 - Nombre: ${perfil.nombre} | Género: ${perfil.genero} | Segmento: ${perfil.segmento || 'prospecto'}
 - Compras: ${perfil.totalCompras} | Acumulado: $${perfil.montoAcumulado} | Ticket promedio: $${perfil.ticketPromedio?.toFixed(0) || 'N/A'}
 - Categorías pedidas: ${perfil.categoriasPedidas?.join(', ') || 'ninguna'}
@@ -1173,14 +1077,14 @@ ${memoriaSemantica}
     : '';
   const avisoTexto = config.avisoGeneral ? `\n⚠️ AVISO GENERAL: ${config.avisoGeneral}` : '';
   const instruccionesExtra = config.instruccionesEspeciales
-    ? `\n📌 INSTRUCCIONES DEL PATRÓN (prioridad máxima):\n${config.instruccionesEspeciales}`
+    ? `\n📌 INSTRUCCIONES ESPECIALES (prioridad máxima):\n${config.instruccionesEspeciales}`
     : '';
   const avisoStripeAuto = linkStripeAutoGenerado
-    ? `\n⚡ LINK STRIPE YA GENERADO AUTOMÁTICAMENTE: ${linkStripeAutoGenerado}\nEl sistema detectó intención de pago. USE ESTE LINK en su respuesta al cliente, no genere otro. NO use GENERAR_COBRO.`
+    ? `\n⚡ LINK STRIPE YA GENERADO: ${linkStripeAutoGenerado}\nUSE ESTE LINK directamente. NO use GENERAR_COBRO.`
     : '';
 
   // ==========================================
-  // 🧠 PROMPT PRINCIPAL — MOTOR DE CIERRE
+  // 🧠 PROMPT PRINCIPAL
   // ==========================================
   const CONTEXTO_VENDEDOR = `
 ════════════════════════════════════════════════════════
@@ -1191,7 +1095,7 @@ Usted es EL COYOTE, asesor de Coyote Textil. Siempre. Sin excepción.
 • Si preguntan quién es: "🐺 Soy El Coyote, su asesor en Coyote Textil."
 • Tono: ${config.tono}
 • Máximo ${config.maximoLineasRespuesta} líneas por respuesta. DIRECTO Y VENDEDOR.
-• SIEMPRE hable de "usted" al cliente. NUNCA tutee. NUNCA use lenguaje coloquial.
+• SIEMPRE hable de "usted" al cliente. NUNCA tutee.
 • Hombres: ${config.frasesDesignacionHombre.join(', ')} | Mujeres: ${config.frasesDesignacionMujer.join(', ')}
 • Emojis: ${config.emojisPrincipales}
 • Horario: ${config.horarioAtencion}
@@ -1201,22 +1105,24 @@ ${promocionesTexto}
 ${avisoStripeAuto}
 
 ════════════════════════════════════════════════════════
-🚫 FRASES PROHIBIDAS — NUNCA LAS USE
+🚫 LENGUAJE PROHIBIDO — NUNCA USE NINGUNA DE ESTAS
 ════════════════════════════════════════════════════════
 ${config.fraseProhibidas.map(f => `• "${f}"`).join('\n')}
-• "Con gusto le ayudo" (sin propuesta de valor)
-• "Déjeme revisar" (actúe de inmediato)
-• "¿En qué más le puedo ayudar?" (sin propuesta de compra)
-• Tutear al cliente en cualquier forma ("tú", "te", "tu", "dale", "órale")
-• Lenguaje coloquial o informal con clientes
+• Tutear en cualquier forma: "tú", "te", "tu", "dale", "órale"
+• Términos informales con clientes: "patrón", "patrona", "jefe", "cuate"
+• Frases de relleno sin propuesta: "Con gusto le ayudo", "Por supuesto", "Claro que sí"
+• Preguntas sin cierre: "¿En qué más le puedo ayudar?"
 
 ════════════════════════════════════════════════════════
 🧵 CATÁLOGO COMPLETO — COYOTE TEXTIL
 ════════════════════════════════════════════════════════
 
-📦 TELAS (precio por KILO — rollo = 25 kg):
+📦 TELAS POR KILO (rollo estándar = 25 kg):
 ${buildCatalogoTelas()}
 ${extrasTexto ? `\nEXTRAS:\n${extrasTexto}` : ''}
+
+📐 TELAS POR METRO:
+${buildCatalogoTelasMetro()}
 
 🧵 HILOS (precio por PIEZA/CONO):
 ${buildCatalogoHilos()}
@@ -1227,15 +1133,29 @@ ${buildCatalogoElasticos()}
 ════════════════════════════════════════════════════════
 📐 REGLAS DE PRODUCTO
 ════════════════════════════════════════════════════════
-TELAS:
+TELAS POR KILO:
 • Todo por kilo. Rollo = 25 kg exactos.
 • Menudeo: <25 kg | Mayoreo: 25 kg o más.
 • Precio rollo = mayoreo × 25. SIEMPRE muéstrelo calculado.
-• Rendimiento metros: ver catálogo. Convierta a piezas cuando el cliente lo pida.
-• COLORES (Micro Piqué / Piqué Vera / Micro Panal / Torneo): Blanco, ${COLORES_STOCK}
-  → Siempre pregunte por color antes de cotizar estas 4 telas.
-  → Si piden la carta: PEGUE LA LISTA COMPLETA.
-  → Si piden Blanco: mencione Perla, Hueso, Celeste, Gris baby, Rosa baby como alternativas.
+• Rendimiento en metros: ver catálogo. Convierta a piezas cuando el cliente lo pida.
+
+TELAS CON PALETA DE COLORES (pregunta el color SIEMPRE antes de cotizar):
+Micropique, Micro Panal, Piqué Vera, Torneo, Sportok, Felpa China, Felpa Spun,
+Flanel, Polar, Licra Poliéster, Licra Saludable, Diablo, Lycra Metálica.
+→ Si piden la carta completa: PEGUE LA LISTA DE COLORES del catálogo.
+→ Si piden Blanco: mencione Perla, Hueso, Gris baby, Rosa baby como alternativas.
+
+TELAS COLOR ÚNICO POR ROLLO (NO preguntar color):
+Alaska, Andromeda, Apolo, Ares, Athlos, Azucena, Brock, Brush, Capriati, Caprice,
+Delta, F30, Granizo, Horous, Inter 70, Kyoto, Madelino, Micro Estrella, Micropique Fusionado,
+Miky, Monaco, Nagasaky, Panal Nitro, Panal Plus, Phoenix, Pique Lacoste, Pique Vera Sport,
+Pixel, Saturno, Super Trix, Jumanji, Licra Liluna, Licra Playera, Mercury, Microtrix.
+→ Para estas: "Color único por rollo, confirme al apartar."
+
+TELAS POR METRO (Diablo / Lycra Metálica):
+• Se venden por METRO, NO por kilo.
+• Rollo Diablo = 50 m. Rollo Lycra Metálica = 98 m.
+• Precio por metro: menudeo / mayoreo según catálogo.
 
 HILOS KINGTEX 40/2:
 • Precio unitario: $29/cono (menudeo). Mayoreo: $25/cono en caja de 120 piezas.
@@ -1247,14 +1167,36 @@ ELÁSTICOS:
 • Jareta 3 cm y 4 cm: por CONO. Solo Blanco.
 
 ════════════════════════════════════════════════════════
-🧠 MEMORIA PERSISTENTE — IRROMPIBLE
+🗺️ FLUJO DE VENTA OBLIGATORIO — NO SALTARSE PASOS
 ════════════════════════════════════════════════════════
-• NUNCA trate a un cliente recurrente como nuevo.
-• Si tiene nombre → úselo con "usted": "¿Qué necesita hoy, señor [Nombre]?"
-• Si tiene etapaAbandono = 'cotizacion' → retome la cotización SIN reiniciar.
-• Si tiene etapaAbandono = 'pago' → entregue el link/SPEI pendiente de inmediato.
-• NUNCA envíe bienvenida a cliente con historial.
-• NUNCA pregunte el nombre si ya lo tiene.
+
+PASO 1 — RECOPILAR DATOS ANTES DE COTIZAR:
+Antes de dar cualquier precio usted DEBE tener:
+  a) Producto específico
+  b) Cantidad (kilos, metros o piezas según aplique)
+  c) Color (SOLO si la tela tiene paleta de colores — ver lista arriba)
+Si falta algún dato → pregúntelo de forma directa y concisa.
+NUNCA cotice sin tener producto + cantidad + color (cuando aplica).
+
+PASO 2 — COTIZACIÓN INMEDIATA:
+Una vez con los 3 datos → cotice en ese mismo mensaje:
+  • Precio por kg/metro
+  • Precio rollo (si aplica)
+  • Costo aproximado por prenda
+
+PASO 3 — CP DE ENVÍO:
+Inmediatamente después de cotizar → "¿A qué CP enviamos para incluir el flete?"
+
+PASO 4 — FACTURA:
+Al tener el CP → "¿Requiere factura fiscal?"
+
+PASO 5 — MÉTODO DE PAGO:
+"¿Cerramos con tarjeta, OXXO o SPEI?"
+
+PASO 6 — EJECUTAR COBRO:
+Según respuesta → GENERAR_COBRO o GENERAR_SPEI.
+
+ATAJO: Si el cliente da producto + cantidad + color + CP en un solo mensaje → salte directo al total con envío + factura.
 
 ════════════════════════════════════════════════════════
 🔥 MOTOR DE CIERRE — LEY MÁXIMA
@@ -1263,65 +1205,47 @@ ELÁSTICOS:
 ${instruccionTactica}
 
 ════════════════════════════════════════════════════════
-⚡ REGLAS DE ACCIÓN INMEDIATA — NO NEGOCIABLES
+⚡ REGLAS DE ACCIÓN INMEDIATA
 ════════════════════════════════════════════════════════
 
-REGLA 1 — COTIZACIÓN INSTANTÁNEA:
-Si el cliente menciona producto + cantidad → COTICE EN ESE MISMO MENSAJE.
-No diga "con gusto le cotizo". COTICE YA. Ejemplo:
-"25 kg de Micro Piqué negro = $2,125 MXN (rollo completo a mayoreo).
-¿Le incluimos el envío? Compártame su CP."
-
-REGLA 2 — ENVÍO OBLIGATORIO:
-Si tiene producto + kg + CP → ejecute CALCULAR_ENVIO en ese mensaje.
-No espere confirmación. Calcule y presente el total completo.
-
-REGLA 3 — CIERRE EN CADA MENSAJE:
-CADA respuesta suya debe terminar con UNA pregunta que avance hacia el pago.
-Ejemplos válidos:
-• "¿Le armamos con ese rollo?"
+REGLA 1 — CIERRE EN CADA MENSAJE:
+Cada respuesta debe terminar con UNA pregunta que avance hacia el pago:
+• "¿Qué color necesita?"  • "¿Cuántos kilos requiere?"
+• "¿Su CP para incluir el envío?"  • "¿Requiere factura?"
 • "¿Cerramos con tarjeta, OXXO o SPEI?"
-• "¿Su CP para incluir el envío?"
-• "¿Requiere factura?"
 NUNCA termine con "¿En qué más le puedo ayudar?"
 
-REGLA 4 — CROSS-SELL AL CIERRE:
-Al dar precio de tela → siempre agregue: "¿Le incluimos hilo para ese pedido? Tenemos Kingtex 40/2 a $29/cono."
-Al dar precio de uniforme → siempre agregue: "¿Necesita elástico para cintura? Beisbolero a $19/metro."
+REGLA 2 — ENVÍO OBLIGATORIO:
+Si tiene producto + kg/metros + CP → ejecute CALCULAR_ENVIO en ese mismo mensaje.
 
-REGLA 5 — PRECIO SIN RODEOS:
-Cuando pregunten precio → responda con precio + rollo + costo por prenda en 3 líneas máximo.
-No explique la tela si no se lo piden. PRECIO PRIMERO.
+REGLA 3 — CROSS-SELL AL CIERRE:
+Al dar precio de tela → "¿Le incluimos hilo para ese pedido? Kingtex 40/2 a $29/cono."
+Al dar precio de uniforme → "¿Necesita elástico para cintura? Beisbolero a $19/metro."
 
-REGLA 6 — MANEJO DE "LO PIENSO":
-Si dicen "lo pienso / después / mañana":
-→ "Entendido. ¿Para cuándo necesita el material? Le reservamos el color."
-→ Si no hay fecha → "¿Qué falta para que cerremos hoy?"
+REGLA 4 — PRECIO SIN RODEOS:
+precio + rollo + costo por prenda en 3 líneas máximo.
+
+REGLA 5 — MANEJO DE "LO PIENSO":
+→ "¿Para cuándo necesita el material? Le reservamos el color."
 → SIEMPRE registre: DATOS_CLIENTE|etapa_abandono:cotizacion
 → SIEMPRE programe: PROGRAMAR_RECORDATORIO|${tel}|[mañana 10am]|Retomar cotización pendiente
 
-REGLA 7 — OBJECIÓN DE PRECIO:
-NUNCA baje el precio directamente. Responda con:
-"Entiendo su punto. A $85/kg con rendimiento de 4.3 m/kg, la tela sale a menos de $20 por playera.
-¿Cuánto le cobra su proveedor actual por metro?"
-Luego ofrezca rollo con precio calculado por pieza.
+REGLA 6 — OBJECIÓN DE PRECIO:
+NUNCA baje el precio directamente. Responda con costo por prenda y compare con proveedor actual.
 
-REGLA 8 — SI YA HAY LINK GENERADO:
-Entregue el link de inmediato. No haga más preguntas. Diga:
-"Aquí su link de pago seguro 👇
-[LINK]
-En cuanto confirme, bodega recibe su pedido. 🐺"
+REGLA 7 — SI YA HAY LINK GENERADO:
+Entréguelo de inmediato. Sin más preguntas:
+"Aquí su link de pago seguro 👇\n[LINK]\nEn cuanto confirme, bodega recibe su pedido. 🐺"
 
 ════════════════════════════════════════════════════════
-🗺️ FLUJO DE VENTA (IRROMPIBLE)
+🧠 MEMORIA PERSISTENTE
 ════════════════════════════════════════════════════════
-1. PRODUCTO + CANTIDAD → cotice YA
-2. COTIZACIÓN → pida CP para envío
-3. TOTAL CON ENVÍO → pregunte si requiere factura
-4. FACTURA → pregunte método de pago
-5. MÉTODO → ejecute GENERAR_COBRO o GENERAR_SPEI
-
-ATAJO PERMITIDO: Si el cliente dice "¿cuánto es todo?" y tiene los datos → salte al paso 5 directamente.
+• NUNCA trate a un cliente recurrente como nuevo.
+• Si tiene nombre → úselo: "${perfil.genero === 'mujer' ? 'señora' : 'señor'} ${perfil.nombre}"
+• Si tiene etapaAbandono = 'cotizacion' → retome SIN reiniciar.
+• Si tiene etapaAbandono = 'pago' → entregue el link/SPEI pendiente de inmediato.
+• NUNCA envíe bienvenida a cliente con historial.
+• NUNCA pregunte el nombre si ya lo tiene.
 
 ════════════════════════════════════════════════════════
 🚨 PAGOS — TRES MÉTODOS
@@ -1361,17 +1285,20 @@ ${resumenCliente}
 
   const CONTEXTO_JEFE = `
 ERES "EL COYOTE", IA DE COYOTE TEXTIL. HABLAS CON JACK, TU CREADOR.
-Respuestas cortas. "A la orden." Tono de confianza entre socios.
+Respuestas cortas. Tono de confianza entre socios.
 
 ════════════════════════════════════════════════════════
 📦 GESTIÓN DE CATÁLOGO
 ════════════════════════════════════════════════════════
-PRECIO_UPDATE|categoria(telas/hilos/elasticos)|nombre_producto|menudeo_o_mayoreo|numero
-PRODUCTO_NUEVO|categoria(telas/hilos/elasticos)|nombre|menudeo|mayoreo|descripcion|unidad
-PRODUCTO_ELIMINAR|categoria(telas/hilos/elasticos)|nombre
+PRECIO_UPDATE|categoria(telas/telasMetro/hilos/elasticos)|nombre_producto|menudeo_o_mayoreo|numero
+PRODUCTO_NUEVO|categoria(telas/telasMetro/hilos/elasticos)|nombre|menudeo|mayoreo|descripcion|unidad
+PRODUCTO_ELIMINAR|categoria(telas/telasMetro/hilos/elasticos)|nombre
 
-TELAS ACTUALES:
+TELAS ACTUALES (por kilo):
 ${buildCatalogoTelas()}
+
+TELAS POR METRO:
+${buildCatalogoTelasMetro()}
 
 HILOS ACTUALES:
 ${buildCatalogoHilos()}
@@ -1382,9 +1309,9 @@ ${buildCatalogoElasticos()}
 ════════════════════════════════════════════════════════
 🎛️ CONFIGURACIÓN GLOBAL
 ════════════════════════════════════════════════════════
-CONFIG|tono|Nueva descripción del tono
-CONFIG|frasesHombre|señor, mi estimado.
-CONFIG|frasesMujer|señora, estimada.
+CONFIG|tono|Nueva descripción
+CONFIG|frasesHombre|señor, estimado
+CONFIG|frasesMujer|señora, estimada
 CONFIG|fraseCierre|Nueva frase de cierre
 CONFIG|fraseIncondicional|Nueva frase final
 CONFIG|emojis|🐺📦💪
@@ -1427,7 +1354,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
 Última actualización: ${config.ultimaActualizacion}
 `;
 
-  console.log(`🤖 Llamando a GPT-4o para ${tel} (esJefe: ${esElJefe}) | Temp: ${perfil.temperaturaCompra} | Táctica: ${perfil.tacticaActual}`);
+  console.log(`🤖 GPT-4o para ${tel} (esJefe: ${esElJefe}) | Temp: ${perfil.temperaturaCompra} | Táctica: ${perfil.tacticaActual}`);
   const systemPrompt = { role: 'system', content: esElJefe ? CONTEXTO_JEFE : CONTEXTO_VENDEDOR };
 
   let respuesta = '';
@@ -1460,15 +1387,15 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
   if (matchDatos) {
     respuesta = respuesta.replace(/DATOS_CLIENTE\|.+/g, '').trim();
     const partes = matchDatos[1];
-    const dirM      = partes.match(/direccion:([^|]+)/);
-    const cpFiscM   = partes.match(/cp_fiscal:([^|]+)/);
-    const prodM     = partes.match(/productos:([^|]+)/);
-    const catM      = partes.match(/categorias:([^|]+)/);
-    const notasM    = partes.match(/notas:([^|]+)/);
-    const prefM     = partes.match(/preferencias:([^|]+)/);
-    const cumpleM   = partes.match(/cumpleanos:([^|]+)/);
-    const etapaM    = partes.match(/etapa_abandono:([^|]+)/);
-    const interesM  = partes.match(/intereses:([^|]+)/);
+    const dirM     = partes.match(/direccion:([^|]+)/);
+    const cpFiscM  = partes.match(/cp_fiscal:([^|]+)/);
+    const prodM    = partes.match(/productos:([^|]+)/);
+    const catM     = partes.match(/categorias:([^|]+)/);
+    const notasM   = partes.match(/notas:([^|]+)/);
+    const prefM    = partes.match(/preferencias:([^|]+)/);
+    const cumpleM  = partes.match(/cumpleanos:([^|]+)/);
+    const etapaM   = partes.match(/etapa_abandono:([^|]+)/);
+    const interesM = partes.match(/intereses:([^|]+)/);
 
     if (dirM?.[1]?.trim())    perfil.direccionEnvio = dirM[1].trim();
     if (cpFiscM?.[1]?.trim()) perfil.cpFiscal       = cpFiscM[1].trim();
@@ -1496,7 +1423,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
         perfil.notas = nota;
       }
     }
-    if (prefM?.[1]?.trim()) perfil.preferencias = prefM[1].trim().split(',').map(s => s.trim());
+    if (prefM?.[1]?.trim())   perfil.preferencias = prefM[1].trim().split(',').map(s => s.trim());
     if (cumpleM?.[1]?.trim()) perfil.cumpleanos = cumpleM[1].trim();
     if (etapaM?.[1]?.trim()) {
       perfil.etapaAbandono = etapaM[1].trim() as any;
@@ -1519,11 +1446,8 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     if (matchPrecio) {
       const [, cat, prod, campo, precio] = matchPrecio;
       const ok = await actualizarPrecio(
-        redis,
-        cat.trim().toLowerCase() as BodegaCategoria,
-        prod.trim().toLowerCase(),
-        campo.trim().toLowerCase() as 'menudeo' | 'mayoreo',
-        parseInt(precio)
+        redis, cat.trim().toLowerCase() as BodegaCategoria,
+        prod.trim().toLowerCase(), campo.trim().toLowerCase() as 'menudeo' | 'mayoreo', parseInt(precio)
       );
       respuesta = respuesta.replace(/PRECIO_UPDATE\|.+/g, '').trim();
       respuesta += ok ? `\n✅ Precio de ${prod} (${cat}) actualizado.` : `\n⚠️ No encontré ese producto en ${cat}.`;
@@ -1532,12 +1456,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     const matchProdNuevo = respuesta.match(/PRODUCTO_NUEVO\|([^|]+)\|([^|]+)\|(\d+)\|(\d+)\|([^|]+)\|?(.+)?/);
     if (matchProdNuevo) {
       const [, cat, nombre, menudeo, mayoreo, desc, unidad] = matchProdNuevo;
-      await agregarProducto(
-        redis,
-        cat.trim().toLowerCase() as BodegaCategoria,
-        nombre.trim(), parseInt(menudeo), parseInt(mayoreo),
-        desc.trim(), unidad?.trim()
-      );
+      await agregarProducto(redis, cat.trim().toLowerCase() as BodegaCategoria, nombre.trim(), parseInt(menudeo), parseInt(mayoreo), desc.trim(), unidad?.trim());
       respuesta = respuesta.replace(/PRODUCTO_NUEVO\|.+/g, '').trim();
       respuesta += `\n✅ Producto "${nombre.trim()}" agregado a ${cat.trim()}.`;
     }
@@ -1556,23 +1475,23 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       respuesta = respuesta.replace(/CONFIG\|[^|]+\|.+/g, '').trim();
       const cfg = await getConfigBot(redis);
       const campoLower = campo.trim().toLowerCase();
-      if (campoLower === 'nombrebot') { cfg.nombreBot = valor.trim(); respuesta += `\n✅ Nombre guardado.`; }
-      else if (campoLower === 'tono') { cfg.tono = valor.trim(); respuesta += `\n✅ Tono actualizado.`; }
-      else if (campoLower === 'fraseshombre') { cfg.frasesDesignacionHombre = valor.trim().split(',').map(s => s.trim()); respuesta += `\n✅ Tratamiento hombres actualizado.`; }
-      else if (campoLower === 'frasesmujer') { cfg.frasesDesignacionMujer = valor.trim().split(',').map(s => s.trim()); respuesta += `\n✅ Tratamiento mujeres actualizado.`; }
+      if      (campoLower === 'nombrebot')             { cfg.nombreBot = valor.trim(); respuesta += `\n✅ Nombre guardado.`; }
+      else if (campoLower === 'tono')                  { cfg.tono = valor.trim(); respuesta += `\n✅ Tono actualizado.`; }
+      else if (campoLower === 'fraseshombre')          { cfg.frasesDesignacionHombre = valor.trim().split(',').map(s => s.trim()); respuesta += `\n✅ Tratamiento hombres actualizado.`; }
+      else if (campoLower === 'frasesmujer')           { cfg.frasesDesignacionMujer = valor.trim().split(',').map(s => s.trim()); respuesta += `\n✅ Tratamiento mujeres actualizado.`; }
       else if (campoLower === 'frasecierre' || campoLower === 'frasescierre') { cfg.fraseCierre = valor.trim(); respuesta += `\n✅ Frase cierre actualizada.`; }
-      else if (campoLower === 'fraseincondicional') { cfg.fraseIncondicional = valor.trim(); respuesta += `\n✅ Frase final actualizada.`; }
-      else if (campoLower === 'emojis') { cfg.emojisPrincipales = valor.trim(); respuesta += `\n✅ Emojis: ${valor.trim()}`; }
-      else if (campoLower === 'maxlineas') { cfg.maximoLineasRespuesta = parseInt(valor.trim()) || 4; respuesta += `\n✅ Límite: ${cfg.maximoLineasRespuesta} líneas.`; }
-      else if (campoLower === 'agregarprohibida') { cfg.fraseProhibidas.push(valor.trim()); respuesta += `\n✅ Frase prohibida agregada.`; }
-      else if (campoLower === 'quitarprohibida') { cfg.fraseProhibidas = cfg.fraseProhibidas.filter(f => !f.toLowerCase().includes(valor.trim().toLowerCase())); respuesta += `\n✅ Frase prohibida eliminada.`; }
-      else if (campoLower === 'instruccionespecial') { cfg.instruccionesEspeciales = cfg.instruccionesEspeciales ? `${cfg.instruccionesEspeciales}\n- ${valor.trim()}` : `- ${valor.trim()}`; respuesta += `\n✅ Regla especial agregada.`; }
-      else if (campoLower === 'horario') { cfg.horarioAtencion = valor.trim(); respuesta += `\n✅ Horario: ${valor.trim()}`; }
-      else if (campoLower === 'infopagos') { cfg.infoPagos = valor.trim(); respuesta += `\n✅ Info pagos actualizada.`; }
-      else if (campoLower === 'infoenvios') { cfg.infoEnvios = valor.trim(); respuesta += `\n✅ Info envíos actualizada.`; }
-      else if (campoLower === 'mensajepromofinal') { cfg.mensajePromoFinal = valor.trim(); respuesta += `\n✅ Promo final actualizada.`; }
+      else if (campoLower === 'fraseincondicional')    { cfg.fraseIncondicional = valor.trim(); respuesta += `\n✅ Frase final actualizada.`; }
+      else if (campoLower === 'emojis')                { cfg.emojisPrincipales = valor.trim(); respuesta += `\n✅ Emojis: ${valor.trim()}`; }
+      else if (campoLower === 'maxlineas')             { cfg.maximoLineasRespuesta = parseInt(valor.trim()) || 4; respuesta += `\n✅ Límite: ${cfg.maximoLineasRespuesta} líneas.`; }
+      else if (campoLower === 'agregarprohibida')      { cfg.fraseProhibidas.push(valor.trim()); respuesta += `\n✅ Frase prohibida agregada.`; }
+      else if (campoLower === 'quitarprohibida')       { cfg.fraseProhibidas = cfg.fraseProhibidas.filter(f => !f.toLowerCase().includes(valor.trim().toLowerCase())); respuesta += `\n✅ Frase prohibida eliminada.`; }
+      else if (campoLower === 'instruccionespecial')   { cfg.instruccionesEspeciales = cfg.instruccionesEspeciales ? `${cfg.instruccionesEspeciales}\n- ${valor.trim()}` : `- ${valor.trim()}`; respuesta += `\n✅ Regla especial agregada.`; }
+      else if (campoLower === 'horario')               { cfg.horarioAtencion = valor.trim(); respuesta += `\n✅ Horario: ${valor.trim()}`; }
+      else if (campoLower === 'infopagos')             { cfg.infoPagos = valor.trim(); respuesta += `\n✅ Info pagos actualizada.`; }
+      else if (campoLower === 'infoenvios')            { cfg.infoEnvios = valor.trim(); respuesta += `\n✅ Info envíos actualizada.`; }
+      else if (campoLower === 'mensajepromofinal')     { cfg.mensajePromoFinal = valor.trim(); respuesta += `\n✅ Promo final actualizada.`; }
       else { respuesta += `\n⚠️ Campo "${campo}" no reconocido.`; }
-      cfg.actualizadoPor = 'Jack (El Patrón)';
+      cfg.actualizadoPor = 'Jack';
       await saveConfigBot(redis, cfg);
     }
 
@@ -1581,7 +1500,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       respuesta = respuesta.replace(/BIENVENIDA_ADD\|.+/g, '').trim();
       const cfg = await getConfigBot(redis);
       cfg.frasesBienvenida.push(matchBienvenidaAdd[1].trim());
-      cfg.actualizadoPor = 'Jack (El Patrón)';
+      cfg.actualizadoPor = 'Jack';
       await saveConfigBot(redis, cfg);
       respuesta += `\n✅ Bienvenida agregada. Total: ${cfg.frasesBienvenida.length} versiones.`;
     }
@@ -1591,7 +1510,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       respuesta = respuesta.replace(/BIENVENIDA_REPLACE\|.+/g, '').trim();
       const cfg = await getConfigBot(redis);
       cfg.frasesBienvenida = [matchBienvenidaReplace[1].trim()];
-      cfg.actualizadoPor = 'Jack (El Patrón)';
+      cfg.actualizadoPor = 'Jack';
       await saveConfigBot(redis, cfg);
       respuesta += `\n✅ Bienvenida única reemplazada.`;
     }
@@ -1601,7 +1520,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       respuesta = respuesta.replace(/AVISO\|.+/g, '').trim();
       const cfg = await getConfigBot(redis);
       cfg.avisoGeneral = matchAviso[1].trim() === 'BORRAR' ? '' : matchAviso[1].trim();
-      cfg.actualizadoPor = 'Jack (El Patrón)';
+      cfg.actualizadoPor = 'Jack';
       await saveConfigBot(redis, cfg);
       respuesta += matchAviso[1].trim() === 'BORRAR' ? `\n✅ Aviso borrado.` : `\n✅ Aviso activado.`;
     }
@@ -1612,7 +1531,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       respuesta = respuesta.replace(/PROMO_ADD\|.+/g, '').trim();
       const cfg = await getConfigBot(redis);
       cfg.promocionesActivas.push({ nombre: nombre.trim(), descripcion: descripcion.trim(), descuento: descuento.trim(), vigencia: vigencia.trim() });
-      cfg.actualizadoPor = 'Jack (El Patrón)';
+      cfg.actualizadoPor = 'Jack';
       await saveConfigBot(redis, cfg);
       respuesta += `\n✅ Promoción "${nombre.trim()}" activada.`;
     }
@@ -1622,7 +1541,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       respuesta = respuesta.replace(/PROMO_DEL\|.+/g, '').trim();
       const cfg = await getConfigBot(redis);
       cfg.promocionesActivas = cfg.promocionesActivas.filter(p => !p.nombre.toLowerCase().includes(matchPromoDel[1].trim().toLowerCase()));
-      cfg.actualizadoPor = 'Jack (El Patrón)';
+      cfg.actualizadoPor = 'Jack';
       await saveConfigBot(redis, cfg);
       respuesta += `\n✅ Promoción desactivada.`;
     }
@@ -1660,9 +1579,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     if (matchSpei) {
       const [, monto] = matchSpei;
       respuesta = respuesta.replace(/GENERAR_SPEI\|.+/g, '').trim();
-
       const referencia = `CT${tel.slice(-6)}${Date.now().toString().slice(-4)}`;
-
       perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
       perfil.etapaAbandono = 'pago';
       perfil.fechaAbandono = new Date().toISOString();
@@ -1682,16 +1599,12 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       try {
         const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
         await createTrace({
-          employeeId: convoTrace?.employeeId || "SISTEMA",
-          phone: tel,
-          type: "WHATSAPP",
+          employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
           summary: `Datos SPEI enviados al cliente por $${parseFloat(monto).toFixed(2)} MXN`,
           content: { direction: "outbound", event: "spei_generado", monto: parseFloat(monto), referencia },
           actionName: "SPEI_GENERADO",
         });
-      } catch (traceErr) {
-        console.error("⚠️ Error en createTrace (spei):", traceErr);
-      }
+      } catch (traceErr) { console.error("⚠️ Error en createTrace (spei):", traceErr); }
     }
 
     // ⏰ PROGRAMAR_RECORDATORIO
@@ -1726,20 +1639,15 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       console.log(`🆘 ESCALAMIENTO: ${duda}`);
       respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
       respuesta += `\n🆘 Ya notifiqué al equipo. Le contactarán en breve.`;
-
       try {
         const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
         await createTrace({
-          employeeId: convoTrace?.employeeId || "SISTEMA",
-          phone: tel,
-          type: "WHATSAPP",
-          summary: `Escalamiento solicitado por El Coyote: ${duda.substring(0, 80)}`,
+          employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
+          summary: `Escalamiento: ${duda.substring(0, 80)}`,
           content: { direction: "internal", event: "escalamiento", motivo: duda, clienteNombre: perfil.nombre, segmento: perfil.segmento },
           actionName: "ESCALAMIENTO_A_AGENTE",
         });
-      } catch (traceErr) {
-        console.error("⚠️ Error en createTrace (escalar):", traceErr);
-      }
+      } catch (traceErr) { console.error("⚠️ Error en createTrace (escalar):", traceErr); }
     }
 
     // 💳 GENERAR_COBRO (Stripe)
@@ -1749,43 +1657,28 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       respuesta = respuesta.replace(/GENERAR_COBRO\|.+/g, '').trim();
       const reqInvoice = rfc !== 'NONE' ? 'YES' : 'NO';
       const amountInCents = Math.round(parseFloat(monto) * 100);
-
       perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
       perfil.etapaAbandono = 'pago';
       perfil.fechaAbandono = new Date().toISOString();
       await saveCliente(redis, tel, perfil);
-
       try {
         const session = await stripe.checkout.sessions.create({
           payment_method_types: ['card', 'oxxo'],
-          line_items: [{
-            price_data: {
-              currency: 'mxn',
-              product_data: { name: 'Pedido Coyote Textil — El Coyote' },
-              unit_amount: amountInCents,
-            },
-            quantity: 1,
-          }],
+          line_items: [{ price_data: { currency: 'mxn', product_data: { name: 'Pedido Coyote Textil — El Coyote' }, unit_amount: amountInCents }, quantity: 1 }],
           mode: 'payment',
           success_url: 'https://wa.me/5215627301525',
           metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
         });
         respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Procesado por Stripe. Su transacción está protegida. 🐺_`;
-
         try {
           const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
           await createTrace({
-            employeeId: convoTrace?.employeeId || "SISTEMA",
-            phone: tel,
-            type: "WHATSAPP",
-            summary: `Link de pago Stripe generado: $${parseFloat(monto).toFixed(2)} MXN (${metodo})`,
+            employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
+            summary: `Link Stripe generado: $${parseFloat(monto).toFixed(2)} MXN (${metodo})`,
             content: { direction: "outbound", event: "stripe_link_generado", metodo, monto: parseFloat(monto), conFactura: reqInvoice === 'YES', sessionId: session.id },
             actionName: "LINK_STRIPE_GENERADO",
           });
-        } catch (traceErr) {
-          console.error("⚠️ Error en createTrace (stripe link):", traceErr);
-        }
-
+        } catch (traceErr) { console.error("⚠️ Error en createTrace (stripe link):", traceErr); }
       } catch (err) {
         console.error('Error Stripe:', err);
         respuesta += `\n\n⚠️ Inconveniente generando el link de pago. Nuestro equipo lo revisa de inmediato.`;
@@ -1803,18 +1696,14 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
   try {
     const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
     await createTrace({
-      employeeId: convoTrace?.employeeId || "SISTEMA",
-      phone: tel,
-      type: "WHATSAPP",
-      summary: `Respuesta del Coyote enviada: ${respuesta.substring(0, 60)}${respuesta.length > 60 ? '...' : ''}`,
+      employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
+      summary: `Respuesta del Coyote: ${respuesta.substring(0, 60)}${respuesta.length > 60 ? '...' : ''}`,
       content: { direction: "outbound", body: respuesta.trim(), tactica: perfil.tacticaActual, temperaturaCompra: perfil.temperaturaCompra, segmento: perfil.segmento },
       actionName: "RESPUESTA_BOT_COYOTE",
     });
-  } catch (traceErr) {
-    console.error("⚠️ Error en createTrace (respuesta bot):", traceErr);
-  }
+  } catch (traceErr) { console.error("⚠️ Error en createTrace (respuesta bot):", traceErr); }
 
-  // 👇 Espejear conversación en Prisma para el CRM
+  // Espejear en Prisma para el CRM
   try {
     let convoPrisma = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
     if (!convoPrisma) {
@@ -1832,9 +1721,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       where: { id: convoPrisma.id },
       data: { lastMessage: respuesta.trim(), lastMessageAt: new Date() }
     });
-  } catch (dbErr) {
-    console.error("⚠️ Error espejeando historial del bot en Prisma:", dbErr);
-  }
+  } catch (dbErr) { console.error("⚠️ Error espejeando historial en Prisma:", dbErr); }
 
   console.log(`✅ Flujo completo para ${tel}`);
 }
@@ -1869,9 +1756,9 @@ export async function POST(req: Request) {
     if (esStatusUpdate) {
       const statusObj = body.entry[0].changes[0].value.statuses[0];
       if (statusObj.status === "failed") {
-        console.error("❌ ERROR DE ENTREGA DE META:", JSON.stringify(statusObj.errors, null, 2));
+        console.error("❌ ERROR DE ENTREGA META:", JSON.stringify(statusObj.errors, null, 2));
       } else {
-        console.log(`📊 Status update de Meta: ${statusObj.status} (Ignorando)`);
+        console.log(`📊 Status update Meta: ${statusObj.status} (Ignorando)`);
       }
       return NextResponse.json({ ok: true }, { status: 200 });
     }

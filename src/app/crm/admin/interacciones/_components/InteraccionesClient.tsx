@@ -1,61 +1,173 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Paperclip, Send, Bot, User as UserIcon, ShieldAlert, Package, CheckCircle2, Phone } from "lucide-react";
+import { useState, useTransition, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { Search, Paperclip, Send, Bot, User as UserIcon, ShieldAlert, Package, CheckCircle2, Phone, Loader2, UserPlus, X } from "lucide-react";
+import { sendAdminMessage, toggleChatControl, createNewChat } from "../actions";
 
 type InteraccionesClientProps = {
   initialConversations: any[];
 };
 
 export default function InteraccionesClient({ initialConversations }: InteraccionesClientProps) {
+  const router = useRouter();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Estados
   const [activeChatId, setActiveChatId] = useState<string | null>(
     initialConversations.length > 0 ? initialConversations[0].id : null
   );
   const [inputText, setInputText] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  // Estados del Modal de Nuevo Contacto
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
 
   const activeChat = initialConversations.find((c) => c.id === activeChatId);
 
-  // Filtro de búsqueda en tiempo real
+  // Filtro de búsqueda
   const filteredConversations = initialConversations.filter((chat) => {
     const nameMatch = chat.contactName?.toLowerCase().includes(searchTerm.toLowerCase());
     const phoneMatch = chat.contactPhone?.includes(searchTerm);
     return nameMatch || phoneMatch;
   });
 
-  // Funciones placeholder para las Server Actions
+  // =========================================
+  // EFECTOS (Tiempo Real y Scroll)
+  // =========================================
+  useEffect(() => {
+    // Polling cada 3 segundos
+    const interval = setInterval(() => {
+      router.refresh();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [router]);
+
+  useEffect(() => {
+    // Auto-Scroll suave cuando cambian los mensajes
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeChat?.messages]);
+
+  // =========================================
+  // ACCIONES DE SERVIDOR
+  // =========================================
   const handleSendMessage = () => {
-    if (!inputText.trim() || !activeChat) return;
-    console.log("Enviando mensaje a:", activeChat.contactPhone, "Texto:", inputText);
-    setInputText("");
-    // TODO: Llamar a la Server Action para enviar a Meta y guardar en Prisma
+    if (!inputText.trim() || !activeChat || isPending) return;
+    
+    const textoAEnviar = inputText;
+    setInputText(""); // Limpiamos rápido para buena UX
+
+    startTransition(async () => {
+      const res = await sendAdminMessage(activeChat.id, activeChat.contactPhone, textoAEnviar);
+      if (!res?.success) {
+        alert(res?.error || "Error al enviar");
+        setInputText(textoAEnviar); // Regresamos el texto si falló
+      }
+    });
   };
 
   const handleTakeControl = () => {
-    if (!activeChat) return;
-    console.log("Tomando control del chat:", activeChat.id);
-    // TODO: Llamar a Server Action para actualizar handledBy a "ADMIN"
+    if (!activeChat || isPending) return;
+    const newTarget = activeChat.handledBy === "BOT" ? "ADMIN" : "BOT";
+    startTransition(async () => {
+      await toggleChatControl(activeChat.id, newTarget);
+    });
+  };
+
+  const handleCreateContact = () => {
+    if (!newContactPhone.trim() || isPending) return;
+    
+    startTransition(async () => {
+      const res = await createNewChat(newContactName, newContactPhone);
+      if (res?.success) {
+        setIsModalOpen(false);
+        setNewContactName("");
+        setNewContactPhone("");
+        if (res.conversationId) setActiveChatId(res.conversationId);
+      } else {
+        alert(res?.error || "Error al crear el contacto");
+      }
+    });
   };
 
   return (
-    <div className="flex-1 flex min-h-0 bg-[#111b21] border border-white/[0.03] rounded-2xl overflow-hidden shadow-2xl">
+    <div className="flex-1 flex min-h-0 bg-[#111b21] border border-white/[0.03] rounded-2xl overflow-hidden shadow-2xl relative">
       
+      {/* =========================================
+          MODAL: NUEVO CONTACTO
+      ========================================= */}
+      {isModalOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#202c33] p-6 rounded-2xl w-96 border border-white/10 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-white font-bold text-lg">Nuevo Contacto</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-[#8696a0] hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-[#8696a0] font-bold uppercase tracking-wider mb-1 block">Nombre del Cliente</label>
+                <input 
+                  type="text" 
+                  value={newContactName}
+                  onChange={(e) => setNewContactName(e.target.value)}
+                  placeholder="Ej. Juan Pérez"
+                  className="w-full h-10 rounded-lg bg-[#2a3942] border-none px-3 text-sm text-[#e9edef] focus:outline-none focus:ring-1 focus:ring-[#00a884]"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-[#8696a0] font-bold uppercase tracking-wider mb-1 block">Número de WhatsApp (con código de país)</label>
+                <input 
+                  type="text" 
+                  value={newContactPhone}
+                  onChange={(e) => setNewContactPhone(e.target.value)}
+                  placeholder="Ej. 525512345678"
+                  className="w-full h-10 rounded-lg bg-[#2a3942] border-none px-3 text-sm text-[#e9edef] focus:outline-none focus:ring-1 focus:ring-[#00a884]"
+                />
+              </div>
+            </div>
+
+            <div className="mt-8 flex justify-end gap-3">
+              <button onClick={() => setIsModalOpen(false)} disabled={isPending} className="px-4 py-2 rounded-lg text-sm font-bold text-[#8696a0] hover:bg-white/5 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={handleCreateContact} disabled={isPending} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-[#00a884] text-[#111b21] hover:bg-[#06cf9c] transition-colors disabled:opacity-50">
+                {isPending ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
+                Crear Chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* =========================================
           PANEL IZQUIERDO: LISTA DE CHATS
       ========================================= */}
       <div className="w-1/3 max-w-[380px] bg-[#111b21] border-r border-white/10 flex flex-col shrink-0">
-        {/* Buscador */}
-        <div className="p-3 bg-[#111b21] border-b border-white/5 shrink-0">
-          <div className="relative flex items-center w-full h-9 rounded-lg bg-[#202c33] overflow-hidden px-3">
+        {/* Buscador y Botón Nuevo */}
+        <div className="p-3 bg-[#111b21] border-b border-white/5 shrink-0 flex gap-2">
+          <div className="relative flex items-center flex-1 h-9 rounded-lg bg-[#202c33] overflow-hidden px-3">
             <Search size={16} className="text-[#8696a0]" />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="h-full w-full outline-none text-sm text-[#e9edef] bg-transparent pl-3 placeholder:text-[#8696a0]"
               type="text"
-              placeholder="Buscar un chat o número..."
+              placeholder="Buscar chat..."
             />
           </div>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="h-9 w-9 bg-[#202c33] rounded-lg flex items-center justify-center text-[#8696a0] hover:text-[#e9edef] transition-colors shrink-0 tooltip-trigger"
+            title="Nuevo Contacto"
+          >
+            <UserPlus size={18} />
+          </button>
         </div>
 
         {/* Lista de Conversaciones */}
@@ -111,7 +223,7 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
 
       {/* =========================================
           PANEL CENTRAL: EL CHAT
-      ========================================= */}
+      ======================================== */}
       <div className="flex-1 flex flex-col bg-[#0b141a] relative min-w-0">
         {activeChat ? (
           <>
@@ -129,12 +241,14 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
 
               <div className="flex gap-3 shrink-0">
                 {activeChat.handledBy === "BOT" ? (
-                  <button onClick={handleTakeControl} className="flex items-center gap-2 bg-[#FDCB02]/10 text-[#FDCB02] border border-[#FDCB02]/20 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#FDCB02]/20 transition-colors">
-                    <UserIcon size={14} /> Tomar Control
+                  <button onClick={handleTakeControl} disabled={isPending} className="flex items-center gap-2 bg-[#FDCB02]/10 text-[#FDCB02] border border-[#FDCB02]/20 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#FDCB02]/20 transition-colors disabled:opacity-50">
+                    {isPending ? <Loader2 size={14} className="animate-spin" /> : <UserIcon size={14} />} 
+                    Tomar Control
                   </button>
                 ) : (
-                  <button className="flex items-center gap-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-500/20 transition-colors">
-                    <Bot size={14} /> IA Activa
+                  <button onClick={handleTakeControl} disabled={isPending} className="flex items-center gap-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-500/20 transition-colors disabled:opacity-50">
+                    {isPending ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />} 
+                    Devolver a IA
                   </button>
                 )}
               </div>
@@ -162,6 +276,8 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
                   </div>
                 </div>
               ))}
+              {/* Ancla para el Scroll Automático */}
+              <div ref={messagesEndRef} />
             </div>
 
             {/* Input Footer */}
@@ -173,10 +289,11 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                 placeholder={activeChat.handledBy === "BOT" ? "Escribe para tomar el control..." : "Escribe un mensaje..."}
-                className="flex-1 h-10 rounded-lg bg-[#2a3942] border-none px-4 text-sm text-[#e9edef] placeholder:text-[#8696a0] focus:outline-none"
+                disabled={isPending}
+                className="flex-1 h-10 rounded-lg bg-[#2a3942] border-none px-4 text-sm text-[#e9edef] placeholder:text-[#8696a0] focus:outline-none disabled:opacity-50"
               />
-              <button onClick={handleSendMessage} className="w-10 h-10 rounded-full bg-[#00a884] text-[#111b21] flex items-center justify-center hover:bg-[#06cf9c] transition-colors shrink-0">
-                <Send size={18} className="ml-1 pl-0.5" />
+              <button onClick={handleSendMessage} disabled={isPending} className="w-10 h-10 rounded-full bg-[#00a884] text-[#111b21] flex items-center justify-center hover:bg-[#06cf9c] transition-colors shrink-0 disabled:opacity-50">
+                {isPending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} className="ml-1 pl-0.5" />}
               </button>
             </div>
           </>
@@ -193,7 +310,6 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
       ========================================= */}
       {activeChat?.user && (
         <div className="w-1/4 max-w-[300px] bg-[#111b21] border-l border-white/10 flex flex-col shrink-0">
-          {/* Perfil */}
           <div className="p-6 border-b border-white/5 flex flex-col items-center text-center shrink-0">
             <div className="w-20 h-20 rounded-full bg-[#374045] flex items-center justify-center text-2xl text-[#e9edef] font-bold mb-4">
               {activeChat.user.name?.charAt(0) || "U"}
@@ -209,7 +325,6 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#374045]">
-            {/* LTV */}
             <div>
               <h3 className="text-[10px] font-black text-[#8696a0] uppercase tracking-widest mb-1.5">LTV Acumulado</h3>
               <p className="text-lg font-mono font-bold text-emerald-400">
@@ -217,7 +332,6 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
               </p>
             </div>
 
-            {/* Pedidos Activos (Bodega) */}
             {activeChat.user.orders?.[0] ? (
               <div className="bg-[#202c33] border border-blue-500/20 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -245,7 +359,6 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
               </div>
             )}
 
-            {/* Auditoría Religiosa */}
             <div className="pt-6 border-t border-white/5">
                <button className="w-full border border-red-500/30 text-red-400 bg-red-500/10 text-[10px] font-bold py-2 rounded hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1.5 uppercase tracking-wider">
                   <ShieldAlert size={14} /> Suspender Agente
