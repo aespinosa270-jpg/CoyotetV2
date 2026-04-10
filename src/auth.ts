@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 // import { PrismaAdapter } from "@auth/prisma-adapter"; // 👈 Comentado porque no se usa con JWT y tabla custom
 import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs"; // 🔥 IMPORTANTE: Importar bcryptjs para comparar el hash
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   // adapter: PrismaAdapter(prisma), // 👈 Desactivado: Evita que NextAuth busque las tablas por defecto (User, Session)
@@ -45,8 +46,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         console.log("🔴 3. PASSWORD EN BD:", employee.password);
         console.log("🔴 4. PASSWORD INGRESADO:", credentials.password);
 
-        // ⚠️ Nota: Si usas contraseñas encriptadas después, cambia esto por bcrypt.compare
-        const isValid = employee.password === credentials.password; 
+        // 🔥 FIX: Usamos bcrypt.compare para validar el texto plano contra el hash de Prisma
+        const isValid = await bcrypt.compare(
+          credentials.password as string, 
+          employee.password
+        ); 
 
         if (!isValid) {
           console.log("🔴 FALLO: Las contraseñas no hacen match exacto.");
