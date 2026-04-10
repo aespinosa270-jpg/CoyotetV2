@@ -11,7 +11,9 @@ const AGENT_ROLES = ["VENDEDORA", "LOGISTICA"];
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session      = req.auth;           // auth() inyecta req.auth en v5
-  const isLoginPage  = pathname === "/crm/login";
+  
+  // 🔥 FIX 1: Usar startsWith previene bucles si Vercel inyecta un trailing slash (/crm/login/)
+  const isLoginPage  = pathname.startsWith("/crm/login");
 
   // =========================================================
   // 1. STOREFRONT
@@ -33,7 +35,9 @@ export default auth((req) => {
 
   // Si ya tiene sesión y va al login → redirige según rol
   if (isLoginPage && session) {
-    const role = session.user?.employeeRole ?? "";
+    // 🔥 FIX 2: Leemos "role" en lugar de "employeeRole" porque así lo armó NextAuth en tu auth.ts
+    const role = (session.user as any)?.role ?? ""; 
+    
     return NextResponse.redirect(
       new URL(ADMIN_ROLES.includes(role) ? "/crm/admin" : "/crm/agente", req.url)
     );
@@ -43,7 +47,8 @@ export default auth((req) => {
   // 3. CONTROL DE ACCESO POR ROL
   // =========================================================
   if (session) {
-    const role = session.user?.employeeRole ?? "";
+    // Mismo ajuste aquí para leer "role"
+    const role = (session.user as any)?.role ?? "";
 
     if (pathname.startsWith("/crm/admin") && !ADMIN_ROLES.includes(role)) {
       return NextResponse.redirect(new URL("/crm/agente", req.url));
