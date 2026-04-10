@@ -10,9 +10,8 @@ export interface RoutingDecision {
 
 // 🧠 ALGORITMO: Buscar al agente humano con menos chats abiertos
 async function getLeastBusyAgent() {
-  // Asumiendo que tu tabla se llama "employee" o "user" con un rol específico
   const agents = await prisma.employee.findMany({
-    // where: { role: "AGENT" }, // 💡 Descomenta si usas roles para diferenciarlos
+    where: { role: "VENDEDORA" }, // 💡 Asegúrate de usar un rol que exista en tu EmployeeRole
     select: {
       id: true,
       _count: {
@@ -45,10 +44,12 @@ export async function determineRouting(phone: string, channel: "WHATSAPP" | "CAL
 
     if (activeConvo) {
       return {
-        action: "ROUTE_TO_AGENT",
+        // 🔥 FIX: Cambiamos ROUTE_TO_AGENT por ROUTE_TO_AI_BOT. 
+        // El bot siempre entra, pero mantenemos los IDs para no perder el hilo.
+        action: "ROUTE_TO_AI_BOT", 
         agentId: activeConvo.employeeId || undefined,
         conversationId: activeConvo.id,
-        reason: "El cliente ya tiene un chat activo. Manteniendo con el mismo agente."
+        reason: "El cliente tiene un chat activo con un agente, pero se fuerza la respuesta de la IA."
       };
     }
   }
@@ -71,10 +72,11 @@ export async function determineRouting(phone: string, channel: "WHATSAPP" | "CAL
 
     if (bestAgent) {
       return {
-        action: "ROUTE_TO_AGENT",
+        // 🔥 FIX: También aquí aseguramos que la IA responda por WhatsApp a los VIP, 
+        // aunque por debajo ya le hayamos asignado el agente menos ocupado.
+        action: channel === "WHATSAPP" ? "ROUTE_TO_AI_BOT" : "ROUTE_TO_AGENT",
         agentId: bestAgent.id,
-        // No pasamos conversationId porque es un chat nuevo que hay que crear
-        reason: `Socio VIP. Asignado al agente menos ocupado (${bestAgent.id}).`
+        reason: `Socio VIP. Asignado al agente (${bestAgent.id}), pero la IA atiende en WA.`
       };
     }
   }
