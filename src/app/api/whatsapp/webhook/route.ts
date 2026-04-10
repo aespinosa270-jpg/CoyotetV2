@@ -37,14 +37,14 @@ async function agentEstaActivo(conversationId: string): Promise<boolean> {
         conversationId,
         role: "AGENT",
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { sentAt: "desc" },
     });
 
     if (!ultimoMensajeAgente) return false; // Nunca hubo agente → bot activo
 
     const ahora = Date.now();
-    const tiempoUltimoMsg = new Date(ultimoMensajeAgente.createdAt).getTime();
-    const silencioMs = ahora - tiempoUltimoMsg;
+    const tiempoUltimoMsg = new Date(ultimoMensajeAgente.sentAt).getTime();
+        const silencioMs = ahora - tiempoUltimoMsg;
 
     const agenteActivo = silencioMs < AGENT_SILENCE_TIMEOUT_MS;
 
