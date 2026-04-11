@@ -148,9 +148,9 @@ async function saveConfigBot(redis: Redis, config: ConfigBot) {
 // ==========================================
 interface ClientePerfil {
   nombre: string;
-  correoElectronico?: string;       // ← NUEVO
-  correoVerificado?: boolean;       // ← NUEVO
-  privacidadAceptada?: boolean;     // ← NUEVO
+  correoElectronico?: string;
+  correoVerificado?: boolean;
+  privacidadAceptada?: boolean;
   genero: 'hombre' | 'mujer' | 'unknown';
   telefono: string;
   primerContacto: string;
@@ -193,6 +193,11 @@ interface ClientePerfil {
   nivelConfianza?: number;
   diasEntreCompras?: number;
   ultimaFechaCompra?: string;
+  // ── Nuevos campos: T&C y Membresía ──
+  terminosAceptados?: boolean;
+  membresiaOfrecida?: boolean;
+  tieneSuscripcion?: boolean;
+  planMembresia?: string;
 }
 
 interface PedidoRegistro {
@@ -467,6 +472,25 @@ async function detectarGenero(nombre: string): Promise<'hombre' | 'mujer' | 'unk
     if (g === 'hombre' || g === 'mujer') return g;
     return 'unknown';
   } catch { return 'unknown'; }
+}
+
+// ==========================================
+// 🏆 VERIFICAR MEMBRESÍA DE SOCIO
+// ==========================================
+async function verificarMembresia(tel: string): Promise<{ activa: boolean; plan?: string }> {
+  try {
+    const user = await prisma.user.findFirst({ where: { phone: tel } });
+    if (!user) return { activa: false };
+    const sub = await (prisma as any).subscription?.findFirst?.({
+      where: {
+        userId: user.id,
+        status: { in: ['active', 'ACTIVA', 'ACTIVE', 'VIGENTE'] },
+      },
+    });
+    return { activa: !!sub, plan: sub?.plan || sub?.type || 'Socio Coyote' };
+  } catch {
+    return { activa: false };
+  }
 }
 
 // ==========================================
@@ -890,6 +914,9 @@ async function handleWhatsappWebhook(body: any) {
       tacticaActual: 'social_proof',
       nivelConfianza: 40,
       propensionCross: { hilos: 20, elasticos: 10, volumenExtra: 15 },
+      terminosAceptados: false,
+      membresiaOfrecida: false,
+      tieneSuscripcion: false,
     };
     await saveCliente(redis, tel, perfil);
     const bienvenida = config.frasesBienvenida[Math.floor(Math.random() * config.frasesBienvenida.length)];
@@ -906,7 +933,6 @@ async function handleWhatsappWebhook(body: any) {
   // ==========================================
   if (!perfil.nombre) {
     const primerNombre = msgCliente.trim().split(/\s+/)[0];
-    // Detectar si parece un nombre real (≥2 chars, sin símbolos de pregunta ni números)
     const pareceNombre = primerNombre.length >= 2 && !/[¿?!0-9@]/.test(primerNombre);
 
     if (pareceNombre) {
@@ -915,7 +941,6 @@ async function handleWhatsappWebhook(body: any) {
       perfil.ultimoContacto = new Date().toISOString();
       await saveCliente(redis, tel, perfil);
 
-      // Inmediatamente pedir el correo como verificación
       const pedirCorreo = `🐺 *El Coyote al habla.* Mucho gusto, *${perfil.nombre}*. Para verificar su cuenta y enviarle cotizaciones, actualizaciones y facturación, ¿me comparte su correo electrónico por favor?`;
       const h = await getHistorial(redis, tel);
       h.push({ role: 'user', content: msgCliente });
@@ -924,7 +949,6 @@ async function handleWhatsappWebhook(body: any) {
       await enviarWhatsapp(tel, pedirCorreo);
       return;
     } else {
-      // No parece nombre — insistir
       const insistirNombre = `🐺 Para darle atención personalizada, necesito saber su nombre. ¿Con quién tengo el gusto?`;
       const h = await getHistorial(redis, tel);
       h.push({ role: 'user', content: msgCliente });
@@ -948,7 +972,6 @@ async function handleWhatsappWebhook(body: any) {
       perfil.ultimoContacto = new Date().toISOString();
       await saveCliente(redis, tel, perfil);
 
-      // Confirmar correo y mostrar aviso de privacidad
       const confirmacionYPrivacidad =
         `✅ Correo registrado: *${perfil.correoElectronico}*\n\n` +
         `¡Hola! 👋 Antes de continuar, queremos informarle que tratamos sus datos personales conforme a nuestro Aviso de Privacidad.\n` +
@@ -962,7 +985,6 @@ async function handleWhatsappWebhook(body: any) {
       await enviarWhatsapp(tel, confirmacionYPrivacidad);
       return;
     } else {
-      // No detectó correo — insistir amablemente
       const insistirCorreo =
         `🐺 Para verificar su cuenta y poder enviarle cotizaciones y facturación, necesito su correo electrónico. ` +
         `¿Me lo comparte por favor? (Ejemplo: nombre@empresa.com)`;
@@ -1012,7 +1034,6 @@ async function handleWhatsappWebhook(body: any) {
       await enviarWhatsapp(tel, respuestaNo);
       return;
     } else {
-      // No respondió claramente — reenviar aviso
       const reenviarAviso =
         `🐺 Necesito su respuesta para continuar. ¿Nos autoriza a enviarle promociones, actualizaciones y comunicaciones comerciales?\n\n` +
         `🔒 Aviso de Privacidad: https://www.coyotetextil.com/privacy\n\n` +
@@ -1030,6 +1051,14 @@ async function handleWhatsappWebhook(body: any) {
   // 🐺 FLUJO NORMAL DE VENTA (verificación completa)
   // ==========================================
   perfil.ultimoContacto = new Date().toISOString();
+
+  // 🏆 Verificar suscripción activa en Prisma
+  const estadoMembresia = await verificarMembresia(tel);
+  if (estadoMembresia.activa && !perfil.tieneSuscripcion) {
+    perfil.tieneSuscripcion = true;
+    perfil.planMembresia = estadoMembresia.plan;
+    await saveCliente(redis, tel, perfil);
+  }
 
   let historial = await getHistorial(redis, tel);
   perfil = await analizarPatronesCliente(redis, perfil, msgCliente, historial);
@@ -1182,6 +1211,38 @@ NUNCA baje el precio sin obtener algo a cambio.`;
     }
   })();
 
+  // ── Bloque de estado T&C y Membresía para el prompt ─────────────────────────
+  const bloqueMembresia = (() => {
+    if (estadoMembresia.activa) {
+      return `✅ CLIENTE CON MEMBRESÍA ACTIVA (Plan: ${perfil.planMembresia || 'Socio Coyote'})
+Al momento de cerrar la venta, reconozca su membresía y aplique sus beneficios:
+• Precio de mayoreo garantizado en toda compra
+• Acceso prioritario a nuevos lotes y colores exclusivos
+• Facturación 4.0 automática incluida sin trámites
+• Rastreo satelital y envío prioritario nacional
+• Soporte dedicado de la Jauría Coyote 24/7
+• Reserva de stock con hasta 72h de anticipación
+Mencione: "Como Socio Coyote 👑, su pedido lleva todos los beneficios de su membresía activa."`;
+    }
+    if (perfil.membresiaOfrecida) {
+      return `⬜ MEMBRESÍA YA FUE OFRECIDA Y DECLINADA — No la mencione de nuevo. Proceda directo al cobro una vez aceptados los T&C.`;
+    }
+    return `⚠️ CLIENTE SIN MEMBRESÍA — Ofrezca UNA sola vez, justo antes del cobro (si aún no fue ofrecida):
+Texto exacto a usar:
+"Antes de procesar su pago, le comento que tenemos nuestro *Programa Socios Coyote* 🐺👑:
+• Precio de mayoreo garantizado en cada compra
+• Acceso prioritario a lotes y colores exclusivos
+• Facturación 4.0 automática incluida
+• Envío prioritario con rastreo satelital
+• Soporte dedicado 24/7 de la Jauría
+• Reserva de stock con 72h de anticipación
+Más información: https://www.coyotetextil.com/membresia
+¿Le interesa activar su membresía, o continuamos con su pedido?"
+
+Si acepta → use: ESCALAR|Cliente interesado en Membresía Socios Coyote
+Si declina → emita: MEMBRESIA_OFRECIDA y proceda con el cobro`;
+  })();
+
   const resumenCliente = `
 PERFIL DEL CLIENTE:
 - Nombre: ${perfil.nombre} | Género: ${perfil.genero} | Segmento: ${perfil.segmento || 'prospecto'}
@@ -1197,6 +1258,9 @@ PERFIL DEL CLIENTE:
 - ${alertaDireccion}
 - CP Fiscal: ${perfil.cpFiscal || 'no registrado'}
 - Notas: ${perfil.notas || 'ninguna'}
+- Términos aceptados: ${perfil.terminosAceptados ? '✅ SÍ' : '❌ NO'}
+- Membresía activa: ${estadoMembresia.activa ? `✅ SÍ (${perfil.planMembresia || 'Socio Coyote'})` : '❌ NO'}
+- Membresía ofrecida: ${perfil.membresiaOfrecida ? '✅ YA OFRECIDA' : '⬜ Pendiente'}
 ${alertaTemperatura}
 ${alertaPrediccion}
 ${alertaPatron}
@@ -1330,10 +1394,25 @@ Al tener el CP → "¿Requiere factura fiscal?"
 PASO 5 — MÉTODO DE PAGO:
 "¿Cerramos con tarjeta, OXXO o SPEI?"
 
-PASO 6 — EJECUTAR COBRO:
-Según respuesta → GENERAR_COBRO o GENERAR_SPEI.
+PASO 5.5 — PRE-CIERRE OBLIGATORIO (ANTES DE COBRAR):
+Antes de ejecutar cualquier cobro, DEBE completar en orden:
 
-ATAJO: Si el cliente da producto + cantidad + color + CP en un solo mensaje → salte directo al total con envío + factura.
+  A) TÉRMINOS Y CONDICIONES:
+  Si perfil.terminosAceptados = false → presente los T&C y solicite aceptación:
+  "Para formalizar su pedido, le pido confirmar que ha leído y acepta nuestros
+  Términos y Condiciones: https://www.coyotetextil.com/terms
+  ¿Acepta? Responda *SÍ* para continuar."
+  → Cuando responda SÍ: emita TERMINOS_ACEPTADOS en su respuesta
+  → Cuando responda NO: "Sin aceptación de Términos no es posible procesar el pedido."
+  Si perfil.terminosAceptados = true → omita este paso, ya está aceptado.
+
+  B) MEMBRESÍA SOCIOS COYOTE:
+  ${bloqueMembresia}
+
+PASO 6 — EJECUTAR COBRO:
+Solo cuando T&C estén aceptados (y membresía resuelta) → GENERAR_COBRO o GENERAR_SPEI.
+
+ATAJO: Si el cliente da producto + cantidad + color + CP en un solo mensaje → salte directo al total con envío + factura, pero SIEMPRE pase por el Paso 5.5 antes del cobro.
 
 ════════════════════════════════════════════════════════
 🔥 MOTOR DE CIERRE — LEY MÁXIMA
@@ -1349,6 +1428,8 @@ REGLA 1 — CIERRE EN CADA MENSAJE:
 Cada respuesta debe terminar con UNA pregunta que avance hacia el pago:
 • "¿Qué color necesita?"  • "¿Cuántos kilos requiere?"
 • "¿Su CP para incluir el envío?"  • "¿Requiere factura?"
+• "¿Acepta nuestros Términos y Condiciones?"
+• "¿Le interesa la Membresía Socios Coyote?"
 • "¿Cerramos con tarjeta, OXXO o SPEI?"
 NUNCA termine con "¿En qué más le puedo ayudar?"
 
@@ -1376,6 +1457,7 @@ Entréguelo de inmediato. Sin más preguntas:
 
 REGLA 8 — ESCALAMIENTO A HUMANO:
 Si el cliente pide explícitamente hablar con un humano, se muestra muy molesto, o pide una cotización mayor a 1,000 kg, use INMEDIATAMENTE el comando: ESCALAR|motivo_breve
+
 ════════════════════════════════════════════════════════
 🧠 MEMORIA PERSISTENTE
 ════════════════════════════════════════════════════════
@@ -1385,6 +1467,8 @@ Si el cliente pide explícitamente hablar con un humano, se muestra muy molesto,
 • Si tiene etapaAbandono = 'pago' → entregue el link/SPEI pendiente de inmediato.
 • NUNCA envíe bienvenida a cliente con historial.
 • NUNCA pregunte el nombre ni el correo si ya los tiene registrados.
+• Si terminosAceptados = true → NUNCA vuelva a pedir T&C.
+• Si membresiaOfrecida = true → NUNCA vuelva a ofrecer la membresía.
 
 ════════════════════════════════════════════════════════
 🚨 PAGOS — TRES MÉTODOS
@@ -1406,6 +1490,8 @@ ENVÍO: CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345
 DATOS_CLIENTE|direccion:[dir]|cp_fiscal:[cp]|productos:[lista]|categorias:[telas/hilos/elasticos]|notas:[nota]|etapa_abandono:[etapa]|intereses:[uso]
 PROGRAMAR_RECORDATORIO|${tel}|[fecha ISO]|[mensaje]
 ESCALAR|descripcion
+TERMINOS_ACEPTADOS  ← (sin parámetros) Emítalo cuando el cliente confirme aceptar los T&C
+MEMBRESIA_OFRECIDA  ← (sin parámetros) Emítalo cuando el cliente decline la membresía
 
 ⚠️ CP ENVÍO ≠ CP FISCAL. NUNCA los mezcle.
 
@@ -1519,6 +1605,31 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
   ];
   for (const patron of frasesSinIdentidad) {
     if (patron.test(respuesta)) respuesta = respuesta.replace(patron, 'El Coyote de Coyote Textil');
+  }
+
+  // ✅ PROCESAR TERMINOS_ACEPTADOS
+  if (/TERMINOS_ACEPTADOS/i.test(respuesta)) {
+    respuesta = respuesta.replace(/TERMINOS_ACEPTADOS/gi, '').trim();
+    perfil.terminosAceptados = true;
+    await saveCliente(redis, tel, perfil);
+    console.log(`✅ Términos y Condiciones aceptados por ${tel}`);
+    try {
+      const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
+      await createTrace({
+        employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
+        summary: `Cliente aceptó Términos y Condiciones`,
+        content: { direction: "inbound", event: "terminos_aceptados" },
+        actionName: "TERMINOS_ACEPTADOS",
+      });
+    } catch (traceErr) { console.error("⚠️ Error en createTrace (terminos):", traceErr); }
+  }
+
+  // 🏆 PROCESAR MEMBRESIA_OFRECIDA
+  if (/MEMBRESIA_OFRECIDA/i.test(respuesta)) {
+    respuesta = respuesta.replace(/MEMBRESIA_OFRECIDA/gi, '').trim();
+    perfil.membresiaOfrecida = true;
+    await saveCliente(redis, tel, perfil);
+    console.log(`📋 Membresía ofrecida y rechazada por ${tel} — continuar con cobro normal`);
   }
 
   // 📊 PROCESAR DATOS_CLIENTE
@@ -1772,60 +1883,56 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     }
 
     // 🆘 ESCALAR
-        const matchEscalar = respuesta.match(/ESCALAR\|(.+)/i);
-        if (matchEscalar) {
-          const [, duda] = matchEscalar;
-          console.log(`🆘 ESCALAMIENTO: ${duda}`);
-          respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
-          respuesta += `\n🐺 Entendido. Acabo de generar un ticket de alta prioridad. Un asesor de la Jauría tomará este chat en breve para darle atención personal.`;
-          
-          try {
-            // 1. Buscar o crear el Usuario (Prisma exige un userId para crear un Ticket)
-            let userPrisma = await prisma.user.findFirst({ where: { phone: tel } });
-            if (!userPrisma) {
-              userPrisma = await prisma.user.create({
-                data: {
-                  email: perfil.correoElectronico || `prospecto_${Date.now()}@coyotetextil.local`,
-                  password: "bot-generated",
-                  phone: tel,
-                  name: perfil.nombre || "Prospecto WA",
-                  role: "USER"
-                }
-              });
-            }
-    
-            // 2. Crear el Ticket para que aparezca en el tablero visual del Admin
-            await prisma.ticket.create({
-              data: {
-                userId: userPrisma.id,
-                subject: "Escalamiento WA: " + (perfil.nombre || "Cliente"),
-                description: duda,
-                status: "ABIERTO",
-                priority: "ALTA",
-              }
-            });
-    
-            // 3. Pasar el control del chat al ADMIN para que el bot deje de hablar
-            await prisma.waConversation.updateMany({
-              where: { contactPhone: tel },
-              data: {
-                handledBy: "ADMIN",
-                unreadCount: { increment: 1 } // Hará que brille en el panel de interacciones
-              }
-            });
-    
-            // 4. Tu Trace original de auditoría
-            const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
-            await createTrace({
-              employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
-              summary: `Escalamiento: ${duda.substring(0, 80)}`,
-              content: { direction: "internal", event: "escalamiento", motivo: duda, clienteNombre: perfil.nombre, segmento: perfil.segmento },
-              actionName: "ESCALAMIENTO_A_AGENTE",
-            });
-          } catch (dbErr) { 
-            console.error("⚠️ Error en DB durante el escalamiento:", dbErr); 
+    const matchEscalar = respuesta.match(/ESCALAR\|(.+)/i);
+    if (matchEscalar) {
+      const [, duda] = matchEscalar;
+      console.log(`🆘 ESCALAMIENTO: ${duda}`);
+      respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
+      respuesta += `\n🐺 Entendido. Acabo de generar un ticket de alta prioridad. Un asesor de la Jauría tomará este chat en breve para darle atención personal.`;
+
+      try {
+        let userPrisma = await prisma.user.findFirst({ where: { phone: tel } });
+        if (!userPrisma) {
+          userPrisma = await prisma.user.create({
+            data: {
+              email: perfil.correoElectronico || `prospecto_${Date.now()}@coyotetextil.local`,
+              password: "bot-generated",
+              phone: tel,
+              name: perfil.nombre || "Prospecto WA",
+              role: "USER"
+            }
+          });
+        }
+
+        await prisma.ticket.create({
+          data: {
+            userId: userPrisma.id,
+            subject: "Escalamiento WA: " + (perfil.nombre || "Cliente"),
+            description: duda,
+            status: "ABIERTO",
+            priority: "ALTA",
           }
-        }
+        });
+
+        await prisma.waConversation.updateMany({
+          where: { contactPhone: tel },
+          data: {
+            handledBy: "ADMIN",
+            unreadCount: { increment: 1 }
+          }
+        });
+
+        const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
+        await createTrace({
+          employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
+          summary: `Escalamiento: ${duda.substring(0, 80)}`,
+          content: { direction: "internal", event: "escalamiento", motivo: duda, clienteNombre: perfil.nombre, segmento: perfil.segmento },
+          actionName: "ESCALAMIENTO_A_AGENTE",
+        });
+      } catch (dbErr) {
+        console.error("⚠️ Error en DB durante el escalamiento:", dbErr);
+      }
+    }
 
     // 💳 GENERAR_COBRO (Stripe)
     const matchCobro = respuesta.match(/GENERAR_COBRO\|(.+?)\|([\d.]+)\|(.+?)\|(.+?)\|(.+?)\|(.+?)\|(.+)/i);
