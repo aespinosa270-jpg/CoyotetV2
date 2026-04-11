@@ -1,11 +1,17 @@
 import { getTicketsAbiertos, getTicketKPIs } from "@/app/actions/tickets";
+import { prisma } from "@/lib/prisma"; // ✅ Agregamos Prisma para buscar agentes
 import TicketsNav from "../_components/TicketsNav";
 import AbiertosClient from "./_components/AbiertosClient";
 
 export default async function AbiertosPage() {
-  const [tickets, kpis] = await Promise.all([
+  const [tickets, kpis, agentes] = await Promise.all([
     getTicketsAbiertos(),
     getTicketKPIs(),
+    // ✅ Traemos a los agentes activos
+    prisma.employee.findMany({
+      where: { isActive: true, role: { in: ["VENDEDORA", "SUPERVISOR", "ADMIN"] } },
+      select: { id: true, name: true, role: true }
+    })
   ]);
 
   const serialized = tickets.map((t) => ({
@@ -43,7 +49,9 @@ export default async function AbiertosPage() {
         </div>
       </div>
       <TicketsNav kpis={kpis} />
-      <AbiertosClient tickets={serialized} />
+      
+      {/* ✅ Pasamos los agentes al cliente */}
+      <AbiertosClient tickets={serialized} agentes={agentes} />
     </div>
   );
 }

@@ -5,8 +5,8 @@ import { motion } from "framer-motion";
 import { Search, Plus, Clock } from "lucide-react";
 import { TicketPriority } from "@prisma/client";
 import { resolveTicketAction, updateTicketStatusAction } from "@/app/actions/tickets";
+import { assignTicket } from "@/app/crm/admin/tickets/actions"; // ✅ Importamos tu función de asignar
 
-// Tipado corregido para que coincida exactamente con lo que manda page.tsx
 type Ticket = {
   id: string; 
   subject: string; 
@@ -19,6 +19,12 @@ type Ticket = {
   order:    { id: string; orderNumber: string } | null;
   _count:   { messages: number };
 };
+
+// ✅ Agregamos el tipo de Agentes
+interface Props {
+  tickets: Ticket[];
+  agentes: { id: string; name: string; role: string }[];
+}
 
 const PRIORITY_CFG: Record<TicketPriority, { label: string; cls: string; clockCls: string }> = {
   URGENTE: { label: "Urgente", cls: "bg-red-500/10 text-red-400 border-red-500/30",         clockCls: "text-red-400"    },
@@ -33,7 +39,6 @@ function timeOpen(iso: string) {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
-// Función segura para sacar iniciales
 function getInitials(name: string) {
   const parts = name.trim().split(" ");
   if (parts.length === 0) return "XX";
@@ -41,7 +46,7 @@ function getInitials(name: string) {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
-export default function AbiertosClient({ tickets }: { tickets: Ticket[] }) {
+export default function AbiertosClient({ tickets, agentes }: Props) {
   const [search, setSearch]  = useState("");
   const [isPending, startTransition]  = useTransition();
 
@@ -50,11 +55,20 @@ export default function AbiertosClient({ tickets }: { tickets: Ticket[] }) {
       t.user.name?.toLowerCase().includes(search.toLowerCase()) ||
       t.subject.toLowerCase().includes(search.toLowerCase())    ||
       t.description.toLowerCase().includes(search.toLowerCase()) ||
-      t.user.company?.toLowerCase().includes(search.toLowerCase()) // Agregado búsqueda por empresa
+      t.user.company?.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleResolve  = (id: string) => startTransition(async () => { await resolveTicketAction(id); });
   const handleRevision = (id: string) => startTransition(async () => { await updateTicketStatusAction(id, "EN_REVISION"); });
+  
+  // ✅ Nueva función para manejar el selector
+  const handleAssign = (ticketId: string, employeeId: string) => {
+    if (!employeeId) return;
+    startTransition(async () => {
+      const res = await assignTicket(ticketId, employeeId);
+      if (!res.success) alert("Error al asignar: " + res.error);
+    });
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden shadow-2xl relative">
@@ -128,6 +142,7 @@ export default function AbiertosClient({ tickets }: { tickets: Ticket[] }) {
                     <p className="text-[10px] text-zinc-500 italic line-clamp-1 mt-0.5">{ticket.description}</p>
                   </td>
                   <td className="px-6 py-4">
+                    {/* ✅ AQUÍ ESTÁ EL SELECTOR */}
                     {ticket.employee ? (
                       <div className="flex items-center gap-1.5">
                         <div className="w-5 h-5 rounded bg-[#FDCB02] text-black text-[8px] font-black flex items-center justify-center shrink-0">
@@ -136,7 +151,18 @@ export default function AbiertosClient({ tickets }: { tickets: Ticket[] }) {
                         <span className="text-[10px] text-zinc-400 truncate max-w-[80px]">{ticket.employee.name}</span>
                       </div>
                     ) : (
-                      <span className="text-[10px] text-zinc-700 italic">Sin asignar</span>
+                      <select 
+                        className="w-32 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded px-2 py-1 text-[10px] uppercase font-bold outline-none cursor-pointer focus:border-[#FDCB02] transition-colors appearance-none"
+                        onChange={(e) => handleAssign(ticket.id, e.target.value)}
+                        defaultValue=""
+                      >
+                        <option value="" disabled>ASIGNAR ▼</option>
+                        {agentes.map(a => (
+                          <option key={a.id} value={a.id} className="bg-[#111] text-white normal-case">
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
                     )}
                   </td>
                   <td className="px-6 py-4">
