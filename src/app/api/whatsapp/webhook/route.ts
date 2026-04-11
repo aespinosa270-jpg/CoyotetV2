@@ -1374,6 +1374,8 @@ REGLA 7 — SI YA HAY LINK GENERADO:
 Entréguelo de inmediato. Sin más preguntas:
 "Aquí su link de pago seguro 👇\n[LINK]\nEn cuanto confirme, bodega recibe su pedido. 🐺"
 
+REGLA 8 — ESCALAMIENTO A HUMANO:
+Si el cliente pide explícitamente hablar con un humano, se muestra muy molesto, o pide una cotización mayor a 1,000 kg, use INMEDIATAMENTE el comando: ESCALAR|motivo_breve
 ════════════════════════════════════════════════════════
 🧠 MEMORIA PERSISTENTE
 ════════════════════════════════════════════════════════
@@ -1770,22 +1772,60 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     }
 
     // 🆘 ESCALAR
-    const matchEscalar = respuesta.match(/ESCALAR\|(.+)/i);
-    if (matchEscalar) {
-      const [, duda] = matchEscalar;
-      console.log(`🆘 ESCALAMIENTO: ${duda}`);
-      respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
-      respuesta += `\n🆘 Ya notifiqué al equipo. Le contactarán en breve.`;
-      try {
-        const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
-        await createTrace({
-          employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
-          summary: `Escalamiento: ${duda.substring(0, 80)}`,
-          content: { direction: "internal", event: "escalamiento", motivo: duda, clienteNombre: perfil.nombre, segmento: perfil.segmento },
-          actionName: "ESCALAMIENTO_A_AGENTE",
-        });
-      } catch (traceErr) { console.error("⚠️ Error en createTrace (escalar):", traceErr); }
-    }
+        const matchEscalar = respuesta.match(/ESCALAR\|(.+)/i);
+        if (matchEscalar) {
+          const [, duda] = matchEscalar;
+          console.log(`🆘 ESCALAMIENTO: ${duda}`);
+          respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
+          respuesta += `\n🐺 Entendido. Acabo de generar un ticket de alta prioridad. Un asesor de la Jauría tomará este chat en breve para darle atención personal.`;
+          
+          try {
+            // 1. Buscar o crear el Usuario (Prisma exige un userId para crear un Ticket)
+            let userPrisma = await prisma.user.findFirst({ where: { phone: tel } });
+            if (!userPrisma) {
+              userPrisma = await prisma.user.create({
+                data: {
+                  email: perfil.correoElectronico || `prospecto_${Date.now()}@coyotetextil.local`,
+                  password: "bot-generated",
+                  phone: tel,
+                  name: perfil.nombre || "Prospecto WA",
+                  role: "USER"
+                }
+              });
+            }
+    
+            // 2. Crear el Ticket para que aparezca en el tablero visual del Admin
+            await prisma.ticket.create({
+              data: {
+                userId: userPrisma.id,
+                subject: "Escalamiento WA: " + (perfil.nombre || "Cliente"),
+                description: duda,
+                status: "ABIERTO",
+                priority: "ALTA",
+              }
+            });
+    
+            // 3. Pasar el control del chat al ADMIN para que el bot deje de hablar
+            await prisma.waConversation.updateMany({
+              where: { contactPhone: tel },
+              data: {
+                handledBy: "ADMIN",
+                unreadCount: { increment: 1 } // Hará que brille en el panel de interacciones
+              }
+            });
+    
+            // 4. Tu Trace original de auditoría
+            const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
+            await createTrace({
+              employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
+              summary: `Escalamiento: ${duda.substring(0, 80)}`,
+              content: { direction: "internal", event: "escalamiento", motivo: duda, clienteNombre: perfil.nombre, segmento: perfil.segmento },
+              actionName: "ESCALAMIENTO_A_AGENTE",
+            });
+          } catch (dbErr) { 
+            console.error("⚠️ Error en DB durante el escalamiento:", dbErr); 
+          }
+        }
 
     // 💳 GENERAR_COBRO (Stripe)
     const matchCobro = respuesta.match(/GENERAR_COBRO\|(.+?)\|([\d.]+)\|(.+?)\|(.+?)\|(.+?)\|(.+?)\|(.+)/i);
