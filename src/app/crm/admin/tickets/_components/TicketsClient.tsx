@@ -1,26 +1,27 @@
+// src/app/crm/admin/tickets/_components/TicketsClient.tsx
 "use client";
 
 import { useState, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, Plus, CheckCircle2, 
-  MessageSquare, MoreVertical, Building2, User2, Clock, Tag
+  MessageSquare, MoreVertical, User2, Clock, Tag
 } from 'lucide-react';
-import { updateTicketStatusAction } from '@/app/actions/tickets';
+import { updateTicketStatusAction } from '@/app/actions/tickets'; 
+import { assignTicket } from '../actions'; // ✅ Importamos tu nueva acción
 import Link from 'next/link';
 import { TicketPriority, TicketStatus } from '@prisma/client';
 
 type TabType = "abiertos" | "pendientes" | "cerrados";
 
-// Interfaz adaptada a tu Prisma Query
 interface TicketData {
   id: string;
   subject: string;
   description: string;
   priority: TicketPriority;
   status: TicketStatus;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
   employee: { id: string; name: string } | null;
   user: { id: string; name: string; email: string; company: string | null } | null;
   order: { id: string; orderNumber: string } | null;
@@ -29,14 +30,14 @@ interface TicketData {
 
 interface Props {
   initialData: Record<TabType, TicketData[]>;
+  agentes: { id: string; name: string; role: string }[]; // ✅ Agregamos los agentes a los props
 }
 
-export default function TicketsClient({ initialData }: Props) {
+export default function TicketsClient({ initialData, agentes }: Props) {
   const [activeTab, setActiveTab] = useState<TabType>("abiertos");
   const [searchTerm, setSearchTerm] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  // Estado local para Optimistic UI (que el ticket desaparezca al instante)
   const [localData, setLocalData] = useState(initialData);
 
   const currentTickets = localData[activeTab];
@@ -52,7 +53,6 @@ export default function TicketsClient({ initialData }: Props) {
 
   // Mover a resuelto
   const handleResolve = (ticketId: string) => {
-    // 1. Optimistic Update (Desaparece de "abiertos" y se va a "cerrados")
     const ticketToMove = localData.abiertos.find(t => t.id === ticketId) || localData.pendientes.find(t => t.id === ticketId);
     if (!ticketToMove) return;
 
@@ -63,12 +63,39 @@ export default function TicketsClient({ initialData }: Props) {
       cerrados: [{ ...ticketToMove, status: "RESUELTO" }, ...prev.cerrados]
     }));
 
-    // 2. Ejecutar en Base de Datos
     startTransition(async () => {
       const res = await updateTicketStatusAction(ticketId, "RESUELTO");
       if (!res.success) {
         alert("Error al resolver el ticket: " + res.error);
-        window.location.reload(); // Rollback en caso de error
+        window.location.reload(); 
+      }
+    });
+  };
+
+  // ✅ NUEVO: Función para Asignar Agente
+  const handleAssign = (ticketId: string, employeeId: string) => {
+    const ticketToMove = localData.abiertos.find(t => t.id === ticketId);
+    if (!ticketToMove) return;
+
+    const assignedAgent = agentes.find(a => a.id === employeeId);
+
+    // Optimistic Update: Lo sacamos de abiertos y lo metemos a pendientes
+    setLocalData(prev => ({
+      ...prev,
+      abiertos: prev.abiertos.filter(t => t.id !== ticketId),
+      pendientes: [{ 
+        ...ticketToMove, 
+        status: "EN_REVISION", 
+        employee: { id: employeeId, name: assignedAgent?.name || "" } 
+      }, ...prev.pendientes]
+    }));
+
+    // Disparamos al backend
+    startTransition(async () => {
+      const res = await assignTicket(ticketId, employeeId);
+      if (!res.success) {
+        alert("Error al asignar: " + res.error);
+        window.location.reload(); 
       }
     });
   };
@@ -136,7 +163,6 @@ export default function TicketsClient({ initialData }: Props) {
 
       {/* ─── ÁREA DE TRABAJO ─── */}
       <main className="flex-1 p-6 overflow-hidden flex flex-col gap-4">
-        
         <div className="flex justify-between items-end mb-2 shrink-0">
           <div>
             <h2 className="text-2xl font-black uppercase tracking-tighter">
@@ -221,9 +247,9 @@ export default function TicketsClient({ initialData }: Props) {
                           </p>
                         </td>
 
-                        {/* 4. Detalles Técnicos */}
+                        {/* 4. Detalles Técnicos (AQUÍ VA LA ASIGNACIÓN) */}
                         <td className="px-8 py-6">
-                          <div className="flex flex-col gap-1.5">
+                          <div className="flex flex-col gap-2">
                             {ticket.order ? (
                               <div className="flex items-center gap-2 text-[10px] text-neutral-400 font-mono bg-white/5 w-fit px-2 py-0.5 rounded border border-white/5">
                                 <Tag size={10} className="text-[#FDCB02]" /> OP-{ticket.order.orderNumber}
@@ -231,8 +257,30 @@ export default function TicketsClient({ initialData }: Props) {
                             ) : (
                               <span className="text-[10px] text-neutral-600 italic">Sin OP Vinculada</span>
                             )}
-                            <div className="flex items-center gap-2 text-[10px] text-neutral-500 uppercase font-black">
-                              <User2 size={10} /> {ticket.employee?.name || "Sin Asignar"}
+                            
+                            {/* Selector integrado */}
+                            <div className="flex items-center gap-2 text-[10px] text-neutral-500 uppercase font-black mt-1">
+                              <User2 size={12} className={ticket.employee ? "text-emerald-400" : "text-neutral-600"} />
+                              
+                              {activeTab === "abiertos" && !ticket.employee ? (
+                                <select 
+                                  className="bg-transparent border-b border-dashed border-neutral-600 text-white focus:outline-none focus:border-[#FDCB02] cursor-pointer appearance-none w-32"
+                                  onChange={(e) => handleAssign(ticket.id, e.target.value)}
+                                  defaultValue=""
+                                  disabled={isPending}
+                                >
+                                  <option value="" disabled className="bg-[#111]">Asignar Agente...</option>
+                                  {agentes.map(a => (
+                                    <option key={a.id} value={a.id} className="bg-[#111] text-white">
+                                      {a.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className={ticket.employee ? "text-emerald-400" : ""}>
+                                  {ticket.employee?.name || "Sin Asignar"}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -242,7 +290,7 @@ export default function TicketsClient({ initialData }: Props) {
                           <div className="flex items-center gap-2">
                             <Clock size={12} className={ticket.priority === 'URGENTE' && activeTab === 'abiertos' ? 'text-[#EF4444]' : 'text-neutral-600'} />
                             <span className={`text-[10px] font-mono ${ticket.priority === 'URGENTE' && activeTab === 'abiertos' ? 'text-[#EF4444] font-bold' : 'text-neutral-500'}`}>
-                              {activeTab === "cerrados" ? ticket.updatedAt : ticket.createdAt}
+                              {new Date(activeTab === "cerrados" ? ticket.updatedAt : ticket.createdAt).toLocaleDateString()}
                             </span>
                           </div>
                         </td>

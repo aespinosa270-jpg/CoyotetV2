@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { motion } from "framer-motion";
-import { Search, Clock, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Search, Clock, ShieldCheck, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { TicketPriority, TicketStatus } from "@prisma/client";
+import { resolveTicket } from "../actions"; // ✅ Importamos la acción de cierre
 
 type Ticket = {
   id:           string;
@@ -42,10 +43,13 @@ function timeOpen(iso: string) {
 }
 
 export default function MisTicketsClient({ tickets }: { tickets: Ticket[] }) {
+  // ✅ Estado local para la actualización optimista
+  const [localTickets, setLocalTickets] = useState<Ticket[]>(tickets);
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState<TicketStatus | "TODOS">("TODOS");
+  const [isPending, startTransition]    = useTransition();
 
-  const filtered = tickets.filter((t) => {
+  const filtered = localTickets.filter((t) => {
     const matchSearch =
       t.subject.toLowerCase().includes(search.toLowerCase())      ||
       t.description.toLowerCase().includes(search.toLowerCase())  ||
@@ -54,6 +58,25 @@ export default function MisTicketsClient({ tickets }: { tickets: Ticket[] }) {
     const matchStatus = filterStatus === "TODOS" || t.status === filterStatus;
     return matchSearch && matchStatus;
   });
+
+  // ✅ Función para resolver el ticket
+  const handleResolve = (ticketId: string) => {
+    if (isPending) return;
+
+    // 1. Optimistic Update (Se pone verde al instante en la UI)
+    setLocalTickets(prev => prev.map(t => 
+      t.id === ticketId ? { ...t, status: "RESUELTO", updatedAt: new Date().toISOString() } : t
+    ));
+
+    // 2. Disparamos al backend
+    startTransition(async () => {
+      const res = await resolveTicket(ticketId);
+      if (!res?.success) {
+        alert(res?.error || "Error al resolver el ticket");
+        window.location.reload(); // Rollback visual si falla la base de datos
+      }
+    });
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden">
@@ -64,7 +87,7 @@ export default function MisTicketsClient({ tickets }: { tickets: Ticket[] }) {
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar ticket, cliente o número..."
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-1.5 pl-9 pr-4 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-red-500/40 transition-all"
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-1.5 pl-9 pr-4 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 transition-all"
           />
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -75,10 +98,10 @@ export default function MisTicketsClient({ tickets }: { tickets: Ticket[] }) {
                 : "text-zinc-600 border-zinc-800 hover:text-zinc-400"
             }`}
           >
-            Todos <span className="ml-1 opacity-60">{tickets.length}</span>
+            Todos <span className="ml-1 opacity-60">{localTickets.length}</span>
           </button>
           {ALL_STATUSES.map((s) => {
-            const cnt = tickets.filter((t) => t.status === s).length;
+            const cnt = localTickets.filter((t) => t.status === s).length;
             if (cnt === 0) return null;
             const cfg = STATUS_CFG[s];
             return (
@@ -113,7 +136,8 @@ export default function MisTicketsClient({ tickets }: { tickets: Ticket[] }) {
                 <th className="px-6 py-4">Asunto</th>
                 <th className="px-6 py-4">Cliente</th>
                 <th className="px-6 py-4">Prioridad</th>
-                <th className="px-6 py-4 text-right">Tiempo</th>
+                <th className="px-6 py-4 text-center">Tiempo</th>
+                <th className="px-6 py-4 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.02]">
@@ -168,8 +192,8 @@ export default function MisTicketsClient({ tickets }: { tickets: Ticket[] }) {
                     </td>
 
                     {/* Tiempo */}
-                    <td className="px-6 py-4 text-right">
-                      <div className={`flex items-center justify-end gap-1 font-mono text-[10px] ${
+                    <td className="px-6 py-4 text-center">
+                      <div className={`flex items-center justify-center gap-1 font-mono text-[10px] ${
                         open ? "text-zinc-400" : "text-zinc-700"
                       }`}>
                         {open && <Clock size={10} />}
@@ -181,6 +205,21 @@ export default function MisTicketsClient({ tickets }: { tickets: Ticket[] }) {
                         }
                       </div>
                     </td>
+
+                    {/* ✅ Acciones */}
+                    <td className="px-6 py-4 text-right">
+                      {open && (
+                        <button 
+                          onClick={() => handleResolve(ticket.id)}
+                          disabled={isPending}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500 hover:text-black disabled:opacity-50 inline-flex items-center gap-1"
+                        >
+                          <CheckCircle2 size={12} />
+                          Resolver
+                        </button>
+                      )}
+                    </td>
+
                   </motion.tr>
                 );
               })}
