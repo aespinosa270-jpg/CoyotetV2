@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, CheckCircle2, Clock, Tag } from 'lucide-react';
+import { Search, Plus, Clock } from 'lucide-react';
 import { assignTicket, resolveTicketAdmin } from '../actions'; 
 import Link from 'next/link';
 import { TicketPriority, TicketStatus } from '@prisma/client';
@@ -55,14 +55,10 @@ export default function TicketsClient({ initialData, agentes }: Props) {
 
   // ✅ FUNCIÓN RESOLVER
   const handleResolve = async (ticketId: string) => {
-    console.log("Intentando resolver ticket:", ticketId);
     if (isLoading) return;
     
     const ticketToMove = localData.abiertos.find(t => t.id === ticketId) || localData.pendientes.find(t => t.id === ticketId);
-    if (!ticketToMove) {
-      console.log("No se encontró el ticket en las pestañas activas.");
-      return;
-    }
+    if (!ticketToMove) return;
 
     setIsLoading(true);
 
@@ -76,13 +72,11 @@ export default function TicketsClient({ initialData, agentes }: Props) {
 
     try {
       const res = await resolveTicketAdmin(ticketId);
-      console.log("Respuesta del servidor al resolver:", res);
       if (!res?.success) {
         alert("Error al resolver: " + res?.error);
         window.location.reload(); 
       }
     } catch (e) {
-      console.error("Error de red al resolver:", e);
       alert("Error de conexión con el servidor.");
     } finally {
       setIsLoading(false);
@@ -91,7 +85,6 @@ export default function TicketsClient({ initialData, agentes }: Props) {
 
   // ✅ FUNCIÓN ASIGNAR
   const handleAssign = async (ticketId: string, employeeId: string) => {
-    console.log("Asignando ticket:", ticketId, "a empleado:", employeeId);
     if (isLoading || !employeeId) return;
 
     const ticketToMove = localData.abiertos.find(t => t.id === ticketId);
@@ -113,13 +106,11 @@ export default function TicketsClient({ initialData, agentes }: Props) {
 
     try {
       const res = await assignTicket(ticketId, employeeId);
-      console.log("Respuesta del servidor al asignar:", res);
       if (!res?.success) {
         alert("Error al asignar: " + res?.error);
         window.location.reload(); 
       }
     } catch (e) {
-      console.error("Error de red al asignar:", e);
       alert("Error de conexión con el servidor.");
     } finally {
       setIsLoading(false);
@@ -127,10 +118,10 @@ export default function TicketsClient({ initialData, agentes }: Props) {
   };
 
   const getPriorityStyles = (p: TicketPriority) => {
-    if (p === 'URGENTE') return 'border border-red-500/50 text-red-500';
-    if (p === 'ALTA') return 'border border-orange-500/50 text-orange-500';
-    if (p === 'MEDIA') return 'border border-[#FDCB02]/50 text-[#FDCB02]';
-    return 'border border-zinc-700 text-zinc-500';
+    if (p === 'URGENTE') return 'border border-red-500/50 text-red-500 bg-red-500/10';
+    if (p === 'ALTA') return 'border border-orange-500/50 text-orange-500 bg-orange-500/10';
+    if (p === 'MEDIA') return 'border border-[#FDCB02]/50 text-[#FDCB02] bg-[#FDCB02]/10';
+    return 'border border-zinc-700 text-zinc-400 bg-zinc-800/50';
   };
 
   return (
@@ -247,28 +238,26 @@ export default function TicketsClient({ initialData, agentes }: Props) {
                           </p>
                         </td>
 
-                        {/* 4. Agente (AQUÍ ESTÁ LA MAGIA DEL SELECT) */}
+                        {/* 4. Agente (SELECT OBVIO Y VISIBLE) */}
                         <td className="px-8 py-5">
                           {ticket.employee ? (
                             <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider">
                               {ticket.employee.name}
                             </span>
                           ) : (
-                            <div className="relative inline-block w-40">
-                              <select 
-                                className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-zinc-400 text-[11px] outline-none cursor-pointer hover:border-[#FDCB02] transition-colors"
-                                onChange={(e) => handleAssign(ticket.id, e.target.value)}
-                                value=""
-                                disabled={isLoading}
-                              >
-                                <option value="" disabled>Seleccionar agente ▼</option>
-                                {agentes.map(a => (
-                                  <option key={a.id} value={a.id} className="bg-[#111] text-white">
-                                    {a.name} ({a.role})
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
+                            <select 
+                              className="w-36 bg-zinc-900 border border-zinc-700 text-zinc-300 rounded px-2 py-1.5 text-[10px] font-bold uppercase outline-none cursor-pointer focus:border-[#FDCB02] transition-colors"
+                              onChange={(e) => handleAssign(ticket.id, e.target.value)}
+                              defaultValue=""
+                              disabled={isLoading}
+                            >
+                              <option value="" disabled>ASIGNAR A... ▼</option>
+                              {agentes.map(a => (
+                                <option key={a.id} value={a.id} className="bg-[#111] text-white normal-case">
+                                  {a.name}
+                                </option>
+                              ))}
+                            </select>
                           )}
                         </td>
 
@@ -285,24 +274,21 @@ export default function TicketsClient({ initialData, agentes }: Props) {
                         {/* 6. Acciones */}
                         <td className="px-8 py-5 text-right">
                           <div className="flex items-center justify-end gap-3">
-                            
-                            {/* BOTÓN REVISAR */}
                             <Link 
                               href="/crm/admin/interacciones" 
-                              className="border border-orange-500/50 text-orange-500 px-4 py-2 rounded text-[9px] font-black uppercase tracking-widest hover:bg-orange-500/10 transition-colors"
+                              className="border border-orange-500/50 text-orange-500 bg-orange-500/10 px-4 py-2 rounded text-[9px] font-black uppercase tracking-widest hover:bg-orange-500 hover:text-white transition-colors"
                             >
                               Revisar
                             </Link>
 
-                            {/* BOTÓN RESOLVER */}
                             {activeTab !== "cerrados" && (
                               <button 
                                 type="button"
                                 onClick={() => handleResolve(ticket.id)}
                                 disabled={isLoading}
-                                className="border border-emerald-500/50 text-emerald-500 px-4 py-2 rounded text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="border border-emerald-500/50 text-emerald-500 bg-emerald-500/10 px-4 py-2 rounded text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                Resolver
+                                {isLoading ? "..." : "Resolver"}
                               </button>
                             )}
                           </div>
@@ -316,12 +302,6 @@ export default function TicketsClient({ initialData, agentes }: Props) {
           </div>
         </div>
       </main>
-
-      <style dangerouslySetInnerHTML={{__html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #333; }
-      `}} />
     </div>
   );
 }
