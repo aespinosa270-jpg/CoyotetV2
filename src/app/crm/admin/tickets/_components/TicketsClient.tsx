@@ -1,11 +1,10 @@
 // src/app/crm/admin/tickets/_components/TicketsClient.tsx
 "use client";
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, CheckCircle2, Clock, Tag } from 'lucide-react';
-import { updateTicketStatusAction } from '@/app/actions/tickets'; 
-import { assignTicket } from '../actions'; 
+import { assignTicket, resolveTicketAdmin } from '../actions'; 
 import Link from 'next/link';
 import { TicketPriority, TicketStatus } from '@prisma/client';
 
@@ -30,7 +29,6 @@ interface Props {
   agentes: { id: string; name: string; role: string }[]; 
 }
 
-// Función helper para simular el "0h" de tu diseño
 function getTimeAgo(date: string | Date) {
   const h = Math.floor((Date.now() - new Date(date).getTime()) / 3600000);
   if (h < 1) return `${Math.floor((Date.now() - new Date(date).getTime()) / 60000)}m`;
@@ -41,7 +39,7 @@ function getTimeAgo(date: string | Date) {
 export default function TicketsClient({ initialData, agentes }: Props) {
   const [activeTab, setActiveTab] = useState<TabType>("abiertos");
   const [searchTerm, setSearchTerm] = useState("");
-  const [isPending, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState(false); 
   const [localData, setLocalData] = useState(initialData);
 
   const currentTickets = localData[activeTab];
@@ -55,55 +53,77 @@ export default function TicketsClient({ initialData, agentes }: Props) {
     );
   });
 
-  // Mover a resuelto
-  const handleResolve = (ticketId: string) => {
-    if (isPending) return;
+  // ✅ FUNCIÓN RESOLVER
+  const handleResolve = async (ticketId: string) => {
+    console.log("Intentando resolver ticket:", ticketId);
+    if (isLoading) return;
+    
     const ticketToMove = localData.abiertos.find(t => t.id === ticketId) || localData.pendientes.find(t => t.id === ticketId);
-    if (!ticketToMove) return;
+    if (!ticketToMove) {
+      console.log("No se encontró el ticket en las pestañas activas.");
+      return;
+    }
 
-    // Optimistic Update
+    setIsLoading(true);
+
+    // Mover visualmente al instante
     setLocalData(prev => ({
       ...prev,
       abiertos: prev.abiertos.filter(t => t.id !== ticketId),
       pendientes: prev.pendientes.filter(t => t.id !== ticketId),
-      cerrados: [{ ...ticketToMove, status: "RESUELTO" }, ...prev.cerrados]
+      cerrados: [{ ...ticketToMove, status: "RESUELTO" as TicketStatus }, ...prev.cerrados]
     }));
 
-    startTransition(async () => {
-      const res = await updateTicketStatusAction(ticketId, "RESUELTO");
-      if (!res.success) {
-        alert("Error al resolver el ticket: " + res.error);
+    try {
+      const res = await resolveTicketAdmin(ticketId);
+      console.log("Respuesta del servidor al resolver:", res);
+      if (!res?.success) {
+        alert("Error al resolver: " + res?.error);
         window.location.reload(); 
       }
-    });
+    } catch (e) {
+      console.error("Error de red al resolver:", e);
+      alert("Error de conexión con el servidor.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Asignar Agente
-  const handleAssign = (ticketId: string, employeeId: string) => {
-    if (isPending) return;
+  // ✅ FUNCIÓN ASIGNAR
+  const handleAssign = async (ticketId: string, employeeId: string) => {
+    console.log("Asignando ticket:", ticketId, "a empleado:", employeeId);
+    if (isLoading || !employeeId) return;
+
     const ticketToMove = localData.abiertos.find(t => t.id === ticketId);
     if (!ticketToMove) return;
 
+    setIsLoading(true);
     const assignedAgent = agentes.find(a => a.id === employeeId);
 
-    // Optimistic Update
+    // Mover visualmente al instante
     setLocalData(prev => ({
       ...prev,
       abiertos: prev.abiertos.filter(t => t.id !== ticketId),
       pendientes: [{ 
         ...ticketToMove, 
-        status: "EN_REVISION", 
+        status: "EN_REVISION" as TicketStatus, 
         employee: { id: employeeId, name: assignedAgent?.name || "" } 
       }, ...prev.pendientes]
     }));
 
-    startTransition(async () => {
+    try {
       const res = await assignTicket(ticketId, employeeId);
-      if (!res.success) {
-        alert("Error al asignar: " + res.error);
+      console.log("Respuesta del servidor al asignar:", res);
+      if (!res?.success) {
+        alert("Error al asignar: " + res?.error);
         window.location.reload(); 
       }
-    });
+    } catch (e) {
+      console.error("Error de red al asignar:", e);
+      alert("Error de conexión con el servidor.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getPriorityStyles = (p: TicketPriority) => {
@@ -234,17 +254,17 @@ export default function TicketsClient({ initialData, agentes }: Props) {
                               {ticket.employee.name}
                             </span>
                           ) : (
-                            <div className="relative inline-block w-32">
+                            <div className="relative inline-block w-40">
                               <select 
-                                className="w-full bg-transparent text-zinc-500 italic text-[11px] outline-none cursor-pointer hover:text-white transition-colors appearance-none"
+                                className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-zinc-400 text-[11px] outline-none cursor-pointer hover:border-[#FDCB02] transition-colors"
                                 onChange={(e) => handleAssign(ticket.id, e.target.value)}
-                                defaultValue=""
-                                disabled={isPending}
+                                value=""
+                                disabled={isLoading}
                               >
-                                <option value="" disabled className="italic">Sin asignar</option>
+                                <option value="" disabled>Seleccionar agente ▼</option>
                                 {agentes.map(a => (
-                                  <option key={a.id} value={a.id} className="bg-[#111] text-white not-italic font-sans">
-                                    {a.name}
+                                  <option key={a.id} value={a.id} className="bg-[#111] text-white">
+                                    {a.name} ({a.role})
                                   </option>
                                 ))}
                               </select>
@@ -262,7 +282,7 @@ export default function TicketsClient({ initialData, agentes }: Props) {
                           </div>
                         </td>
 
-                        {/* 6. Acciones (BOTONES IDENTICOS A TU DISEÑO) */}
+                        {/* 6. Acciones */}
                         <td className="px-8 py-5 text-right">
                           <div className="flex items-center justify-end gap-3">
                             
@@ -277,8 +297,9 @@ export default function TicketsClient({ initialData, agentes }: Props) {
                             {/* BOTÓN RESOLVER */}
                             {activeTab !== "cerrados" && (
                               <button 
+                                type="button"
                                 onClick={() => handleResolve(ticket.id)}
-                                disabled={isPending}
+                                disabled={isLoading}
                                 className="border border-emerald-500/50 text-emerald-500 px-4 py-2 rounded text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Resolver
