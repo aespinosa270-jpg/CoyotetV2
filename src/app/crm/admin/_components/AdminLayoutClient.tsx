@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, Target, Ticket,
   MessageSquare, Clock, BarChart, Settings,
   Search, Bell, Menu, X, ChevronDown, LogOut,
-  User, Package, Warehouse, Truck, AlertTriangle,
+  User, Package, Warehouse, Truck, AlertTriangle, ShieldCheck
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { EmployeeRole } from "@prisma/client";
@@ -64,6 +64,13 @@ const menuItems = [
     submenus: [
       { name: "Hoy",     href: "/crm/admin/horarios"        },
       { name: "Semanal", href: "/crm/admin/horarios/semana" },
+    ],
+  },
+  {
+    name: "Vigilancia QA",     icon: ShieldCheck,     href: "/crm/admin/calidad",
+    submenus: [
+      { name: "Monitor Calidad IA", href: "/crm/admin/calidad" },
+      { name: "Logs del Sistema",   href: "/crm/admin/auditoria" },
     ],
   },
   { name: "Reportes",       icon: BarChart,   href: "/crm/admin/reportes"      },

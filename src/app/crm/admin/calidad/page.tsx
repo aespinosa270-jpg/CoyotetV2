@@ -1,6 +1,5 @@
 import { getQualityMetrics } from "./actions";
 import QualityDashboardClient from "./_components/QualityDashboardClient";
-import { Stethoscope } from "lucide-react";
 import { redirect } from "next/navigation";
 
 export const dynamic = 'force-dynamic';
@@ -23,20 +22,29 @@ export default async function QualityMonitorPage() {
   };
 
   return (
-    <div className="h-full flex flex-col p-4 md:p-8 bg-[#050505] overflow-hidden font-mono text-white min-h-screen">
-      <div className="mb-6 shrink-0 flex items-center gap-4">
-        <div className="bg-[#FDCB02]/10 p-3 rounded-2xl border border-[#FDCB02]/20">
-          <Stethoscope className="text-[#FDCB02]" size={24} />
-        </div>
+    <div className="p-6 md:p-8 w-full max-w-[1600px] mx-auto">
+      
+      {/* ─── HEADER COYOTE ADMIN (Adaptado a tu captura) ─── */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
         <div>
-          <p className="text-[10px] tracking-[0.4em] text-[#FDCB02]/70 uppercase mb-1 font-black">Quality Assurance</p>
-          <h1 className="text-3xl font-black uppercase tracking-tighter italic">
-            Monitor de <span className="text-white">Calidad (IA)</span>
+          <p className="text-[10px] tracking-widest text-gray-500 uppercase font-bold mb-1">
+            CRM / AUDITORÍA QA
+          </p>
+          <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter italic flex items-center gap-2">
+            <span className="text-black">MONITOR</span>
+            <span className="text-[#FDCB02]">CALIDAD IA</span>
           </h1>
+        </div>
+        
+        {/* Badge derecho estilo captura */}
+        <div className="bg-[#FFF8D6] border border-[#FDCB02] text-[#B28D00] px-4 py-2 rounded font-black text-xs uppercase tracking-widest">
+          INFRACCIONES: {serializedData.flags.length}
         </div>
       </div>
 
+      {/* ─── CONTENIDO PRINCIPAL ─── */}
       <QualityDashboardClient data={serializedData} />
+      
     </div>
   );
 }
