@@ -1,99 +1,101 @@
-import 'package:flutter/material.dart';
-import 'package:isar/isar.dart';
-import 'package:path_provider/path_provider.dart';
-import 'models/product.dart';
-import 'services/api_service.dart';
+"use server";
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+import { prisma } from "@/lib/prisma";
+import OpenAI from "openai";
+
+// Inicializamos OpenAI de forma segura
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+type QualityCheckPayload = {
+  sourceId: string;      // ID del WaMessage o TicketMessage
+  sourceType: "WHATSAPP" | "TICKET";
+  employeeId: string;
+  text: string;
+};
+
+// Interfaz para la respuesta de la IA
+interface IAEvaluation {
+  isFlagged: boolean;
+  reason: string;
+  category: "LENGUAJE" | "PROMESA_FALSA" | "DESCUENTO_NO_AUTORIZADO" | "OK";
+}
+
+export async function evaluateInteractionQuality({ 
+  sourceId, 
+  sourceType, 
+  employeeId, 
+  text 
+}: QualityCheckPayload) {
   
-  final dir = await getApplicationDocumentsDirectory();
-  final isar = await Isar.open(
-    [ProductSchema],
-    directory: dir.path,
-  );
+  // Si el texto está vacío, no perdemos dinero en la API
+  if (!text || text.trim().length < 2) return { success: false, error: "Texto insuficiente" };
 
-  runApp(CoyoteApp(isar: isar));
-}
+  try {
+    // 1. El System Prompt: Configuración del Auditor
+    const systemPrompt = `
+      Eres el Auditor Jefe de Calidad de Coyote Textil (CRM Logístico).
+      Analiza el mensaje enviado por un agente y detecta infracciones.
 
-class CoyoteApp extends StatelessWidget {
-  final Isar isar;
-  const CoyoteApp({Key? key, required this.isar}) : super(key: key);
+      INFRACCIONES:
+      1. "LENGUAJE": Groserías, insultos, tono pasivo-agresivo o excesivamente informal.
+      2. "PROMESA_FALSA": Prometer tiempos exactos (ej. "llega en 5 min") o cosas fuera de control.
+      3. "DESCUENTO_NO_AUTORIZADO": Ofrecer reembolsos o productos gratis sin permiso previo.
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Coyote Textil',
-      theme: ThemeData.dark().copyWith(
-        primaryColor: Colors.orange,
-        scaffoldBackgroundColor: const Color(0xFF121212),
-      ),
-      home: CatalogScreen(isar: isar),
-    );
-  }
-}
+      REGLA: Si el mensaje es profesional, ayuda al cliente o es una disculpa válida, marca como OK.
 
-class CatalogScreen extends StatefulWidget {
-  final Isar isar;
-  const CatalogScreen({Key? key, required this.isar}) : super(key: key);
+      Responde ÚNICAMENTE con este formato JSON:
+      {
+        "isFlagged": boolean,
+        "reason": "Explicación breve",
+        "category": "LENGUAJE" | "PROMESA_FALSA" | "DESCUENTO_NO_AUTORIZADO" | "OK"
+      }
+    `;
 
-  @override
-  State<CatalogScreen> createState() => _CatalogScreenState();
-}
-
-class _CatalogScreenState extends State<CatalogScreen> {
-  late ApiService apiService;
-  List<Product> localProducts = [];
-  bool isSyncing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    apiService = ApiService(widget.isar);
-    _loadLocalData();
-  }
-
-  Future<void> _loadLocalData() async {
-    final products = await widget.isar.products.where().findAll();
-    setState(() {
-      localProducts = products;
+    // 2. Llamada a OpenAI
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Mensaje del agente: "${text}"` }
+      ],
+      temperature: 0, // Máxima consistencia
     });
-  }
 
-  Future<void> _syncWithNextJs() async {
-    setState(() => isSyncing = true);
-    await apiService.syncCatalog();
-    await _loadLocalData();
-    setState(() => isSyncing = false);
-  }
+    const responseContent = completion.choices[0].message.content;
+    if (!responseContent) throw new Error("No hubo respuesta de OpenAI");
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Catálogo Coyote (Offline)'),
-        actions: [
-          IconButton(
-            icon: isSyncing 
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
-              : const Icon(Icons.sync),
-            onPressed: isSyncing ? null : _syncWithNextJs,
-          )
-        ],
-      ),
-      body: localProducts.isEmpty
-          ? const Center(child: Text("Toca el botón de arriba para sincronizar"))
-          : ListView.builder(
-              itemCount: localProducts.length,
-              itemBuilder: (context, index) {
-                final product = localProducts[index];
-                return ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.inventory_2)),
-                  title: Text(product.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("SKU: ${product.sku} | \$${product.priceMenudeo}"),
-                );
-              },
-            ),
-    );
+    const evaluation = JSON.parse(responseContent) as IAEvaluation;
+
+    // 3. Lógica de Auditoría en Base de Datos
+    // Solo creamos log si hay infracción real
+    if (evaluation.isFlagged && evaluation.category !== "OK") {
+      await prisma.auditLog.create({
+        data: {
+          employeeId: employeeId,
+          action: "FLAG_CALIDAD", // Asegúrate de que este String/Enum sea válido en tu Prisma
+          resourceId: `${sourceType}_${sourceId}`,
+          ipAddress: "AI_MONITOR_SYSTEM",
+          metadata: {
+            summary: `Infracción: ${evaluation.category}`,
+            aiReason: evaluation.reason,
+            originalText: text,
+            severity: evaluation.category === "LENGUAJE" ? "CRITICAL" : "HIGH",
+            timestamp: new Date().toISOString()
+          }
+        }
+      });
+
+      console.warn(`🚩 [ALERTA] Infracción de calidad detectada en Agente ${employeeId}`);
+    }
+
+    return { success: true, evaluation };
+
+  } catch (error) {
+    console.error("🚨 Error en qualityMonitor:", error);
+    // Retornamos success false pero con error manejado para no romper el chat/ticket
+    return { success: false, error: "Servicio de auditoría no disponible" };
   }
 }
