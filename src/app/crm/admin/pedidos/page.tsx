@@ -19,8 +19,13 @@ export default async function AdminPedidosPage() {
     redirect("/crm/login");
   }
 
-  // Traemos TODOS los pedidos, del más nuevo al más viejo
+  // 🔥 AQUÍ ESTÁ EL FILTRO: Solo traemos las que ya están pagadas, en proceso, enviadas o entregadas
   const orders = await prisma.order.findMany({
+    where: {
+      status: {
+        in: ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"] // Ignoramos PENDING, CANCELLED o FAILED
+      }
+    },
     orderBy: { createdAt: 'desc' },
     include: {
       items: true,
@@ -28,7 +33,7 @@ export default async function AdminPedidosPage() {
     }
   });
 
-  // Calculamos el total para el header
+  // Calculamos el total para el header (ahora solo suma dinero que SÍ entró)
   const ventasTotales = orders.reduce((acc, curr) => acc + curr.total, 0);
 
   return (
@@ -41,13 +46,13 @@ export default async function AdminPedidosPage() {
             Gestión de Ventas Web
           </p>
           <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter italic flex items-center gap-2">
-            <span className="text-black">ÓRDENES DE</span>
-            <span className="text-[#FDCB02]">COMPRA</span>
+            <span className="text-black">ÓRDENES</span>
+            <span className="text-[#FDCB02]">PAGADAS</span>
           </h1>
         </div>
         
         <div className="bg-black text-[#FDCB02] px-6 py-3 rounded-2xl shadow-lg flex flex-col items-end">
-          <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60">Ventas Totales</p>
+          <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60">Ingresos Reales</p>
           <p className="text-xl font-black font-mono">
             ${ventasTotales.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
           </p>
