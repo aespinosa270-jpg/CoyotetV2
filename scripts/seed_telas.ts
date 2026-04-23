@@ -1,0 +1,698 @@
+import { PrismaClient, UnitType, PickupLocation } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// ========================================================
+// CATÁLOGO MAESTRO (Extraído directamente de tu frontend)
+// ========================================================
+const products = [
+  {
+    id: "prod_alaska", title: "Alaska", unit: "Kilo",
+    thumbnail: "/assets/products/alaska/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 175.00, mayoreo: 170.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_andromeda", title: "Andromeda", unit: "Kilo",
+    thumbnail: "/assets/products/andromeda/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 155.00, mayoreo: 150.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_apolo", title: "Apolo", unit: "Kilo",
+    thumbnail: "/assets/products/119.jpg", 
+    description: "Resistencia superior a la abrasión y el pilling.",
+    composicion: "100% Poliéster", gramaje: "150", ancho: "1.60m", rendimiento: 3.7, singleColor: true,
+    prices: { menudeo: 160.00, mayoreo: 155.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_ares", title: "Ares", unit: "Kilo",
+    thumbnail: "/assets/products/ares/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 135.00, mayoreo: 130.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_athlos", title: "Athlos", unit: "Kilo",
+    thumbnail: "/assets/products/athlos/blanco.jpg", 
+    description: "Versatilidad total para cualquier disciplina deportiva.",
+    composicion: "100% Poliéster", gramaje: "145", ancho: "1.60m", rendimiento: 4.0, singleColor: true,
+    prices: { menudeo: 125.00, mayoreo: 120.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_azucena", title: "Azucena", unit: "Kilo",
+    thumbnail: "/assets/products/azucena/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 95.00, mayoreo: 90.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_brock", title: "Brock", unit: "Kilo",
+    thumbnail: "/assets/products/brock.jpg",
+    description: "Versatilidad total para cualquier disciplina deportiva.",
+    composicion: "100% Poliéster", gramaje: "145", ancho: "1.60m", rendimiento: 4.0, singleColor: true,
+    prices: { menudeo: 155.00, mayoreo: 150.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_brush", title: "Brush", unit: "Kilo",
+    thumbnail: "/assets/products/brush/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 120.00, mayoreo: 115.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_capriati", title: "Capriati", unit: "Kilo",
+    thumbnail: "/assets/products/capriati/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 135.00, mayoreo: 130.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_caprice", title: "Caprice", unit: "Kilo",
+    thumbnail: "/assets/products/caprice/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 140.00, mayoreo: 135.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_delta", title: "Delta", unit: "Kilo",
+    thumbnail: "/assets/products/delta/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 175.00, mayoreo: 170.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_diablo", title: "Diablo", unit: "Metro", unidadesPorRollo: 50, 
+    thumbnail: "/assets/products/diablo/negro.jpg", 
+    description: "Uso rudo absoluto. Resistente a la abrasión, ideal para equipo táctico y calzado.",
+    composicion: "100% Nylon Alta Tenacidad", gramaje: "220", ancho: "1.50m", rendimiento: 1, singleColor: false, 
+    prices: { menudeo: 88.00, mayoreo: 83.00 }, hasRollo: true, origin: "Importado", category: "Telas Técnicas",
+    colors: [
+      { name: "Perla", hex: "#EAE0C8", image: "/assets/products/diablo/perla.jpg" },
+      { name: "Marino", hex: "#1A243A", image: "/assets/products/diablo/marino.jpg" },
+      { name: "Vino", hex: "#5C1527", image: "/assets/products/diablo/vino.jpg" },
+      { name: "Blanco", hex: "#F8F9FA", image: "/assets/products/diablo/blanco.jpg" },
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/diablo/azulrey.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/diablo/rojo.jpg" },
+      { name: "Negro", hex: "#050505", image: "/assets/products/diablo/negro.jpg" },
+      { name: "Oxford", hex: "#3C3C3C", image: "/assets/products/diablo/oxford.jpg" }
+    ]
+  },
+  {
+    id: "prod_f30", title: "F30", unit: "Kilo",
+    thumbnail: "/assets/products/F-30/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 135.00, mayoreo: 130.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_felpa_china", title: "Felpa China", unit: "Kilo", unidadesPorRollo: 25, 
+    thumbnail: "/assets/products/felpa_china/marino.jpg", 
+    description: "La tela ideal para la confección de sudaderas, pants y ropa deportiva de invierno. Cuenta con una cara lisa y un reverso afelpado.",
+    composicion: "50% Algodón / 50% Poliéster", gramaje: "280", ancho: "1.60m", rendimiento: 2.2, singleColor: false, 
+    prices: { menudeo: 110.00, mayoreo: 105.00 }, hasRollo: true, origin: "Importado", category: "Línea Invernal",
+    colors: [
+      { name: "Marino", hex: "#1A243A", image: "/assets/products/felpa_china/marino.jpg" },
+      { name: "Negro", hex: "#111111", image: "/assets/products/felpa_china/negro.jpg" },
+      { name: "Blanco", hex: "#F8F9FA", image: "/assets/products/felpa_china/blanco.jpg" },
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/felpa_china/azulrey.jpg" },
+      { name: "Vino", hex: "#5C1527", image: "/assets/products/felpa_china/vino.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/felpa_china/rojo.jpg" },
+      { name: "Jaspe Perla", hex: "#DCDCDC", image: "/assets/products/felpa_china/jaspe_perla.jpg" },
+      { name: "Oxford Jaspe", hex: "#555555", image: "/assets/products/felpa_china/oxfordjaspe.jpg" }
+    ]
+  },
+  {
+    id: "prod_felpa_spun", title: "Felpa Spun", unit: "Kilo", unidadesPorRollo: 25, 
+    thumbnail: "/assets/products/felpa_spun/negro.jpg", 
+    description: "Tejido de alto volumen y suavidad excepcional. Ideal para sudaderas y pants de gama premium.",
+    composicion: "100% Poliéster", gramaje: "280", ancho: "1.90m", rendimiento: 2.5, singleColor: false, 
+    prices: { menudeo: 110.00, mayoreo: 105.00 }, hasRollo: true, origin: "Importado", category: "Línea Invernal",
+    colors: [
+      { name: "Blanco", hex: "#F8F9FA", image: "/assets/products/felpa_spun/blanco.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/felpa_spun/rojo.jpg" },
+      { name: "Marino", hex: "#1A243A", image: "/assets/products/felpa_spun/marino.jpg" },
+      { name: "Negro", hex: "#050505", image: "/assets/products/felpa_spun/negro.jpg" },
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/felpa_spun/azulrey.jpg" },
+      { name: "Vino", hex: "#5C1527", image: "/assets/products/felpa_spun/vino.jpg" }
+    ] 
+  },
+  {
+    id: "prod_flanel", title: "Flanel", unit: "Kilo", unidadesPorRollo: 27, 
+    thumbnail: "/assets/products/flanel/blanco.jpg", 
+    description: "Nuestra tela Flanel es la reina del invierno. Su textura ultra suave, afelpada y ligera retiene el calor corporal de manera excepcional.",
+    composicion: "100% Poliéster", gramaje: "260", ancho: "1.60m", rendimiento: 2.4, singleColor: false, 
+    prices: { menudeo: 125.00, mayoreo: 120.00 }, hasRollo: true, origin: "Importado", category: "Línea Invernal",
+    colors: [
+      { name: "Blanco", hex: "#ffffff", image: "/assets/products/flanel/blanco.jpg" },
+      { name: "Vino", hex: "#5C1527", image: "/assets/products/flanel/vino.jpg" },
+      { name: "Marino", hex: "#1A243A", image: "/assets/products/flanel/marino.jpg" },
+      { name: "Negro", hex: "#111111", image: "/assets/products/flanel/negro.jpg" },
+      { name: "Fiusha", hex: "#E01B6A", image: "/assets/products/flanel/fiusha.jpg" },
+      { name: "Palo Rosa", hex: "#D69A9A", image: "/assets/products/flanel/palorosa.jpg" },
+      { name: "Rosa Pastel", hex: "#F4C2C2", image: "/assets/products/flanel/rosapastel.jpg" }, 
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/flanel/azulrey.jpg" },
+      { name: "Naranja", hex: "#FF6F00", image: "/assets/products/flanel/naranja.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/flanel/rojo.jpg" }
+    ]
+  },
+  {
+    id: "prod_granizo", title: "Granizo", unit: "Kilo",
+    thumbnail: "/assets/products/granizo/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 115.00, mayoreo: 110.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_horous", title: "Horous", unit: "Kilo",
+    thumbnail: "/assets/products/120.jpg", 
+    description: "Diseño vanguardista para moda deportiva urbana.",
+    composicion: "100% Poliéster", gramaje: "145", ancho: "1.60m", rendimiento: 4.2, singleColor: true,
+    prices: { menudeo: 160.00, mayoreo: 155.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_inter_70", title: "Inter 70", unit: "Kilo",
+    thumbnail: "/assets/products/inter-70/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 140.00, mayoreo: 135.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_jumanji", title: "Jumanji", unit: "Kilo",
+    thumbnail: "/assets/products/jumanji/blanco.jpg",
+    description: "Tejido de alta elasticidad y recuperación, perfecto para prendas ajustadas y de alto impacto.",
+    composicion: "Poliéster / Spandex", gramaje: "180", ancho: "1.60m", rendimiento: 3.5, singleColor: true,
+    prices: { menudeo: 145.00, mayoreo: 140.00 }, hasRollo: true, origin: "Importado", category: "Deportivo / Licra"
+  },
+  {
+    id: "prod_kyoto", title: "Kyoto", unit: "Kilo",
+    thumbnail: "/assets/products/116.jpg", 
+    description: "Acabado premium con tacto seda y caída espectacular.",
+    composicion: "100% Poliéster", gramaje: "145", ancho: "1.60m", rendimiento: 4.0, singleColor: true,
+    prices: { menudeo: 155.00, mayoreo: 150.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_licra_liluna", title: "Licra Liluna", unit: "Kilo",
+    thumbnail: "/assets/products/liluna/liluna.jpg",
+    description: "Tejido de alta elasticidad y recuperación, perfecto para prendas ajustadas y de alto impacto.",
+    composicion: "Poliéster / Spandex", gramaje: "180", ancho: "1.60m", rendimiento: 3.5, singleColor: true,
+    prices: { menudeo: 135.00, mayoreo: 130.00 }, hasRollo: true, origin: "Importado", category: "Deportivo / Licra"
+  },
+  {
+    id: "prod_licra_playera", title: "Licra Playera", unit: "Kilo",
+    thumbnail: "/assets/products/licra-playera/blanco.jpg",
+    description: "Tejido de alta elasticidad y recuperación, perfecto para prendas ajustadas y de alto impacto.",
+    composicion: "Poliéster / Spandex", gramaje: "180", ancho: "1.60m", rendimiento: 3.5, singleColor: true,
+    prices: { menudeo: 130.00, mayoreo: 125.00 }, hasRollo: true, origin: "Importado", category: "Deportivo / Licra"
+  },
+  {
+    id: "prod_licra_poliester", title: "Licra Poliéster", unit: "Kilo",
+    thumbnail: "/assets/products/licra-poliester/blanco.jpg",
+    description: "Tejido de alta elasticidad y recuperación, perfecto para prendas ajustadas y de alto impacto.",
+    composicion: "Poliéster / Spandex", gramaje: "180", ancho: "1.60m", rendimiento: 3.5,
+    prices: { menudeo: 145.00, mayoreo: 140.00 }, hasRollo: true, origin: "Importado", category: "Deportivo / Licra",
+    colors: [
+      { name: "Blanco", hex: "#FFFFFF", image: "/assets/products/licra-poliester/blanco.jpg" },
+      { name: "Negro", hex: "#050505", image: "/assets/products/licra-poliester/negro.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/licra-poliester/rojo.jpg" },
+      { name: "Rey", hex: "#1434A4", image: "/assets/products/licra-poliester/rey.jpg" },
+      { name: "Marino", hex: "#000080", image: "/assets/products/licra-poliester/marino.jpg" }
+    ]
+  },
+  {
+    id: "prod_licra_saludable", title: "Licra Saludable", unit: "Kilo",
+    thumbnail: "/assets/products/licra-saludable/blanco.jpg",
+    description: "Tejido de alta elasticidad y recuperación, perfecto para prendas ajustadas y de alto impacto.",
+    composicion: "Poliéster / Spandex", gramaje: "180", ancho: "1.60m", rendimiento: 3.5,
+    prices: { menudeo: 140.00, mayoreo: 135.00 }, hasRollo: true, origin: "Importado", category: "Deportivo / Licra",
+    colors: [
+      { name: "Blanco", hex: "#FFFFFF", image: "/assets/products/licra-saludable/blanco.jpg" },
+      { name: "Negro", hex: "#050505", image: "/assets/products/licra-saludable/negro.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/licra-saludable/rojo.jpg" },
+      { name: "Rey", hex: "#1434A4", image: "/assets/products/licra-saludable/rey.jpg" },
+      { name: "Marino", hex: "#000080", image: "/assets/products/licra-saludable/marino.jpg" },
+      { name: "Militar", hex: "#4B5320", image: "/assets/products/licra-saludable/militar.jpg" },
+      { name: "Perla Jaspe", hex: "#D9D6D0", image: "/assets/products/licra-saludable/perla-jaspe.jpg" },
+      { name: "Oxford Jaspe", hex: "#555555", image: "/assets/products/licra-saludable/oxford-jaspe.jpg" }
+    ]
+  },
+  {
+    id: "lycra_metalica", title: "Lycra Metálica", unit: "Metro", unidadesPorRollo: 98, 
+    thumbnail: "/assets/products/lycra_metalica/oro.jpg", 
+    description: "Licra metálica elástica con acabado brillante. Ideal para prendas deportivas, escénicas, de moda, disfraces y usos decorativos.",
+    composicion: "100% Poliéster", gramaje: "145", ancho: "1.60m", rendimiento: 1, singleColor: false, 
+    prices: { menudeo: 50.00, mayoreo: 45.00 }, hasRollo: true, origin: "Importado", category: "Deportivo / Licra",
+    colors: [
+      { name: "Oro Metálico", hex: "#D4AF37", image: "/assets/products/lycra_metalica/oro.jpg" },
+      { name: "Plata Metálica", hex: "#C0C0C0", image: "/assets/products/lycra_metalica/plata.jpg" },
+      { name: "Naranja Metálico", hex: "#CD7F32", image: "/assets/products/lycra_metalica/bronce.jpg" },
+      { name: "Rojo Metálico", hex: "#A40000", image: "/assets/products/lycra_metalica/rojo.jpg" },
+      { name: "Azul Rey Metálico", hex: "#1D3263", image: "/assets/products/lycra_metalica/azulrey.jpg" },
+      { name: "Turquésa Metálico", hex: "#8CBED6", image: "/assets/products/lycra_metalica/cielo.jpg" },
+      { name: "Perla Metálico", hex: "#EAE0C8", image: "/assets/products/lycra_metalica/perla.jpg" },
+      { name: "Verde Bandera Metálico", hex: "#114232", image: "/assets/products/lycra_metalica/verdebadera.jpg" },
+      { name: "Verde Manzana Metálico", hex: "#8DB600", image: "/assets/products/lycra_metalica/verdemanzana.jpg" },
+      { name: "Rosa Pastel Metálico", hex: "#F2B8C6", image: "/assets/products/lycra_metalica/rosapastel.jpg" },
+      { name: "Fiucha Metálico", hex: "#C154C1", image: "/assets/products/lycra_metalica/fiucha.jpg" },
+      { name: "Blanco Metálico", hex: "#F8F9FA", image: "/assets/products/lycra_metalica/blanco.jpg" },
+      { name: "Negro Metálico", hex: "#2B2B2C", image: "/assets/products/lycra_metalica/negro.jpg" }
+    ]
+  },
+  {
+    id: "prod_madelino", title: "Madelino", unit: "Kilo",
+    thumbnail: "/assets/products/madelino/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 155.00, mayoreo: 150.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_mercury", title: "Mercury", unit: "Kilo",
+    thumbnail: "/assets/products/mercury/blanco.jpg",
+    description: "Tejido de alta elasticidad y recuperación, perfecto para prendas ajustadas y de alto impacto.",
+    composicion: "Poliéster / Spandex", gramaje: "180", ancho: "1.60m", rendimiento: 3.5, singleColor: true,
+    prices: { menudeo: 160.00, mayoreo: 155.00 }, hasRollo: true, origin: "Importado", category: "Deportivo / Licra"
+  },
+  {
+    id: "prod_micro_estrella", title: "Micro Estrella", unit: "Kilo",
+    thumbnail: "/assets/products/microestrella/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 145.00, mayoreo: 140.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_micro_panal", title: "Micro Panal", unit: "Kilo",
+    thumbnail: "/assets/products/114.jpg", 
+    description: "Estructura de panal para máxima transpiración y ligereza.",
+    composicion: "100% Poliéster", gramaje: "145", ancho: "1.60m", rendimiento: 4.3,
+    prices: { menudeo: 110.00, mayoreo: 105.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación",
+    colors: [
+      { name: "Blanco", hex: "#FFFFFF", image: "/assets/products/micro-panal/blanco.webp" },
+      { name: "Camel", hex: "#C19A6B", image: "/assets/products/micro-panal/camel.png" },
+      { name: "Mostaza", hex: "#FFC300", image: "/assets/products/micro-panal/mostaza.png" },
+      { name: "Oro Viejo", hex: "#B08D57", image: "/assets/products/micro-panal/oro-viejo.png" },
+      { name: "Verde Neón", hex: "#39FF14", image: "/assets/products/micro-panal/verde-neon.jpg" },
+      { name: "Amarillo Neón", hex: "#CCFF00", image: "/assets/products/micro-panal/amarillo-neon.jpg" },
+      { name: "Turquesa", hex: "#40E0D0", image: "/assets/products/micro-panal/turquesa.jpg" },
+      { name: "Aqua", hex: "#00FFFF", image: "/assets/products/micro-panal/aqua.jpg" },
+      { name: "Militar", hex: "#4B5320", image: "/assets/products/micro-panal/militar.jpg" },
+      { name: "Botella", hex: "#006A4E", image: "/assets/products/micro-panal/botella.jpg" },
+      { name: "Bandera", hex: "#006847", image: "/assets/products/micro-panal/bandera.jpg" },
+      { name: "Menta", hex: "#98FF98", image: "/assets/products/micro-panal/menta.jpg" },
+      { name: "Cielo", hex: "#87CEEB", image: "/assets/products/micro-panal/cielo.jpg" },
+      { name: "Vino", hex: "#722F37", image: "/assets/products/micro-panal/vino.jpg" },
+      { name: "Lila", hex: "#C8A2C8", image: "/assets/products/micro-panal/lila.jpg" },
+      { name: "Naranja", hex: "#FF6F00", image: "/assets/products/micro-panal/naranja.jpg" },
+      { name: "Gris Baby", hex: "#D3D3D3", image: "/assets/products/micro-panal/gris-baby.jpg" },
+      { name: "Uva", hex: "#6F2DA8", image: "/assets/products/micro-panal/uva.jpg" },
+      { name: "Petróleo", hex: "#005F6A", image: "/assets/products/micro-panal/petroleo.jpg" },
+      { name: "Palo de Rosa", hex: "#D69A9A", image: "/assets/products/micro-panal/palo-de-rosa.jpg" },
+      { name: "Rosa Baby", hex: "#F4C2C2", image: "/assets/products/micro-panal/rosa-baby.jpg" },
+      { name: "Magenta", hex: "#FF00FF", image: "/assets/products/micro-panal/magenta.jpg" },
+      { name: "Rosa Pastel", hex: "#FFD1DC", image: "/assets/products/micro-panal/rosa-pastel.jpg" },
+      { name: "Fiusha", hex: "#FF00CB", image: "/assets/products/micro-panal/fiusha.jpg" },
+      { name: "Rosa Neón", hex: "#FF6EC7", image: "/assets/products/micro-panal/rosa-neon.jpg" },
+      { name: "Light Blue", hex: "#ADD8E6", image: "/assets/products/micro-panal/light-blue.jpg" },
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/micro-panal/azul-rey.jpg" },
+      { name: "Navy Blue", hex: "#000080", image: "/assets/products/micro-panal/navyblue.jpg" },
+      { name: "Oxford", hex: "#494949", image: "/assets/products/micro-panal/oxford.jpg" },
+      { name: "Medio", hex: "#808080", image: "/assets/products/micro-panal/medio.jpg" },
+      { name: "Perla", hex: "#EAE0C8", image: "/assets/products/micro-panal/perla.jpg" },
+      { name: "Mango", hex: "#FFD21C", image: "/assets/products/micro-panal/mango.jpg" },
+      { name: "Canario", hex: "#FFE700", image: "/assets/products/micro-panal/canario.jpg" },
+      { name: "Caqui", hex: "#C3B091", image: "/assets/products/micro-panal/caqui.jpg" },
+      { name: "Negro", hex: "#050505", image: "/assets/products/micro-panal/negro.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/micro-panal/rojo.jpg" },
+      { name: "Rey", hex: "#1434A4", image: "/assets/products/micro-panal/rey.jpg" },
+      { name: "Azul Francia", hex: "#1F3A93", image: "/assets/products/micro-panal/azul-francia.jpg" }
+    ]
+  },
+  {
+    id: "prod_micropique", title: "Micro piqué", unit: "Kilo",
+    thumbnail: "/assets/products/112.jpg", 
+    description: "Tecnología Dry-Fit Calidad Gold. Ideal para uniformes deportivos de alto rendimiento.",
+    composicion: "100% Poliéster", gramaje: "145", ancho: "1.60m", rendimiento: 4.3,
+    prices: { menudeo: 100.00, mayoreo: 95.00 }, hasRollo: true, origin: "importado", category: "Deportivas / Sublimación",
+    colors: [
+      { name: "Light Navy", hex: "#040C5C", image: "/assets/products/micropique/ligth-navy.jpg" }, 
+      { name: "Blanco", hex: "#FFFFFF", image: "/assets/products/micropique/blanco.webp" },
+      { name: "Gris Perla", hex: "#E6E6E6", image: "/assets/products/micropique/gris-perla.jpg" },
+      { name: "Navy Dark Blue", hex: "#000033", image: "/assets/products/micropique/navydarkblue.jpg" },
+      { name: "Menta", hex: "#82FFF9", image: "/assets/products/micropique/menta.jpg" },
+      { name: "Fiusha", hex: "#FF2480", image: "/assets/products/micropique/fiusha.jpg" },
+      { name: "Caqui", hex: "#C3B091", image: "/assets/products/micropique/caqui.jpg" },
+      { name: "Uva M", hex: "#220038", image: "/assets/products/micropique/uvam.jpg" },
+      { name: "Azul Acero", hex: "#4A658F", image: "/assets/products/micropique/azul-acero.jpg" },
+      { name: "Vino", hex: "#722F37", image: "/assets/products/micropique/vino.jpg" },
+      { name: "Beige", hex: "#F5F5DC", image: "/assets/products/micropique/beige.jpg" },
+      { name: "Camel", hex: "#C19A6B", image: "/assets/products/micropique/camel.jpg" },
+      { name: "Gris Medio", hex: "#808080", image: "/assets/products/micropique/gris-medio.jpg" },
+      { name: "Oxford", hex: "#494949", image: "/assets/products/micropique/oxford.jpg" },
+      { name: "Militar", hex: "#4B5320", image: "/assets/products/micropique/militar.jpg" },
+      { name: "Rosa Baby", hex: "#FFDEE6", image: "/assets/products/micropique/rosababy.jpg" },
+      { name: "Amarillo Canario", hex: "#FFE600", image: "/assets/products/micropique/amarillo-canario.jpg" },
+      { name: "Petróleo", hex: "#2A3570", image: "/assets/products/micropique/petroleo.jpg" },
+      { name: "Rosa Palo", hex: "#D69A9A", image: "/assets/products/micropique/rosapalo.jpg" },
+      { name: "Cielo", hex: "#B0EDFF", image: "/assets/products/micropique/cielo.jpg" },
+      { name: "Mango", hex: "#FFD21C", image: "/assets/products/micropique/mango.jpg" },
+      { name: "Turquesa", hex: "#40E0D0", image: "/assets/products/micropique/turquesa.jpg" },
+      { name: "Azul Francia", hex: "#1C86FF", image: "/assets/products/micropique/francia.jpg" },
+      { name: "Uva", hex: "#6F2DA8", image: "/assets/products/micropique/uva.jpg" },
+      { name: "Bugambilia", hex: "#E0115F", image: "/assets/products/micropique/bugambilia.jpg" },
+      { name: "Oro Viejo", hex: "#B08D57", image: "/assets/products/micropique/oro-viejo.jpg" },
+      { name: "Mostaza", hex: "#FFC300", image: "/assets/products/micropique/mostaza.jpg" },
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/micropique/rey.jpg" },
+      { name: "Navy Blue", hex: "#000080", image: "/assets/products/micropique/navyblue.jpg" },
+      { name: "Naranja Neón", hex: "#FF7700", image: "/assets/products/micropique/naranja-neon.jpg" },
+      { name: "Naranja", hex: "#FF6200", image: "/assets/products/micropique/naranja.jpg" },
+      { name: "Rosa Neón", hex: "#FF17DF", image: "/assets/products/micropique/rosa-neon.jpg" },
+      { name: "Amarillo", hex: "#FFFF00", image: "/assets/products/micropique/amarillo.jpg" },
+      { name: "Verde Neón", hex: "#39FF14", image: "/assets/products/micropique/verde-neon.jpg" },
+      { name: "Negro", hex: "#050505", image: "/assets/products/micropique/negro.jpg" },
+      { name: "Verde Bandera", hex: "#006847", image: "/assets/products/micropique/bandera.jpg" },
+      { name: "Verde Botella", hex: "#008000", image: "/assets/products/micropique/verde.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/micropique/rojo.jpg" }
+    ]
+  },
+  {
+    id: "prod_micropique_fusionado", title: "Micropique Fusionado", unit: "Kilo",
+    thumbnail: "/assets/products/mpfusionado/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 150.00, mayoreo: 145.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_microtrix", title: "Microtrix", unit: "Kilo",
+    thumbnail: "/assets/products/microtrix/blanco.jpg",
+    description: "Tejido de alta elasticidad y recuperación, perfecto para prendas ajustadas y de alto impacto.",
+    composicion: "Poliéster / Spandex", gramaje: "180", ancho: "1.60m", rendimiento: 3.5, singleColor: true,
+    prices: { menudeo: 150.00, mayoreo: 145.00 }, hasRollo: true, origin: "Importado", category: "Deportivo / Licra"
+  },
+  {
+    id: "prod_miky", title: "Miky", unit: "Kilo",
+    thumbnail: "/assets/products/miky/blanco.png",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 135.00, mayoreo: 130.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_monaco", title: "Monaco", unit: "Kilo",
+    thumbnail: "/assets/products/monaco/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 155.00, mayoreo: 150.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_nagasaky", title: "Nagasaky", unit: "Kilo",
+    thumbnail: "/assets/products/nagasaki/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 135.00, mayoreo: 130.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_panal_nitro", title: "Panal Nitro", unit: "Kilo",
+    thumbnail: "/assets/products/117.jpg", 
+    description: "Tejido técnico avanzado para control de humedad extremo.",
+    composicion: "100% Poliéster", gramaje: "145", ancho: "1.60m", rendimiento: 4.2, singleColor: true,
+    prices: { menudeo: 185.00, mayoreo: 180.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_panal_plus", title: "Panal Plus", unit: "Kilo",
+    thumbnail: "/assets/products/118.jpg", 
+    description: "Mayor cuerpo y estructura para prendas que requieren forma.",
+    composicion: "100% Poliéster", gramaje: "145", ancho: "1.60m", rendimiento: 3.7, singleColor: true,
+    prices: { menudeo: 155.00, mayoreo: 150.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_phoenix", title: "Phoenix", unit: "Kilo",
+    thumbnail: "/assets/products/phoenix/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 95.00, mayoreo: 90.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_pique_lacoste", title: "Pique Lacoste", unit: "Kilo",
+    thumbnail: "/assets/products/pique-lacoste/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 140.00, mayoreo: 135.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_pique_vera", title: "Piqué Vera", unit: "Kilo",
+    thumbnail: "/assets/products/113.jpg", 
+    description: "Tecnología Dry-Fit con textura suave y resistente.",
+    composicion: "100% Poliéster", gramaje: "145", ancho: "1.60m", rendimiento: 4.3,
+    prices: { menudeo: 110.00, mayoreo: 105.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación",
+    colors: [
+      { name: "Camel", hex: "#C19A6B", image: "/assets/products/pique-vera/camel.jpg" },
+      { name: "Oro Viejo", hex: "#B08D57", image: "/assets/products/pique-vera/oro-viejo.jpg" },
+      { name: "Mostaza", hex: "#FFC300", image: "/assets/products/pique-vera/mostaza.jpg" },
+      { name: "Verde Neón", hex: "#39FF14", image: "/assets/products/pique-vera/verde-neon.jpg" },
+      { name: "Amarillo Neón", hex: "#CCFF00", image: "/assets/products/pique-vera/amarillo-neon.jpg" },
+      { name: "Turquesa", hex: "#40E0D0", image: "/assets/products/pique-vera/turquesa.jpg" },
+      { name: "Aqua", hex: "#00FFFF", image: "/assets/products/pique-vera/aqua.jpg" },
+      { name: "Rosa Neón", hex: "#FF6EC7", image: "/assets/products/pique-vera/rosa-neon.jpg" },
+      { name: "Magenta", hex: "#FF00FF", image: "/assets/products/pique-vera/magenta.jpg" },
+      { name: "Militar", hex: "#4B5320", image: "/assets/products/pique-vera/militar.jpg" },
+      { name: "Botella", hex: "#006A4E", image: "/assets/products/pique-vera/botella.jpg" },
+      { name: "Verde Bandera", hex: "#006847", image: "/assets/products/pique-vera/verde-bandera.jpg" },
+      { name: "Cielo", hex: "#87CEEB", image: "/assets/products/pique-vera/cielo.jpg" },
+      { name: "Menta", hex: "#98FF98", image: "/assets/products/pique-vera/menta.jpg" },
+      { name: "Vino", hex: "#722F37", image: "/assets/products/pique-vera/vino.jpg" },
+      { name: "Lila", hex: "#C8A2C8", image: "/assets/products/pique-vera/lila.jpg" },
+      { name: "Naranja", hex: "#FF6F00", image: "/assets/products/pique-vera/naranja.jpg" },
+      { name: "Uva", hex: "#6F2DA8", image: "/assets/products/pique-vera/uva.jpg" },
+      { name: "Petróleo", hex: "#005F6A", image: "/assets/products/pique-vera/petroleo.jpg" },
+      { name: "Rosa Pastel", hex: "#FFD1DC", image: "/assets/products/pique-vera/rosa-pastel.jpg" },
+      { name: "Rosa Baby", hex: "#F4C2C2", image: "/assets/products/pique-vera/rosa-baby.jpg" },
+      { name: "Palo Rosa", hex: "#D69A9A", image: "/assets/products/pique-vera/palo-rosa.jpg" },
+      { name: "Fiusha", hex: "#FF00CB", image: "/assets/products/pique-vera/fiusha.jpg" },
+      { name: "Light Navy", hex: "#4A6B8C", image: "/assets/products/pique-vera/ligth-navy.jpg" },
+      { name: "Dark Navy", hex: "#000033", image: "/assets/products/pique-vera/dark-navy.jpg" },
+      { name: "Gris Medio", hex: "#808080", image: "/assets/products/pique-vera/gris-medio.jpg" },
+      { name: "Oxford", hex: "#494949", image: "/assets/products/pique-vera/oxford.jpg" },
+      { name: "Gris Perla", hex: "#E6E6E6", image: "/assets/products/pique-vera/gris-perla.jpg" },
+      { name: "Mango", hex: "#FFD21C", image: "/assets/products/pique-vera/mango.jpg" },
+      { name: "Canario", hex: "#FFE700", image: "/assets/products/pique-vera/canario.jpg" },
+      { name: "Caqui", hex: "#C3B091", image: "/assets/products/pique-vera/caqui.jpg" },
+      { name: "Negro", hex: "#050505", image: "/assets/products/pique-vera/negro.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/pique-vera/rojo.jpg" },
+      { name: "Rey", hex: "#1434A4", image: "/assets/products/pique-vera/rey.jpg" }
+    ]
+  },
+  {
+    id: "prod_pique-vera-sport", title: "Pique Vera Sport", unit: "Kilo",
+    thumbnail: "/assets/products/sport.jpeg",
+    description: "Versatilidad total para cualquier disciplina deportiva.",
+    composicion: "100% Poliéster", gramaje: "145", ancho: "1.60m", rendimiento: 4.0, singleColor: true,
+    prices: { menudeo: 140.00, mayoreo: 135.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_pixel", title: "Pixel", unit: "Kilo",
+    thumbnail: "/assets/products/pixel/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 155.00, mayoreo: 150.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_polar", title: "Polar", unit: "Kilo", unidadesPorRollo: 25, 
+    thumbnail: "/assets/products/polar/vino.jpg", 
+    description: "Tela térmica de alto rendimiento con tecnología anti-pilling.",
+    composicion: "100% Poliéster", gramaje: "280", ancho: "1.60m", rendimiento: 2.5, singleColor: false, 
+    prices: { menudeo: 120.00, mayoreo: 115.00 }, hasRollo: true, origin: "Importado", category: "Línea Invernal",
+    colors: [
+      { name: "Verde Botella", hex: "#004B23", image: "/assets/products/polar/verdebotella.jpg" },
+      { name: "Verde Militar", hex: "#4B5320", image: "/assets/products/polar/verdemilitar.jpg" },
+      { name: "Palo Rosa", hex: "#D69A9A", image: "/assets/products/polar/palorosa.jpg" },
+      { name: "Azul Rey", hex: "#1434A4", image: "/assets/products/polar/azulrey.jpg" },
+      { name: "Vino", hex: "#5C1527", image: "/assets/products/polar/vino.jpg" },
+      { name: "Marino", hex: "#1A243A", image: "/assets/products/polar/marino.jpg" },
+      { name: "Fiusha", hex: "#E01B6A", image: "/assets/products/polar/fiusha.jpg" },
+      { name: "Negro", hex: "#111111", image: "/assets/products/polar/negro.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/polar/rojo.jpg" },
+      { name: "Blanco", hex: "#F8F9FA", image: "/assets/products/polar/blanco.jpg" }
+    ]
+  },
+  {
+    id: "prod_saturno", title: "Saturno", unit: "Kilo",
+    thumbnail: "/assets/products/saturno/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 165.00, mayoreo: 160.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_super_trix", title: "Super Trix", unit: "Kilo",
+    thumbnail: "/assets/products/supertrix/blanco.jpg",
+    description: "Tela deportiva especializada, ideal para procesos de sublimación de alta definición.",
+    composicion: "100% Poliéster", gramaje: "140", ancho: "1.60m", rendimiento: 4.0, singleColor: true, 
+    prices: { menudeo: 175.00, mayoreo: 170.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+  {
+    id: "prod_sportok_escolar", title: "Sportok", unit: "Kg", unidadesPorRollo: 25, 
+    thumbnail: "/assets/products/sportock/blanco.jpg", 
+    description: "Textil 100% poliéster de alta resistencia con acabado semi-brillante e interior térmico afelpado.",
+    composicion: "100% Poliéster (Interior Afelpado)", gramaje: "260", ancho: "1.60m", rendimiento: 2.4, 
+    prices: { menudeo: 80.00, mayoreo: 75.00 }, hasRollo: true, category: "Escolar / Deportivo", origin: "importado",
+    colors: [
+      { name: "Francia", hex: "#1F3A93", image: "/assets/products/sportock/francia.jpg" },
+      { name: "Marino Claro", hex: "#003366", image: "/assets/products/sportock/marino-claro.jpg" },
+      { name: "Magenta", hex: "#FF00FF", image: "/assets/products/sportock/magenta.jpg" },
+      { name: "Chedron", hex: "#8A3324", image: "/assets/products/sportock/chedron.jpg" },
+      { name: "Acero", hex: "#778899", image: "/assets/products/sportock/acero.jpg" },
+      { name: "Naranja Pastel", hex: "#FFB347", image: "/assets/products/sportock/naranja-pastel.jpg" },
+      { name: "Amarillo Pastel", hex: "#FDFD96", image: "/assets/products/sportock/amarillo-pastel.jpg" },
+      { name: "Petróleo", hex: "#005F6A", image: "/assets/products/sportock/petroleo.jpg" },
+      { name: "Oro Viejo", hex: "#B08D57", image: "/assets/products/sportock/oro-viejo.jpg" },
+      { name: "Mostaza", hex: "#FFC300", image: "/assets/products/sportock/mostaza.jpg" },
+      { name: "Palo de Rosa", hex: "#D69A9A", image: "/assets/products/sportock/paloderosa.jpg" },
+      { name: "Jade", hex: "#00A86B", image: "/assets/products/sportock/jade.jpg" },
+      { name: "Lila", hex: "#C8A2C8", image: "/assets/products/sportock/lila.jpg" },
+      { name: "Bugambilia", hex: "#E0115F", image: "/assets/products/sportock/bugambilia.jpg" },
+      { name: "Fiusha", hex: "#FF00CB", image: "/assets/products/sportock/fiusha.jpg" },
+      { name: "Gris Baby", hex: "#D3D3D3", image: "/assets/products/sportock/gris-baby.jpg" },
+      { name: "Perla", hex: "#EAE0C8", image: "/assets/products/sportock/perla.jpg" },
+      { name: "Medio", hex: "#808080", image: "/assets/products/sportock/medio.jpg" },
+      { name: "Oxford", hex: "#494949", image: "/assets/products/sportock/oxford.jpg" },
+      { name: "Caqui", hex: "#C3B091", image: "/assets/products/sportock/caqui.jpg" },
+      { name: "Beige", hex: "#F5F5DC", image: "/assets/products/sportock/beige.jpg" },
+      { name: "Cafe", hex: "#4B3621", image: "/assets/products/sportock/cafe.jpg" },
+      { name: "Camel", hex: "#C19A6B", image: "/assets/products/sportock/camel.jpg" },
+      { name: "Rosa Pastel", hex: "#FFD1DC", image: "/assets/products/sportock/rosa-pastel.jpg" },
+      { name: "Turquesa", hex: "#40E0D0", image: "/assets/products/sportock/turquesa.jpg" },
+      { name: "Aqua", hex: "#00FFFF", image: "/assets/products/sportock/aqua.jpg" },
+      { name: "Menta", hex: "#98FF98", image: "/assets/products/sportock/menta.jpg" },
+      { name: "Morado", hex: "#800080", image: "/assets/products/sportock/morado.jpg" },
+      { name: "Uva", hex: "#6F2DA8", image: "/assets/products/sportock/uva.jpg" },
+      { name: "Rosa Baby", hex: "#F4C2C2", image: "/assets/products/sportock/rosa-baby.jpg" },
+      { name: "Cielo", hex: "#87CEEB", image: "/assets/products/sportock/cielo.jpg" },
+      { name: "Naranja Neón", hex: "#FF5F1F", image: "/assets/products/sportock/naranja-neon.jpg" },
+      { name: "Rosa Neón", hex: "#FF6EC7", image: "/assets/products/sportock/rosa-neon.jpg" },
+      { name: "Verde Neón", hex: "#39FF14", image: "/assets/products/sportock/verde-neon.jpg" },
+      { name: "Amarillo Neón", hex: "#CCFF00", image: "/assets/products/sportock/amarillo-neon.jpg" },
+      { name: "Pistache", hex: "#93C572", image: "/assets/products/sportock/pistache.jpg" },
+      { name: "Manzana", hex: "#8DB600", image: "/assets/products/sportock/manzana.jpg" },
+      { name: "Militar", hex: "#4B5320", image: "/assets/products/sportock/militar.jpg" },
+      { name: "Botella", hex: "#006A4E", image: "/assets/products/sportock/botella.jpg" },
+      { name: "Bandera", hex: "#006847", image: "/assets/products/sportock/bandera.jpg" },
+      { name: "Naranja", hex: "#FF6F00", image: "/assets/products/sportock/naranja.jpg" },
+      { name: "Rey", hex: "#1434A4", image: "/assets/products/sportock/rey.jpg" },
+      { name: "Mango", hex: "#FFD21C", image: "/assets/products/sportock/mango.jpg" },
+      { name: "Canario", hex: "#FFE700", image: "/assets/products/sportock/canario.jpg" },
+      { name: "Rojo", hex: "#C40233", image: "/assets/products/sportock/rojo.jpg" },
+      { name: "Rojo Quemado", hex: "#8B0000", image: "/assets/products/sportock/rojo-quemado.jpg" },
+      { name: "Negro", hex: "#050505", image: "/assets/products/sportock/negro.jpg" },
+      { name: "Blanco", hex: "#FFFFFF", image: "/assets/products/sportock/blanco.jpg" },
+      { name: "Marino", hex: "#000080", image: "/assets/products/sportock/marino.jpg" }
+    ]
+  },
+  {
+    id: "prod_torneo", title: "Torneo", unit: "Kilo",
+    thumbnail: "/assets/products/115.jpg", 
+    description: "El estándar en durabilidad para torneos exigentes.",
+    composicion: "100% Poliéster", gramaje: "150", ancho: "1.60m", rendimiento: 4.3,
+    prices: { menudeo: 125.00, mayoreo: 120.00 }, hasRollo: true, origin: "Importado", category: "Deportivas / Sublimación"
+  },
+];
+
+// ✅ CORREGIDO: Codifica cada segmento del path para manejar espacios y caracteres especiales
+function armarLigaPublica(rutaParcial: string | undefined): string {
+  if (!rutaParcial) return "";
+  const pathCodificado = rutaParcial
+    .split('/')
+    .map(segmento => encodeURIComponent(segmento))
+    .join('/');
+  return `https://www.coyotetextil.com${pathCodificado}`;
+}
+
+async function main() {
+  console.log('🚜 INICIANDO DESCARGA DEL CATÁLOGO MAESTRO...');
+
+  console.log('🧹 Limpiando base de datos vieja...');
+  await prisma.inventoryMovement.deleteMany({});
+  await prisma.inventory.deleteMany({});
+  await prisma.productColor.deleteMany({});
+  await prisma.product.deleteMany({});
+
+  for (const tela of products) {
+    const unidadReal = tela.unit.toUpperCase() === 'METRO' || tela.unit.toUpperCase() === 'MTS' ? UnitType.METRO : UnitType.KILO;
+    const fotoPrincipalUrl = armarLigaPublica(tela.thumbnail);
+
+    console.log(`📦 Procesando: ${tela.title.toUpperCase()} | 📸 ${fotoPrincipalUrl}`);
+
+    const savedProduct = await prisma.product.upsert({
+      where: { sku: tela.id },
+      update: {
+        title: tela.title.toUpperCase(),
+        unit: unidadReal,
+        priceMenudeo: tela.prices.menudeo,
+        priceMayoreo: tela.prices.mayoreo,
+        hasRollo: tela.hasRollo,
+        thumbnail: fotoPrincipalUrl,
+        description: tela.description,
+        composicion: tela.composicion,
+        gramaje: tela.gramaje,
+        ancho: tela.ancho,
+        rendimiento: tela.rendimiento,
+        singleColor: tela.singleColor ?? true,
+        origin: tela.origin,
+        category: tela.category,
+        unidadesPorRollo: tela.unidadesPorRollo ?? (unidadReal === UnitType.KILO ? 25 : 100),
+        isActive: true
+      },
+      create: {
+        sku: tela.id,
+        title: tela.title.toUpperCase(),
+        unit: unidadReal,
+        priceMenudeo: tela.prices.menudeo,
+        priceMayoreo: tela.prices.mayoreo,
+        hasRollo: tela.hasRollo,
+        thumbnail: fotoPrincipalUrl,
+        description: tela.description,
+        composicion: tela.composicion,
+        gramaje: tela.gramaje,
+        ancho: tela.ancho,
+        rendimiento: tela.rendimiento,
+        singleColor: tela.singleColor ?? true,
+        origin: tela.origin,
+        category: tela.category,
+        unidadesPorRollo: tela.unidadesPorRollo ?? (unidadReal === UnitType.KILO ? 25 : 100),
+        isActive: true
+      }
+    });
+
+    if (tela.colors && tela.colors.length > 0) {
+      for (const color of tela.colors) {
+        const fotoColorUrl = armarLigaPublica(color.image);
+        await prisma.productColor.create({
+          data: {
+            productId: savedProduct.id,
+            name: color.name.toUpperCase(),
+            hex: color.hex,
+            imageUrl: fotoColorUrl
+          }
+        });
+      }
+    }
+
+    await prisma.inventory.create({
+      data: {
+        productId: savedProduct.id,
+        location: PickupLocation.GUATEMALA_97,
+        quantity: 500,
+        rollCount: 20
+      }
+    });
+  }
+
+  console.log('✅ ¡CATÁLOGO MAESTRO INSTALADO! (Precios reales, Colores reales, Links Puros)');
+}
+
+main()
+  .catch((e) => {
+    console.error("❌ ERROR CARGANDO EL CATÁLOGO:", e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

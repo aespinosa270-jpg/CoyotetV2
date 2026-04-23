@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, Target, Ticket,
   MessageSquare, Clock, BarChart, Settings,
   Search, Bell, Menu, X, ChevronDown, LogOut,
-  User, Package, Warehouse, Truck, AlertTriangle, ShieldCheck
+  User, Package, Warehouse, Truck, AlertTriangle, ShieldCheck, ShoppingBag
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { EmployeeRole } from "@prisma/client";
@@ -44,6 +44,7 @@ const menuItems = [
   { name: "Interacciones",     icon: MessageSquare,   href: "/crm/admin/interacciones" },
   { name: "Clientes",          icon: Users,           href: "/crm/admin/clientes"      },
   { name: "Catálogo",          icon: Package,         href: "/crm/admin/productos"     },
+  { name: "Pedidos",           icon: ShoppingBag,     href: "/crm/admin/pedidos"       }, // <--- NUEVA SECCIÓN
   {
     name: "Inventario",        icon: Warehouse,       href: "/crm/admin/inventario",
     submenus: [
