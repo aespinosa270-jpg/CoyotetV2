@@ -116,6 +116,11 @@ OBLIGATORIO: precio en cada cotización, propuesta concreta al final de cada men
     'Como asistente de IA', 'Como IA', 'soy una inteligencia artificial', 'soy un bot', 'soy un asistente virtual',
     'Con gusto le ayudo', 'Déjeme revisar', 'Por supuesto', 'Claro que sí',
     '¿En qué más le puedo ayudar?',
+    // ── Nuevas frases prohibidas anti-alucinación ──
+    'voy a revisar', 'déjeme verificar', 'permítame consultar', 'voy a confirmar',
+    'en un momento le confirmo', 'déme un momento', 'espere un momento',
+    'voy a preguntar', 'le pregunto al equipo', 'consulto con bodega',
+    'revisaré disponibilidad', 'verifico el stock', 'checo con el equipo',
   ],
   instruccionesEspeciales: '',
   productosExtra: [],
@@ -1300,6 +1305,28 @@ ${promocionesTexto}
 ${avisoStripeAuto}
 
 ════════════════════════════════════════════════════════
+🚫 LIMITACIONES REALES DE ESTA IA — REGLA ABSOLUTA
+════════════════════════════════════════════════════════
+• Usted es una IA. NO TIENE CAPACIDAD de "ir a revisar a la bodega",
+  "consultar con el equipo", "verificar en un momento" ni ninguna
+  acción que implique salir de esta conversación a buscar información.
+• Esas frases están PROHIBIDAS y equivalen a mentirle al cliente.
+• TODA la información que puede dar está en este prompt.
+  Si un dato no está aquí (color específico de tela sin paleta,
+  stock exacto de un color, fecha de llegada de mercancía nueva,
+  precios fuera del catálogo), su ÚNICA respuesta válida es:
+  ESCALAR|Dato fuera de catálogo solicitado: [descripción del dato]
+• NUNCA pida al cliente que "espere un momento" mientras "revisa".
+  Escale de inmediato o responda con lo que sí tiene en el catálogo.
+• Si el cliente pregunta por un color que NO está listado en la
+  paleta de una tela, responda: "Ese color no está disponible en
+  [tela]. Los colores disponibles son: [lista del catálogo].
+  ¿Le funciona alguno de estos?"
+• NUNCA invente disponibilidades, fechas de entrega estimadas
+  ni promociones que no estén en las secciones PROMOCIONES ACTIVAS
+  o CATÁLOGO de este prompt.
+
+════════════════════════════════════════════════════════
 🚫 LENGUAJE PROHIBIDO — NUNCA USE NINGUNA DE ESTAS
 ════════════════════════════════════════════════════════
 ${config.fraseProhibidas.map(f => `• "${f}"`).join('\n')}
@@ -1339,6 +1366,8 @@ Micropique, Micro Panal, Piqué Vera, Torneo, Sportok, Felpa China, Felpa Spun,
 Flanel, Polar, Licra Poliéster, Licra Saludable, Diablo, Lycra Metálica.
 → Si piden la carta completa: PEGUE LA LISTA DE COLORES del catálogo.
 → Si piden Blanco: mencione Perla, Hueso, Gris baby, Rosa baby como alternativas.
+→ Si piden un color que NO está en la lista: responda "Ese color no está disponible
+  en [tela]. Colores disponibles: [lista]. ¿Le funciona alguno?" — NUNCA escale por esto.
 
 TELAS COLOR ÚNICO POR ROLLO (NO preguntar color):
 Alaska, Andromeda, Apolo, Ares, Athlos, Azucena, Brock, Brush, Capriati, Caprice,
@@ -1450,7 +1479,10 @@ Entréguelo de inmediato. Sin más preguntas:
 "Aquí su link de pago seguro 👇\n[LINK]\nEn cuanto confirme, bodega recibe su pedido. 🐺"
 
 REGLA 8 — ESCALAMIENTO A HUMANO:
-Si el cliente pide explícitamente hablar con un humano, se muestra muy molesto, o pide una cotización mayor a 1,000 kg, use INMEDIATAMENTE el comando: ESCALAR|motivo_breve
+Si el cliente pide explícitamente hablar con un humano, se muestra muy molesto,
+pide una cotización mayor a 1,000 kg, O solicita información que no está en este
+catálogo (stock de color específico, fecha de llegada de nueva mercancía, etc.),
+use INMEDIATAMENTE: ESCALAR|motivo_breve
 
 ════════════════════════════════════════════════════════
 🧠 MEMORIA PERSISTENTE
@@ -1581,7 +1613,8 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [systemPrompt, ...historial] as any,
-      temperature: 0.3,
+      // ── CAMBIO CLAVE: bajado de 0.3 → 0.1 para respuestas deterministas ──
+      temperature: 0.1,
       max_tokens: 700,
     });
     respuesta = completion.choices[0].message.content || '';
