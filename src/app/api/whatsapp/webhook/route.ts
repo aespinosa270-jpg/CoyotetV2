@@ -193,7 +193,6 @@ interface ClientePerfil {
   nivelConfianza?: number;
   diasEntreCompras?: number;
   ultimaFechaCompra?: string;
-  // ── Nuevos campos: T&C y Membresía ──
   terminosAceptados?: boolean;
   membresiaOfrecida?: boolean;
   tieneSuscripcion?: boolean;
@@ -497,7 +496,6 @@ async function verificarMembresia(tel: string): Promise<{ activa: boolean; plan?
 // 🏪 BODEGA — TELAS (precio por KILO, rollo = 25 kg)
 // ==========================================
 const PRECIOS_TELAS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; info: string }> = {
-  // ── DEPORTIVAS / SUBLIMACIÓN ────────────────────────────────────────────────
   "alaska":               { menudeo: 175, mayoreo: 170, info: "100% Poliéster 140g. Sublimación de alta definición. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
   "andromeda":            { menudeo: 155, mayoreo: 150, info: "100% Poliéster 140g. Sublimación premium. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
   "apolo":                { menudeo: 160, mayoreo: 155, info: "100% Poliéster 150g. Resistencia superior anti-pilling. Rend. 3.7m/kg. Ancho 1.60m. Color único por rollo." },
@@ -532,12 +530,10 @@ const PRECIOS_TELAS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; 
   "saturno":              { menudeo: 165, mayoreo: 160, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
   "super trix":           { menudeo: 175, mayoreo: 170, info: "100% Poliéster 140g. Deportiva sublimación. Rend. 4.0m/kg. Ancho 1.60m. Color único por rollo." },
   "torneo":               { menudeo: 125, mayoreo: 120, info: "100% Poliéster 150g. Estándar de durabilidad para torneos exigentes. Rend. 4.3m/kg. Ancho 1.60m. Colores principales disponibles." },
-  // ── LÍNEA INVERNAL ──────────────────────────────────────────────────────────
   "felpa china":  { menudeo: 110, mayoreo: 105, info: "50% Algodón / 50% Poliéster 280g. Cara lisa + reverso afelpado. Rend. 2.2m/kg. Ancho 1.60m. Rollo 25 kg. Colores: Marino, Negro, Blanco, Azul Rey, Vino, Rojo, Jaspe Perla, Oxford Jaspe." },
   "felpa spun":   { menudeo: 110, mayoreo: 105, info: "100% Poliéster 280g. Alto volumen y suavidad. Rend. 2.5m/kg. Ancho 1.90m. Rollo 25 kg. Colores: Blanco, Rojo, Marino, Negro, Azul Rey, Vino." },
   "flanel":       { menudeo: 125, mayoreo: 120, info: "100% Poliéster 260g. Ultra suave afelpado. Ideal para pijamas y ropa de descanso. Rend. 2.4m/kg. Ancho 1.60m. Rollo 27 kg. Colores: Blanco, Vino, Marino, Negro, Fiusha, Palo Rosa, Rosa Pastel, Azul Rey, Naranja, Rojo." },
   "polar":        { menudeo: 120, mayoreo: 115, info: "100% Poliéster 280g. Térmico anti-pilling. Rend. 2.5m/kg. Ancho 1.60m. Rollo 25 kg. Colores: Verde Botella, Verde Militar, Palo Rosa, Azul Rey, Vino, Marino, Fiusha, Negro, Rojo, Blanco." },
-  // ── DEPORTIVO / LICRA ───────────────────────────────────────────────────────
   "jumanji":          { menudeo: 145, mayoreo: 140, info: "Poliéster/Spandex 180g. Alta elasticidad y recuperación. Rend. 3.5m/kg. Ancho 1.60m. Color único por rollo." },
   "licra liluna":     { menudeo: 135, mayoreo: 130, info: "Poliéster/Spandex 180g. Alta elasticidad. Rend. 3.5m/kg. Ancho 1.60m. Color único por rollo." },
   "licra playera":    { menudeo: 130, mayoreo: 125, info: "Poliéster/Spandex 180g. Alta elasticidad. Rend. 3.5m/kg. Ancho 1.60m. Color único por rollo." },
@@ -545,7 +541,6 @@ const PRECIOS_TELAS_DEFAULT: Record<string, { menudeo: number; mayoreo: number; 
   "licra saludable":  { menudeo: 140, mayoreo: 135, info: "Poliéster/Spandex 180g. Alta elasticidad. Rend. 3.5m/kg. Ancho 1.60m. Colores: Blanco, Negro, Rojo, Azul Rey, Marino, Militar, Perla Jaspe, Oxford Jaspe." },
   "mercury":          { menudeo: 160, mayoreo: 155, info: "Poliéster/Spandex 180g. Alta elasticidad premium. Rend. 3.5m/kg. Ancho 1.60m. Color único por rollo." },
   "microtrix":        { menudeo: 150, mayoreo: 145, info: "Poliéster/Spandex 180g. Alta elasticidad. Rend. 3.5m/kg. Ancho 1.60m. Color único por rollo." },
-  // ── ESCOLAR / DEPORTIVO ─────────────────────────────────────────────────────
   "sportok": { menudeo: 80, mayoreo: 75, info: "100% Poliéster interior afelpado 260g. Estándar para pants, sudaderas y uniformes escolares. Rend. 2.4m/kg. Ancho 1.60m. Rollo 25 kg. +48 colores: Blanco, Negro, Marino, Rojo, Azul Rey, Francia, Marino Claro, Oxford, Medio, Gris Baby, Perla, Vino, Fiusha, Bugambilia, Lila, Uva, Morado, Aqua, Menta, Turquesa, Cielo, Rosa Baby, Rosa Pastel, Palo de Rosa, Magenta, Petróleo, Militar, Botella, Bandera, Caqui, Camel, Beige, Café, Mostaza, Oro Viejo, Mango, Canario, Naranja, Rojo Quemado, Verde Neón, Amarillo Neón, Naranja Neón, Rosa Neón, Pistache, Manzana, Acero." },
 };
 
@@ -788,9 +783,6 @@ async function handleWhatsappWebhook(body: any) {
 
   console.log(`\n${'='.repeat(60)}\n💬 MENSAJE — Tel: ${tel} | "${msgCliente}"\n${'='.repeat(60)}\n`);
 
-  // ==========================================
-  // 🛑 CRM ROUTER — CON TIMEOUT DE 15 MINUTOS
-  // ==========================================
   try {
     const decision = await determineRouting(tel, "WHATSAPP");
 
@@ -837,9 +829,6 @@ async function handleWhatsappWebhook(body: any) {
     console.error("⚠️ Error en CRM router:", error);
   }
 
-  // ==========================================
-  // 🤖 EL COYOTE — PROCESAMIENTO PRINCIPAL
-  // ==========================================
   console.log(`🐺 El Coyote procesando mensaje de ${tel}...`);
   const redis = getRedis();
   const msgLower = msgCliente.trim().toLowerCase();
@@ -881,7 +870,6 @@ async function handleWhatsappWebhook(body: any) {
   let perfil = await getCliente(redis, tel);
   const config = await getConfigBot(redis);
 
-  // ── CLIENTE NUEVO: crear perfil y enviar bienvenida ──────────────────────────
   if (!perfil) {
     perfil = {
       nombre: '',
@@ -928,9 +916,6 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  // ==========================================
-  // ✅ PASO 1 — VERIFICACIÓN DE NOMBRE
-  // ==========================================
   if (!perfil.nombre) {
     const primerNombre = msgCliente.trim().split(/\s+/)[0];
     const pareceNombre = primerNombre.length >= 2 && !/[¿?!0-9@]/.test(primerNombre);
@@ -959,9 +944,6 @@ async function handleWhatsappWebhook(body: any) {
     }
   }
 
-  // ==========================================
-  // ✅ PASO 2 — VERIFICACIÓN DE CORREO
-  // ==========================================
   if (!perfil.correoElectronico) {
     const regexCorreo = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
     const matchCorreo = msgCliente.match(regexCorreo);
@@ -997,9 +979,6 @@ async function handleWhatsappWebhook(body: any) {
     }
   }
 
-  // ==========================================
-  // ✅ PASO 3 — AVISO DE PRIVACIDAD
-  // ==========================================
   if (!perfil.privacidadAceptada) {
     const respondioSi = /^\s*(sí|si|yes|acepto|autorizo|de acuerdo|ok|okay)\s*$/i.test(msgCliente.trim());
     const respondioNo = /^\s*(no|nope|no gracias)\s*$/i.test(msgCliente.trim());
@@ -1047,12 +1026,8 @@ async function handleWhatsappWebhook(body: any) {
     }
   }
 
-  // ==========================================
-  // 🐺 FLUJO NORMAL DE VENTA (verificación completa)
-  // ==========================================
   perfil.ultimoContacto = new Date().toISOString();
 
-  // 🏆 Verificar suscripción activa en Prisma
   const estadoMembresia = await verificarMembresia(tel);
   if (estadoMembresia.activa && !perfil.tieneSuscripcion) {
     perfil.tieneSuscripcion = true;
@@ -1092,7 +1067,6 @@ async function handleWhatsappWebhook(body: any) {
   const esElJefe = historial.some((m: any) => m.role === 'user' && m.content.trim() === 'elcoyote56');
   const bodega = await getBodega(redis);
 
-  // ── Builders de catálogo ────────────────────────────────────────────────────
   const buildCatalogoTelas = () =>
     Object.entries(bodega.telas).map(([name, p]) =>
       `  • ${name.toUpperCase()}: $${p.menudeo}/kg menudeo | $${p.mayoreo}/kg mayoreo | rollo 25kg = $${(p.mayoreo * 25).toFixed(0)} MXN\n    ${p.info}`
@@ -1119,7 +1093,6 @@ async function handleWhatsappWebhook(body: any) {
       ).join('\n')
     : '';
 
-  // ── Alertas de perfil ───────────────────────────────────────────────────────
   const diasDesdeUltimo = perfil.ultimoContacto
     ? Math.floor((Date.now() - new Date(perfil.ultimoContacto).getTime()) / (1000 * 60 * 60 * 24))
     : 0;
@@ -1157,7 +1130,6 @@ async function handleWhatsappWebhook(body: any) {
   const alertaPropension       = perfil.propensionCross ? `🎯 PROPENSIÓN CROSS: Hilos ${perfil.propensionCross.hilos}% | Elásticos ${perfil.propensionCross.elasticos}% | Volumen+ ${perfil.propensionCross.volumenExtra}%` : '';
   const memoriaSemantica       = perfil.resumenSemantico ? `\n🧠 MEMORIA SEMÁNTICA:\n${perfil.resumenSemantico}` : '';
 
-  // ── Instrucción de táctica ──────────────────────────────────────────────────
   const instruccionTactica = (() => {
     const temp = perfil.temperaturaCompra ?? 30;
     const intentos = perfil.intentosDePago ?? 0;
@@ -1211,35 +1183,60 @@ NUNCA baje el precio sin obtener algo a cambio.`;
     }
   })();
 
-  // ── Bloque de estado T&C y Membresía para el prompt ─────────────────────────
+  // ==========================================
+  // 🏆 BLOQUE MEMBRESÍA — CON PRECIOS Y BENEFICIOS REALES
+  // ==========================================
   const bloqueMembresia = (() => {
     if (estadoMembresia.activa) {
-      return `✅ CLIENTE CON MEMBRESÍA ACTIVA (Plan: ${perfil.planMembresia || 'Socio Coyote'})
-Al momento de cerrar la venta, reconozca su membresía y aplique sus beneficios:
-• Precio de mayoreo garantizado en toda compra
-• Acceso prioritario a nuevos lotes y colores exclusivos
-• Facturación 4.0 automática incluida sin trámites
-• Rastreo satelital y envío prioritario nacional
-• Soporte dedicado de la Jauría Coyote 24/7
-• Reserva de stock con hasta 72h de anticipación
-Mencione: "Como Socio Coyote 👑, su pedido lleva todos los beneficios de su membresía activa."`;
+      const planLabel = perfil.planMembresia === 'ELITE' ? '💎 ELITE — Master Partner'
+        : perfil.planMembresia === 'BLACK' ? '⚫ BLACK — Socio Ejecutivo'
+        : '🥇 GOLD — Socio Comercial';
+      const beneficiosPlan = perfil.planMembresia === 'ELITE'
+        ? '4 ptos por cada $100 MXN | 6 colocaciones gratis/mes | Prioridad máxima en envíos | Reserva ilimitada | Muestras anticipadas | $0 tarifa de servicio'
+        : perfil.planMembresia === 'BLACK'
+        ? '2 ptos por cada $100 MXN | 3 colocaciones gratis/mes | Prioridad en envíos Coyote Logistics | Reserva de textiles | Merchandising sorpresa anual'
+        : '1 pto por cada $100 MXN | 1 colocación gratis/mes | Atención IA 24/7';
+      return `✅ CLIENTE CON MEMBRESÍA ACTIVA (Plan: ${planLabel})
+Al momento de cerrar la venta, reconozca su membresía y mencione sus beneficios activos:
+${beneficiosPlan}
+Mencione: "Como Socio Coyote ${perfil.planMembresia === 'ELITE' ? '💎 ELITE' : perfil.planMembresia === 'BLACK' ? '⚫ BLACK' : '🥇 GOLD'} 👑, su pedido lleva todos los beneficios de su plan activo — incluyendo ${perfil.planMembresia === 'ELITE' ? '$0 en tarifa de servicio y máxima prioridad en envío' : perfil.planMembresia === 'BLACK' ? 'prioridad en envío y reserva de textiles' : '1 colocación gratis al mes'}."`;
     }
     if (perfil.membresiaOfrecida) {
       return `⬜ MEMBRESÍA YA FUE OFRECIDA Y DECLINADA — No la mencione de nuevo. Proceda directo al cobro una vez aceptados los T&C.`;
     }
-    return `⚠️ CLIENTE SIN MEMBRESÍA — Ofrezca UNA sola vez, justo antes del cobro (si aún no fue ofrecida):
+    return `⚠️ CLIENTE SIN MEMBRESÍA — Ofrezca UNA sola vez, justo antes del cobro (si aún no fue ofrecida).
 Texto exacto a usar:
-"Antes de procesar su pago, le comento que tenemos nuestro *Programa Socios Coyote* 🐺👑:
-• Precio de mayoreo garantizado en cada compra
-• Acceso prioritario a lotes y colores exclusivos
-• Facturación 4.0 automática incluida
-• Envío prioritario con rastreo satelital
-• Soporte dedicado 24/7 de la Jauría
-• Reserva de stock con 72h de anticipación
-Más información: https://www.coyotetextil.com/membresia
-¿Le interesa activar su membresía, o continuamos con su pedido?"
 
-Si acepta → use: ESCALAR|Cliente interesado en Membresía Socios Coyote
+"Antes de procesar su pago, le presento nuestro *Programa Socios Coyote* 🐺👑. Tenemos 3 niveles:
+
+*🥇 GOLD — Socio Comercial: $299/mes*
+• 1 pto por cada $100 MXN en compras (el doble que el acceso base)
+• 1 colocación gratis a paquetería al mes
+• Atención IA 24/7
+• Plan anual: $3,233 MXN (ahorra $255)
+
+*⚫ BLACK — Socio Ejecutivo: $699/mes*
+• 2 ptos por cada $100 MXN (4× más que el acceso base)
+• 3 colocaciones gratis al mes
+• Prioridad en envíos Coyote Logistics
+• Reserva de textiles antes de que se agoten
+• Merchandising sorpresa anual
+• Plan anual: $7,549 MXN (ahorra $639)
+
+*💎 ELITE — Master Partner: $1,129/mes*
+• 4 ptos por cada $100 MXN (8× más que el acceso base)
+• 6 colocaciones gratis al mes
+• Máxima prioridad en envíos — siempre al frente
+• Reserva ilimitada de cualquier textil del catálogo
+• Muestras gratis + acceso anticipado a nuevos textiles
+• *$0 en tarifa de servicio en toda operación*
+• Merchandising exclusivo anual
+• Plan anual: $12,193 MXN (ahorra $1,155)
+
+Más información: https://www.coyotetextil.com/membresia
+¿Le interesa activar algún nivel, o continuamos con su pedido?"
+
+Si acepta → use: ESCALAR|Cliente interesado en Membresía Socios Coyote — plan [GOLD/BLACK/ELITE]
 Si declina → emita: MEMBRESIA_OFRECIDA y proceda con el cobro`;
   })();
 
@@ -1284,9 +1281,6 @@ ${memoriaSemantica}
     ? `\n⚡ LINK STRIPE YA GENERADO: ${linkStripeAutoGenerado}\nUSE ESTE LINK directamente. NO use GENERAR_COBRO.`
     : '';
 
-  // ==========================================
-  // 🧠 PROMPT PRINCIPAL
-  // ==========================================
   const CONTEXTO_VENDEDOR = `
 ════════════════════════════════════════════════════════
 🐺 IDENTIDAD — EL COYOTE (IRROMPIBLE)
@@ -1598,7 +1592,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     return;
   }
 
-  // 🛡️ Filtro identidad
   const frasesSinIdentidad = [
     /\bsoy una ia\b/i, /\bsoy un bot\b/i, /\basistente virtual\b/i,
     /\bcomo asistente de ia\b/i, /\bcomo ia\b/i, /\bchatgpt\b/i, /\bgpt\b/i,
@@ -1607,7 +1600,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     if (patron.test(respuesta)) respuesta = respuesta.replace(patron, 'El Coyote de Coyote Textil');
   }
 
-  // ✅ PROCESAR TERMINOS_ACEPTADOS
   if (/TERMINOS_ACEPTADOS/i.test(respuesta)) {
     respuesta = respuesta.replace(/TERMINOS_ACEPTADOS/gi, '').trim();
     perfil.terminosAceptados = true;
@@ -1624,7 +1616,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     } catch (traceErr) { console.error("⚠️ Error en createTrace (terminos):", traceErr); }
   }
 
-  // 🏆 PROCESAR MEMBRESIA_OFRECIDA
   if (/MEMBRESIA_OFRECIDA/i.test(respuesta)) {
     respuesta = respuesta.replace(/MEMBRESIA_OFRECIDA/gi, '').trim();
     perfil.membresiaOfrecida = true;
@@ -1632,7 +1623,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     console.log(`📋 Membresía ofrecida y rechazada por ${tel} — continuar con cobro normal`);
   }
 
-  // 📊 PROCESAR DATOS_CLIENTE
   const matchDatos = respuesta.match(/DATOS_CLIENTE\|(.+)/);
   if (matchDatos) {
     respuesta = respuesta.replace(/DATOS_CLIENTE\|.+/g, '').trim();
@@ -1687,9 +1677,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     await saveCliente(redis, tel, perfil);
   }
 
-  // ==========================================
-  // 👑 COMANDOS DEL JEFE
-  // ==========================================
   if (esElJefe) {
 
     const matchPrecio = respuesta.match(/PRECIO_UPDATE\|(.+?)\|(.+?)\|(.+?)\|(\d+)/);
@@ -1816,15 +1803,11 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     }
 
   } else {
-    // ==========================================
-    // 🛒 COMANDOS DEL CLIENTE
-    // ==========================================
 
     if (linkStripeAutoGenerado && !respuesta.includes('https://checkout.stripe.com')) {
       respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${linkStripeAutoGenerado}\n\n_Procesado por Stripe. Su transacción está protegida. 🐺_`;
     }
 
-    // 💸 SPEI
     const matchSpei = respuesta.match(/GENERAR_SPEI\|([\d.]+)/i);
     if (matchSpei) {
       const [, monto] = matchSpei;
@@ -1857,7 +1840,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       } catch (traceErr) { console.error("⚠️ Error en createTrace (spei):", traceErr); }
     }
 
-    // ⏰ PROGRAMAR_RECORDATORIO
     const matchRecordatorio = respuesta.match(/PROGRAMAR_RECORDATORIO\|(.+?)\|(.+?)\|(.+)/i);
     if (matchRecordatorio) {
       const [, , fechaRec, mensajeRec] = matchRecordatorio;
@@ -1868,7 +1850,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       console.log(`⏰ Recordatorio guardado para ${tel}: ${mensajeRec.trim()} en ${fechaRec.trim()}`);
     }
 
-    // 🚚 CALCULAR_ENVIO
     const matchEnvio = respuesta.match(/CALCULAR_ENVIO\|productos=\[(.+?)\]\|cp=(.+)/i);
     if (matchEnvio) {
       const [, productosStr, cpEnvio] = matchEnvio;
@@ -1882,7 +1863,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       }
     }
 
-    // 🆘 ESCALAR
     const matchEscalar = respuesta.match(/ESCALAR\|(.+)/i);
     if (matchEscalar) {
       const [, duda] = matchEscalar;
@@ -1934,7 +1914,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       }
     }
 
-    // 💳 GENERAR_COBRO (Stripe)
     const matchCobro = respuesta.match(/GENERAR_COBRO\|(.+?)\|([\d.]+)\|(.+?)\|(.+?)\|(.+?)\|(.+?)\|(.+)/i);
     if (matchCobro && !linkStripeAutoGenerado) {
       const [, metodo, monto, rfc, razon, cp, regimen, uso] = matchCobro;
@@ -1987,7 +1966,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     });
   } catch (traceErr) { console.error("⚠️ Error en createTrace (respuesta bot):", traceErr); }
 
-  // Espejear en Prisma para el CRM
   try {
     let convoPrisma = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
     if (!convoPrisma) {
