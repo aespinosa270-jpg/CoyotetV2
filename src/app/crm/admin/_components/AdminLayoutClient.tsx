@@ -42,9 +42,17 @@ const menuItems = [
     ],
   },
   { name: "Interacciones",     icon: MessageSquare,   href: "/crm/admin/interacciones" },
-  { name: "Clientes",          icon: Users,           href: "/crm/admin/clientes"      },
+  { 
+    name: "Clientes",          
+    icon: Users,           
+    href: "/crm/admin/clientes",
+    submenus: [
+      { name: "Directorio",      href: "/crm/admin/clientes" },
+      { name: "Alta de Cliente", href: "/crm/admin/clientes/nuevo" },
+    ]
+  },
   { name: "Catálogo",          icon: Package,         href: "/crm/admin/productos"     },
-  { name: "Pedidos",           icon: ShoppingBag,     href: "/crm/admin/pedidos"       }, // <--- NUEVA SECCIÓN
+  { name: "Pedidos",           icon: ShoppingBag,     href: "/crm/admin/pedidos"       },
   {
     name: "Inventario",        icon: Warehouse,       href: "/crm/admin/inventario",
     submenus: [
