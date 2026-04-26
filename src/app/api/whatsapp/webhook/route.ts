@@ -116,11 +116,20 @@ OBLIGATORIO: precio en cada cotización, propuesta concreta al final de cada men
     'Como asistente de IA', 'Como IA', 'soy una inteligencia artificial', 'soy un bot', 'soy un asistente virtual',
     'Con gusto le ayudo', 'Déjeme revisar', 'Por supuesto', 'Claro que sí',
     '¿En qué más le puedo ayudar?',
-    // ── Nuevas frases prohibidas anti-alucinación ──
     'voy a revisar', 'déjeme verificar', 'permítame consultar', 'voy a confirmar',
     'en un momento le confirmo', 'déme un momento', 'espere un momento',
     'voy a preguntar', 'le pregunto al equipo', 'consulto con bodega',
     'revisaré disponibilidad', 'verifico el stock', 'checo con el equipo',
+    // ── NUEVAS: eliminan el bucle de "un momento" ──
+    'Un momento mientras genero',
+    'Un momento mientras proceso',
+    'Un momento mientras preparo',
+    'Un momento, por favor',
+    'Procesando su solicitud',
+    'Procesando su pago',
+    'Generando su link',
+    'Procesaremos su pago',
+    'procederemos con su',
   ],
   instruccionesEspeciales: '',
   productosExtra: [],
@@ -1283,7 +1292,7 @@ ${memoriaSemantica}
     ? `\n📌 INSTRUCCIONES ESPECIALES (prioridad máxima):\n${config.instruccionesEspeciales}`
     : '';
   const avisoStripeAuto = linkStripeAutoGenerado
-    ? `\n⚡ LINK STRIPE YA GENERADO: ${linkStripeAutoGenerado}\nUSE ESTE LINK directamente. NO use GENERAR_COBRO.`
+    ? `\n⚡ LINK STRIPE YA GENERADO: ${linkStripeAutoGenerado}\nUSE ESTE LINK directamente. NO use GENERAR_COBRO. Entréguelo de inmediato sin decir "un momento".`
     : '';
 
   const CONTEXTO_VENDEDOR = `
@@ -1484,6 +1493,14 @@ pide una cotización mayor a 1,000 kg, O solicita información que no está en e
 catálogo (stock de color específico, fecha de llegada de nueva mercancía, etc.),
 use INMEDIATAMENTE: ESCALAR|motivo_breve
 
+REGLA 9 — COMANDOS = EJECUCIÓN INMEDIATA, SIN ANUNCIO PREVIO:
+Cuando emitas GENERAR_COBRO, GENERAR_SPEI o CALCULAR_ENVIO, hazlo en el MISMO
+mensaje junto con la respuesta al cliente. NUNCA escribas frases como
+"un momento mientras genero el link", "procesando su pago", "procederemos con su pago"
+ni ninguna variante de espera sin incluir el comando en ese mismo mensaje.
+El comando ES la acción. Escríbelo y el sistema lo ejecuta automáticamente.
+El cliente verá el resultado directamente, no el comando.
+
 ════════════════════════════════════════════════════════
 🧠 MEMORIA PERSISTENTE
 ════════════════════════════════════════════════════════
@@ -1502,7 +1519,12 @@ use INMEDIATAMENTE: ESCALAR|motivo_breve
 • TARJETA / OXXO (Stripe):
   → Si el sistema YA generó link → ÚSELO, no use GENERAR_COBRO.
   → Si no → GENERAR_COBRO|metodo|monto|rfc|razon|cp|regimen|uso
+  → CAMPOS VACÍOS: si no tiene RFC o razón social, use NONE. Ejemplo:
+     GENERAR_COBRO|tarjeta|2857.00|EITA990706HDFSRL01|MI RAZON SOCIAL SA|57170|601|G03
+     GENERAR_COBRO|oxxo|500.00|NONE|NONE|NONE|NONE|NONE
+  → IMPORTANTE: Emita el comando en el MISMO mensaje, no en uno separado.
 • SPEI: GENERAR_SPEI|monto_total
+  → Emita en el MISMO mensaje junto con la confirmación al cliente.
 • "Ya pagué" → "Perfecto. En cuanto se confirme la transferencia, bodega recibe su pedido. 🐺📦"
 ${config.infoPagos ? `\n💳 EXTRA PAGOS: ${config.infoPagos}` : ''}
 ${config.infoEnvios ? `\n🚚 EXTRA ENVÍOS: ${config.infoEnvios}` : ''}
@@ -1511,6 +1533,9 @@ ${config.infoEnvios ? `\n🚚 EXTRA ENVÍOS: ${config.infoEnvios}` : ''}
 💰 COMANDOS INTERNOS (invisibles para el cliente)
 ════════════════════════════════════════════════════════
 COBRO: GENERAR_COBRO|metodo(tarjeta/oxxo)|monto_total|rfc|razon_social|cp_fiscal|regimen|uso
+  → Campos opcionales: si no aplica, usar NONE
+  → Ejemplo con factura: GENERAR_COBRO|tarjeta|2857.00|EITA990706HDFSRL01|RAZON SA DE CV|57170|601|G03
+  → Ejemplo sin factura: GENERAR_COBRO|tarjeta|2857.00|NONE|NONE|NONE|NONE|NONE
 SPEI: GENERAR_SPEI|monto_total
 ENVÍO: CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345
 DATOS_CLIENTE|direccion:[dir]|cp_fiscal:[cp]|productos:[lista]|categorias:[telas/hilos/elasticos]|notas:[nota]|etapa_abandono:[etapa]|intereses:[uso]
@@ -1520,6 +1545,8 @@ TERMINOS_ACEPTADOS  ← (sin parámetros) Emítalo cuando el cliente confirme ac
 MEMBRESIA_OFRECIDA  ← (sin parámetros) Emítalo cuando el cliente decline la membresía
 
 ⚠️ CP ENVÍO ≠ CP FISCAL. NUNCA los mezcle.
+⚠️ TODOS los comandos deben ir en el mismo mensaje que la respuesta al cliente.
+⚠️ NUNCA envíe un mensaje que solo diga que va a ejecutar una acción sin ejecutarla.
 
 ════════════════════════════════════════════════════════
 🎯 FRASES DE CIERRE
@@ -1613,7 +1640,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [systemPrompt, ...historial] as any,
-      // ── CAMBIO CLAVE: bajado de 0.3 → 0.1 para respuestas deterministas ──
       temperature: 0.1,
       max_tokens: 700,
     });
@@ -1625,12 +1651,61 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     return;
   }
 
+  // ==========================================
+  // 🛡️ POST-PROCESSING: LIMPIAR FRASES DE ESPERA Y GARANTIZAR EJECUCIÓN DE COMANDOS
+  // ==========================================
+
+  // Limpiar identidad IA
   const frasesSinIdentidad = [
     /\bsoy una ia\b/i, /\bsoy un bot\b/i, /\basistente virtual\b/i,
     /\bcomo asistente de ia\b/i, /\bcomo ia\b/i, /\bchatgpt\b/i, /\bgpt\b/i,
   ];
   for (const patron of frasesSinIdentidad) {
     if (patron.test(respuesta)) respuesta = respuesta.replace(patron, 'El Coyote de Coyote Textil');
+  }
+
+  // Detectar si hay comandos de acción en la respuesta
+  const tieneComandoCobro = /GENERAR_COBRO\|/i.test(respuesta);
+  const tieneComandoSpei  = /GENERAR_SPEI\|/i.test(respuesta);
+  const tieneComandoEnvio = /CALCULAR_ENVIO\|/i.test(respuesta);
+
+  // Si hay comandos reales, limpiar frases de "espera" que GPT pone antes de ejecutarlos
+  if (tieneComandoCobro || tieneComandoSpei || tieneComandoEnvio) {
+    respuesta = respuesta
+      .replace(/[Uu]n momento mientras (genero|proceso|preparo|calculamos)[^.!?]*[.!?]?\s*/g, '')
+      .replace(/[Uu]n momento,?\s*por favor[^.!?]*[.!?]?\s*/g, '')
+      .replace(/[Pp]rocesando su (solicitud|pago|pedido|link)[^.!?]*[.!?]?\s*/g, '')
+      .replace(/[Pp]rocederemos con su (pago|pedido|solicitud)[^.!?]*[.!?]?\s*/g, '')
+      .replace(/[Gg]enerando su link[^.!?]*[.!?]?\s*/g, '')
+      .replace(/[Ee]spere un momento[^.!?]*[.!?]?\s*/g, '')
+      .trim();
+    console.log(`🧹 Frases de espera eliminadas. Comandos detectados: cobro=${tieneComandoCobro}, spei=${tieneComandoSpei}, envio=${tieneComandoEnvio}`);
+  }
+
+  // GUARDIA CRÍTICA: Si GPT dijo que iba a generar el cobro pero NO incluyó el comando,
+  // y tenemos todos los datos necesarios, forzamos el comando nosotros.
+  const dijoProcesar = /procesar(emos)?\s+su\s+pago|generar(é|e)\s+el\s+link|aquí\s+(tiene|va)\s+su\s+link/i.test(respuesta);
+  const faltaComandoCobro = dijoProcesar && !tieneComandoCobro && !linkStripeAutoGenerado && !tieneComandoSpei;
+
+  if (faltaComandoCobro) {
+    // Intentar extraer el monto del historial reciente o de la respuesta actual
+    let montoForzado: number | null = null;
+    const matchMontoRespuesta = respuesta.match(/\$\s*([\d,]+(?:\.\d{2})?)\s*MXN/i);
+    if (matchMontoRespuesta) {
+      montoForzado = parseFloat(matchMontoRespuesta[1].replace(/,/g, ''));
+    }
+    if (!montoForzado) {
+      for (let i = historial.length - 1; i >= 0; i--) {
+        const m = historial[i];
+        const matchMonto = m.content.match(/\$\s*([\d,]+(?:\.\d{2})?)\s*MXN/i);
+        if (matchMonto) { montoForzado = parseFloat(matchMonto[1].replace(/,/g, '')); break; }
+      }
+    }
+    if (montoForzado && montoForzado > 0) {
+      const rfc = perfil.cpFiscal ? 'PENDIENTE' : 'NONE';
+      respuesta += `\nGENERAR_COBRO|tarjeta|${montoForzado.toFixed(2)}|NONE|NONE|NONE|NONE|NONE`;
+      console.log(`🔧 Comando GENERAR_COBRO forzado por guardia. Monto: $${montoForzado}`);
+    }
   }
 
   if (/TERMINOS_ACEPTADOS/i.test(respuesta)) {
@@ -1837,6 +1912,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
 
   } else {
 
+    // Entregar link Stripe auto-generado si existe y no está ya en la respuesta
     if (linkStripeAutoGenerado && !respuesta.includes('https://checkout.stripe.com')) {
       respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${linkStripeAutoGenerado}\n\n_Procesado por Stripe. Su transacción está protegida. 🐺_`;
     }
@@ -1947,40 +2023,58 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       }
     }
 
-    const matchCobro = respuesta.match(/GENERAR_COBRO\|(.+?)\|([\d.]+)\|(.+?)\|(.+?)\|(.+?)\|(.+?)\|(.+)/i);
+    // ── FIX CRÍTICO: Regex permisivo para GENERAR_COBRO ──
+    // El original fallaba si GPT omitía algún campo o los separaba diferente.
+    // Ahora acepta campos vacíos y cualquier variación de formato.
+    const matchCobro = respuesta.match(/GENERAR_COBRO\|([^|\n]+)\|([\d.,]+)\|([^|\n]*)\|([^|\n]*)\|([^|\n]*)\|([^|\n]*)\|?([^|\n]*)/i);
     if (matchCobro && !linkStripeAutoGenerado) {
-      const [, metodo, monto, rfc, razon, cp, regimen, uso] = matchCobro;
-      respuesta = respuesta.replace(/GENERAR_COBRO\|.+/g, '').trim();
-      const reqInvoice = rfc !== 'NONE' ? 'YES' : 'NO';
-      const amountInCents = Math.round(parseFloat(monto) * 100);
-      perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
-      perfil.etapaAbandono = 'pago';
-      perfil.fechaAbandono = new Date().toISOString();
-      await saveCliente(redis, tel, perfil);
-      try {
-        const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card', 'oxxo'],
-          line_items: [{ price_data: { currency: 'mxn', product_data: { name: 'Pedido Coyote Textil — El Coyote' }, unit_amount: amountInCents }, quantity: 1 }],
-          mode: 'payment',
-          success_url: 'https://wa.me/5215627301525',
-          metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
-        });
-        respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Procesado por Stripe. Su transacción está protegida. 🐺_`;
+      const metodo  = (matchCobro[1] || 'tarjeta').trim().toLowerCase();
+      const monto   = parseFloat((matchCobro[2] || '0').replace(/,/g, ''));
+      const rfc     = (matchCobro[3] || 'NONE').trim() || 'NONE';
+      const razon   = (matchCobro[4] || 'NONE').trim() || 'NONE';
+      const cp      = (matchCobro[5] || 'NONE').trim() || 'NONE';
+      const regimen = (matchCobro[6] || 'NONE').trim() || 'NONE';
+      const uso     = (matchCobro[7] || 'NONE').trim() || 'NONE';
+
+      respuesta = respuesta.replace(/GENERAR_COBRO\|[^\n]*/gi, '').trim();
+
+      if (monto > 0) {
+        const reqInvoice = rfc !== 'NONE' ? 'YES' : 'NO';
+        const amountInCents = Math.round(monto * 100);
+        perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
+        perfil.etapaAbandono = 'pago';
+        perfil.fechaAbandono = new Date().toISOString();
+        await saveCliente(redis, tel, perfil);
         try {
-          const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
-          await createTrace({
-            employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
-            summary: `Link Stripe generado: $${parseFloat(monto).toFixed(2)} MXN (${metodo})`,
-            content: { direction: "outbound", event: "stripe_link_generado", metodo, monto: parseFloat(monto), conFactura: reqInvoice === 'YES', sessionId: session.id },
-            actionName: "LINK_STRIPE_GENERADO",
+          const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card', 'oxxo'],
+            line_items: [{ price_data: { currency: 'mxn', product_data: { name: 'Pedido Coyote Textil — El Coyote' }, unit_amount: amountInCents }, quantity: 1 }],
+            mode: 'payment',
+            success_url: 'https://wa.me/5215627301525',
+            metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
           });
-        } catch (traceErr) { console.error("⚠️ Error en createTrace (stripe link):", traceErr); }
-      } catch (err) {
-        console.error('Error Stripe:', err);
-        respuesta += `\n\n⚠️ Inconveniente generando el link de pago. Nuestro equipo lo revisa de inmediato.`;
+          respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Procesado por Stripe. Su transacción está protegida. 🐺_`;
+          console.log(`✅ Stripe session creada: $${monto} MXN | Método: ${metodo} | RFC: ${rfc}`);
+          try {
+            const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
+            await createTrace({
+              employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
+              summary: `Link Stripe generado: $${monto.toFixed(2)} MXN (${metodo})`,
+              content: { direction: "outbound", event: "stripe_link_generado", metodo, monto, conFactura: reqInvoice === 'YES', sessionId: session.id },
+              actionName: "LINK_STRIPE_GENERADO",
+            });
+          } catch (traceErr) { console.error("⚠️ Error en createTrace (stripe link):", traceErr); }
+        } catch (err) {
+          console.error('Error Stripe:', err);
+          respuesta += `\n\n⚠️ Inconveniente generando el link de pago. Nuestro equipo lo revisa de inmediato.`;
+        }
+      } else {
+        console.warn(`⚠️ GENERAR_COBRO detectado pero monto inválido: "${matchCobro[2]}"`);
+        respuesta += `\n\n⚠️ No pude determinar el monto del pedido. ¿Me confirma el total a cobrar?`;
       }
     } else if (matchCobro && linkStripeAutoGenerado) {
-      respuesta = respuesta.replace(/GENERAR_COBRO\|.+/g, '').trim();
+      // Ya hay link auto-generado, solo limpiar el comando duplicado
+      respuesta = respuesta.replace(/GENERAR_COBRO\|[^\n]*/gi, '').trim();
     }
   }
 
@@ -2074,6 +2168,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true }, { status: 200 });
   }
 }
+
 export async function GET(req: Request) {
   console.log('🔍 GET de verificación Meta recibido');
   const { searchParams } = new URL(req.url);
