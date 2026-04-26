@@ -2074,10 +2074,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true }, { status: 200 });
   }
 }
-
-// ==========================================
-// ✅ VERIFICACIÓN META (GET)
-// ==========================================
 export async function GET(req: Request) {
   console.log('🔍 GET de verificación Meta recibido');
   const { searchParams } = new URL(req.url);
