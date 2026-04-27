@@ -124,12 +124,24 @@ OBLIGATORIO: precio en cada cotización, propuesta concreta al final de cada men
     'Un momento mientras genero',
     'Un momento mientras proceso',
     'Un momento mientras preparo',
+    'Un momento mientras calculamos',
+    'Un momento mientras obtenemos',
     'Un momento, por favor',
+    'Un momento.',
     'Procesando su solicitud',
     'Procesando su pago',
     'Generando su link',
     'Procesaremos su pago',
     'procederemos con su',
+    'Vamos a calcular',
+    'vamos a procesar',
+    'Procedemos a calcular',
+    'Procedemos a generar',
+    'a calcular el envío',
+    'calcularé el envío',
+    'generaré el link',
+    'le genero el link',
+    'le proceso el pago',
   ],
   instruccionesEspeciales: '',
   productosExtra: [],
@@ -1417,11 +1429,17 @@ Una vez con los 3 datos → cotice en ese mismo mensaje:
   • Precio rollo (si aplica)
   • Costo aproximado por prenda
 
-PASO 3 — CP DE ENVÍO:
-Inmediatamente después de cotizar → "¿A qué CP enviamos para incluir el flete?"
+PASO 3 — DIRECCIÓN COMPLETA DE ENVÍO:
+Inmediatamente después de cotizar → solicite la dirección COMPLETA en un solo mensaje:
+"¿A qué dirección enviamos? Necesito: calle, número exterior/interior, colonia, ciudad y CP."
+NUNCA pida solo el CP. Siempre pida la dirección completa.
+Una vez que el cliente la proporcione → guárdela INMEDIATAMENTE:
+DATOS_CLIENTE|direccion:[calle número, colonia, ciudad, CP]
+El CP que viene dentro de la dirección es el que se usa para calcular el flete.
+Extráigalo de la dirección y ejecute CALCULAR_ENVIO en ese mismo mensaje.
 
 PASO 4 — FACTURA:
-Al tener el CP → "¿Requiere factura fiscal?"
+Al tener la dirección → "¿Requiere factura fiscal?"
 
 PASO 5 — MÉTODO DE PAGO:
 "¿Cerramos con tarjeta, OXXO o SPEI?"
@@ -1465,8 +1483,19 @@ Cada respuesta debe terminar con UNA pregunta que avance hacia el pago:
 • "¿Cerramos con tarjeta, OXXO o SPEI?"
 NUNCA termine con "¿En qué más le puedo ayudar?"
 
-REGLA 2 — ENVÍO OBLIGATORIO:
-Si tiene producto + kg/metros + CP → ejecute CALCULAR_ENVIO en ese mismo mensaje.
+REGLA 2 — ENVÍO OBLIGATORIO E INMEDIATO:
+Si tiene producto + kg/metros + dirección completa del cliente → ejecute CALCULAR_ENVIO
+en ESE MISMO MENSAJE. No anuncie que lo va a calcular. Solo calcúlelo y muestre el resultado.
+Si solo tiene CP sin dirección completa → pida la dirección completa antes de calcular.
+NUNCA diga "vamos a calcular", "un momento mientras calculo" ni ninguna variante.
+Ejemplo CORRECTO: El cliente da su dirección → usted responde con el desglose completo del envío.
+Ejemplo INCORRECTO: "Gracias, vamos a calcular el envío. Un momento." ← ESTO ESTÁ PROHIBIDO.
+
+REGLA 2B — GUARDAR DIRECCIÓN SIEMPRE:
+En cuanto el cliente proporcione su dirección, en ese mismo mensaje emita:
+DATOS_CLIENTE|direccion:[dirección completa tal como la dio el cliente]
+Luego extraiga el CP de 5 dígitos de esa dirección y ejecute CALCULAR_ENVIO inmediatamente.
+Ambos comandos van en el MISMO mensaje junto con la respuesta visible al cliente.
 
 REGLA 3 — CROSS-SELL AL CIERRE:
 Al dar precio de tela → "¿Le incluimos hilo para ese pedido? Kingtex 40/2 a $29/cono."
@@ -1664,23 +1693,39 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     if (patron.test(respuesta)) respuesta = respuesta.replace(patron, 'El Coyote de Coyote Textil');
   }
 
+  // ── LIMPIAR SIEMPRE frases de espera/anuncio, independientemente de si hay comandos ──
+  // Estas frases NUNCA deben llegar al cliente bajo ninguna circunstancia
+  const frasesEsperaProhibidas: RegExp[] = [
+    /[Uu]n momento[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Vv]amos a calcular[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Vv]amos a procesar[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Pp]rocedemos a (calcular|generar|procesar)[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Cc]alcularé el envío[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Gg]eneraré el link[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Ll]e (genero|proceso|mando|envío) el (link|pago|cobro)[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Pp]rocesando su (solicitud|pago|pedido|link)[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Pp]rocederemos con su (pago|pedido|solicitud)[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Gg]enerando su link[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Ee]spere (un momento|por favor)[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Aa] calcular el envío[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Pp]ermítame calcular[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Pp]rocesaré su pago[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Cc]on el CP proporcionado[^.!?\n]{0,60}[.!?]?\s*/g,
+    /[Cc]on el código postal[^.!?\n]{0,60}calcul[^.!?\n]{0,60}[.!?]?\s*/g,
+  ];
+
+  for (const patron of frasesEsperaProhibidas) {
+    const antes = respuesta;
+    respuesta = respuesta.replace(patron, '').trim();
+    if (respuesta !== antes) {
+      console.log(`🧹 Frase de espera eliminada por patrón: ${patron}`);
+    }
+  }
+
   // Detectar si hay comandos de acción en la respuesta
   const tieneComandoCobro = /GENERAR_COBRO\|/i.test(respuesta);
   const tieneComandoSpei  = /GENERAR_SPEI\|/i.test(respuesta);
   const tieneComandoEnvio = /CALCULAR_ENVIO\|/i.test(respuesta);
-
-  // Si hay comandos reales, limpiar frases de "espera" que GPT pone antes de ejecutarlos
-  if (tieneComandoCobro || tieneComandoSpei || tieneComandoEnvio) {
-    respuesta = respuesta
-      .replace(/[Uu]n momento mientras (genero|proceso|preparo|calculamos)[^.!?]*[.!?]?\s*/g, '')
-      .replace(/[Uu]n momento,?\s*por favor[^.!?]*[.!?]?\s*/g, '')
-      .replace(/[Pp]rocesando su (solicitud|pago|pedido|link)[^.!?]*[.!?]?\s*/g, '')
-      .replace(/[Pp]rocederemos con su (pago|pedido|solicitud)[^.!?]*[.!?]?\s*/g, '')
-      .replace(/[Gg]enerando su link[^.!?]*[.!?]?\s*/g, '')
-      .replace(/[Ee]spere un momento[^.!?]*[.!?]?\s*/g, '')
-      .trim();
-    console.log(`🧹 Frases de espera eliminadas. Comandos detectados: cobro=${tieneComandoCobro}, spei=${tieneComandoSpei}, envio=${tieneComandoEnvio}`);
-  }
 
   // GUARDIA CRÍTICA: Si GPT dijo que iba a generar el cobro pero NO incluyó el comando,
   // y tenemos todos los datos necesarios, forzamos el comando nosotros.
@@ -1965,10 +2010,16 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       respuesta = respuesta.replace(/CALCULAR_ENVIO\|.+/g, '').trim();
       try {
         const productos: ProductoEnvio[] = JSON.parse(`[${productosStr}]`);
-        const resultado = calcularEnvioReal(productos, cpEnvio.trim(), 0, false);
+        // Extraer CP de la dirección guardada si el CP del comando es inválido
+        let cpFinal = cpEnvio.trim();
+        if (!cpFinal || cpFinal === 'NONE' || cpFinal.length < 4) {
+          const cpDeDireccion = perfil.direccionEnvio?.match(/\b\d{5}\b/);
+          if (cpDeDireccion) cpFinal = cpDeDireccion[0];
+        }
+        const resultado = calcularEnvioReal(productos, cpFinal, 0, false);
         respuesta += `\n\n${resultado.desglose}\n\n¿Le procesamos el pedido? Si requiere factura, indíquemelo para incluir el IVA. 🐺`;
       } catch (e) {
-        respuesta += `\n\n⚠️ No pude calcular el envío. Compártame el CP y los kilos nuevamente.`;
+        respuesta += `\n\n⚠️ No pude calcular el envío. Compártame la dirección completa (calle, número, colonia, ciudad y CP).`;
       }
     }
 
