@@ -1566,7 +1566,10 @@ COBRO: GENERAR_COBRO|metodo(tarjeta/oxxo)|monto_total|rfc|razon_social|cp_fiscal
   → Ejemplo con factura: GENERAR_COBRO|tarjeta|2857.00|EITA990706HDFSRL01|RAZON SA DE CV|57170|601|G03
   → Ejemplo sin factura: GENERAR_COBRO|tarjeta|2857.00|NONE|NONE|NONE|NONE|NONE
 SPEI: GENERAR_SPEI|monto_total
-ENVÍO: CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345
+ENVÍO: CALCULAR_ENVIO|productos=[{"nombre":"producto","kg":cantidad}]|cp=12345|subtotal=MONTO
+  → El campo subtotal es el precio total de los productos ANTES del envío.
+  → Ejemplo: CALCULAR_ENVIO|productos=[{"nombre":"sportok","kg":30}]|cp=57170|subtotal=2250
+  → NUNCA omita el subtotal. Si no lo tiene calculado, calcúlelo primero (kg × precio/kg).
 DATOS_CLIENTE|direccion:[dir]|cp_fiscal:[cp]|productos:[lista]|categorias:[telas/hilos/elasticos]|notas:[nota]|etapa_abandono:[etapa]|intereses:[uso]
 PROGRAMAR_RECORDATORIO|${tel}|[fecha ISO]|[mensaje]
 ESCALAR|descripcion
@@ -2004,21 +2007,52 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       console.log(`⏰ Recordatorio guardado para ${tel}: ${mensajeRec.trim()} en ${fechaRec.trim()}`);
     }
 
-    const matchEnvio = respuesta.match(/CALCULAR_ENVIO\|productos=\[(.+?)\]\|cp=(.+)/i);
+    const matchEnvio = respuesta.match(/CALCULAR_ENVIO\|productos=\[(.+?)\]\|cp=([^|]+)(?:\|subtotal=([\d.]+))?/i);
     if (matchEnvio) {
-      const [, productosStr, cpEnvio] = matchEnvio;
+      const [, productosStr, cpEnvio, subtotalStr] = matchEnvio;
       respuesta = respuesta.replace(/CALCULAR_ENVIO\|.+/g, '').trim();
       try {
         const productos: ProductoEnvio[] = JSON.parse(`[${productosStr}]`);
-        // Extraer CP de la dirección guardada si el CP del comando es inválido
-        let cpFinal = cpEnvio.trim();
-        if (!cpFinal || cpFinal === 'NONE' || cpFinal.length < 4) {
+
+        // Extraer CP limpio
+        let cpFinal = cpEnvio.trim().replace(/\D/g, '').slice(0, 5);
+        if (!cpFinal || cpFinal.length < 4) {
           const cpDeDireccion = perfil.direccionEnvio?.match(/\b\d{5}\b/);
           if (cpDeDireccion) cpFinal = cpDeDireccion[0];
         }
-        const resultado = calcularEnvioReal(productos, cpFinal, 0, false);
-        respuesta += `\n\n${resultado.desglose}\n\n¿Le procesamos el pedido? Si requiere factura, indíquemelo para incluir el IVA. 🐺`;
+
+        // Subtotal: del comando, o calculado desde historial
+        let subtotal = subtotalStr ? parseFloat(subtotalStr) : 0;
+        if (!subtotal || subtotal === 0) {
+          // Buscar en historial el monto de productos cotizados
+          for (let i = historial.length - 1; i >= 0; i--) {
+            const m = historial[i];
+            if (m.role !== 'assistant') continue;
+            // Patrón "X kg × $Y/kg = $Z MXN" o "Total productos: $Z"
+            const matchKg = m.content.match(/(\d+)\s*kg[^$]*\$\s*([\d,]+(?:\.\d{2})?)\s*(?:MXN|por kg)/i);
+            if (matchKg) {
+              const kg = parseFloat(matchKg[1]);
+              const precioKg = parseFloat(matchKg[2].replace(/,/g, ''));
+              subtotal = kg * precioKg;
+              break;
+            }
+            // Patrón "Subtotal: $X" o "$X MXN" como primer monto mencionado
+            const matchSub = m.content.match(/[Ss]ubtotal[^$\n]*\$\s*([\d,]+(?:\.\d{2})?)/);
+            if (matchSub) { subtotal = parseFloat(matchSub[1].replace(/,/g, '')); break; }
+            // Patrón precio cotizado: "rollo.*$X MXN" o "Total.*$X MXN"
+            const matchTotal = m.content.match(/(?:rollo|total|precio)[^$\n]*\$\s*([\d,]+(?:\.\d{2})?)\s*MXN/i);
+            if (matchTotal) {
+              const val = parseFloat(matchTotal[1].replace(/,/g, ''));
+              if (val > 100 && val < 500000) { subtotal = val; break; }
+            }
+          }
+        }
+
+        const resultado = calcularEnvioReal(productos, cpFinal, subtotal, false);
+        respuesta += `\n\n${resultado.desglose}\n\n¿Requiere factura fiscal? 🐺`;
+        console.log(`📦 Envío calculado: CP=${cpFinal} | Subtotal=$${subtotal} | Total=$${resultado.total}`);
       } catch (e) {
+        console.error('Error calculando envío:', e);
         respuesta += `\n\n⚠️ No pude calcular el envío. Compártame la dirección completa (calle, número, colonia, ciudad y CP).`;
       }
     }
