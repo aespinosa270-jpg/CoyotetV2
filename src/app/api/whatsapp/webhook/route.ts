@@ -81,7 +81,7 @@ async function checkRateLimit(redis: Redis, tel: string): Promise<boolean> {
     return true;
   } catch (err) {
     console.error('⚠️ Error en rate limit check:', err);
-    return true; // en caso de fallo de Redis, dejar pasar
+    return true;
   }
 }
 
@@ -160,6 +160,7 @@ OBLIGATORIO: precio en cada cotización, propuesta concreta al final de cada men
     'generaré el link',
     'le genero el link',
     'le proceso el pago',
+    '[LINK]',
   ],
   instruccionesEspeciales: '',
   productosExtra: [],
@@ -195,7 +196,6 @@ interface ClientePerfil {
   correoElectronico?: string;
   correoVerificado?: boolean;
   privacidadAceptada?: boolean;
-  // FIX 2: nuevo campo para distinguir "no respondió" de "respondió No"
   privacidadRespondida?: boolean;
   genero: 'hombre' | 'mujer' | 'unknown';
   telefono: string;
@@ -346,7 +346,6 @@ async function analizarPatronesCliente(
   return perfil;
 }
 
-// FIX 6: Generar resumen cada 10 mensajes (antes era cada 20)
 async function generarResumenSemantico(
   historial: Array<{ role: string; content: string }>,
   perfil: ClientePerfil
@@ -386,14 +385,12 @@ function detectarIntencionPago(
   if (!detectado) return { detectado: false, metodo: null, montoEstimado: null };
   const metodo = quereTarjeta ? 'tarjeta' : quereOxxo ? 'oxxo' : 'tarjeta';
 
-  // Solo usar cotizacionObj estructurado — nunca scraping del historial (FIX 3 parcial)
   if (perfil?.ultimaCotizacionObj) {
     const obj = perfil.ultimaCotizacionObj;
     const monto = obj.conFactura ? obj.subtotalConEnvioConIva : obj.subtotalConEnvio;
     if (monto > 0) return { detectado, metodo, montoEstimado: monto };
   }
 
-  // Fallback conservador: solo tomar montos del asistente que parezcan totales (> $500)
   let montoEstimado: number | null = null;
   for (let i = historial.length - 1; i >= 0; i--) {
     const m = historial[i];
@@ -406,7 +403,6 @@ function detectarIntencionPago(
     const matchMonto = m.content.match(/\$\s*([\d,]+(?:\.\d{2})?)\s*MXN/i);
     if (matchMonto) {
       const val = parseFloat(matchMonto[1].replace(/,/g, ''));
-      // FIX 3: Ignorar montos pequeños que podrían ser precio/kg, no totales
       if (val > 500) { montoEstimado = val; break; }
     }
   }
@@ -739,7 +735,7 @@ async function eliminarProducto(redis: Redis, categoria: BodegaCategoria, nombre
 }
 
 // ==========================================
-// 📲 ENVIAR WHATSAPP — FIX 4: reintentos con backoff
+// 📲 ENVIAR WHATSAPP — reintentos con backoff
 // ==========================================
 async function enviarWhatsapp(to: string, body: string, retries = 2): Promise<boolean> {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -863,7 +859,6 @@ async function handleWhatsappWebhook(body: any) {
 
   const mensajeInfo = mensajes[0];
 
-  // FIX 8: Manejar tipos de mensaje no-texto en lugar de ignorarlos silenciosamente
   if (mensajeInfo.type !== 'text') {
     const tiposConAcuse: Record<string, string> = {
       image:    '🐺 Recibí su imagen. Para atenderle mejor, ¿me describe qué producto necesita o qué consulta tiene?',
@@ -887,7 +882,6 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  // FIX 8 (dedup): deduplicación de mensajes
   const messageId = mensajeInfo.id;
   if (messageId) {
     const dedupeRedis = getRedis();
@@ -918,7 +912,6 @@ async function handleWhatsappWebhook(body: any) {
 
   console.log(`\n${'='.repeat(60)}\n💬 MENSAJE — Tel: ${tel} | "${msgCliente}"\n${'='.repeat(60)}\n`);
 
-  // FIX 5: Rate limiting — cortar antes de cualquier procesamiento costoso
   const rateLimitRedis = getRedis();
   const permitido = await checkRateLimit(rateLimitRedis, tel);
   if (!permitido) {
@@ -1018,8 +1011,8 @@ async function handleWhatsappWebhook(body: any) {
       nombre: '',
       correoElectronico: '',
       correoVerificado: false,
-      privacidadAceptada: undefined,      // FIX 2: inicializar como undefined, no false
-      privacidadRespondida: undefined,    // FIX 2: nuevo campo
+      privacidadAceptada: undefined,
+      privacidadRespondida: undefined,
       genero: 'unknown',
       telefono: tel,
       primerContacto: new Date().toISOString(),
@@ -1123,16 +1116,13 @@ async function handleWhatsappWebhook(body: any) {
     }
   }
 
-  // FIX 2: Cambiar condición de privacidad — usar privacidadRespondida como indicador
-  // "no respondida" = undefined/false en privacidadRespondida → mostrar aviso
-  // "respondió sí o no" = privacidadRespondida = true → continuar siempre
   if (perfil.privacidadRespondida !== true) {
     const respondioSi = /^\s*(sí|si|yes|acepto|autorizo|de acuerdo|ok|okay)\s*$/i.test(msgCliente.trim());
     const respondioNo = /^\s*(no|nope|no gracias)\s*$/i.test(msgCliente.trim());
 
     if (respondioSi) {
       perfil.privacidadAceptada = true;
-      perfil.privacidadRespondida = true;   // FIX 2: marcar como respondida
+      perfil.privacidadRespondida = true;
       perfil.ultimoContacto = new Date().toISOString();
       await saveCliente(redis, tel, perfil);
 
@@ -1147,7 +1137,7 @@ async function handleWhatsappWebhook(body: any) {
       return;
     } else if (respondioNo) {
       perfil.privacidadAceptada = false;
-      perfil.privacidadRespondida = true;   // FIX 2: marcar como respondida — NO volver a preguntar
+      perfil.privacidadRespondida = true;
       perfil.ultimoContacto = new Date().toISOString();
       await saveCliente(redis, tel, perfil);
 
@@ -1184,14 +1174,12 @@ async function handleWhatsappWebhook(body: any) {
     await saveCliente(redis, tel, perfil);
   }
 
-  // FIX 1: Detectar si es cliente que vuelve con historial expirado
   const historialPrevioLongitud_antesDeCargar = await getHistorial(redis, tel).then(h => h.length);
   const esClienteQueVuelve = historialPrevioLongitud_antesDeCargar === 0 && !!perfil.nombre && perfil.totalCompras > 0;
 
   let historial = await getHistorial(redis, tel);
   perfil = await analizarPatronesCliente(redis, perfil, msgCliente, historial);
 
-  // FIX 7: Limpiar etapaAbandono automáticamente cuando el cliente hace una consulta nueva
   const intencionPago = detectarIntencionPago(msgCliente, historial, perfil);
   if (perfil.etapaAbandono === 'pago' && !intencionPago.detectado) {
     const esConsultaNueva = /\b(precio|cuánto|cuanto|tela|kilo|metro|color|hilo|elástico|elastico|muestra|catálogo|tienen|disponible|qué tienen)\b/i.test(msgCliente);
@@ -1306,7 +1294,6 @@ async function handleWhatsappWebhook(body: any) {
   const alertaPropension       = perfil.propensionCross ? `🎯 PROPENSIÓN CROSS: Hilos ${perfil.propensionCross.hilos}% | Elásticos ${perfil.propensionCross.elasticos}% | Volumen+ ${perfil.propensionCross.volumenExtra}%` : '';
   const memoriaSemantica       = perfil.resumenSemantico ? `\n🧠 MEMORIA SEMÁNTICA:\n${perfil.resumenSemantico}` : '';
 
-  // FIX 1: Nota para clientes que regresan con historial expirado — evitar saludo de nuevo cliente
   const notaClienteRecurrente = esClienteQueVuelve
     ? `\n⚠️ CLIENTE RECURRENTE CON HISTORIAL EXPIRADO: ${perfil.nombre} ya tiene ${perfil.totalCompras} compra(s) previas por $${perfil.montoAcumulado} MXN acumulados.
 NO salude como si fuera la primera vez. NO envíe bienvenida.
@@ -1320,7 +1307,7 @@ ${perfil.productosFavoritos?.length ? `Sus productos habituales: ${perfil.produc
     const intentos = perfil.intentosDePago ?? 0;
 
     if (linkStripeAutoGenerado) {
-      return `🚨 CIERRE INMEDIATO: El sistema ya generó el link de pago. ENTRÉGUELO AHORA con el monto: "Su pedido entra a bodega en cuanto confirme el pago." No agregue más preguntas.`;
+      return `🚨 CIERRE INMEDIATO: El sistema ya generó el link de pago automáticamente y lo entregará al cliente. Su mensaje debe confirmar el pedido y el monto. NO escriba "[LINK]" ni ningún placeholder. El link se inserta solo. Ejemplo: "Perfecto, señor ${perfil.nombre}. Su pedido por $X MXN está listo. En cuanto confirme el pago, bodega recibe su pedido. 🐺📦"`;
     }
     if (perfil.direccionEnvio && perfil.ultimaCotizacion) {
       return `🚨 CLIENTE LISTO PARA CERRAR: Tiene dirección y cotización registrada (${perfil.ultimaCotizacion}). Su ÚNICO objetivo es cobrar ahora. Pregunte: "¿Cerramos con tarjeta, OXXO o SPEI?" y ejecute GENERAR_COBRO o GENERAR_SPEI. NO haga más preguntas de calificación.`;
@@ -1369,7 +1356,7 @@ NUNCA baje el precio sin obtener algo a cambio.`;
   })();
 
   // ==========================================
-  // 🏆 BLOQUE MEMBRESÍA — CON PRECIOS Y BENEFICIOS REALES
+  // 🏆 BLOQUE MEMBRESÍA
   // ==========================================
   const bloqueMembresia = (() => {
     if (estadoMembresia.activa) {
@@ -1463,7 +1450,11 @@ ${memoriaSemantica}
     ? `\n📌 INSTRUCCIONES ESPECIALES (prioridad máxima):\n${config.instruccionesEspeciales}`
     : '';
   const avisoStripeAuto = linkStripeAutoGenerado
-    ? `\n⚡ LINK STRIPE YA GENERADO: ${linkStripeAutoGenerado}\nUSE ESTE LINK directamente. NO use GENERAR_COBRO. Entréguelo de inmediato sin decir "un momento".`
+    ? `\n⚡ LINK STRIPE YA GENERADO Y SERÁ ENTREGADO AUTOMÁTICAMENTE AL CLIENTE.
+NO escriba "[LINK]" ni ningún placeholder en su respuesta.
+NO use GENERAR_COBRO — el link ya existe.
+Su respuesta debe solo confirmar el pedido y el monto. El sistema adjunta el link solo.
+Ejemplo correcto: "Perfecto, señor ${perfil.nombre}. Su pedido está confirmado por $${perfil.ultimaCotizacionObj ? (perfil.ultimaCotizacionObj.conFactura ? perfil.ultimaCotizacionObj.subtotalConEnvioConIva : perfil.ultimaCotizacionObj.subtotalConEnvio).toFixed(2) : '...'} MXN. En cuanto confirme el pago, bodega recibe su pedido. 🐺📦"`
     : '';
 
   const CONTEXTO_VENDEDOR = `
@@ -1673,8 +1664,9 @@ REGLA 6 — OBJECIÓN DE PRECIO:
 NUNCA baje el precio directamente. Responda con costo por prenda y compare con proveedor actual.
 
 REGLA 7 — SI YA HAY LINK GENERADO:
-Entréguelo de inmediato. Sin más preguntas:
-"Aquí su link de pago seguro 👇\n[LINK]\nEn cuanto confirme, bodega recibe su pedido. 🐺"
+El sistema entrega el link automáticamente. Su único trabajo es confirmar el pedido con naturalidad.
+NUNCA escriba "[LINK]" ni ningún texto placeholder. El link real se adjunta automáticamente.
+Ejemplo correcto: "Su pedido queda confirmado. En cuanto se confirme el pago, bodega recibe su pedido. 🐺📦"
 
 REGLA 8 — ESCALAMIENTO A HUMANO:
 SOLO escale en estos casos EXACTOS:
@@ -1717,7 +1709,7 @@ El cliente verá el resultado directamente, no el comando.
 🚨 PAGOS — TRES MÉTODOS
 ════════════════════════════════════════════════════════
 • TARJETA / OXXO (Stripe):
-  → Si el sistema YA generó link → ÚSELO, no use GENERAR_COBRO.
+  → Si el sistema YA generó link → NO use GENERAR_COBRO. El link se entrega automáticamente.
   → Si no → GENERAR_COBRO|metodo|monto|rfc|razon|cp|regimen|uso
   → CAMPOS VACÍOS: si no tiene RFC o razón social, use NONE. Ejemplo:
      GENERAR_COBRO|tarjeta|2857.00|EITA990706HDFSRL01|MI RAZON SOCIAL SA|57170|601|G03
@@ -1754,6 +1746,7 @@ MEMBRESIA_OFRECIDA  ← (sin parámetros) Emítalo cuando el cliente decline la 
 ⚠️ CP ENVÍO ≠ CP FISCAL. NUNCA los mezcle.
 ⚠️ TODOS los comandos deben ir en el mismo mensaje que la respuesta al cliente.
 ⚠️ NUNCA envíe un mensaje que solo diga que va a ejecutar una acción sin ejecutarla.
+⚠️ NUNCA escriba "[LINK]" en ningún mensaje — el sistema inserta el link real automáticamente.
 
 ════════════════════════════════════════════════════════
 🎯 FRASES DE CIERRE
@@ -1902,7 +1895,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
   const tieneComandoCobro = /GENERAR_COBRO\|/i.test(respuesta);
   const tieneComandoSpei  = /GENERAR_SPEI\|/i.test(respuesta);
 
-  // FIX 3: Forzar GENERAR_COBRO SOLO usando cotizacionObj — nunca scraping del historial
+  // FIX: Forzar GENERAR_COBRO SOLO usando cotizacionObj — nunca scraping del historial
   const dijoProcesar = /procesar(emos)?\s+su\s+pago|generar(é|e)\s+el\s+link|aquí\s+(tiene|va)\s+su\s+link/i.test(respuesta);
   const faltaComandoCobro = dijoProcesar && !tieneComandoCobro && !linkStripeAutoGenerado && !tieneComandoSpei;
 
@@ -1911,12 +1904,12 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     const montoForzado = cotObj.conFactura ? cotObj.subtotalConEnvioConIva : cotObj.subtotalConEnvio;
     if (montoForzado > 0) {
       respuesta += `\nGENERAR_COBRO|tarjeta|${montoForzado.toFixed(2)}|NONE|NONE|NONE|NONE|NONE`;
-      console.log(`🔧 FIX 3: GENERAR_COBRO forzado desde cotizacionObj. Monto: $${montoForzado}`);
+      console.log(`🔧 FIX: GENERAR_COBRO forzado desde cotizacionObj. Monto: $${montoForzado}`);
     } else {
-      console.warn(`⚠️ FIX 3: cotizacionObj existe pero monto es 0 — no se fuerza el comando`);
+      console.warn(`⚠️ FIX: cotizacionObj existe pero monto es 0 — no se fuerza el comando`);
     }
   } else if (faltaComandoCobro && !perfil.ultimaCotizacionObj) {
-    console.warn(`⚠️ FIX 3: GPT dijo "procesar" pero no hay cotizacionObj — se omite forzado para evitar monto incorrecto`);
+    console.warn(`⚠️ FIX: GPT dijo "procesar" pero no hay cotizacionObj — se omite forzado para evitar monto incorrecto`);
   }
 
   if (/TERMINOS_ACEPTADOS/i.test(respuesta)) {
@@ -2123,9 +2116,17 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
 
   } else {
 
-    // Entregar link Stripe auto-generado si existe y no está ya en la respuesta
-    if (linkStripeAutoGenerado && !respuesta.includes('https://checkout.stripe.com')) {
-      respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${linkStripeAutoGenerado}\n\n_Procesado por Stripe. Su transacción está protegida. 🐺_`;
+    // ═══════════════════════════════════════════════════════
+    // ✅ FIX STRIPE LINK — reemplazar [LINK] o adjuntar al final
+    // ═══════════════════════════════════════════════════════
+    if (linkStripeAutoGenerado) {
+      // Eliminar cualquier variante de placeholder primero
+      respuesta = respuesta.replace(/\[LINK\]/g, '').trim();
+      // Si el link ya fue insertado manualmente por GPT, no duplicar
+      if (!respuesta.includes('https://checkout.stripe.com')) {
+        respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${linkStripeAutoGenerado}\n\n_Procesado por Stripe. Su transacción está protegida. 🐺_`;
+      }
+      console.log(`✅ Link Stripe auto-generado entregado al cliente`);
     }
 
     const matchSpei = respuesta.match(/GENERAR_SPEI\|([\d.]+)/i);
@@ -2293,7 +2294,9 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       }
     }
 
-    // FIX 3: GENERAR_COBRO — nunca usar monto de historial crudo, siempre verificar contra cotizacionObj
+    // ═══════════════════════════════════════════════════════
+    // ✅ FIX STRIPE LINK — GENERAR_COBRO
+    // ═══════════════════════════════════════════════════════
     const matchCobro = respuesta.match(/GENERAR_COBRO\|([^|\n]+)\|([\d.,]+)\|([^|\n]*)\|([^|\n]*)\|([^|\n]*)\|([^|\n]*)\|?([^|\n]*)/i);
     if (matchCobro && !linkStripeAutoGenerado) {
       const metodo  = (matchCobro[1] || 'tarjeta').trim().toLowerCase();
@@ -2306,15 +2309,14 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
 
       const cotObj = perfil.ultimaCotizacionObj;
       if (cotObj) {
-        // FIX 3: Si GPT pasa un monto que parece solo precio/kg (< $200), corregirlo con cotizacionObj
         const montoCorrectoSinIva = cotObj.subtotalConEnvio;
         const montoCorrectoConIva = cotObj.subtotalConEnvioConIva;
         if (monto < 200 && montoCorrectoSinIva > 0) {
           monto = cotObj.conFactura ? montoCorrectoConIva : montoCorrectoSinIva;
-          console.log(`🔧 FIX 3: Monto sospechosamente bajo ($${matchCobro[2]}) corregido a $${monto} desde cotizacionObj`);
+          console.log(`🔧 FIX: Monto sospechosamente bajo ($${matchCobro[2]}) corregido a $${monto} desde cotizacionObj`);
         } else if (cotObj.conFactura && monto < montoCorrectoConIva * 0.99) {
           monto = montoCorrectoConIva;
-          console.log(`🔧 FIX 3: Monto corregido con IVA: $${monto}`);
+          console.log(`🔧 FIX: Monto corregido con IVA: $${monto}`);
         }
         if (rfc === 'NONE' && cotObj.rfc && cotObj.rfc !== 'NONE') rfc = cotObj.rfc;
         if (razon === 'NONE' && cotObj.razon && cotObj.razon !== 'NONE') razon = cotObj.razon;
@@ -2323,7 +2325,8 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
         if (uso === 'NONE' && cotObj.uso && cotObj.uso !== 'NONE') uso = cotObj.uso;
       }
 
-      respuesta = respuesta.replace(/GENERAR_COBRO\|[^\n]*/gi, '').trim();
+      // Limpiar comando Y placeholder [LINK] del texto de GPT antes de agregar el link real
+      respuesta = respuesta.replace(/GENERAR_COBRO\|[^\n]*/gi, '').replace(/\[LINK\]/g, '').trim();
 
       if (monto > 0) {
         const reqInvoice = rfc !== 'NONE' ? 'YES' : 'NO';
@@ -2385,7 +2388,8 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
         respuesta += `\n\n⚠️ No pude determinar el monto del pedido. ¿Me confirma el total a cobrar?`;
       }
     } else if (matchCobro && linkStripeAutoGenerado) {
-      respuesta = respuesta.replace(/GENERAR_COBRO\|[^\n]*/gi, '').trim();
+      // Si ya hay link auto-generado, solo limpiar el comando y el placeholder
+      respuesta = respuesta.replace(/GENERAR_COBRO\|[^\n]*/gi, '').replace(/\[LINK\]/g, '').trim();
     }
   }
 
