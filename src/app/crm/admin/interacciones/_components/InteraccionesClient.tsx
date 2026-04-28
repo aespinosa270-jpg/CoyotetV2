@@ -5,6 +5,33 @@ import { useRouter } from "next/navigation";
 import { Search, Paperclip, Send, Bot, User as UserIcon, ShieldAlert, Package, CheckCircle2, Phone, Loader2, UserPlus, X } from "lucide-react";
 import { sendAdminMessage, toggleChatControl, createNewChat } from "../actions";
 
+// Función independiente para generar el sonido de notificación nativo
+const playNotificationSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    osc.type = "sine";
+    // Frecuencias para un tono "bloop" rápido, estilo app de mensajería
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.exponentialRampToValueAtTime(880.00, ctx.currentTime + 0.1); // A5
+
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime); // Volumen al 30%
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+  } catch (error) {
+    console.error("No se pudo reproducir el sonido de notificación", error);
+  }
+};
+
 type InteraccionesClientProps = {
   initialConversations: any[];
 };
@@ -12,6 +39,9 @@ type InteraccionesClientProps = {
 export default function InteraccionesClient({ initialConversations }: InteraccionesClientProps) {
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Ref para rastrear conversaciones anteriores y detectar mensajes nuevos
+  const prevConversationsRef = useRef(initialConversations);
 
   // Estados
   const [activeChatId, setActiveChatId] = useState<string | null>(
@@ -36,7 +66,7 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
   });
 
   // =========================================
-  // EFECTOS (Tiempo Real y Scroll)
+  // EFECTOS (Tiempo Real, Audio y Scroll)
   // =========================================
   useEffect(() => {
     // Polling cada 3 segundos
@@ -47,9 +77,37 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
   }, [router]);
 
   useEffect(() => {
-    // Auto-Scroll suave cuando cambian los mensajes
+    // Auto-Scroll suave cuando cambian los mensajes del chat activo
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeChat?.messages]);
+
+  useEffect(() => {
+    // Lógica para detectar nuevos mensajes entrantes y reproducir sonido
+    const prevConvos = prevConversationsRef.current;
+    let hasNewIncoming = false;
+
+    initialConversations.forEach((currentChat) => {
+      const prevChat = prevConvos.find((c) => c.id === currentChat.id);
+      const currentMsgCount = currentChat.messages?.length || 0;
+      const prevMsgCount = prevChat?.messages?.length || 0;
+
+      // Si hay más mensajes que antes en esta conversación
+      if (currentMsgCount > prevMsgCount) {
+        const newMessages = currentChat.messages.slice(prevMsgCount);
+        // Verificar si al menos uno de los mensajes nuevos es del cliente
+        if (newMessages.some((msg: any) => msg.role === "CLIENT")) {
+          hasNewIncoming = true;
+        }
+      }
+    });
+
+    if (hasNewIncoming) {
+      playNotificationSound();
+    }
+
+    // Actualizar la ref para el próximo ciclo de renderizado/polling
+    prevConversationsRef.current = initialConversations;
+  }, [initialConversations]);
 
   // =========================================
   // ACCIONES DE SERVIDOR
