@@ -201,6 +201,21 @@ interface ClientePerfil {
   ticketPromedio?: number;
   tasaConversion?: number;
   ultimaCotizacion?: string;
+  ultimaCotizacionObj?: {
+    productos: string;
+    kg: number;
+    subtotal: number;
+    subtotalConEnvio: number;
+    subtotalConEnvioConIva: number;
+    cp: string;
+    direccion: string;
+    conFactura: boolean;
+    rfc?: string;
+    razon?: string;
+    regimen?: string;
+    uso?: string;
+    fecha: string;
+  };
   intentosDePago?: number;
   sensibilidadPrecio?: 'alta' | 'media' | 'baja';
   mejorMomentoContacto?: string;
@@ -335,7 +350,8 @@ async function generarResumenSemantico(
 
 function detectarIntencionPago(
   msgCliente: string,
-  historial: Array<{ role: string; content: string }>
+  historial: Array<{ role: string; content: string }>,
+  perfil?: ClientePerfil
 ): { detectado: boolean; metodo: 'tarjeta' | 'oxxo' | null; montoEstimado: number | null } {
   const quereTarjeta = /tarjeta|visa|mastercard|crédito|débito|card/i.test(msgCliente);
   const quereOxxo = /oxxo|efectivo/i.test(msgCliente);
@@ -348,14 +364,30 @@ function detectarIntencionPago(
   const detectado = intenciones.some(r => r.test(msgCliente)) && !quereSpei;
   if (!detectado) return { detectado: false, metodo: null, montoEstimado: null };
   const metodo = quereTarjeta ? 'tarjeta' : quereOxxo ? 'oxxo' : 'tarjeta';
+
+  // FIX 4: Prefer structured cotizacion from perfil (most accurate)
+  if (perfil?.ultimaCotizacionObj) {
+    const obj = perfil.ultimaCotizacionObj;
+    const monto = obj.conFactura ? obj.subtotalConEnvioConIva : obj.subtotalConEnvio;
+    if (monto > 0) return { detectado, metodo, montoEstimado: monto };
+  }
+
+  // Fallback: search historial
   let montoEstimado: number | null = null;
   for (let i = historial.length - 1; i >= 0; i--) {
     const m = historial[i];
-    if (m.role === 'assistant') {
-      const matchTotal = m.content.match(/TOTAL[:\s]*\$?([\d,]+(?:\.\d{2})?)/i);
-      const matchMonto = m.content.match(/\$\s*([\d,]+(?:\.\d{2})?)\s*MXN/i);
-      const raw = matchTotal?.[1] || matchMonto?.[1];
-      if (raw) { montoEstimado = parseFloat(raw.replace(/,/g, '')); break; }
+    if (m.role !== 'assistant') continue;
+    // Prefer TOTAL line from desglose
+    const matchTotalLine = m.content.match(/TOTAL[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i);
+    if (matchTotalLine) {
+      const val = parseFloat(matchTotalLine[1].replace(/,/g, ''));
+      if (val > 0) { montoEstimado = val; break; }
+    }
+    // Fallback: any $X MXN
+    const matchMonto = m.content.match(/\$\s*([\d,]+(?:\.\d{2})?)\s*MXN/i);
+    if (matchMonto) {
+      const val = parseFloat(matchMonto[1].replace(/,/g, ''));
+      if (val > 0) { montoEstimado = val; break; }
     }
   }
   return { detectado, metodo, montoEstimado };
@@ -381,6 +413,12 @@ function calcularEnvioReal(
   productos: ProductoEnvio[], cpEnvio: string,
   subtotal: number, requiereFactura: boolean
 ): ResultadoEnvio {
+  // FIX 5: Validate and clean CP
+  const cpLimpio = cpEnvio.replace(/\D/g, '').padStart(5, '0').slice(0, 5);
+  const cpValido = /^\d{5}$/.test(cpLimpio) && parseInt(cpLimpio) > 0;
+  if (!cpValido) console.warn(`⚠️ CP inválido recibido: "${cpEnvio}" → usando Skydropx como fallback`);
+  const cpFinal = cpValido ? cpLimpio : '99999'; // 99999 = Skydropx fallback
+
   const totalKilos = productos.reduce((acc, p) => acc + p.kg, 0);
   let totalRollos = 0;
   for (const p of productos) totalRollos += Math.ceil(p.kg / 25);
@@ -395,7 +433,7 @@ function calcularEnvioReal(
   else if (totalRollos <= 20) flete = 500;
   else flete = 1000;
 
-  const prefix2 = Math.floor(parseInt(cpEnvio) / 1000);
+  const prefix2 = Math.floor(parseInt(cpFinal) / 1000);
   let tipoEnvio: 'COYOTE' | 'SKYDROPX' = 'SKYDROPX';
   let distanciaKm = 0;
 
@@ -456,7 +494,7 @@ async function getHistorial(redis: Redis, tel: string) {
   catch { return []; }
 }
 async function saveHistorial(redis: Redis, tel: string, h: Array<{ role: string; content: string }>) {
-  const trimmed = h.length > 60 ? h.slice(-60) : h;
+  const trimmed = h.length > 80 ? h.slice(-80) : h;
   await redis.set(`historial:${tel}`, trimmed, { ex: 60 * 60 * 24 * 90 });
 }
 async function getCliente(redis: Redis, tel: string): Promise<ClientePerfil | null> {
@@ -795,6 +833,25 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
+  // FIX 8: Deduplication — WhatsApp sometimes sends the same message twice
+  const messageId = mensajeInfo.id;
+  if (messageId) {
+    const dedupeRedis = getRedis();
+    const dedupeKey = `processed_msg:${messageId}`;
+    try {
+      const yaProcessado = await dedupeRedis.get(dedupeKey);
+      if (yaProcessado) {
+        console.log(`⚠️ Mensaje duplicado detectado y descartado: ${messageId}`);
+        return;
+      }
+      // Mark as processed for 5 minutes
+      await dedupeRedis.set(dedupeKey, '1', { ex: 300 });
+    } catch (dedupeErr) {
+      console.error('⚠️ Error en deduplication check:', dedupeErr);
+      // Continue processing even if dedupe check fails
+    }
+  }
+
   let tel = mensajeInfo.from;
   if (tel && tel.startsWith("521") && tel.length === 13) {
     tel = tel.replace(/^521/, "52");
@@ -1067,27 +1124,40 @@ async function handleWhatsappWebhook(body: any) {
   const nuevoResumen = await generarResumenSemantico(historial, perfil);
   if (nuevoResumen) { perfil.resumenSemantico = nuevoResumen; await saveCliente(redis, tel, perfil); }
 
-  const intencionPago = detectarIntencionPago(msgCliente, historial);
+  const intencionPago = detectarIntencionPago(msgCliente, historial, perfil);
   let linkStripeAutoGenerado: string | null = null;
   if (intencionPago.detectado && intencionPago.montoEstimado && intencionPago.montoEstimado > 0) {
     try {
       const amountInCents = Math.round(intencionPago.montoEstimado * 100);
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card', 'oxxo'],
-        line_items: [{ price_data: { currency: 'mxn', product_data: { name: 'Pedido Coyote Textil — El Coyote' }, unit_amount: amountInCents }, quantity: 1 }],
-        mode: 'payment',
-        success_url: 'https://wa.me/5215627301525',
-        metadata: { rfc: 'NONE', razon: 'NONE', cp: 'NONE', regimen: 'NONE', uso: 'NONE', req_invoice: 'NO', phone: tel, productos: perfil.productosComprados.join(',') }
-      });
+      const cotObj = perfil.ultimaCotizacionObj;
+      // FIX 7: Stripe with 8s timeout so Meta webhook never times out
+      const session = await Promise.race([
+        stripe.checkout.sessions.create({
+          payment_method_types: ['card', 'oxxo'],
+          line_items: [{ price_data: { currency: 'mxn', product_data: { name: 'Pedido Coyote Textil' }, unit_amount: amountInCents }, quantity: 1 }],
+          mode: 'payment',
+          success_url: 'https://wa.me/5215627301525',
+          metadata: {
+            rfc: cotObj?.rfc || 'NONE',
+            razon: cotObj?.razon || 'NONE',
+            cp: cotObj?.cp || 'NONE',
+            regimen: cotObj?.regimen || 'NONE',
+            uso: cotObj?.uso || 'NONE',
+            req_invoice: cotObj?.conFactura ? 'YES' : 'NO',
+            phone: tel,
+            productos: perfil.productosComprados.join(','),
+          }
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Stripe timeout')), 8000)),
+      ]) as Stripe.Checkout.Session;
       linkStripeAutoGenerado = session.url;
       perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
       perfil.etapaAbandono = 'pago';
       perfil.fechaAbandono = new Date().toISOString();
       await saveCliente(redis, tel, perfil);
-      console.log(`💳 Link Stripe auto-generado para ${tel}: ${linkStripeAutoGenerado}`);
+      console.log(`💳 Link Stripe auto-gen: ${linkStripeAutoGenerado}`);
     } catch (err) { console.error('Error generando Stripe auto:', err); }
   }
-
   historial.push({ role: 'user', content: msgCliente });
 
   const esElJefe = historial.some((m: any) => m.role === 'user' && m.content.trim() === 'elcoyote56');
@@ -1554,6 +1624,10 @@ El cliente verá el resultado directamente, no el comando.
   → IMPORTANTE: Emita el comando en el MISMO mensaje, no en uno separado.
 • SPEI: GENERAR_SPEI|monto_total
   → Emita en el MISMO mensaje junto con la confirmación al cliente.
+  → IMPORTANTE: Si el cliente requiere factura, use el monto CON IVA (base × 1.16).
+    El sistema guarda automáticamente ambos montos (con y sin IVA).
+    Si el cliente dijo que SÍ a la factura → use SIEMPRE el monto con IVA.
+    Ejemplo: Base $2,500 + IVA $400 = TOTAL $2,900 MXN → GENERAR_COBRO|tarjeta|2900.00|RFC|...
 • "Ya pagué" → "Perfecto. En cuanto se confirme la transferencia, bodega recibe su pedido. 🐺📦"
 ${config.infoPagos ? `\n💳 EXTRA PAGOS: ${config.infoPagos}` : ''}
 ${config.infoEnvios ? `\n🚚 EXTRA ENVÍOS: ${config.infoEnvios}` : ''}
@@ -2048,9 +2122,27 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
           }
         }
 
-        const resultado = calcularEnvioReal(productos, cpFinal, subtotal, false);
-        respuesta += `\n\n${resultado.desglose}\n\n¿Requiere factura fiscal? 🐺`;
-        console.log(`📦 Envío calculado: CP=${cpFinal} | Subtotal=$${subtotal} | Total=$${resultado.total}`);
+        // FIX 1: Use factura flag from cotizacionObj if already confirmed
+        const facturaYaConfirmada = !!(perfil.ultimaCotizacionObj?.conFactura);
+        const resultado = calcularEnvioReal(productos, cpFinal, subtotal, facturaYaConfirmada);
+
+        // FIX 6: Save cotizacion as structured object in perfil
+        perfil.ultimaCotizacionObj = {
+          productos: productosStr,
+          kg: productos.reduce((a, p) => a + p.kg, 0),
+          subtotal,
+          subtotalConEnvio: resultado.total,
+          subtotalConEnvioConIva: Math.round((resultado.base + resultado.base * 0.16) * 100) / 100,
+          cp: cpFinal,
+          direccion: perfil.direccionEnvio || '',
+          conFactura: facturaYaConfirmada,
+          fecha: new Date().toISOString(),
+        };
+        perfil.ultimaCotizacion = `${productosStr} | CP:${cpFinal} | $${resultado.total.toFixed(2)} MXN`;
+        await saveCliente(redis, tel, perfil);
+
+        respuesta += `\n\n${resultado.desglose}\n\n\u00BFRequiere factura fiscal? \u{1F43A}`;
+        console.log(`\u{1F4E6} Env\u00EDo calculado: CP=${cpFinal} | Subtotal=$${subtotal} | Total=$${resultado.total}`);
       } catch (e) {
         console.error('Error calculando envío:', e);
         respuesta += `\n\n⚠️ No pude calcular el envío. Compártame la dirección completa (calle, número, colonia, ciudad y CP).`;
@@ -2111,15 +2203,31 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     // ── FIX CRÍTICO: Regex permisivo para GENERAR_COBRO ──
     // El original fallaba si GPT omitía algún campo o los separaba diferente.
     // Ahora acepta campos vacíos y cualquier variación de formato.
+    // FIX 1+2+7: GENERAR_COBRO — IVA-aware, uses cotizacionObj, Stripe timeout
     const matchCobro = respuesta.match(/GENERAR_COBRO\|([^|\n]+)\|([\d.,]+)\|([^|\n]*)\|([^|\n]*)\|([^|\n]*)\|([^|\n]*)\|?([^|\n]*)/i);
     if (matchCobro && !linkStripeAutoGenerado) {
       const metodo  = (matchCobro[1] || 'tarjeta').trim().toLowerCase();
-      const monto   = parseFloat((matchCobro[2] || '0').replace(/,/g, ''));
-      const rfc     = (matchCobro[3] || 'NONE').trim() || 'NONE';
-      const razon   = (matchCobro[4] || 'NONE').trim() || 'NONE';
-      const cp      = (matchCobro[5] || 'NONE').trim() || 'NONE';
-      const regimen = (matchCobro[6] || 'NONE').trim() || 'NONE';
-      const uso     = (matchCobro[7] || 'NONE').trim() || 'NONE';
+      let   monto   = parseFloat((matchCobro[2] || '0').replace(/,/g, ''));
+      let   rfc     = (matchCobro[3] || 'NONE').trim() || 'NONE';
+      let   razon   = (matchCobro[4] || 'NONE').trim() || 'NONE';
+      let   cp      = (matchCobro[5] || 'NONE').trim() || 'NONE';
+      let   regimen = (matchCobro[6] || 'NONE').trim() || 'NONE';
+      let   uso     = (matchCobro[7] || 'NONE').trim() || 'NONE';
+
+      // FIX 2: If we have a stored cotizacionObj, use its data to ensure consistency
+      const cotObj = perfil.ultimaCotizacionObj;
+      if (cotObj) {
+        if (cotObj.conFactura && monto < cotObj.subtotalConEnvioConIva * 0.99) {
+          // GPT passed non-IVA amount but factura is required — use correct IVA total
+          monto = cotObj.subtotalConEnvioConIva;
+          console.log(`🔧 FIX 2: Monto corregido con IVA: $${monto}`);
+        }
+        if (rfc === 'NONE' && cotObj.rfc && cotObj.rfc !== 'NONE') rfc = cotObj.rfc;
+        if (razon === 'NONE' && cotObj.razon && cotObj.razon !== 'NONE') razon = cotObj.razon;
+        if (cp === 'NONE' && cotObj.cp && cotObj.cp !== 'NONE') cp = cotObj.cp;
+        if (regimen === 'NONE' && cotObj.regimen && cotObj.regimen !== 'NONE') regimen = cotObj.regimen;
+        if (uso === 'NONE' && cotObj.uso && cotObj.uso !== 'NONE') uso = cotObj.uso;
+      }
 
       respuesta = respuesta.replace(/GENERAR_COBRO\|[^\n]*/gi, '').trim();
 
@@ -2129,17 +2237,30 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
         perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
         perfil.etapaAbandono = 'pago';
         perfil.fechaAbandono = new Date().toISOString();
+        // FIX 6b: Update cotizacionObj with factura flag and fiscal data
+        if (perfil.ultimaCotizacionObj) {
+          perfil.ultimaCotizacionObj.conFactura = reqInvoice === 'YES';
+          if (rfc !== 'NONE') perfil.ultimaCotizacionObj.rfc = rfc;
+          if (razon !== 'NONE') perfil.ultimaCotizacionObj.razon = razon;
+          if (cp !== 'NONE') perfil.ultimaCotizacionObj.cp = cp;
+          if (regimen !== 'NONE') perfil.ultimaCotizacionObj.regimen = regimen;
+          if (uso !== 'NONE') perfil.ultimaCotizacionObj.uso = uso;
+        }
         await saveCliente(redis, tel, perfil);
         try {
-          const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card', 'oxxo'],
-            line_items: [{ price_data: { currency: 'mxn', product_data: { name: 'Pedido Coyote Textil — El Coyote' }, unit_amount: amountInCents }, quantity: 1 }],
-            mode: 'payment',
-            success_url: 'https://wa.me/5215627301525',
-            metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
-          });
-          respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Procesado por Stripe. Su transacción está protegida. 🐺_`;
-          console.log(`✅ Stripe session creada: $${monto} MXN | Método: ${metodo} | RFC: ${rfc}`);
+          // FIX 7: Stripe with 8s timeout
+          const session = await Promise.race([
+            stripe.checkout.sessions.create({
+              payment_method_types: ['card', 'oxxo'],
+              line_items: [{ price_data: { currency: 'mxn', product_data: { name: 'Pedido Coyote Textil' }, unit_amount: amountInCents }, quantity: 1 }],
+              mode: 'payment',
+              success_url: 'https://wa.me/5215627301525',
+              metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
+            }),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Stripe timeout')), 8000)),
+          ]) as Stripe.Checkout.Session;
+          respuesta += `\n\n\u{1F4B3} *Su link de pago seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Procesado por Stripe. Su transacci\u00F3n est\u00E1 protegida. \u{1F43A}_`;
+          console.log(`\u2705 Stripe session: $${monto} MXN | M\u00E9todo: ${metodo} | RFC: ${rfc} | IVA: ${reqInvoice}`);
           try {
             const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
             await createTrace({
@@ -2148,17 +2269,31 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
               content: { direction: "outbound", event: "stripe_link_generado", metodo, monto, conFactura: reqInvoice === 'YES', sessionId: session.id },
               actionName: "LINK_STRIPE_GENERADO",
             });
-          } catch (traceErr) { console.error("⚠️ Error en createTrace (stripe link):", traceErr); }
-        } catch (err) {
-          console.error('Error Stripe:', err);
-          respuesta += `\n\n⚠️ Inconveniente generando el link de pago. Nuestro equipo lo revisa de inmediato.`;
+          } catch (traceErr) { console.error("\u26A0\uFE0F Error en createTrace (stripe link):", traceErr); }
+        } catch (err: any) {
+          if (err?.message === 'Stripe timeout') {
+            console.error('Stripe timeout en GENERAR_COBRO — generando en background');
+            // Generate in background so we can still respond to client
+            stripe.checkout.sessions.create({
+              payment_method_types: ['card', 'oxxo'],
+              line_items: [{ price_data: { currency: 'mxn', product_data: { name: 'Pedido Coyote Textil' }, unit_amount: amountInCents }, quantity: 1 }],
+              mode: 'payment',
+              success_url: 'https://wa.me/5215627301525',
+              metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
+            }).then(s => {
+              if (s.url) enviarWhatsapp(tel, `\u{1F43A} Su link de pago seguro:\n${s.url}\n\nEn cuanto confirme, bodega recibe su pedido.`);
+            }).catch(e => console.error('Stripe background error:', e));
+            respuesta += `\n\n\u{1F4B3} Generando su link de pago. En cuanto est\u00E9 listo se lo enviamos (menos de 1 minuto). \u{1F43A}`;
+          } else {
+            console.error('Error Stripe:', err);
+            respuesta += `\n\n\u26A0\uFE0F Inconveniente generando el link de pago. Nuestro equipo lo revisa de inmediato.`;
+          }
         }
       } else {
-        console.warn(`⚠️ GENERAR_COBRO detectado pero monto inválido: "${matchCobro[2]}"`);
-        respuesta += `\n\n⚠️ No pude determinar el monto del pedido. ¿Me confirma el total a cobrar?`;
+        console.warn(`\u26A0\uFE0F GENERAR_COBRO monto inv\u00E1lido: "${matchCobro[2]}"`);
+        respuesta += `\n\n\u26A0\uFE0F No pude determinar el monto del pedido. \u00BFMe confirma el total a cobrar?`;
       }
     } else if (matchCobro && linkStripeAutoGenerado) {
-      // Ya hay link auto-generado, solo limpiar el comando duplicado
       respuesta = respuesta.replace(/GENERAR_COBRO\|[^\n]*/gi, '').trim();
     }
   }
