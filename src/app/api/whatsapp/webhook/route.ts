@@ -67,6 +67,25 @@ function getRedis() {
 }
 
 // ==========================================
+// FIX 5: RATE LIMITER — máx 8 mensajes por minuto por teléfono
+// ==========================================
+async function checkRateLimit(redis: Redis, tel: string): Promise<boolean> {
+  const windowKey = `rate:${tel}:${Math.floor(Date.now() / 60000)}`;
+  try {
+    const count = await redis.incr(windowKey);
+    if (count === 1) await redis.expire(windowKey, 120);
+    if (count > 8) {
+      console.warn(`🚦 Rate limit alcanzado para ${tel} (${count} msgs/min)`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('⚠️ Error en rate limit check:', err);
+    return true; // en caso de fallo de Redis, dejar pasar
+  }
+}
+
+// ==========================================
 // 🎛️ CONFIGURACIÓN DINÁMICA
 // ==========================================
 interface ConfigBot {
@@ -120,7 +139,6 @@ OBLIGATORIO: precio en cada cotización, propuesta concreta al final de cada men
     'en un momento le confirmo', 'déme un momento', 'espere un momento',
     'voy a preguntar', 'le pregunto al equipo', 'consulto con bodega',
     'revisaré disponibilidad', 'verifico el stock', 'checo con el equipo',
-    // ── NUEVAS: eliminan el bucle de "un momento" ──
     'Un momento mientras genero',
     'Un momento mientras proceso',
     'Un momento mientras preparo',
@@ -177,6 +195,8 @@ interface ClientePerfil {
   correoElectronico?: string;
   correoVerificado?: boolean;
   privacidadAceptada?: boolean;
+  // FIX 2: nuevo campo para distinguir "no respondió" de "respondió No"
+  privacidadRespondida?: boolean;
   genero: 'hombre' | 'mujer' | 'unknown';
   telefono: string;
   primerContacto: string;
@@ -326,12 +346,13 @@ async function analizarPatronesCliente(
   return perfil;
 }
 
+// FIX 6: Generar resumen cada 10 mensajes (antes era cada 20)
 async function generarResumenSemantico(
   historial: Array<{ role: string; content: string }>,
   perfil: ClientePerfil
 ): Promise<string> {
-  if (historial.length < 10) return '';
-  const mod = historial.length % 20;
+  if (historial.length < 5) return perfil.resumenSemantico || '';
+  const mod = historial.length % 10;
   if (mod !== 0 && mod !== 1) return perfil.resumenSemantico || '';
   try {
     const ultimos = historial.slice(-40).map(m => `${m.role === 'user' ? 'Cliente' : 'Coyote'}: ${m.content}`).join('\n');
@@ -365,29 +386,28 @@ function detectarIntencionPago(
   if (!detectado) return { detectado: false, metodo: null, montoEstimado: null };
   const metodo = quereTarjeta ? 'tarjeta' : quereOxxo ? 'oxxo' : 'tarjeta';
 
-  // FIX 4: Prefer structured cotizacion from perfil (most accurate)
+  // Solo usar cotizacionObj estructurado — nunca scraping del historial (FIX 3 parcial)
   if (perfil?.ultimaCotizacionObj) {
     const obj = perfil.ultimaCotizacionObj;
     const monto = obj.conFactura ? obj.subtotalConEnvioConIva : obj.subtotalConEnvio;
     if (monto > 0) return { detectado, metodo, montoEstimado: monto };
   }
 
-  // Fallback: search historial
+  // Fallback conservador: solo tomar montos del asistente que parezcan totales (> $500)
   let montoEstimado: number | null = null;
   for (let i = historial.length - 1; i >= 0; i--) {
     const m = historial[i];
     if (m.role !== 'assistant') continue;
-    // Prefer TOTAL line from desglose
     const matchTotalLine = m.content.match(/TOTAL[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i);
     if (matchTotalLine) {
       const val = parseFloat(matchTotalLine[1].replace(/,/g, ''));
-      if (val > 0) { montoEstimado = val; break; }
+      if (val > 500) { montoEstimado = val; break; }
     }
-    // Fallback: any $X MXN
     const matchMonto = m.content.match(/\$\s*([\d,]+(?:\.\d{2})?)\s*MXN/i);
     if (matchMonto) {
       const val = parseFloat(matchMonto[1].replace(/,/g, ''));
-      if (val > 0) { montoEstimado = val; break; }
+      // FIX 3: Ignorar montos pequeños que podrían ser precio/kg, no totales
+      if (val > 500) { montoEstimado = val; break; }
     }
   }
   return { detectado, metodo, montoEstimado };
@@ -413,11 +433,10 @@ function calcularEnvioReal(
   productos: ProductoEnvio[], cpEnvio: string,
   subtotal: number, requiereFactura: boolean
 ): ResultadoEnvio {
-  // FIX 5: Validate and clean CP
   const cpLimpio = cpEnvio.replace(/\D/g, '').padStart(5, '0').slice(0, 5);
   const cpValido = /^\d{5}$/.test(cpLimpio) && parseInt(cpLimpio) > 0;
   if (!cpValido) console.warn(`⚠️ CP inválido recibido: "${cpEnvio}" → usando Skydropx como fallback`);
-  const cpFinal = cpValido ? cpLimpio : '99999'; // 99999 = Skydropx fallback
+  const cpFinal = cpValido ? cpLimpio : '99999';
 
   const totalKilos = productos.reduce((acc, p) => acc + p.kg, 0);
   let totalRollos = 0;
@@ -720,18 +739,33 @@ async function eliminarProducto(redis: Redis, categoria: BodegaCategoria, nombre
 }
 
 // ==========================================
-// 📲 ENVIAR WHATSAPP
+// 📲 ENVIAR WHATSAPP — FIX 4: reintentos con backoff
 // ==========================================
-async function enviarWhatsapp(to: string, body: string) {
-  const res = await fetch(`https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { body } })
-  });
-  const data = await res.json();
-  if (!res.ok) console.error('❌ META ERROR:', JSON.stringify(data, null, 2));
-  else console.log(`✅ WA enviado a ${to}`);
-  return res.ok;
+async function enviarWhatsapp(to: string, body: string, retries = 2): Promise<boolean> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { body } })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        console.log(`✅ WA enviado a ${to}${attempt > 0 ? ` (intento ${attempt + 1})` : ''}`);
+        return true;
+      }
+      console.error(`❌ META ERROR (intento ${attempt + 1}/${retries + 1}):`, JSON.stringify(data, null, 2));
+    } catch (err) {
+      console.error(`❌ Error de red enviando WA (intento ${attempt + 1}/${retries + 1}):`, err);
+    }
+    if (attempt < retries) {
+      const waitMs = 1000 * (attempt + 1);
+      console.log(`⏳ Reintentando en ${waitMs}ms...`);
+      await new Promise(r => setTimeout(r, waitMs));
+    }
+  }
+  console.error(`❌ WA falló definitivamente para ${to} después de ${retries + 1} intentos`);
+  return false;
 }
 
 // ==========================================
@@ -828,12 +862,32 @@ async function handleWhatsappWebhook(body: any) {
   }
 
   const mensajeInfo = mensajes[0];
+
+  // FIX 8: Manejar tipos de mensaje no-texto en lugar de ignorarlos silenciosamente
   if (mensajeInfo.type !== 'text') {
-    console.log(`⏭️ Tipo de mensaje ignorado: ${mensajeInfo.type}`);
+    const tiposConAcuse: Record<string, string> = {
+      image:    '🐺 Recibí su imagen. Para atenderle mejor, ¿me describe qué producto necesita o qué consulta tiene?',
+      document: '🐺 Recibí su documento. ¿Me indica qué necesita que revisemos?',
+      audio:    '🐺 Recibí su nota de voz. Por el momento solo proceso mensajes de texto — ¿me escribe qué necesita?',
+      video:    '🐺 Recibí su video. Para continuar, ¿me describe qué producto o necesidad tiene?',
+    };
+    const ackMsg = tiposConAcuse[mensajeInfo.type];
+    if (ackMsg) {
+      let telMedia = mensajeInfo.from as string;
+      if (telMedia && telMedia.startsWith("521") && telMedia.length === 13) {
+        telMedia = telMedia.replace(/^521/, "52");
+      }
+      if (telMedia) {
+        console.log(`📎 Tipo de mensaje "${mensajeInfo.type}" recibido de ${telMedia} — enviando acuse`);
+        await enviarWhatsapp(telMedia, ackMsg);
+      }
+    } else {
+      console.log(`⏭️ Tipo de mensaje ignorado silenciosamente: ${mensajeInfo.type}`);
+    }
     return;
   }
 
-  // FIX 8: Deduplication — WhatsApp sometimes sends the same message twice
+  // FIX 8 (dedup): deduplicación de mensajes
   const messageId = mensajeInfo.id;
   if (messageId) {
     const dedupeRedis = getRedis();
@@ -844,11 +898,9 @@ async function handleWhatsappWebhook(body: any) {
         console.log(`⚠️ Mensaje duplicado detectado y descartado: ${messageId}`);
         return;
       }
-      // Mark as processed for 5 minutes
       await dedupeRedis.set(dedupeKey, '1', { ex: 300 });
     } catch (dedupeErr) {
       console.error('⚠️ Error en deduplication check:', dedupeErr);
-      // Continue processing even if dedupe check fails
     }
   }
 
@@ -865,6 +917,14 @@ async function handleWhatsappWebhook(body: any) {
   }
 
   console.log(`\n${'='.repeat(60)}\n💬 MENSAJE — Tel: ${tel} | "${msgCliente}"\n${'='.repeat(60)}\n`);
+
+  // FIX 5: Rate limiting — cortar antes de cualquier procesamiento costoso
+  const rateLimitRedis = getRedis();
+  const permitido = await checkRateLimit(rateLimitRedis, tel);
+  if (!permitido) {
+    console.warn(`🚦 Mensaje de ${tel} descartado por rate limit`);
+    return;
+  }
 
   try {
     const decision = await determineRouting(tel, "WHATSAPP");
@@ -958,7 +1018,8 @@ async function handleWhatsappWebhook(body: any) {
       nombre: '',
       correoElectronico: '',
       correoVerificado: false,
-      privacidadAceptada: false,
+      privacidadAceptada: undefined,      // FIX 2: inicializar como undefined, no false
+      privacidadRespondida: undefined,    // FIX 2: nuevo campo
       genero: 'unknown',
       telefono: tel,
       primerContacto: new Date().toISOString(),
@@ -1062,12 +1123,16 @@ async function handleWhatsappWebhook(body: any) {
     }
   }
 
-  if (!perfil.privacidadAceptada) {
+  // FIX 2: Cambiar condición de privacidad — usar privacidadRespondida como indicador
+  // "no respondida" = undefined/false en privacidadRespondida → mostrar aviso
+  // "respondió sí o no" = privacidadRespondida = true → continuar siempre
+  if (perfil.privacidadRespondida !== true) {
     const respondioSi = /^\s*(sí|si|yes|acepto|autorizo|de acuerdo|ok|okay)\s*$/i.test(msgCliente.trim());
     const respondioNo = /^\s*(no|nope|no gracias)\s*$/i.test(msgCliente.trim());
 
     if (respondioSi) {
       perfil.privacidadAceptada = true;
+      perfil.privacidadRespondida = true;   // FIX 2: marcar como respondida
       perfil.ultimoContacto = new Date().toISOString();
       await saveCliente(redis, tel, perfil);
 
@@ -1082,6 +1147,7 @@ async function handleWhatsappWebhook(body: any) {
       return;
     } else if (respondioNo) {
       perfil.privacidadAceptada = false;
+      perfil.privacidadRespondida = true;   // FIX 2: marcar como respondida — NO volver a preguntar
       perfil.ultimoContacto = new Date().toISOString();
       await saveCliente(redis, tel, perfil);
 
@@ -1118,19 +1184,33 @@ async function handleWhatsappWebhook(body: any) {
     await saveCliente(redis, tel, perfil);
   }
 
+  // FIX 1: Detectar si es cliente que vuelve con historial expirado
+  const historialPrevioLongitud_antesDeCargar = await getHistorial(redis, tel).then(h => h.length);
+  const esClienteQueVuelve = historialPrevioLongitud_antesDeCargar === 0 && !!perfil.nombre && perfil.totalCompras > 0;
+
   let historial = await getHistorial(redis, tel);
   perfil = await analizarPatronesCliente(redis, perfil, msgCliente, historial);
+
+  // FIX 7: Limpiar etapaAbandono automáticamente cuando el cliente hace una consulta nueva
+  const intencionPago = detectarIntencionPago(msgCliente, historial, perfil);
+  if (perfil.etapaAbandono === 'pago' && !intencionPago.detectado) {
+    const esConsultaNueva = /\b(precio|cuánto|cuanto|tela|kilo|metro|color|hilo|elástico|elastico|muestra|catálogo|tienen|disponible|qué tienen)\b/i.test(msgCliente);
+    if (esConsultaNueva) {
+      console.log(`🔄 etapaAbandono "pago" limpiada — cliente hace nueva consulta de producto`);
+      perfil.etapaAbandono = null;
+      perfil.fechaAbandono = undefined;
+      await saveCliente(redis, tel, perfil);
+    }
+  }
 
   const nuevoResumen = await generarResumenSemantico(historial, perfil);
   if (nuevoResumen) { perfil.resumenSemantico = nuevoResumen; await saveCliente(redis, tel, perfil); }
 
-  const intencionPago = detectarIntencionPago(msgCliente, historial, perfil);
   let linkStripeAutoGenerado: string | null = null;
   if (intencionPago.detectado && intencionPago.montoEstimado && intencionPago.montoEstimado > 0) {
     try {
       const amountInCents = Math.round(intencionPago.montoEstimado * 100);
       const cotObj = perfil.ultimaCotizacionObj;
-      // FIX 7: Stripe with 8s timeout so Meta webhook never times out
       const session = await Promise.race([
         stripe.checkout.sessions.create({
           payment_method_types: ['card', 'oxxo'],
@@ -1225,6 +1305,15 @@ async function handleWhatsappWebhook(body: any) {
   const alertaPatron           = perfil.patronCompra ? `📊 PATRÓN: ${perfil.patronCompra}` : '';
   const alertaPropension       = perfil.propensionCross ? `🎯 PROPENSIÓN CROSS: Hilos ${perfil.propensionCross.hilos}% | Elásticos ${perfil.propensionCross.elasticos}% | Volumen+ ${perfil.propensionCross.volumenExtra}%` : '';
   const memoriaSemantica       = perfil.resumenSemantico ? `\n🧠 MEMORIA SEMÁNTICA:\n${perfil.resumenSemantico}` : '';
+
+  // FIX 1: Nota para clientes que regresan con historial expirado — evitar saludo de nuevo cliente
+  const notaClienteRecurrente = esClienteQueVuelve
+    ? `\n⚠️ CLIENTE RECURRENTE CON HISTORIAL EXPIRADO: ${perfil.nombre} ya tiene ${perfil.totalCompras} compra(s) previas por $${perfil.montoAcumulado} MXN acumulados.
+NO salude como si fuera la primera vez. NO envíe bienvenida.
+Retome directamente: "${perfil.genero === 'mujer' ? 'Señora' : 'Señor'} ${perfil.nombre}, bienvenido de vuelta. ¿En qué le podemos ayudar?"
+${perfil.ultimaCotizacion ? `Su última cotización fue: ${perfil.ultimaCotizacion}` : ''}
+${perfil.productosFavoritos?.length ? `Sus productos habituales: ${perfil.productosFavoritos.join(', ')}` : ''}`
+    : '';
 
   const instruccionTactica = (() => {
     const temp = perfil.temperaturaCompra ?? 30;
@@ -1394,6 +1483,7 @@ ${instruccionesExtra}
 ${avisoTexto}
 ${promocionesTexto}
 ${avisoStripeAuto}
+${notaClienteRecurrente}
 
 ════════════════════════════════════════════════════════
 🚫 LIMITACIONES REALES DE ESTA IA — REGLA ABSOLUTA
@@ -1769,7 +1859,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
   }
 
   // ==========================================
-  // 🛡️ POST-PROCESSING: LIMPIAR FRASES DE ESPERA Y GARANTIZAR EJECUCIÓN DE COMANDOS
+  // 🛡️ POST-PROCESSING
   // ==========================================
 
   // Limpiar identidad IA
@@ -1781,8 +1871,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     if (patron.test(respuesta)) respuesta = respuesta.replace(patron, 'El Coyote de Coyote Textil');
   }
 
-  // ── LIMPIAR SIEMPRE frases de espera/anuncio, independientemente de si hay comandos ──
-  // Estas frases NUNCA deben llegar al cliente bajo ninguna circunstancia
+  // Limpiar frases de espera prohibidas
   const frasesEsperaProhibidas: RegExp[] = [
     /[Uu]n momento[^.!?\n]{0,60}[.!?]?\s*/g,
     /[Vv]amos a calcular[^.!?\n]{0,60}[.!?]?\s*/g,
@@ -1810,35 +1899,24 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     }
   }
 
-  // Detectar si hay comandos de acción en la respuesta
   const tieneComandoCobro = /GENERAR_COBRO\|/i.test(respuesta);
   const tieneComandoSpei  = /GENERAR_SPEI\|/i.test(respuesta);
-  const tieneComandoEnvio = /CALCULAR_ENVIO\|/i.test(respuesta);
 
-  // GUARDIA CRÍTICA: Si GPT dijo que iba a generar el cobro pero NO incluyó el comando,
-  // y tenemos todos los datos necesarios, forzamos el comando nosotros.
+  // FIX 3: Forzar GENERAR_COBRO SOLO usando cotizacionObj — nunca scraping del historial
   const dijoProcesar = /procesar(emos)?\s+su\s+pago|generar(é|e)\s+el\s+link|aquí\s+(tiene|va)\s+su\s+link/i.test(respuesta);
   const faltaComandoCobro = dijoProcesar && !tieneComandoCobro && !linkStripeAutoGenerado && !tieneComandoSpei;
 
-  if (faltaComandoCobro) {
-    // Intentar extraer el monto del historial reciente o de la respuesta actual
-    let montoForzado: number | null = null;
-    const matchMontoRespuesta = respuesta.match(/\$\s*([\d,]+(?:\.\d{2})?)\s*MXN/i);
-    if (matchMontoRespuesta) {
-      montoForzado = parseFloat(matchMontoRespuesta[1].replace(/,/g, ''));
-    }
-    if (!montoForzado) {
-      for (let i = historial.length - 1; i >= 0; i--) {
-        const m = historial[i];
-        const matchMonto = m.content.match(/\$\s*([\d,]+(?:\.\d{2})?)\s*MXN/i);
-        if (matchMonto) { montoForzado = parseFloat(matchMonto[1].replace(/,/g, '')); break; }
-      }
-    }
-    if (montoForzado && montoForzado > 0) {
-      const rfc = perfil.cpFiscal ? 'PENDIENTE' : 'NONE';
+  if (faltaComandoCobro && perfil.ultimaCotizacionObj) {
+    const cotObj = perfil.ultimaCotizacionObj;
+    const montoForzado = cotObj.conFactura ? cotObj.subtotalConEnvioConIva : cotObj.subtotalConEnvio;
+    if (montoForzado > 0) {
       respuesta += `\nGENERAR_COBRO|tarjeta|${montoForzado.toFixed(2)}|NONE|NONE|NONE|NONE|NONE`;
-      console.log(`🔧 Comando GENERAR_COBRO forzado por guardia. Monto: $${montoForzado}`);
+      console.log(`🔧 FIX 3: GENERAR_COBRO forzado desde cotizacionObj. Monto: $${montoForzado}`);
+    } else {
+      console.warn(`⚠️ FIX 3: cotizacionObj existe pero monto es 0 — no se fuerza el comando`);
     }
+  } else if (faltaComandoCobro && !perfil.ultimaCotizacionObj) {
+    console.warn(`⚠️ FIX 3: GPT dijo "procesar" pero no hay cotizacionObj — se omite forzado para evitar monto incorrecto`);
   }
 
   if (/TERMINOS_ACEPTADOS/i.test(respuesta)) {
@@ -2099,21 +2177,17 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       try {
         const productos: ProductoEnvio[] = JSON.parse(`[${productosStr}]`);
 
-        // Extraer CP limpio
         let cpFinal = cpEnvio.trim().replace(/\D/g, '').slice(0, 5);
         if (!cpFinal || cpFinal.length < 4) {
           const cpDeDireccion = perfil.direccionEnvio?.match(/\b\d{5}\b/);
           if (cpDeDireccion) cpFinal = cpDeDireccion[0];
         }
 
-        // Subtotal: del comando, o calculado desde historial
         let subtotal = subtotalStr ? parseFloat(subtotalStr) : 0;
         if (!subtotal || subtotal === 0) {
-          // Buscar en historial el monto de productos cotizados
           for (let i = historial.length - 1; i >= 0; i--) {
             const m = historial[i];
             if (m.role !== 'assistant') continue;
-            // Patrón "X kg × $Y/kg = $Z MXN" o "Total productos: $Z"
             const matchKg = m.content.match(/(\d+)\s*kg[^$]*\$\s*([\d,]+(?:\.\d{2})?)\s*(?:MXN|por kg)/i);
             if (matchKg) {
               const kg = parseFloat(matchKg[1]);
@@ -2121,10 +2195,8 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
               subtotal = kg * precioKg;
               break;
             }
-            // Patrón "Subtotal: $X" o "$X MXN" como primer monto mencionado
             const matchSub = m.content.match(/[Ss]ubtotal[^$\n]*\$\s*([\d,]+(?:\.\d{2})?)/);
             if (matchSub) { subtotal = parseFloat(matchSub[1].replace(/,/g, '')); break; }
-            // Patrón precio cotizado: "rollo.*$X MXN" o "Total.*$X MXN"
             const matchTotal = m.content.match(/(?:rollo|total|precio)[^$\n]*\$\s*([\d,]+(?:\.\d{2})?)\s*MXN/i);
             if (matchTotal) {
               const val = parseFloat(matchTotal[1].replace(/,/g, ''));
@@ -2133,11 +2205,9 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
           }
         }
 
-        // FIX 1: Use factura flag from cotizacionObj if already confirmed
         const facturaYaConfirmada = !!(perfil.ultimaCotizacionObj?.conFactura);
         const resultado = calcularEnvioReal(productos, cpFinal, subtotal, facturaYaConfirmada);
 
-        // FIX 6: Save cotizacion as structured object in perfil
         perfil.ultimaCotizacionObj = {
           productos: productosStr,
           kg: productos.reduce((a, p) => a + p.kg, 0),
@@ -2152,8 +2222,8 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
         perfil.ultimaCotizacion = `${productosStr} | CP:${cpFinal} | $${resultado.total.toFixed(2)} MXN`;
         await saveCliente(redis, tel, perfil);
 
-        respuesta += `\n\n${resultado.desglose}\n\n\u00BFRequiere factura fiscal? \u{1F43A}`;
-        console.log(`\u{1F4E6} Env\u00EDo calculado: CP=${cpFinal} | Subtotal=$${subtotal} | Total=$${resultado.total}`);
+        respuesta += `\n\n${resultado.desglose}\n\n¿Requiere factura fiscal? 🐺`;
+        console.log(`📦 Envío calculado: CP=${cpFinal} | Subtotal=$${subtotal} | Total=$${resultado.total}`);
       } catch (e) {
         console.error('Error calculando envío:', e);
         respuesta += `\n\n⚠️ No pude calcular el envío. Compártame la dirección completa (calle, número, colonia, ciudad y CP).`;
@@ -2164,72 +2234,66 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     if (matchEscalar) {
       const [, duda] = matchEscalar;
 
-      // GUARDIA: Bloquear escalamientos incorrectos por volumen de pedido
-      // GPT a veces escala por "pedido grande" lo cual está PROHIBIDO
       const esEscalamientoPorVolumen = /\b(\d{3,})\s*(kg|kilos|rollos|rollo|kilo)/i.test(duda) ||
         /volumen|cantidad grande|pedido grande|gran pedido|mucho pedido/i.test(duda);
 
       if (esEscalamientoPorVolumen) {
         console.log(`🚫 ESCALAMIENTO BLOQUEADO (por volumen): "${duda}" — El Coyote cierra la venta`);
         respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
-        // Replace with a closing message instead
         if (!respuesta || respuesta.length < 20) {
           respuesta = `Perfecto, ${perfil.genero === 'mujer' ? 'señora' : 'señor'} ${perfil.nombre}. 🐺📦\n\nPara formalizar su pedido necesito:\n¿A qué dirección completa enviamos? (calle, número, colonia, ciudad y CP)`;
         }
       } else {
         console.log(`🆘 ESCALAMIENTO: ${duda}`);
-      respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
-      respuesta += `\n🐺 Entendido. Acabo de generar un ticket de alta prioridad. Un asesor de la Jauría tomará este chat en breve para darle atención personal.`;
+        respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
+        respuesta += `\n🐺 Entendido. Acabo de generar un ticket de alta prioridad. Un asesor de la Jauría tomará este chat en breve para darle atención personal.`;
 
-      try {
-        let userPrisma = await prisma.user.findFirst({ where: { phone: tel } });
-        if (!userPrisma) {
-          userPrisma = await prisma.user.create({
+        try {
+          let userPrisma = await prisma.user.findFirst({ where: { phone: tel } });
+          if (!userPrisma) {
+            userPrisma = await prisma.user.create({
+              data: {
+                email: perfil.correoElectronico || `prospecto_${Date.now()}@coyotetextil.local`,
+                password: "bot-generated",
+                phone: tel,
+                name: perfil.nombre || "Prospecto WA",
+                role: "USER"
+              }
+            });
+          }
+
+          await prisma.ticket.create({
             data: {
-              email: perfil.correoElectronico || `prospecto_${Date.now()}@coyotetextil.local`,
-              password: "bot-generated",
-              phone: tel,
-              name: perfil.nombre || "Prospecto WA",
-              role: "USER"
+              userId: userPrisma.id,
+              subject: "Escalamiento WA: " + (perfil.nombre || "Cliente"),
+              description: duda,
+              status: "ABIERTO",
+              priority: "ALTA",
             }
           });
+
+          await prisma.waConversation.updateMany({
+            where: { contactPhone: tel },
+            data: {
+              handledBy: "ADMIN",
+              unreadCount: { increment: 1 }
+            }
+          });
+
+          const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
+          await createTrace({
+            employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
+            summary: `Escalamiento: ${duda.substring(0, 80)}`,
+            content: { direction: "internal", event: "escalamiento", motivo: duda, clienteNombre: perfil.nombre, segmento: perfil.segmento },
+            actionName: "ESCALAMIENTO_A_AGENTE",
+          });
+        } catch (dbErr) {
+          console.error("⚠️ Error en DB durante el escalamiento:", dbErr);
         }
-
-        await prisma.ticket.create({
-          data: {
-            userId: userPrisma.id,
-            subject: "Escalamiento WA: " + (perfil.nombre || "Cliente"),
-            description: duda,
-            status: "ABIERTO",
-            priority: "ALTA",
-          }
-        });
-
-        await prisma.waConversation.updateMany({
-          where: { contactPhone: tel },
-          data: {
-            handledBy: "ADMIN",
-            unreadCount: { increment: 1 }
-          }
-        });
-
-        const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
-        await createTrace({
-          employeeId: convoTrace?.employeeId || "SISTEMA", phone: tel, type: "WHATSAPP",
-          summary: `Escalamiento: ${duda.substring(0, 80)}`,
-          content: { direction: "internal", event: "escalamiento", motivo: duda, clienteNombre: perfil.nombre, segmento: perfil.segmento },
-          actionName: "ESCALAMIENTO_A_AGENTE",
-        });
-      } catch (dbErr) {
-        console.error("⚠️ Error en DB durante el escalamiento:", dbErr);
       }
-      } // end else (escalamiento legítimo)
     }
 
-    // ── FIX CRÍTICO: Regex permisivo para GENERAR_COBRO ──
-    // El original fallaba si GPT omitía algún campo o los separaba diferente.
-    // Ahora acepta campos vacíos y cualquier variación de formato.
-    // FIX 1+2+7: GENERAR_COBRO — IVA-aware, uses cotizacionObj, Stripe timeout
+    // FIX 3: GENERAR_COBRO — nunca usar monto de historial crudo, siempre verificar contra cotizacionObj
     const matchCobro = respuesta.match(/GENERAR_COBRO\|([^|\n]+)\|([\d.,]+)\|([^|\n]*)\|([^|\n]*)\|([^|\n]*)\|([^|\n]*)\|?([^|\n]*)/i);
     if (matchCobro && !linkStripeAutoGenerado) {
       const metodo  = (matchCobro[1] || 'tarjeta').trim().toLowerCase();
@@ -2240,13 +2304,17 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       let   regimen = (matchCobro[6] || 'NONE').trim() || 'NONE';
       let   uso     = (matchCobro[7] || 'NONE').trim() || 'NONE';
 
-      // FIX 2: If we have a stored cotizacionObj, use its data to ensure consistency
       const cotObj = perfil.ultimaCotizacionObj;
       if (cotObj) {
-        if (cotObj.conFactura && monto < cotObj.subtotalConEnvioConIva * 0.99) {
-          // GPT passed non-IVA amount but factura is required — use correct IVA total
-          monto = cotObj.subtotalConEnvioConIva;
-          console.log(`🔧 FIX 2: Monto corregido con IVA: $${monto}`);
+        // FIX 3: Si GPT pasa un monto que parece solo precio/kg (< $200), corregirlo con cotizacionObj
+        const montoCorrectoSinIva = cotObj.subtotalConEnvio;
+        const montoCorrectoConIva = cotObj.subtotalConEnvioConIva;
+        if (monto < 200 && montoCorrectoSinIva > 0) {
+          monto = cotObj.conFactura ? montoCorrectoConIva : montoCorrectoSinIva;
+          console.log(`🔧 FIX 3: Monto sospechosamente bajo ($${matchCobro[2]}) corregido a $${monto} desde cotizacionObj`);
+        } else if (cotObj.conFactura && monto < montoCorrectoConIva * 0.99) {
+          monto = montoCorrectoConIva;
+          console.log(`🔧 FIX 3: Monto corregido con IVA: $${monto}`);
         }
         if (rfc === 'NONE' && cotObj.rfc && cotObj.rfc !== 'NONE') rfc = cotObj.rfc;
         if (razon === 'NONE' && cotObj.razon && cotObj.razon !== 'NONE') razon = cotObj.razon;
@@ -2263,7 +2331,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
         perfil.intentosDePago = (perfil.intentosDePago || 0) + 1;
         perfil.etapaAbandono = 'pago';
         perfil.fechaAbandono = new Date().toISOString();
-        // FIX 6b: Update cotizacionObj with factura flag and fiscal data
         if (perfil.ultimaCotizacionObj) {
           perfil.ultimaCotizacionObj.conFactura = reqInvoice === 'YES';
           if (rfc !== 'NONE') perfil.ultimaCotizacionObj.rfc = rfc;
@@ -2274,7 +2341,6 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
         }
         await saveCliente(redis, tel, perfil);
         try {
-          // FIX 7: Stripe with 8s timeout
           const session = await Promise.race([
             stripe.checkout.sessions.create({
               payment_method_types: ['card', 'oxxo'],
@@ -2285,8 +2351,8 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
             }),
             new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Stripe timeout')), 8000)),
           ]) as Stripe.Checkout.Session;
-          respuesta += `\n\n\u{1F4B3} *Su link de pago seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Procesado por Stripe. Su transacci\u00F3n est\u00E1 protegida. \u{1F43A}_`;
-          console.log(`\u2705 Stripe session: $${monto} MXN | M\u00E9todo: ${metodo} | RFC: ${rfc} | IVA: ${reqInvoice}`);
+          respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${session.url}\n\n_Procesado por Stripe. Su transacción está protegida. 🐺_`;
+          console.log(`✅ Stripe session: $${monto} MXN | Método: ${metodo} | RFC: ${rfc} | IVA: ${reqInvoice}`);
           try {
             const convoTrace = await prisma.waConversation.findFirst({ where: { contactPhone: tel } });
             await createTrace({
@@ -2295,11 +2361,10 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
               content: { direction: "outbound", event: "stripe_link_generado", metodo, monto, conFactura: reqInvoice === 'YES', sessionId: session.id },
               actionName: "LINK_STRIPE_GENERADO",
             });
-          } catch (traceErr) { console.error("\u26A0\uFE0F Error en createTrace (stripe link):", traceErr); }
+          } catch (traceErr) { console.error("⚠️ Error en createTrace (stripe link):", traceErr); }
         } catch (err: any) {
           if (err?.message === 'Stripe timeout') {
             console.error('Stripe timeout en GENERAR_COBRO — generando en background');
-            // Generate in background so we can still respond to client
             stripe.checkout.sessions.create({
               payment_method_types: ['card', 'oxxo'],
               line_items: [{ price_data: { currency: 'mxn', product_data: { name: 'Pedido Coyote Textil' }, unit_amount: amountInCents }, quantity: 1 }],
@@ -2307,17 +2372,17 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
               success_url: 'https://wa.me/5215627301525',
               metadata: { rfc, razon, cp, regimen, uso, req_invoice: reqInvoice, phone: tel, productos: perfil.productosComprados.join(',') }
             }).then(s => {
-              if (s.url) enviarWhatsapp(tel, `\u{1F43A} Su link de pago seguro:\n${s.url}\n\nEn cuanto confirme, bodega recibe su pedido.`);
+              if (s.url) enviarWhatsapp(tel, `🐺 Su link de pago seguro:\n${s.url}\n\nEn cuanto confirme, bodega recibe su pedido.`);
             }).catch(e => console.error('Stripe background error:', e));
-            respuesta += `\n\n\u{1F4B3} Generando su link de pago. En cuanto est\u00E9 listo se lo enviamos (menos de 1 minuto). \u{1F43A}`;
+            respuesta += `\n\n💳 Generando su link de pago. En cuanto esté listo se lo enviamos (menos de 1 minuto). 🐺`;
           } else {
             console.error('Error Stripe:', err);
-            respuesta += `\n\n\u26A0\uFE0F Inconveniente generando el link de pago. Nuestro equipo lo revisa de inmediato.`;
+            respuesta += `\n\n⚠️ Inconveniente generando el link de pago. Nuestro equipo lo revisa de inmediato.`;
           }
         }
       } else {
-        console.warn(`\u26A0\uFE0F GENERAR_COBRO monto inv\u00E1lido: "${matchCobro[2]}"`);
-        respuesta += `\n\n\u26A0\uFE0F No pude determinar el monto del pedido. \u00BFMe confirma el total a cobrar?`;
+        console.warn(`⚠️ GENERAR_COBRO monto inválido: "${matchCobro[2]}"`);
+        respuesta += `\n\n⚠️ No pude determinar el monto del pedido. ¿Me confirma el total a cobrar?`;
       }
     } else if (matchCobro && linkStripeAutoGenerado) {
       respuesta = respuesta.replace(/GENERAR_COBRO\|[^\n]*/gi, '').trim();
