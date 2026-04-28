@@ -418,7 +418,7 @@ export const products: Product[] = [
     composicion: "Poliéster / Spandex",
     gramaje: "180",
     ancho: "1.60m",
-    rendimiento: 3.5,
+    rendimiento: 2.0,
     singleColor: true,
     prices: { menudeo: 135.00, mayoreo: 130.00 },
     hasRollo: true,
