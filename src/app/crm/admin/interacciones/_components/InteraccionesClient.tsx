@@ -152,7 +152,7 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
   };
 
   return (
-    <div className="flex-1 flex min-h-0 bg-[#111b21] border border-white/[0.03] rounded-2xl overflow-hidden shadow-2xl relative">
+    <div className="flex-1 flex w-full h-full min-h-0 bg-[#111b21] border border-white/[0.03] rounded-2xl overflow-hidden shadow-2xl relative">
       
       {/* =========================================
           MODAL: NUEVO CONTACTO

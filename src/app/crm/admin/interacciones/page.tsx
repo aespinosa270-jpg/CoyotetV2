@@ -43,8 +43,6 @@ export default async function InteraccionesPage() {
 
   return (
     // 3. SOLUCIÓN CSS: Cambiamos `h-full` por `h-[calc(100vh-80px)]` o `h-screen`.
-    // Ajusta el "80px" dependiendo de cuánto mida la barra de navegación superior de tu CRM.
-    // Esto obliga al Flexbox a respetarlo y hace que aparezca el scroll real.
     <div className="h-[calc(100vh-80px)] min-h-[600px] flex flex-col overflow-hidden bg-[#0a0a0a] pb-4">
       
       {/* Mini-Header */}
@@ -57,7 +55,8 @@ export default async function InteraccionesPage() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 px-2">
+      {/* FIX: Agregamos 'flex w-full h-full' aquí para que el hijo herede las dimensiones */}
+      <div className="flex-1 min-h-0 px-2 flex w-full h-full">
         <InteraccionesClient initialConversations={conversations} />
       </div>
     </div>
