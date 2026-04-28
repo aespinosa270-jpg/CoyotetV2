@@ -1587,10 +1587,21 @@ Entréguelo de inmediato. Sin más preguntas:
 "Aquí su link de pago seguro 👇\n[LINK]\nEn cuanto confirme, bodega recibe su pedido. 🐺"
 
 REGLA 8 — ESCALAMIENTO A HUMANO:
-Si el cliente pide explícitamente hablar con un humano, se muestra muy molesto,
-pide una cotización mayor a 1,000 kg, O solicita información que no está en este
-catálogo (stock de color específico, fecha de llegada de nueva mercancía, etc.),
-use INMEDIATAMENTE: ESCALAR|motivo_breve
+SOLO escale en estos casos EXACTOS:
+  a) El cliente pide EXPLÍCITAMENTE hablar con un humano/persona/asesor.
+  b) El cliente se muestra extremadamente molesto o agresivo.
+  c) Solicita información que NO está en este catálogo (stock de color específico,
+     fecha de llegada de nueva mercancía, condiciones de crédito empresarial, etc.)
+
+NUNCA escale por volumen de pedido. No importa si son 100 rollos, 500 rollos o
+10,000 kg — EL COYOTE CIERRA ESA VENTA. Pedidos grandes = mayor comisión.
+Ante un pedido grande, el flujo es SIEMPRE:
+  1. Confirmar dirección completa de entrega.
+  2. Confirmar si requiere factura.
+  3. Preguntar método de pago: tarjeta, OXXO o SPEI.
+  4. Ejecutar GENERAR_COBRO o GENERAR_SPEI.
+
+use ESCALAR|motivo_breve SOLO cuando se cumplan los casos a, b o c de arriba.
 
 REGLA 9 — COMANDOS = EJECUCIÓN INMEDIATA, SIN ANUNCIO PREVIO:
 Cuando emitas GENERAR_COBRO, GENERAR_SPEI o CALCULAR_ENVIO, hazlo en el MISMO
@@ -2152,7 +2163,21 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
     const matchEscalar = respuesta.match(/ESCALAR\|(.+)/i);
     if (matchEscalar) {
       const [, duda] = matchEscalar;
-      console.log(`🆘 ESCALAMIENTO: ${duda}`);
+
+      // GUARDIA: Bloquear escalamientos incorrectos por volumen de pedido
+      // GPT a veces escala por "pedido grande" lo cual está PROHIBIDO
+      const esEscalamientoPorVolumen = /\b(\d{3,})\s*(kg|kilos|rollos|rollo|kilo)/i.test(duda) ||
+        /volumen|cantidad grande|pedido grande|gran pedido|mucho pedido/i.test(duda);
+
+      if (esEscalamientoPorVolumen) {
+        console.log(`🚫 ESCALAMIENTO BLOQUEADO (por volumen): "${duda}" — El Coyote cierra la venta`);
+        respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
+        // Replace with a closing message instead
+        if (!respuesta || respuesta.length < 20) {
+          respuesta = `Perfecto, ${perfil.genero === 'mujer' ? 'señora' : 'señor'} ${perfil.nombre}. 🐺📦\n\nPara formalizar su pedido necesito:\n¿A qué dirección completa enviamos? (calle, número, colonia, ciudad y CP)`;
+        }
+      } else {
+        console.log(`🆘 ESCALAMIENTO: ${duda}`);
       respuesta = respuesta.replace(/ESCALAR\|.+/g, '').trim();
       respuesta += `\n🐺 Entendido. Acabo de generar un ticket de alta prioridad. Un asesor de la Jauría tomará este chat en breve para darle atención personal.`;
 
@@ -2198,6 +2223,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       } catch (dbErr) {
         console.error("⚠️ Error en DB durante el escalamiento:", dbErr);
       }
+      } // end else (escalamiento legítimo)
     }
 
     // ── FIX CRÍTICO: Regex permisivo para GENERAR_COBRO ──
