@@ -274,7 +274,8 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
                   <div className="ml-4 flex-1 overflow-hidden">
                     <div className="flex justify-between items-center">
                       <h3 className="font-semibold text-[#e9edef] truncate">{chat.contactName || chat.contactPhone}</h3>
-                      <span className="text-[11px] text-[#8696a0] shrink-0">
+                      {/* FIX DE HIDRATACIÓN 1 AQUÍ */}
+                      <span suppressHydrationWarning className="text-[11px] text-[#8696a0] shrink-0">
                         {lastMsg ? new Date(lastMsg.sentAt || lastMsg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ""}
                       </span>
                     </div>
@@ -350,7 +351,8 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
                     }`}
                   >
                     <p className="whitespace-pre-wrap">{msg.body}</p>
-                    <div className="text-[10px] text-[#8696a0] flex justify-end items-center gap-1 mt-1">
+                    {/* FIX DE HIDRATACIÓN 2 AQUÍ */}
+                    <div suppressHydrationWarning className="text-[10px] text-[#8696a0] flex justify-end items-center gap-1 mt-1">
                       {new Date(msg.sentAt || msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                     </div>
                   </div>
@@ -385,7 +387,7 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
 
       {/* =========================================
           PANEL DERECHO: CONTEXTO CRM
-      ========================================= */}
+      ======================================== */}
       {activeChat?.user && (
         <div className="w-1/4 max-w-[300px] bg-[#111b21] border-l border-white/10 flex flex-col shrink-0">
           <div className="p-6 border-b border-white/5 flex flex-col items-center text-center shrink-0">

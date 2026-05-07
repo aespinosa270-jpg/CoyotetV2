@@ -136,7 +136,6 @@ enum BreakType {
   ENTRENAMIENTO
 }
 
-// ✅ NUEVO: Enum para saber quién tiene el control del chat
 enum ChatHandler {
   BOT
   AGENT
@@ -147,22 +146,22 @@ enum ChatHandler {
 // 1. USUARIO / CLIENTE (B2B & B2C)
 // ==========================================================
 model User {
-  id                           String              @id @default(cuid())
-  hashId                       String              @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
+  id                           String             @id @default(cuid())
+  hashId                       String             @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
   name                         String?
-  email                        String              @unique
+  email                        String             @unique
   password                     String
   image                        String?
   phone                        String?
-  role                         String              @default("USER")
-  membershipTier               MembershipTier      @default(NONE)
+  role                         String             @default("USER")
+  membershipTier               MembershipTier     @default(NONE)
   membershipExpiry             DateTime?
-  membershipColocacionesUsadas Int                 @default(0)
-  points                       Int                 @default(0)
+  membershipColocacionesUsadas Int                @default(0)
+  points                       Int                @default(0)
   stripeCustomerId             String?
   stripeSubscriptionId         String?
   stripeSubscriptionStatus     String?
-  ltv                          Float               @default(0)
+  ltv                          Float              @default(0)
   rfc                          String?
   taxRegime                    String?
   cfdiUse                      String?
@@ -173,12 +172,12 @@ model User {
   state                        String?
   company                      String?
   notes                        String?
-  optedIn                      Boolean             @default(false)
-  suppressed                   Boolean             @default(false)
+  optedIn                      Boolean            @default(false)
+  suppressed                   Boolean            @default(false)
   consentDate                  DateTime?
   optOutDate                   DateTime?
-  createdAt                    DateTime            @default(now())
-  updatedAt                    DateTime            @updatedAt
+  createdAt                    DateTime           @default(now())
+  updatedAt                    DateTime           @updatedAt
 
   orders                       Order[]
   interactions                 Interaction[]
@@ -187,6 +186,10 @@ model User {
   waConversations              WaConversation[]
   passwordResetToken           PasswordResetToken?
   ticketMessages               TicketMessage[]
+
+  // Índices de rendimiento
+  @@index([email])
+  @@index([phone])
 }
 
 // ==========================================================
@@ -212,9 +215,8 @@ model Employee {
   role               EmployeeRole     @default(VENDEDORA)
   isActive           Boolean          @default(true)
   
-  // ✅ NUEVO: Controles estrictos de auditoría y bloqueos
-  isBlocked          Boolean          @default(false) // Bloqueo total (no puede iniciar sesión)
-  suspendedFunctions String[]         // Array para quitar funciones específicas ej. ["SEND_WHATSAPP"]
+  isBlocked          Boolean          @default(false) 
+  suspendedFunctions String[]         
   
   commissionRate     Float            @default(0.03)
   status             String           @default("offline")
@@ -244,6 +246,10 @@ model AuditLog {
   ipAddress  String?
   userAgent  String?
   metadata   Json?
+
+  // Índices de rendimiento para auditorías rápidas
+  @@index([employeeId])
+  @@index([timestamp(sort: Desc)])
 }
 
 // ==========================================================
@@ -276,6 +282,10 @@ model Product {
   orderItems       OrderItem[]
   deals            Deal[]
   movements        InventoryMovement[]
+
+  // Índices de rendimiento
+  @@index([category])
+  @@index([isActive])
 }
 
 model ProductColor {
@@ -288,6 +298,8 @@ model ProductColor {
 
   inventory Inventory[]
   movements InventoryMovement[]
+
+  @@index([productId])
 }
 
 model Inventory {
@@ -302,6 +314,7 @@ model Inventory {
   updatedAt DateTime       @updatedAt
 
   @@unique([productId, colorId, location])
+  @@index([location])
 }
 
 model InventoryMovement {
@@ -320,6 +333,9 @@ model InventoryMovement {
   orderId      String?
   order        Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
   createdAt    DateTime       @default(now())
+
+  @@index([productId])
+  @@index([createdAt(sort: Desc)])
 }
 
 // ==========================================================
@@ -344,6 +360,9 @@ model Deal {
   updatedAt  DateTime       @updatedAt
 
   commission Commission?
+
+  @@index([employeeId])
+  @@index([status])
 }
 
 // ==========================================================
@@ -364,6 +383,9 @@ model Commission {
   notes      String?
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
 }
 
 // ==========================================================
@@ -389,11 +411,10 @@ model Order {
   logisticsType     LogisticsType       @default(SKYDROPX_NACIONAL)
   pickupLocation    PickupLocation      @default(GUATEMALA_97)
   
-  // ✅ NUEVO: Logística y Auditoría de Pickup
-  pickupIdPhotoUrl  String?             // Foto INE
-  pickupPlateNumber String?             // Placas del carro
-  pickupConfirmedBy String?             // Quién del admin le dio salida
-  pickupConfirmedAt DateTime?           // Cuándo salió de la bodega
+  pickupIdPhotoUrl  String?             
+  pickupPlateNumber String?             
+  pickupConfirmedBy String?             
+  pickupConfirmedAt DateTime?           
 
   vehiclesNeeded    Int                 @default(1)
   trackingNumber    String?
@@ -412,6 +433,11 @@ model Order {
   movements         InventoryMovement[]
   vehicleId         String?
   vehicle           Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  // Índices de rendimiento
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
 }
 
 model OrderItem {
@@ -426,6 +452,8 @@ model OrderItem {
   quantity  Float
   unit      String?
   color     String?
+
+  @@index([orderId])
 }
 
 // ==========================================================
@@ -448,6 +476,9 @@ model Attendance {
   updatedAt       DateTime          @updatedAt
 
   breaks          AttendanceBreak[]
+
+  @@index([employeeId])
+  @@index([createdAt(sort: Desc)])
 }
 
 model AttendanceBreak {
@@ -459,6 +490,8 @@ model AttendanceBreak {
   endAt        DateTime?
   duration     Float?
   createdAt    DateTime   @default(now())
+
+  @@index([attendanceId])
 }
 
 model Interaction {
@@ -474,6 +507,9 @@ model Interaction {
   pipelineStatus PipelineStatus?
   date           DateTime        @default(now())
   nextFollowUp   DateTime?
+
+  @@index([userId])
+  @@index([employeeId])
 }
 
 model ShippingZone {
@@ -502,6 +538,9 @@ model Ticket {
   updatedAt    DateTime       @updatedAt
 
   messages     TicketMessage[]
+
+  @@index([userId])
+  @@index([status])
 }
 
 model TicketMessage {
@@ -515,6 +554,9 @@ model TicketMessage {
   body       String
   isInternal Boolean   @default(false)
   createdAt  DateTime  @default(now())
+
+  @@index([ticketId])
+  @@index([createdAt(sort: Asc)])
 }
 
 // ==========================================================
@@ -544,6 +586,9 @@ model Telemetry {
   speed      Float?
   isSpeeding Boolean  @default(false)
   timestamp  DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([timestamp(sort: Desc)])
 }
 
 model VehicleLog {
@@ -554,6 +599,8 @@ model VehicleLog {
   cost      Float
   date      DateTime       @default(now())
   notes     String?
+
+  @@index([vehicleId])
 }
 
 model RouteOrder {
@@ -585,6 +632,10 @@ model RouteOrder {
 
   items                RouteOrderItem[]
   issueLogs            IssueLog[]
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([scheduledAt])
 }
 
 model RouteOrderItem {
@@ -597,6 +648,8 @@ model RouteOrderItem {
   qtyDelivered  Int?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+
+  @@index([routeOrderId])
 }
 
 model IssueLog {
@@ -606,6 +659,8 @@ model IssueLog {
   note         String
   hasDelta     Boolean    @default(false)
   createdAt    DateTime   @default(now())
+
+  @@index([routeOrderId])
 }
 
 // ==========================================================
@@ -621,7 +676,6 @@ model WaConversation {
   contactPhone        String      @unique
   isOpen              Boolean     @default(true)
   
-  // ✅ NUEVO: Parámetros del Motor de Handoff (IA vs Humano)
   handledBy           ChatHandler @default(BOT)
   lastAdminMessageAt  DateTime?   
   aiResumePausedUntil DateTime?   
@@ -633,6 +687,11 @@ model WaConversation {
   updatedAt           DateTime    @updatedAt
 
   messages            WaMessage[]
+
+  // Índices de rendimiento para CRM fluido
+  @@index([employeeId])
+  @@index([handledBy])
+  @@index([updatedAt(sort: Desc)])
 }
 
 model WaMessage {
@@ -646,4 +705,8 @@ model WaMessage {
   mediaType      String?
   isRead         Boolean        @default(false)
   sentAt         DateTime       @default(now())
+
+  // Índices vitales para cargar rápido el historial de los chats
+  @@index([conversationId])
+  @@index([sentAt(sort: Desc)])
 }
