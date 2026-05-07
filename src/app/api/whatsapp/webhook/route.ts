@@ -55,7 +55,7 @@ const SPEI_CUENTAS = [
 ];
 
 // ==========================================
-// 🔧 REDIS
+// 🔧 REDIS — instancia única por request (FIX: evitar múltiples instancias)
 // ==========================================
 function getRedis() {
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN)
@@ -67,7 +67,7 @@ function getRedis() {
 }
 
 // ==========================================
-// FIX 5: RATE LIMITER — máx 8 mensajes por minuto por teléfono
+// RATE LIMITER — máx 8 mensajes por minuto por teléfono
 // ==========================================
 async function checkRateLimit(redis: Redis, tel: string): Promise<boolean> {
   const windowKey = `rate:${tel}:${Math.floor(Date.now() / 60000)}`;
@@ -118,8 +118,9 @@ Tono: profesional con energía y dinamismo B2B. Directo, resolutivo y con urgenc
 Estilo: frases cortas y contundentes. Cada mensaje debe empujar hacia el cierre.
 PROHIBIDO: tutear al cliente, lenguaje coloquial, frases de relleno ("con gusto", "por supuesto", "claro que sí").
 OBLIGATORIO: precio en cada cotización, propuesta concreta al final de cada mensaje, costo por prenda cuando aplique.`,
+  // NUEVO: bienvenida pide nombre Y correo juntos desde el primer mensaje
   frasesBienvenida: [
-    'Bienvenido a *Coyote Textil*. Soy *El Coyote* 🐺, su asesor especializado disponible 24/7.\n\nPara darle una atención precisa, ¿con quién tengo el gusto?\n\n📋 Términos: https://www.coyotetextil.com/terms\n🔒 Privacidad: https://www.coyotetextil.com/privacy'
+    'Bienvenido a *Coyote Textil*. Soy *El Coyote* 🐺, su asesor especializado disponible 24/7.\n\n📋 Términos: https://www.coyotetextil.com/terms\n🔒 Privacidad: https://www.coyotetextil.com/privacy\n\nPara darle una atención precisa y verificar su cuenta, ¿me comparte su *nombre* y *correo electrónico*?\n\n_(Ejemplo: Juan García, juan@empresa.com)_'
   ],
   frasesDesignacionHombre: ['señor', 'estimado', 'licenciado'],
   frasesDesignacionMujer: ['señora', 'señorita', 'estimada'],
@@ -160,7 +161,6 @@ OBLIGATORIO: precio en cada cotización, propuesta concreta al final de cada men
     'generaré el link',
     'le genero el link',
     'le proceso el pago',
-    '[LINK]',
   ],
   instruccionesEspeciales: '',
   productosExtra: [],
@@ -346,6 +346,7 @@ async function analizarPatronesCliente(
   return perfil;
 }
 
+// FIX: condiciones evaluadas ANTES del await — evita llamada innecesaria
 async function generarResumenSemantico(
   historial: Array<{ role: string; content: string }>,
   perfil: ClientePerfil
@@ -432,6 +433,8 @@ function calcularEnvioReal(
   const cpLimpio = cpEnvio.replace(/\D/g, '').padStart(5, '0').slice(0, 5);
   const cpValido = /^\d{5}$/.test(cpLimpio) && parseInt(cpLimpio) > 0;
   if (!cpValido) console.warn(`⚠️ CP inválido recibido: "${cpEnvio}" → usando Skydropx como fallback`);
+  // FIX: advertir si subtotal es 0 pero continuar calculando
+  if (!subtotal || subtotal <= 0) console.warn(`⚠️ CALCULAR_ENVIO subtotal=${subtotal} — desglose mostrará $0 en productos`);
   const cpFinal = cpValido ? cpLimpio : '99999';
 
   const totalKilos = productos.reduce((acc, p) => acc + p.kg, 0);
@@ -534,6 +537,8 @@ async function registrarPedido(redis: Redis, tel: string, pedido: PedidoRegistro
   cliente.intentosDePago = 0;
   cliente.etapaAbandono = null;
   cliente.temperaturaCompra = 20;
+  // FIX: resetear membresiaOfrecida tras cada compra para volver a ofertar en la siguiente venta
+  cliente.membresiaOfrecida = false;
   const pedidos: PedidoRegistro[] = (await redis.get<PedidoRegistro[]>(`pedidos:${tel}`)) || [];
   pedidos.push(pedido);
   await redis.set(`pedidos:${tel}`, pedidos);
@@ -554,8 +559,10 @@ async function detectarGenero(nombre: string): Promise<'hombre' | 'mujer' | 'unk
 
 // ==========================================
 // 🏆 VERIFICAR MEMBRESÍA DE SOCIO
+// FIX: early return si ya está en perfil — evita doble query a Prisma
 // ==========================================
-async function verificarMembresia(tel: string): Promise<{ activa: boolean; plan?: string }> {
+async function verificarMembresia(tel: string, perfil?: ClientePerfil): Promise<{ activa: boolean; plan?: string }> {
+  if (perfil?.tieneSuscripcion) return { activa: true, plan: perfil.planMembresia };
   try {
     const user = await prisma.user.findFirst({ where: { phone: tel } });
     if (!user) return { activa: false };
@@ -882,17 +889,20 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
+  // FIX: instancia Redis única para todo el flujo del mensaje
+  const redis = getRedis();
+
+  // Deduplicación
   const messageId = mensajeInfo.id;
   if (messageId) {
-    const dedupeRedis = getRedis();
     const dedupeKey = `processed_msg:${messageId}`;
     try {
-      const yaProcessado = await dedupeRedis.get(dedupeKey);
+      const yaProcessado = await redis.get(dedupeKey);
       if (yaProcessado) {
         console.log(`⚠️ Mensaje duplicado detectado y descartado: ${messageId}`);
         return;
       }
-      await dedupeRedis.set(dedupeKey, '1', { ex: 300 });
+      await redis.set(dedupeKey, '1', { ex: 300 });
     } catch (dedupeErr) {
       console.error('⚠️ Error en deduplication check:', dedupeErr);
     }
@@ -912,8 +922,8 @@ async function handleWhatsappWebhook(body: any) {
 
   console.log(`\n${'='.repeat(60)}\n💬 MENSAJE — Tel: ${tel} | "${msgCliente}"\n${'='.repeat(60)}\n`);
 
-  const rateLimitRedis = getRedis();
-  const permitido = await checkRateLimit(rateLimitRedis, tel);
+  // Rate limit (reutiliza misma instancia Redis)
+  const permitido = await checkRateLimit(redis, tel);
   if (!permitido) {
     console.warn(`🚦 Mensaje de ${tel} descartado por rate limit`);
     return;
@@ -966,7 +976,6 @@ async function handleWhatsappWebhook(body: any) {
   }
 
   console.log(`🐺 El Coyote procesando mensaje de ${tel}...`);
-  const redis = getRedis();
   const msgLower = msgCliente.trim().toLowerCase();
 
   try {
@@ -1006,6 +1015,9 @@ async function handleWhatsappWebhook(body: any) {
   let perfil = await getCliente(redis, tel);
   const config = await getConfigBot(redis);
 
+  // ==========================================
+  // NUEVO: Primer contacto — crear perfil
+  // ==========================================
   if (!perfil) {
     perfil = {
       nombre: '',
@@ -1053,69 +1065,99 @@ async function handleWhatsappWebhook(body: any) {
     return;
   }
 
-  if (!perfil.nombre) {
-    const primerNombre = msgCliente.trim().split(/\s+/)[0];
-    const pareceNombre = primerNombre.length >= 2 && !/[¿?!0-9@]/.test(primerNombre);
+  // FIX: migración de perfiles antiguos — si ya tienen correo, marcarlos como verificados
+  if (perfil.correoElectronico && perfil.privacidadRespondida === undefined) {
+    perfil.privacidadRespondida = true;
+    await saveCliente(redis, tel, perfil);
+  }
 
-    if (pareceNombre) {
-      perfil.nombre = primerNombre.charAt(0).toUpperCase() + primerNombre.slice(1).toLowerCase();
+  // ==========================================
+  // NUEVO ONBOARDING: captura nombre Y correo en una sola interacción
+  // Permanecemos en esta fase hasta tener AMBOS datos.
+  // ==========================================
+  if (!perfil.nombre || !perfil.correoElectronico) {
+    const regexCorreo = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
+    const matchCorreo = msgCliente.match(regexCorreo);
+    const emailEncontrado = matchCorreo ? matchCorreo[0].toLowerCase() : null;
+
+    // Extraer nombre: quitar el email del texto y tomar la primera palabra válida
+    const textoSinEmail = msgCliente.replace(regexCorreo, '').replace(/[,;]/g, ' ').trim();
+    const palabras = textoSinEmail.split(/\s+/).filter((w: string) => w.length >= 2 && !/[¿?!0-9@.,]/.test(w));
+    const nombreEncontrado = palabras.length > 0
+      ? palabras[0].charAt(0).toUpperCase() + palabras[0].slice(1).toLowerCase()
+      : null;
+
+    let actualizado = false;
+    if (emailEncontrado && !perfil.correoElectronico) {
+      perfil.correoElectronico = emailEncontrado;
+      perfil.correoVerificado = true;
+      actualizado = true;
+    }
+    if (nombreEncontrado && !perfil.nombre) {
+      perfil.nombre = nombreEncontrado;
       perfil.genero = await detectarGenero(perfil.nombre);
+      actualizado = true;
+    }
+    if (actualizado) await saveCliente(redis, tel, perfil);
+
+    // ¿Ya tenemos ambos datos?
+    if (perfil.nombre && perfil.correoElectronico) {
+      // NUEVO: verificar membresía en DB en cuanto tenemos correo/teléfono
+      const membresiaInicial = await verificarMembresia(tel, perfil);
+      if (membresiaInicial.activa) {
+        perfil.tieneSuscripcion = true;
+        perfil.planMembresia = membresiaInicial.plan;
+      }
       perfil.ultimoContacto = new Date().toISOString();
       await saveCliente(redis, tel, perfil);
 
-      const pedirCorreo = `🐺 *El Coyote al habla.* Mucho gusto, *${perfil.nombre}*. Para verificar su cuenta y enviarle cotizaciones, actualizaciones y facturación, ¿me comparte su correo electrónico por favor?`;
+      const msgPrivacidad = membresiaInicial.activa
+        ? `✅ *¡Bienvenido de vuelta, ${perfil.nombre}!* Correo registrado: ${perfil.correoElectronico}\n\n🐺 Verificamos su cuenta y vemos que es *Socio Coyote ${perfil.planMembresia}* 👑 — sus beneficios están activos en este pedido.\n\nAntes de continuar, ¿nos autoriza a enviarle promociones, actualizaciones y comunicaciones comerciales?\n\nResponda *SÍ* o *NO*.`
+        : `✅ Datos registrados: *${perfil.nombre}* — ${perfil.correoElectronico}\n\n🐺 Antes de continuar, tratamos sus datos conforme a nuestro Aviso de Privacidad:\nhttps://www.coyotetextil.com/privacy\n\n¿Nos autoriza a enviarle promociones, actualizaciones y comunicaciones comerciales por correo electrónico y WhatsApp?\n\nResponda *SÍ* o *NO*.`;
+
+      const h = await getHistorial(redis, tel);
+      h.push({ role: 'user', content: msgCliente });
+      h.push({ role: 'assistant', content: msgPrivacidad });
+      await saveHistorial(redis, tel, h);
+      await enviarWhatsapp(tel, msgPrivacidad);
+      return;
+    }
+
+    // Solo tiene correo, falta nombre
+    if (perfil.correoElectronico && !perfil.nombre) {
+      const pedirNombre = `🐺 Correo registrado: *${perfil.correoElectronico}* ✅\n\n¿Con quién tengo el gusto? (Su nombre, por favor)`;
+      const h = await getHistorial(redis, tel);
+      h.push({ role: 'user', content: msgCliente });
+      h.push({ role: 'assistant', content: pedirNombre });
+      await saveHistorial(redis, tel, h);
+      await enviarWhatsapp(tel, pedirNombre);
+      return;
+    }
+
+    // Solo tiene nombre, falta correo
+    if (perfil.nombre && !perfil.correoElectronico) {
+      const pedirCorreo = `🐺 *El Coyote al habla.* Mucho gusto, *${perfil.nombre}*. Para verificar su cuenta y enviarle cotizaciones, actualizaciones y facturación, ¿me comparte su correo electrónico por favor?\n\n_(Ejemplo: nombre@empresa.com)_`;
       const h = await getHistorial(redis, tel);
       h.push({ role: 'user', content: msgCliente });
       h.push({ role: 'assistant', content: pedirCorreo });
       await saveHistorial(redis, tel, h);
       await enviarWhatsapp(tel, pedirCorreo);
       return;
-    } else {
-      const insistirNombre = `🐺 Para darle atención personalizada, necesito saber su nombre. ¿Con quién tengo el gusto?`;
-      const h = await getHistorial(redis, tel);
-      h.push({ role: 'user', content: msgCliente });
-      h.push({ role: 'assistant', content: insistirNombre });
-      await saveHistorial(redis, tel, h);
-      await enviarWhatsapp(tel, insistirNombre);
-      return;
     }
+
+    // No encontró ni nombre ni correo — re-solicitar
+    const reAsk = `🐺 Para darle atención personalizada y verificar su cuenta, necesito su *nombre* y *correo electrónico*.\n\n_(Ejemplo: Juan García, juan@empresa.com)_`;
+    const h = await getHistorial(redis, tel);
+    h.push({ role: 'user', content: msgCliente });
+    h.push({ role: 'assistant', content: reAsk });
+    await saveHistorial(redis, tel, h);
+    await enviarWhatsapp(tel, reAsk);
+    return;
   }
 
-  if (!perfil.correoElectronico) {
-    const regexCorreo = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
-    const matchCorreo = msgCliente.match(regexCorreo);
-
-    if (matchCorreo) {
-      perfil.correoElectronico = matchCorreo[0].toLowerCase();
-      perfil.correoVerificado = true;
-      perfil.ultimoContacto = new Date().toISOString();
-      await saveCliente(redis, tel, perfil);
-
-      const confirmacionYPrivacidad =
-        `✅ Correo registrado: *${perfil.correoElectronico}*\n\n` +
-        `¡Hola! 👋 Antes de continuar, queremos informarle que tratamos sus datos personales conforme a nuestro Aviso de Privacidad.\n` +
-        `Puede consultarlo aquí: https://www.coyotetextil.com/privacy\n\n` +
-        `¿Nos autoriza a enviarle promociones, actualizaciones y comunicaciones comerciales por correo electrónico y WhatsApp?\n` +
-        `Responda *SÍ* o *NO*.`;
-      const h = await getHistorial(redis, tel);
-      h.push({ role: 'user', content: msgCliente });
-      h.push({ role: 'assistant', content: confirmacionYPrivacidad });
-      await saveHistorial(redis, tel, h);
-      await enviarWhatsapp(tel, confirmacionYPrivacidad);
-      return;
-    } else {
-      const insistirCorreo =
-        `🐺 Para verificar su cuenta y poder enviarle cotizaciones y facturación, necesito su correo electrónico. ` +
-        `¿Me lo comparte por favor? (Ejemplo: nombre@empresa.com)`;
-      const h = await getHistorial(redis, tel);
-      h.push({ role: 'user', content: msgCliente });
-      h.push({ role: 'assistant', content: insistirCorreo });
-      await saveHistorial(redis, tel, h);
-      await enviarWhatsapp(tel, insistirCorreo);
-      return;
-    }
-  }
-
+  // ==========================================
+  // CONSENTIMIENTO DE PRIVACIDAD
+  // ==========================================
   if (perfil.privacidadRespondida !== true) {
     const respondioSi = /^\s*(sí|si|yes|acepto|autorizo|de acuerdo|ok|okay)\s*$/i.test(msgCliente.trim());
     const respondioNo = /^\s*(no|nope|no gracias)\s*$/i.test(msgCliente.trim());
@@ -1167,24 +1209,27 @@ async function handleWhatsappWebhook(body: any) {
 
   perfil.ultimoContacto = new Date().toISOString();
 
-  const estadoMembresia = await verificarMembresia(tel);
+  // FIX: verificarMembresia con early return incorporado
+  const estadoMembresia = await verificarMembresia(tel, perfil);
   if (estadoMembresia.activa && !perfil.tieneSuscripcion) {
     perfil.tieneSuscripcion = true;
     perfil.planMembresia = estadoMembresia.plan;
     await saveCliente(redis, tel, perfil);
   }
 
-  const historialPrevioLongitud_antesDeCargar = await getHistorial(redis, tel).then(h => h.length);
-  const esClienteQueVuelve = historialPrevioLongitud_antesDeCargar === 0 && !!perfil.nombre && perfil.totalCompras > 0;
+  // FIX: historial cargado UNA sola vez y reutilizado en todo el flujo
+  const historial = await getHistorial(redis, tel);
+  const esClienteQueVuelve = historial.length === 0 && !!perfil.nombre && perfil.totalCompras > 0;
 
-  let historial = await getHistorial(redis, tel);
   perfil = await analizarPatronesCliente(redis, perfil, msgCliente, historial);
 
   const intencionPago = detectarIntencionPago(msgCliente, historial, perfil);
+
+  // FIX: limpiar etapaAbandono también cuando el cliente agradece o confirma
   if (perfil.etapaAbandono === 'pago' && !intencionPago.detectado) {
-    const esConsultaNueva = /\b(precio|cuánto|cuanto|tela|kilo|metro|color|hilo|elástico|elastico|muestra|catálogo|tienen|disponible|qué tienen)\b/i.test(msgCliente);
+    const esConsultaNueva = /\b(precio|cuánto|cuanto|tela|kilo|metro|color|hilo|elástico|elastico|muestra|catálogo|tienen|disponible|qué tienen|gracias|perfecto|excelente|listo)\b/i.test(msgCliente);
     if (esConsultaNueva) {
-      console.log(`🔄 etapaAbandono "pago" limpiada — cliente hace nueva consulta de producto`);
+      console.log(`🔄 etapaAbandono "pago" limpiada`);
       perfil.etapaAbandono = null;
       perfil.fechaAbandono = undefined;
       await saveCliente(redis, tel, perfil);
@@ -1192,7 +1237,10 @@ async function handleWhatsappWebhook(body: any) {
   }
 
   const nuevoResumen = await generarResumenSemantico(historial, perfil);
-  if (nuevoResumen) { perfil.resumenSemantico = nuevoResumen; await saveCliente(redis, tel, perfil); }
+  if (nuevoResumen && nuevoResumen !== perfil.resumenSemantico) {
+    perfil.resumenSemantico = nuevoResumen;
+    await saveCliente(redis, tel, perfil);
+  }
 
   let linkStripeAutoGenerado: string | null = null;
   if (intencionPago.detectado && intencionPago.montoEstimado && intencionPago.montoEstimado > 0) {
@@ -1294,6 +1342,7 @@ async function handleWhatsappWebhook(body: any) {
   const alertaPropension       = perfil.propensionCross ? `🎯 PROPENSIÓN CROSS: Hilos ${perfil.propensionCross.hilos}% | Elásticos ${perfil.propensionCross.elasticos}% | Volumen+ ${perfil.propensionCross.volumenExtra}%` : '';
   const memoriaSemantica       = perfil.resumenSemantico ? `\n🧠 MEMORIA SEMÁNTICA:\n${perfil.resumenSemantico}` : '';
 
+  // FIX: nota para clientes recurrentes con historial expirado
   const notaClienteRecurrente = esClienteQueVuelve
     ? `\n⚠️ CLIENTE RECURRENTE CON HISTORIAL EXPIRADO: ${perfil.nombre} ya tiene ${perfil.totalCompras} compra(s) previas por $${perfil.montoAcumulado} MXN acumulados.
 NO salude como si fuera la primera vez. NO envíe bienvenida.
@@ -1356,7 +1405,7 @@ NUNCA baje el precio sin obtener algo a cambio.`;
   })();
 
   // ==========================================
-  // 🏆 BLOQUE MEMBRESÍA
+  // 🏆 BLOQUE MEMBRESÍA — OBLIGATORIO ANTES DE CADA VENTA
   // ==========================================
   const bloqueMembresia = (() => {
     if (estadoMembresia.activa) {
@@ -1374,9 +1423,10 @@ ${beneficiosPlan}
 Mencione: "Como Socio Coyote ${perfil.planMembresia === 'ELITE' ? '💎 ELITE' : perfil.planMembresia === 'BLACK' ? '⚫ BLACK' : '🥇 GOLD'} 👑, su pedido lleva todos los beneficios de su plan activo — incluyendo ${perfil.planMembresia === 'ELITE' ? '$0 en tarifa de servicio y máxima prioridad en envío' : perfil.planMembresia === 'BLACK' ? 'prioridad en envío y reserva de textiles' : '1 colocación gratis al mes'}."`;
     }
     if (perfil.membresiaOfrecida) {
-      return `⬜ MEMBRESÍA YA FUE OFRECIDA Y DECLINADA — No la mencione de nuevo. Proceda directo al cobro una vez aceptados los T&C.`;
+      return `⬜ MEMBRESÍA YA FUE OFRECIDA ESTA SESIÓN Y DECLINADA — No la mencione de nuevo. Proceda directo al cobro una vez aceptados los T&C.`;
     }
-    return `⚠️ CLIENTE SIN MEMBRESÍA — Ofrezca UNA sola vez, justo antes del cobro (si aún no fue ofrecida).
+    // NUEVO: membresía obligatoria antes de cada venta
+    return `🚨 MEMBRESÍA OBLIGATORIA ANTES DE CADA COBRO — NUNCA ejecute GENERAR_COBRO ni GENERAR_SPEI sin presentar primero el Programa Socios Coyote.
 Texto exacto a usar:
 
 "Antes de procesar su pago, le presento nuestro *Programa Socios Coyote* 🐺👑. Tenemos 3 niveles:
@@ -1429,7 +1479,7 @@ PERFIL DEL CLIENTE:
 - Notas: ${perfil.notas || 'ninguna'}
 - Términos aceptados: ${perfil.terminosAceptados ? '✅ SÍ' : '❌ NO'}
 - Membresía activa: ${estadoMembresia.activa ? `✅ SÍ (${perfil.planMembresia || 'Socio Coyote'})` : '❌ NO'}
-- Membresía ofrecida: ${perfil.membresiaOfrecida ? '✅ YA OFRECIDA' : '⬜ Pendiente'}
+- Membresía ofrecida esta sesión: ${perfil.membresiaOfrecida ? '✅ YA OFRECIDA' : '⬜ PENDIENTE — obligatoria antes del cobro'}
 ${alertaTemperatura}
 ${alertaPrediccion}
 ${alertaPatron}
@@ -1506,6 +1556,7 @@ ${config.fraseProhibidas.map(f => `• "${f}"`).join('\n')}
 • Términos informales con clientes: "patrón", "patrona", "jefe", "cuate"
 • Frases de relleno sin propuesta: "Con gusto le ayudo", "Por supuesto", "Claro que sí"
 • Preguntas sin cierre: "¿En qué más le puedo ayudar?"
+• NUNCA escriba "[LINK]" — el sistema inserta el link real automáticamente
 
 ════════════════════════════════════════════════════════
 🧵 CATÁLOGO COMPLETO — COYOTE TEXTIL
@@ -1607,7 +1658,7 @@ Antes de ejecutar cualquier cobro, DEBE completar en orden:
   → Cuando responda NO: "Sin aceptación de Términos no es posible procesar el pedido."
   Si perfil.terminosAceptados = true → omita este paso, ya está aceptado.
 
-  B) MEMBRESÍA SOCIOS COYOTE:
+  B) MEMBRESÍA SOCIOS COYOTE (OBLIGATORIA ANTES DE CADA COBRO):
   ${bloqueMembresia}
 
 PASO 6 — EJECUTAR COBRO:
@@ -1703,7 +1754,7 @@ El cliente verá el resultado directamente, no el comando.
 • NUNCA envíe bienvenida a cliente con historial.
 • NUNCA pregunte el nombre ni el correo si ya los tiene registrados.
 • Si terminosAceptados = true → NUNCA vuelva a pedir T&C.
-• Si membresiaOfrecida = true → NUNCA vuelva a ofrecer la membresía.
+• Si membresiaOfrecida = true → NUNCA vuelva a ofrecer la membresía esta sesión.
 
 ════════════════════════════════════════════════════════
 🚨 PAGOS — TRES MÉTODOS
@@ -1894,10 +1945,11 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
 
   const tieneComandoCobro = /GENERAR_COBRO\|/i.test(respuesta);
   const tieneComandoSpei  = /GENERAR_SPEI\|/i.test(respuesta);
+  const tieneStripeUrl    = respuesta.includes('https://checkout.stripe.com');
 
-  // FIX: Forzar GENERAR_COBRO SOLO usando cotizacionObj — nunca scraping del historial
+  // FIX: Forzar GENERAR_COBRO solo desde cotizacionObj — evitar scraping del historial
   const dijoProcesar = /procesar(emos)?\s+su\s+pago|generar(é|e)\s+el\s+link|aquí\s+(tiene|va)\s+su\s+link/i.test(respuesta);
-  const faltaComandoCobro = dijoProcesar && !tieneComandoCobro && !linkStripeAutoGenerado && !tieneComandoSpei;
+  const faltaComandoCobro = dijoProcesar && !tieneComandoCobro && !linkStripeAutoGenerado && !tieneComandoSpei && !tieneStripeUrl;
 
   if (faltaComandoCobro && perfil.ultimaCotizacionObj) {
     const cotObj = perfil.ultimaCotizacionObj;
@@ -1909,7 +1961,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
       console.warn(`⚠️ FIX: cotizacionObj existe pero monto es 0 — no se fuerza el comando`);
     }
   } else if (faltaComandoCobro && !perfil.ultimaCotizacionObj) {
-    console.warn(`⚠️ FIX: GPT dijo "procesar" pero no hay cotizacionObj — se omite forzado para evitar monto incorrecto`);
+    console.warn(`⚠️ FIX: GPT dijo "procesar" pero no hay cotizacionObj — se omite forzado`);
   }
 
   if (/TERMINOS_ACEPTADOS/i.test(respuesta)) {
@@ -2117,12 +2169,10 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
   } else {
 
     // ═══════════════════════════════════════════════════════
-    // ✅ FIX STRIPE LINK — reemplazar [LINK] o adjuntar al final
+    // ✅ FIX STRIPE LINK — limpiar [LINK] y adjuntar link real
     // ═══════════════════════════════════════════════════════
     if (linkStripeAutoGenerado) {
-      // Eliminar cualquier variante de placeholder primero
       respuesta = respuesta.replace(/\[LINK\]/g, '').trim();
-      // Si el link ya fue insertado manualmente por GPT, no duplicar
       if (!respuesta.includes('https://checkout.stripe.com')) {
         respuesta += `\n\n💳 *Su link de pago seguro (Tarjeta u OXXO):*\n${linkStripeAutoGenerado}\n\n_Procesado por Stripe. Su transacción está protegida. 🐺_`;
       }
@@ -2325,7 +2375,7 @@ Promociones: ${config.promocionesActivas.length > 0 ? config.promocionesActivas.
         if (uso === 'NONE' && cotObj.uso && cotObj.uso !== 'NONE') uso = cotObj.uso;
       }
 
-      // Limpiar comando Y placeholder [LINK] del texto de GPT antes de agregar el link real
+      // Limpiar comando Y placeholder [LINK] del texto de GPT
       respuesta = respuesta.replace(/GENERAR_COBRO\|[^\n]*/gi, '').replace(/\[LINK\]/g, '').trim();
 
       if (monto > 0) {

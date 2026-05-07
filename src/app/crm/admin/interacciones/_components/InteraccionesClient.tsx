@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Paperclip, Send, Bot, User as UserIcon, ShieldAlert, Package, CheckCircle2, Phone, Loader2, UserPlus, X } from "lucide-react";
 import { sendAdminMessage, toggleChatControl, createNewChat } from "../actions";
+import { createClient } from "@supabase/supabase-js"; // Importamos Supabase
 
 // Función independiente para generar el sonido de notificación nativo
 const playNotificationSound = () => {
@@ -40,8 +41,8 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  // Ref para rastrear conversaciones anteriores y detectar mensajes nuevos
-  const prevConversationsRef = useRef(initialConversations);
+  // 1. ESTADO PRINCIPAL: Ahora controlamos las conversaciones localmente
+  const [conversations, setConversations] = useState(initialConversations);
 
   // Estados
   const [activeChatId, setActiveChatId] = useState<string | null>(
@@ -56,58 +57,83 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
   const [newContactName, setNewContactName] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
 
-  const activeChat = initialConversations.find((c) => c.id === activeChatId);
+  // Derivamos el chat activo usando nuestro estado local, NO el inicial
+  const activeChat = conversations.find((c) => c.id === activeChatId);
 
-  // Filtro de búsqueda
-  const filteredConversations = initialConversations.filter((chat) => {
+  // Filtro de búsqueda sobre el estado local
+  const filteredConversations = conversations.filter((chat) => {
     const nameMatch = chat.contactName?.toLowerCase().includes(searchTerm.toLowerCase());
     const phoneMatch = chat.contactPhone?.includes(searchTerm);
     return nameMatch || phoneMatch;
   });
 
   // =========================================
-  // EFECTOS (Tiempo Real, Audio y Scroll)
+  // EFECTOS (Sincronización, Tiempo Real y Scroll)
   // =========================================
+
+  // Sincronizar si Next.js revalida la ruta (ej. cuando envías un mensaje)
   useEffect(() => {
-    // Polling cada 3 segundos
-    const interval = setInterval(() => {
-      router.refresh();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [router]);
+    setConversations(initialConversations);
+  }, [initialConversations]);
 
+  // SUPABASE REALTIME: Magia pura para los WebSockets
   useEffect(() => {
-    // Auto-Scroll suave cuando cambian los mensajes del chat activo
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeChat?.messages]);
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  useEffect(() => {
-    // Lógica para detectar nuevos mensajes entrantes y reproducir sonido
-    const prevConvos = prevConversationsRef.current;
-    let hasNewIncoming = false;
-
-    initialConversations.forEach((currentChat) => {
-      const prevChat = prevConvos.find((c) => c.id === currentChat.id);
-      const currentMsgCount = currentChat.messages?.length || 0;
-      const prevMsgCount = prevChat?.messages?.length || 0;
-
-      // Si hay más mensajes que antes en esta conversación
-      if (currentMsgCount > prevMsgCount) {
-        const newMessages = currentChat.messages.slice(prevMsgCount);
-        // Verificar si al menos uno de los mensajes nuevos es del cliente
-        if (newMessages.some((msg: any) => msg.role === "CLIENT")) {
-          hasNewIncoming = true;
-        }
-      }
-    });
-
-    if (hasNewIncoming) {
-      playNotificationSound();
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn("Faltan variables de entorno NEXT_PUBLIC_SUPABASE para tiempo real.");
+      return;
     }
 
-    // Actualizar la ref para el próximo ciclo de renderizado/polling
-    prevConversationsRef.current = initialConversations;
-  }, [initialConversations]);
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const channel = supabase
+      .channel('realtime-chat')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'WaMessage', // Asegúrate de que este sea el nombre exacto de tu tabla en Postgres
+        },
+        (payload) => {
+          const nuevoMensaje = payload.new;
+
+          // Si el mensaje es del cliente, reproducimos el audio inmediatamente
+          if (nuevoMensaje.role === 'CLIENT') {
+            playNotificationSound();
+          }
+
+          // Inyectamos el mensaje en la UI sin recargar
+          setConversations((prevConvos) => {
+            return prevConvos.map(chat => {
+              if (chat.id === nuevoMensaje.conversationId) {
+                // Evitamos duplicados si la server action ya lo inyectó
+                if (chat.messages.some((m: any) => m.id === nuevoMensaje.id)) return chat;
+                
+                return {
+                  ...chat,
+                  messages: [...chat.messages, nuevoMensaje],
+                  updatedAt: new Date().toISOString() // Actualizamos fecha para el reordenamiento
+                };
+              }
+              return chat;
+            }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Auto-Scroll suave cuando cambian los mensajes del chat activo
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeChat?.messages]);
 
   // =========================================
   // ACCIONES DE SERVIDOR
@@ -207,7 +233,6 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
           PANEL IZQUIERDO: LISTA DE CHATS
       ========================================= */}
       <div className="w-1/3 max-w-[380px] bg-[#111b21] border-r border-white/10 flex flex-col shrink-0">
-        {/* Buscador y Botón Nuevo */}
         <div className="p-3 bg-[#111b21] border-b border-white/5 shrink-0 flex gap-2">
           <div className="relative flex items-center flex-1 h-9 rounded-lg bg-[#202c33] overflow-hidden px-3">
             <Search size={16} className="text-[#8696a0]" />
@@ -228,7 +253,6 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
           </button>
         </div>
 
-        {/* Lista de Conversaciones */}
         <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#374045]">
           {filteredConversations.length === 0 ? (
             <div className="p-6 text-center text-[#8696a0] text-xs font-bold uppercase tracking-widest">
@@ -251,7 +275,7 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
                     <div className="flex justify-between items-center">
                       <h3 className="font-semibold text-[#e9edef] truncate">{chat.contactName || chat.contactPhone}</h3>
                       <span className="text-[11px] text-[#8696a0] shrink-0">
-                        {lastMsg ? new Date(lastMsg.sentAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ""}
+                        {lastMsg ? new Date(lastMsg.sentAt || lastMsg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ""}
                       </span>
                     </div>
                     <div className="flex justify-between items-center mt-1">
@@ -285,7 +309,6 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
       <div className="flex-1 flex flex-col bg-[#0b141a] relative min-w-0">
         {activeChat ? (
           <>
-            {/* Header del Chat */}
             <div className="h-16 bg-[#202c33] flex items-center justify-between px-6 border-b border-white/5 z-10 shrink-0">
               <div className="flex items-center gap-4 truncate">
                 <div className="w-10 h-10 rounded-full bg-[#374045] flex items-center justify-center font-bold text-[#e9edef] shrink-0">
@@ -312,7 +335,6 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
               </div>
             </div>
 
-            {/* Mensajes */}
             <div className="flex-1 overflow-y-auto p-6 space-y-3 relative [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#374045]">
               {activeChat.messages.length === 0 && (
                 <div className="text-center mt-10 text-[#8696a0] text-xs font-bold uppercase tracking-widest">
@@ -329,16 +351,14 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
                   >
                     <p className="whitespace-pre-wrap">{msg.body}</p>
                     <div className="text-[10px] text-[#8696a0] flex justify-end items-center gap-1 mt-1">
-                      {new Date(msg.sentAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      {new Date(msg.sentAt || msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                     </div>
                   </div>
                 </div>
               ))}
-              {/* Ancla para el Scroll Automático */}
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Footer */}
             <div className="h-[60px] bg-[#202c33] px-4 flex items-center gap-3 z-10 shrink-0">
               <Paperclip size={24} className="text-[#8696a0] cursor-pointer hover:text-[#e9edef]" />
               <input 
@@ -364,7 +384,7 @@ export default function InteraccionesClient({ initialConversations }: Interaccio
       </div>
 
       {/* =========================================
-          PANEL DERECHO: CONTEXTO CRM (Si es un User)
+          PANEL DERECHO: CONTEXTO CRM
       ========================================= */}
       {activeChat?.user && (
         <div className="w-1/4 max-w-[300px] bg-[#111b21] border-l border-white/10 flex flex-col shrink-0">
