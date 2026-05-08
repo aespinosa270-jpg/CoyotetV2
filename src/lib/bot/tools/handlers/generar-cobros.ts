@@ -14,7 +14,7 @@ export async function generarCobroStripeHandler(args: any, context: BotContext) 
     const url = await generateCheckoutSession({
       amountMxn: args.monto,
       phone: phone,
-      reqInvoice: args.con_factura ? "YES" : "NO",
+      requiresInvoice: args.con_factura ? "YES" : "NO",
       rfc: args.rfc || "NONE",
       razon: args.razon_social || "NONE",
       cp: args.cp_fiscal || "NONE",
