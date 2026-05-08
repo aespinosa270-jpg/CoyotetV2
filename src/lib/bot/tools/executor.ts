@@ -7,7 +7,7 @@ import { escalarAHumanoHandler } from "./handlers/escalar";
 
 const log = getLogger({ module: "tool-executor" });
 
-export async function executeTool(toolCall: ChatCompletionMessageToolCall, context: BotContext): Promise<any> {
+export async function executeTool(toolCall: any, context: BotContext): Promise<any> {
   log.info({ tool: toolCall.function.name }, "Routing Tool Call");
   
   try {
