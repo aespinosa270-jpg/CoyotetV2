@@ -20,7 +20,7 @@ export async function generarCobroStripeHandler(args: any, context: BotContext) 
       cp: args.cp_fiscal || "NONE",
       regimen: args.regimen_fiscal || "NONE",
       uso: args.uso_cfdi || "NONE",
-      productos: context.profile.ultimaCotizacionObj?.productos || ["Pedido Coyote Textil"]
+      productos: (Array.isArray(context.profile.ultimaCotizacionObj?.productos) ? context.profile.ultimaCotizacionObj?.productos : [context.profile.ultimaCotizacionObj?.productos || "Pedido Coyote Textil"]) as string[]
     });
 
     context.profile.etapaAbandono = "pago";
