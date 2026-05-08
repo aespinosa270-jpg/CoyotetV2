@@ -5,6 +5,8 @@ import Stripe from 'stripe';
 import { prisma } from "@/lib/prisma";
 import { determineRouting } from "@/lib/crm-router";
 import { createTrace } from "@/lib/tracer";
+import { shouldUseBotV2 } from "@/lib/bot/config/feature-flags";
+import { handleWhatsAppWebhook as handleWhatsAppWebhookV2 } from "@/lib/bot/transports/whatsapp/adapter";
 
 // ==========================================
 // 🔑 LLAVES MAESTRAS
@@ -2517,11 +2519,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true }, { status: 200 });
     }
 
+    // ==========================================
+    // 🐺 EL CADENERO — Router V1 / V2
+    // ==========================================
     const esWhatsapp = Array.isArray(body.entry) && body.entry[0]?.changes?.[0]?.value?.messages;
     if (esWhatsapp) {
-      console.log('💬 Mensaje WhatsApp. Procesando...');
-      try { await handleWhatsappWebhook(body); }
-      catch (err) { console.error('❌ Error en handleWhatsappWebhook:', err); }
+      console.log('💬 Mensaje WhatsApp recibido. Analizando enrutamiento...');
+      try {
+        const mensajes = body.entry[0].changes[0].value.messages;
+        let phone = mensajes[0]?.from || "";
+
+        // Normalizar número mexicano (igual que en el resto del flujo)
+        if (phone.startsWith("521") && phone.length === 13) {
+          phone = phone.replace(/^521/, "52");
+        }
+
+        // EL CADENERO MÁGICO 🐺
+        if (shouldUseBotV2(phone)) {
+          console.log(`🚀 [ROUTER] Redirigiendo ${phone} al Bot V2 (Nueva Arquitectura)`);
+          await handleWhatsAppWebhookV2(body);
+        } else {
+          console.log(`🐢 [ROUTER] Redirigiendo ${phone} al Bot V1 (Monolito)`);
+          await handleWhatsappWebhook(body);
+        }
+      } catch (err) { console.error('❌ Error en webhooks:', err); }
       return NextResponse.json({ ok: true }, { status: 200 });
     }
 
