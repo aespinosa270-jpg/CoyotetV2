@@ -10,18 +10,28 @@ export async function generarCobroStripeHandler(args: any, context: BotContext) 
   try {
     const phone = context.message.from.id;
     
-    // Llamada a tu servicio externo de pagos (Fase 2B)
-    const url = await generateCheckoutSession({
+    // 1. Construimos el input base
+    const inputData: any = {
       amountMxn: args.monto,
       phone: phone,
-      requiresInvoice: args.con_factura ? "YES" : "NO",
-      rfc: args.rfc || "NONE",
-      razon: args.razon_social || "NONE",
-      cp: args.cp_fiscal || "NONE",
-      regimen: args.regimen_fiscal || "NONE",
-      uso: args.uso_cfdi || "NONE",
-      productos: (Array.isArray(context.profile.ultimaCotizacionObj?.productos) ? context.profile.ultimaCotizacionObj?.productos : [context.profile.ultimaCotizacionObj?.productos || "Pedido Coyote Textil"]) as string[]
-    });
+      productos: (Array.isArray(context.profile.ultimaCotizacionObj?.productos) 
+        ? context.profile.ultimaCotizacionObj?.productos 
+        : [context.profile.ultimaCotizacionObj?.productos || "Pedido Coyote Textil"]) as string[]
+    };
+
+    // 2. Si requiere factura, anidamos el objeto exacto que pide CheckoutInput
+    if (args.con_factura) {
+      inputData.factura = {
+        rfc: args.rfc || "NONE",
+        razonSocial: args.razon_social || "NONE",
+        cpFiscal: args.cp_fiscal || "NONE",
+        regimen: args.regimen_fiscal || "NONE",
+        uso: args.uso_cfdi || "NONE",
+      };
+    }
+    
+    // 3. Llamada a tu servicio externo de pagos (Fase 2B)
+    const url = await generateCheckoutSession(inputData);
 
     context.profile.etapaAbandono = "pago";
     await clientRepo.save(context.profile, context.redis);
