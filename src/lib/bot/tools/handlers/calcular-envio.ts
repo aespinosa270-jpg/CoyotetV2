@@ -11,7 +11,7 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
     const { cp, productos, subtotal, requiere_factura } = args;
     
     // Llamada a tu dominio puro (Fase 1A)
-    const resultado = calcularEnvio(productos, cp, subtotal, requiere_factura);
+    const resultado = calcularEnvio({ productos, cp, subtotal, requiereFactura: requiere_factura });
     
     // Guardamos la cotización en el perfil del cliente
     context.profile.ultimaCotizacionObj = {
