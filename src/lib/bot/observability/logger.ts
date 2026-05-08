@@ -1,18 +1,18 @@
-/**
+﻿/**
  * Logger estructurado.
  *
  * Reglas:
- *  - Cero `console.log` en código de producción. Todo pasa por aquí.
+ *  - Cero `console.log` en cÃ³digo de producciÃ³n. Todo pasa por aquÃ­.
  *  - Cada log lleva contexto: conversationId, phone, channel, step.
- *  - Los secretos (tokens, API keys) se redactan automáticamente.
- *  - En desarrollo: salida pretty con colores. En producción: JSON.
+ *  - Los secretos (tokens, API keys) se redactan automÃ¡ticamente.
+ *  - En desarrollo: salida pretty con colores. En producciÃ³n: JSON.
  *
- * Uso típico:
+ * Uso tÃ­pico:
  *
  *   const log = getLogger({ phone, channel, step: 'orchestrator' });
  *   log.info({ tactica }, 'Mensaje procesado');
- *   log.warn({ err }, 'Reintentando envío');
- *   log.error({ err, payload }, 'Stripe falló');
+ *   log.warn({ err }, 'Reintentando envÃ­o');
+ *   log.error({ err, payload }, 'Stripe fallÃ³');
  */
 import pino, { type Logger as PinoLogger, type LoggerOptions } from "pino";
 import { getEnv } from "../config/env";
@@ -32,10 +32,10 @@ const baseOptions: LoggerOptions = {
       "WHATSAPP_TOKEN",
       "OPENAI_API_KEY",
       "STRIPE_SECRET_KEY",
-      "FACTURAPI_KEY",
+      "FACTURAPI_LIVE_SECRET_KEY",
       "UPSTASH_REDIS_REST_TOKEN",
       "SUPABASE_SERVICE_ROLE_KEY",
-      // Patrones genéricos en payloads
+      // Patrones genÃ©ricos en payloads
       "*.password",
       "*.token",
       "*.secret",
@@ -51,7 +51,7 @@ const baseOptions: LoggerOptions = {
   },
 };
 
-// En desarrollo usamos pino-pretty si está disponible. En producción JSON puro.
+// En desarrollo usamos pino-pretty si estÃ¡ disponible. En producciÃ³n JSON puro.
 const transport =
   env.NODE_ENV === "development"
     ? {
@@ -80,7 +80,7 @@ export function getLogger(context: Record<string, unknown> = {}): Logger {
 }
 
 /**
- * Logger raíz, sin contexto. Usar solo en el arranque del proceso o en
- * código que no tiene contexto de request.
+ * Logger raÃ­z, sin contexto. Usar solo en el arranque del proceso o en
+ * cÃ³digo que no tiene contexto de request.
  */
 export const logger = baseLogger;
