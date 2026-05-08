@@ -1,5 +1,5 @@
 ﻿import type { BotContext } from "../../core/types";
-import { calcularEnvioReal } from "../../domain/shipping/calculator";
+import { calcularEnvio } from "../../domain/shipping/calculator";
 import * as clientRepo from "../../repositories/client-repo";
 import { getLogger } from "../../observability/logger";
 
@@ -11,7 +11,7 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
     const { cp, productos, subtotal, requiere_factura } = args;
     
     // Llamada a tu dominio puro (Fase 1A)
-    const resultado = calcularEnvioReal(productos, cp, subtotal, requiere_factura);
+    const resultado = calcularEnvio(productos, cp, subtotal, requiere_factura);
     
     // Guardamos la cotización en el perfil del cliente
     context.profile.ultimaCotizacionObj = {
