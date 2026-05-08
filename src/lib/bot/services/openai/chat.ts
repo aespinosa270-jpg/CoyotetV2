@@ -1,20 +1,20 @@
-/**
+﻿/**
  * Wrapper tipado de OpenAI chat completions con function calling estricto.
  *
  * Reemplaza el approach del v1 de parsear comandos como `GENERAR_COBRO|...`
- * en texto. Aquí GPT invoca funciones con argumentos validados por JSON
+ * en texto. AquÃ­ GPT invoca funciones con argumentos validados por JSON
  * Schema, y nosotros recibimos objetos JS limpios.
  *
  * Soporta:
  *  - Texto regular (no tool calls)
- *  - Tool calls múltiples en un solo turno
+ *  - Tool calls mÃºltiples en un solo turno
  *  - Timeout per-call con AbortController
  *  - Errores tipados (timeout vs API error)
- *  - Inyección de cliente para tests
+ *  - InyecciÃ³n de cliente para tests
  *
- * NO maneja el "tool calling loop" (turn 1: GPT pide tool → ejecutar →
+ * NO maneja el "tool calling loop" (turn 1: GPT pide tool â†’ ejecutar â†’
  * turn 2: GPT con resultado). Eso es responsabilidad del orquestador en
- * Fase 3. Esta función es de un solo round-trip.
+ * Fase 3. Esta funciÃ³n es de un solo round-trip.
  */
 import type OpenAI from "openai";
 import { getOpenAIClient } from "./client";
@@ -24,22 +24,22 @@ import { RESILIENCE } from "../../config/constants";
 
 const log = getLogger({ module: "openai/chat" });
 
-// ── Tipos públicos ────────────────────────────────────────────────
+// â”€â”€ Tipos pÃºblicos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface ChatTool {
-  /** Nombre único. Debe matchear con el handler en tools/handlers/<name>.ts */
+  /** Nombre Ãºnico. Debe matchear con el handler en tools/handlers/<name>.ts */
   name: string;
-  /** Descripción humana. Se le da a GPT para que sepa cuándo usarla. */
+  /** DescripciÃ³n humana. Se le da a GPT para que sepa cuÃ¡ndo usarla. */
   description: string;
   /** JSON Schema de los argumentos que GPT debe pasar. */
   parameters: Record<string, unknown>;
 }
 
 export interface ToolCallRequest {
-  /** ID que asignó OpenAI a esta llamada. Se usa para responder con el resultado. */
+  /** ID que asignÃ³ OpenAI a esta llamada. Se usa para responder con el resultado. */
   id: string;
   name: string;
-  /** Args ya parseados de JSON. Si OpenAI manda JSON inválido, queda {}. */
+  /** Args ya parseados de JSON. Si OpenAI manda JSON invÃ¡lido, queda {}. */
   arguments: Record<string, unknown>;
 }
 
@@ -50,12 +50,12 @@ export interface ChatMessage {
   tool_call_id?: string;
   /** Solo para role === "tool": nombre de la tool ejecutada. */
   name?: string;
-  /** Solo para role === "assistant" cuando previamente pidió tools. */
+  /** Solo para role === "assistant" cuando previamente pidiÃ³ tools. */
   tool_calls?: ToolCallRequest[];
 }
 
 export interface ChatResponse {
-  /** Texto que GPT quiere devolver. Vacío si solo pidió tools. */
+  /** Texto que GPT quiere devolver. VacÃ­o si solo pidiÃ³ tools. */
   text: string;
   /** Tools que GPT quiere ejecutar este turno. */
   toolCalls: ToolCallRequest[];
@@ -72,19 +72,19 @@ export interface ChatResponse {
 export interface ChatOptions {
   /** Default: env.OPENAI_MODEL. */
   model?: string;
-  /** Default: 0.1 (determinístico para venta). */
+  /** Default: 0.1 (determinÃ­stico para venta). */
   temperature?: number;
   /** Default: 700 tokens. */
   maxTokens?: number;
   /** Tools disponibles este turno. Sin esto, GPT solo puede responder texto. */
   tools?: ChatTool[];
-  /** "auto" deja a GPT decidir. "none" prohíbe tools. {name} fuerza una. */
+  /** "auto" deja a GPT decidir. "none" prohÃ­be tools. {name} fuerza una. */
   toolChoice?: "auto" | "none" | { name: string };
   /** Default: RESILIENCE.OPENAI_TIMEOUT_MS. */
   timeoutMs?: number;
 }
 
-// ── Errores ───────────────────────────────────────────────────────
+// â”€â”€ Errores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export class ChatTimeoutError extends Error {
   constructor(message: string) {
@@ -93,7 +93,7 @@ export class ChatTimeoutError extends Error {
   }
 }
 
-// ── Función principal ─────────────────────────────────────────────
+// â”€â”€ FunciÃ³n principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function chat(
   messages: ChatMessage[],
@@ -128,7 +128,7 @@ export async function chat(
     const response = await client.chat.completions.create(
       {
         model,
-        messages: apiMessages,
+        messages: apiMessages as any,
         temperature,
         max_tokens: maxTokens,
         ...(apiTools ? { tools: apiTools } : {}),
@@ -162,7 +162,7 @@ export async function chat(
   }
 }
 
-// ── Helpers internos ──────────────────────────────────────────────
+// â”€â”€ Helpers internos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function isAbortError(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
@@ -258,7 +258,7 @@ function parseResponse(response: unknown): ChatResponse {
       } catch (err) {
         log.warn(
           { err, raw: tc.function.arguments, name: tc.function.name },
-          "Tool arguments JSON inválidos — usando {} vacío"
+          "Tool arguments JSON invÃ¡lidos â€” usando {} vacÃ­o"
         );
       }
       toolCalls.push({
