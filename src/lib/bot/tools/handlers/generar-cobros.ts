@@ -8,7 +8,7 @@ const log = getLogger({ module: "tool-generar-cobro" });
 export async function generarCobroStripeHandler(args: any, context: BotContext) {
   log.info({ args }, "Generando link de Stripe vía Tool");
   try {
-    const phone = context.message.phone || context.message.senderId;
+    const phone = context.message.from.id;
     
     // Llamada a tu servicio externo de pagos (Fase 2B)
     const url = await generateCheckoutSession({
@@ -39,7 +39,7 @@ export async function generarCobroStripeHandler(args: any, context: BotContext) 
 
 export async function generarCobroSpeiHandler(args: any, context: BotContext) {
   log.info({ args }, "Generando datos SPEI vía Tool");
-  const phone = context.message.phone || context.message.senderId;
+  const phone = context.message.from.id;
   const referencia = `CT${phone.slice(-6)}${Date.now().toString().slice(-4)}`;
   
   context.profile.etapaAbandono = "pago";
