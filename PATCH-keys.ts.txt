@@ -1,0 +1,29 @@
+// ⚠️ INSTRUCCIONES DE PATCH MANUAL — NO ES UN ARCHIVO COMPLETO ⚠️
+//
+// Tu archivo actual `src/lib/bot/repositories/keys.ts` ya existe desde Fase 1A.
+// Solo necesitas agregar UNA línea al objeto `keys` exportado:
+//
+//   memoria: (phone: string) => `v2:memoria:${phone}` as const,
+//
+// Por ejemplo, si tu archivo tiene esto:
+//
+//   export const keys = {
+//     cliente: (phone: string) => `v2:cliente:${phone}` as const,
+//     historial: (phone: string) => `v2:historial:${phone}` as const,
+//     resumenSemantico: (phone: string) => `v2:resumen:${phone}` as const,
+//     pedidos: (phone: string) => `v2:pedidos:${phone}` as const,
+//     catalogOverlay: () => "v2:catalog:overlay" as const,
+//     config: () => "v2:config" as const,
+//   };
+//
+// Déjalo así:
+//
+//   export const keys = {
+//     cliente: (phone: string) => `v2:cliente:${phone}` as const,
+//     historial: (phone: string) => `v2:historial:${phone}` as const,
+//     resumenSemantico: (phone: string) => `v2:resumen:${phone}` as const,
+//     pedidos: (phone: string) => `v2:pedidos:${phone}` as const,
+//     memoria: (phone: string) => `v2:memoria:${phone}` as const,  // ← NUEVA
+//     catalogOverlay: () => "v2:catalog:overlay" as const,
+//     config: () => "v2:config" as const,
+//   };

@@ -411,10 +411,10 @@ model Order {
   logisticsType     LogisticsType       @default(SKYDROPX_NACIONAL)
   pickupLocation    PickupLocation      @default(GUATEMALA_97)
   
-  pickupIdPhotoUrl  String?             
-  pickupPlateNumber String?             
-  pickupConfirmedBy String?             
-  pickupConfirmedAt DateTime?           
+  pickupIdPhotoUrl  String?              
+  pickupPlateNumber String?              
+  pickupConfirmedBy String?              
+  pickupConfirmedAt DateTime?            
 
   vehiclesNeeded    Int                 @default(1)
   trackingNumber    String?
@@ -495,17 +495,17 @@ model AttendanceBreak {
 }
 
 model Interaction {
-  id             String          @id @default(cuid())
+  id             String         @id @default(cuid())
   employeeId     String?
-  employee       Employee?       @relation(fields: [employeeId], references: [id])
+  employee       Employee?      @relation(fields: [employeeId], references: [id])
   userId         String
-  user           User            @relation(fields: [userId], references: [id])
+  user           User           @relation(fields: [userId], references: [id])
   type           InteractionType
   summary        String
   content        Json?
-  status         String          @default("open")
+  status         String         @default("open")
   pipelineStatus PipelineStatus?
-  date           DateTime        @default(now())
+  date           DateTime       @default(now())
   nextFollowUp   DateTime?
 
   @@index([userId])
@@ -709,4 +709,21 @@ model WaMessage {
   // Índices vitales para cargar rápido el historial de los chats
   @@index([conversationId])
   @@index([sentAt(sort: Desc)])
+}
+
+// ==========================================================
+// 9. OUTBOUND & MARKETING (CONTACTOS MANUALES)
+// ==========================================================
+model OutboundContact {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String
+  notes     String?  
+  optIn     Boolean  @default(true) 
+  status    String   @default("pending") // pending, contacted, converted
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phone])
+  @@index([status])
 }

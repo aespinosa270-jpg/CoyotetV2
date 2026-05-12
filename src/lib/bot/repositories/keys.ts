@@ -2,10 +2,10 @@
  * Registro central de keys de Redis.
  *
  * Todas las claves que escribe el bot v2 pasan por aquí. Beneficios:
- *  - Un solo lugar para auditar el namespace.
- *  - Cambiar el prefijo (rollback completo) es modificar UNA constante.
- *  - Imposible escribir una key con typo desde otra parte del código.
- *  - Si algún día queremos compartir keys con v1, basta poner KEY_PREFIX = "".
+ * - Un solo lugar para auditar el namespace.
+ * - Cambiar el prefijo (rollback completo) es modificar UNA constante.
+ * - Imposible escribir una key con typo desde otra parte del código.
+ * - Si algún día queremos compartir keys con v1, basta poner KEY_PREFIX = "".
  *
  * Convención: las funciones que reciben datos del usuario sanitizan o validan
  * para evitar inyección de delimitadores en la key.
@@ -28,6 +28,8 @@ export const keys = {
   historial: (phone: string) => `${PREFIX}:historial:${safe(phone)}`,
   /** Resumen semántico generado periódicamente para clientes con historial largo. */
   resumenSemantico: (phone: string) => `${PREFIX}:resumen:${safe(phone)}`,
+  /** Memoria de largo plazo (Fase 4) */
+  memoria: (phone: string) => `${PREFIX}:memoria:${safe(phone)}`,
 
   // ── Pedidos ──────────────────────────────────────────────────────
   pedidos: (phone: string) => `${PREFIX}:pedidos:${safe(phone)}`,

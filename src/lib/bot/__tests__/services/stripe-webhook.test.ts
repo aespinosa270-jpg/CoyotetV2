@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+﻿import { describe, it, expect } from "vitest";
 import Stripe from "stripe";
 import {
   WebhookSignatureError,
@@ -12,7 +12,7 @@ import {
   signTestPayload,
 } from "../helpers/fake-stripe";
 
-const TEST_SECRET = "whsec_test1234567890";
+const TEST_SECRET = "whsec_test_checkout_1234567890";
 
 describe("stripe/webhook — verifyWebhook", () => {
   it("acepta firma válida y devuelve el evento", () => {
@@ -169,3 +169,4 @@ describe("stripe/webhook — stripeMethodToSatFormaPago", () => {
     expect(stripeMethodToSatFormaPago("crypto_unicornio")).toBe("04");
   });
 });
+
