@@ -958,7 +958,6 @@ export default function CoyoteMarketplace() {
         )}
       </main>
 
-      {/* Sticky container simulator */}
       <ContainerBar />
     </div>
   )
