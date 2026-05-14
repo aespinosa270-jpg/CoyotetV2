@@ -6,6 +6,7 @@ import {
   ArrowRight, Store, Package, CheckCircle2,
   Filter, Search,
 } from "lucide-react";
+import type { LucideProps } from "lucide-react";
 import { motion } from "framer-motion";
 import ModalNuevaOrdenRuta from "@/components/admin/ModalNuevaOrdenRuta";
 
@@ -15,29 +16,34 @@ interface RouteOrder {
   address: string; scheduledAt: string; notes: string | null;
   employee: { id: string; name: string } | null;
   originLocation: string | null; destLocation: string | null;
-  items: { id: string; tag: string; description: string | null; qtyDispatched: number; qtyDelivered: number | null }[];
+  items: {
+    id: string; tag: string; description: string | null;
+    qtyDispatched: number; qtyDelivered: number | null;
+  }[];
 }
 
-const TIPO_CONFIG: Record<string, { label: string; cls: string; icon: React.ElementType }> = {
-  RECOLECCION:        { label: "RecolecciÃ³n",       cls: "bg-blue-500/10 text-blue-400 border-blue-800",       icon: Package  },
-  RESTOCK_INTERNO:    { label: "Restock Interno",   cls: "bg-purple-500/10 text-purple-400 border-purple-800", icon: Store    },
-  RESTOCK_PROVEEDOR:  { label: "Restock Proveedor", cls: "bg-orange-500/10 text-orange-400 border-orange-800", icon: Truck    },
-  ENTREGA_PAQUETERIA: { label: "PaqueterÃ­a",        cls: "bg-sky-500/10 text-sky-400 border-sky-800",          icon: Package  },
-  ENTREGA_DOMICILIO:  { label: "Domicilio",         cls: "bg-emerald-500/10 text-emerald-400 border-emerald-800", icon: MapPin },
+type IconComponent = React.ComponentType<LucideProps>;
+
+const TIPO_CONFIG: Record<string, { label: string; cls: string; icon: IconComponent }> = {
+  RECOLECCION:        { label: "Recolección",        cls: "bg-blue-500/10 text-blue-400 border-blue-800",         icon: Package  },
+  RESTOCK_INTERNO:    { label: "Restock Interno",    cls: "bg-purple-500/10 text-purple-400 border-purple-800",   icon: Store    },
+  RESTOCK_PROVEEDOR:  { label: "Restock Proveedor",  cls: "bg-orange-500/10 text-orange-400 border-orange-800",   icon: Truck    },
+  ENTREGA_PAQUETERIA: { label: "Paquetería",         cls: "bg-sky-500/10 text-sky-400 border-sky-800",            icon: Package  },
+  ENTREGA_DOMICILIO:  { label: "Domicilio",          cls: "bg-emerald-500/10 text-emerald-400 border-emerald-800",icon: MapPin   },
 };
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
-  PENDIENTE:  { label: "Pendiente",  cls: "bg-amber-500/10  text-amber-400  border-amber-800"     },
-  ASIGNADA:   { label: "Asignada",   cls: "bg-blue-500/10   text-blue-400   border-blue-800"      },
-  EN_CAMINO:  { label: "En Camino",  cls: "bg-indigo-500/10 text-indigo-400 border-indigo-800"    },
-  COMPLETADA: { label: "Completada", cls: "bg-emerald-500/10 text-emerald-400 border-emerald-800" },
-  CANCELADA:  { label: "Cancelada",  cls: "bg-zinc-800 text-zinc-500 border-zinc-700"             },
+  PENDIENTE:  { label: "Pendiente",  cls: "bg-amber-500/10  text-amber-400  border-amber-800"      },
+  ASIGNADA:   { label: "Asignada",   cls: "bg-blue-500/10   text-blue-400   border-blue-800"       },
+  EN_CAMINO:  { label: "En Camino",  cls: "bg-indigo-500/10 text-indigo-400 border-indigo-800"     },
+  COMPLETADA: { label: "Completada", cls: "bg-emerald-500/10 text-emerald-400 border-emerald-800"  },
+  CANCELADA:  { label: "Cancelada",  cls: "bg-zinc-800 text-zinc-500 border-zinc-700"              },
 };
 
 const NEXT_STATUS: Record<string, { label: string; next: string; cls: string }[]> = {
-  PENDIENTE: [{ label: "Asignar",    next: "ASIGNADA",   cls: "bg-blue-500/10 text-blue-400 border-blue-800 hover:bg-blue-500 hover:text-black"          }],
-  ASIGNADA:  [{ label: "En Camino",  next: "EN_CAMINO",  cls: "bg-indigo-500/10 text-indigo-400 border-indigo-800 hover:bg-indigo-500 hover:text-white"   }],
-  EN_CAMINO: [{ label: "Completar",  next: "COMPLETADA", cls: "bg-emerald-500/10 text-emerald-400 border-emerald-800 hover:bg-emerald-500 hover:text-black" }],
+  PENDIENTE: [{ label: "Asignar",   next: "ASIGNADA",   cls: "bg-blue-500/10 text-blue-400 border-blue-800 hover:bg-blue-500 hover:text-black"            }],
+  ASIGNADA:  [{ label: "En Camino", next: "EN_CAMINO",  cls: "bg-indigo-500/10 text-indigo-400 border-indigo-800 hover:bg-indigo-500 hover:text-white"     }],
+  EN_CAMINO: [{ label: "Completar", next: "COMPLETADA", cls: "bg-emerald-500/10 text-emerald-400 border-emerald-800 hover:bg-emerald-500 hover:text-black"  }],
 };
 
 const ALL_STATUSES = ["TODOS", "PENDIENTE", "ASIGNADA", "EN_CAMINO", "COMPLETADA", "CANCELADA"] as const;
@@ -84,7 +90,6 @@ export default function RutasPage() {
     return matchSearch && matchStatus;
   });
 
-  // Contadores por status
   const counts = routes.reduce<Record<string, number>>((acc, r) => {
     acc[r.status] = (acc[r.status] ?? 0) + 1;
     return acc;
@@ -98,7 +103,7 @@ export default function RutasPage() {
         <div>
           <p className="text-[9px] tracking-[0.3em] text-zinc-500 uppercase mb-0.5">Flotilla / Rutas</p>
           <h1 className="text-2xl font-black uppercase tracking-tighter text-white italic">
-            RUTAS <span className="text-[#FDCB02]">DEL DÃA</span>
+            RUTAS <span className="text-[#FDCB02]">DEL DÍA</span>
           </h1>
         </div>
         <div className="flex items-center gap-3">
@@ -113,7 +118,7 @@ export default function RutasPage() {
         </div>
       </div>
 
-      {/* Mini KPIs de status */}
+      {/* Mini KPIs */}
       <div className="grid grid-cols-5 gap-2">
         {(["PENDIENTE","ASIGNADA","EN_CAMINO","COMPLETADA","CANCELADA"] as const).map((s) => {
           const cfg = STATUS_CONFIG[s];
@@ -137,11 +142,10 @@ export default function RutasPage() {
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
           <input
             value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por contacto, direcciÃ³n o chofer..."
+            placeholder="Buscar por contacto, dirección o chofer..."
             className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-2 pl-9 pr-4 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-[#FDCB02] transition-all"
           />
         </div>
-        {/* Filtro por tipo */}
         <div className="flex items-center gap-2">
           <Filter size={12} className="text-zinc-600" />
           {Object.entries(TIPO_CONFIG).map(([key, cfg]) => (
@@ -160,16 +164,16 @@ export default function RutasPage() {
         {filtered.length === 0 ? (
           <div className="p-16 text-center">
             <p className="text-zinc-700 font-bold text-xs uppercase tracking-widest">
-              {loading ? "Cargando rutas..." : "Sin Ã³rdenes con ese filtro"}
+              {loading ? "Cargando rutas..." : "Sin órdenes con ese filtro"}
             </p>
           </div>
         ) : (
           <div className="divide-y divide-white/[0.03]">
             {filtered.map((r, idx) => {
-              const cfg    = TIPO_CONFIG[r.type as keyof typeof TIPO_CONFIG]    ?? TIPO_CONFIG.RECOLECCION;
-              const sCfg   = STATUS_CONFIG[r.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.PENDIENTE;
-              const Icon   = cfg.icon;
-              const acciones = NEXT_STATUS[r.status as keyof typeof NEXT_STATUS] ?? [];
+              const cfg      = TIPO_CONFIG[r.type] ?? TIPO_CONFIG.RECOLECCION;
+              const sCfg     = STATUS_CONFIG[r.status] ?? STATUS_CONFIG.PENDIENTE;
+              const Icon     = cfg.icon;
+              const acciones = NEXT_STATUS[r.status] ?? [];
               const isExpanded = expanded === r.id;
 
               return (
@@ -182,7 +186,7 @@ export default function RutasPage() {
                     className="p-5 flex items-start gap-4 hover:bg-white/[0.01] transition-colors cursor-pointer"
                     onClick={() => setExpanded(isExpanded ? null : r.id)}
                   >
-                    {/* Ãcono tipo */}
+                    {/* Ícono tipo */}
                     <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${cfg.cls}`}>
                       <Icon size={15} />
                     </div>
@@ -204,10 +208,10 @@ export default function RutasPage() {
                         <p className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5">
                           {r.originLocation === "PLOMO_203" ? "Plomo 203" : "Guatemala 97"}
                           <ArrowRight size={9} />
-                          {r.destLocation   === "PLOMO_203" ? "Plomo 203" : "Guatemala 97"}
+                          {r.destLocation === "PLOMO_203" ? "Plomo 203" : "Guatemala 97"}
                         </p>
                       ) : (
-                        <p className="text-[10px] text-zinc-500 truncate mt-0.5">ðŸ“ {r.address}</p>
+                        <p className="text-[10px] text-zinc-500 truncate mt-0.5">📍 {r.address}</p>
                       )}
 
                       <div className="flex items-center gap-4 mt-1.5">
@@ -252,11 +256,11 @@ export default function RutasPage() {
 
                   {/* Items expandidos */}
                   {isExpanded && r.items.length > 0 && (
-                    <div className="px-6 pb-5 ml-13">
-                      <div className="ml-13 bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden">
+                    <div className="px-6 pb-5">
+                      <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden">
                         <div className="px-4 py-2 border-b border-zinc-800">
                           <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
-                            Items â€” {r.items.length} bulto{r.items.length !== 1 ? "s" : ""}
+                            Items — {r.items.length} bulto{r.items.length !== 1 ? "s" : ""}
                           </p>
                         </div>
                         <div className="divide-y divide-zinc-800">
@@ -315,5 +319,3 @@ export default function RutasPage() {
     </div>
   );
 }
-
-

@@ -6,6 +6,7 @@ import {
   AlertTriangle, ShieldAlert, CheckCircle2, ChevronRight,
   TrendingUp, Clock, Store, Truck, RefreshCw, Map
 } from "lucide-react";
+import type { LucideProps } from "lucide-react";
 import Link from "next/link";
 import FlotillaClient from "./FlotillaClient";
 
@@ -45,20 +46,22 @@ interface MisOrdenesResponse {
 }
 
 // ─── Configuración Táctica por tipo de orden ─────────────────────────────────
-const TIPO_CONFIG = {
-  RECOLECCION:        { label: "Recolección",       Icon: Package, color: "bg-blue-50 text-blue-700 border-blue-200" },
-  RESTOCK_INTERNO:    { label: "Restock Interno",   Icon: Store,   color: "bg-purple-50 text-purple-700 border-purple-200" },
-  RESTOCK_PROVEEDOR:  { label: "Restock Proveedor", Icon: Truck,   color: "bg-orange-50 text-orange-700 border-orange-200" },
+type IconComponent = React.ComponentType<LucideProps>;
+
+const TIPO_CONFIG: Record<string, { label: string; Icon: IconComponent; color: string }> = {
+  RECOLECCION:        { label: "Recolección",        Icon: Package, color: "bg-blue-50 text-blue-700 border-blue-200"     },
+  RESTOCK_INTERNO:    { label: "Restock Interno",    Icon: Store,   color: "bg-purple-50 text-purple-700 border-purple-200" },
+  RESTOCK_PROVEEDOR:  { label: "Restock Proveedor",  Icon: Truck,   color: "bg-orange-50 text-orange-700 border-orange-200" },
   ENTREGA_PAQUETERIA: { label: "Drop-off Paquetería",Icon: Package, color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-  ENTREGA_DOMICILIO:  { label: "Entrega Domicilio", Icon: MapPin,  color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  ENTREGA_DOMICILIO:  { label: "Entrega Domicilio",  Icon: MapPin,  color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 };
 
-const STATUS_ACENTO = {
-  PENDIENTE: "bg-yellow-400",
-  ASIGNADA:  "bg-blue-500",
-  EN_CAMINO: "bg-indigo-500",
-  COMPLETADA:"bg-green-500",
-  CANCELADA: "bg-neutral-400",
+const STATUS_ACENTO: Record<string, string> = {
+  PENDIENTE:  "bg-yellow-400",
+  ASIGNADA:   "bg-blue-500",
+  EN_CAMINO:  "bg-indigo-500",
+  COMPLETADA: "bg-green-500",
+  CANCELADA:  "bg-neutral-400",
 };
 
 // ─── Helpers Operativos ──────────────────────────────────────────────────────
@@ -82,8 +85,8 @@ export default function FlotillaDashboard() {
     setError(null);
     try {
       const res = await fetch("/api/flotilla/mis-ordenes");
-      if (res.status === 401) { setError("sesion"); return; }
-      if (res.status === 404) { setError("empleado"); return; }
+      if (res.status === 401) { setError("sesion");    return; }
+      if (res.status === 404) { setError("empleado");  return; }
       if (!res.ok) throw new Error();
       setData(await res.json());
     } catch {
@@ -99,10 +102,9 @@ export default function FlotillaDashboard() {
   const ordenes   = data?.ordenes ?? [];
   const activas   = ordenes.filter(o => o.status !== "COMPLETADA" && o.status !== "CANCELADA");
 
-  // ── Loading Matrix ─────────────────────────────────────────────────────────
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) return (
     <div className="min-h-screen bg-[#F4F5F7] flex flex-col items-center justify-center gap-4">
-      {/* El cliente GPS sigue inyectando telemetría aunque la UI cargue */}
       <FlotillaClient />
       <div className="w-12 h-12 border-4 border-[#FDCB02] border-t-transparent rounded-full animate-spin" />
       <p className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.2em]">Sincronizando Radar...</p>
@@ -226,15 +228,13 @@ export default function FlotillaDashboard() {
           </div>
         ) : (
           ordenes.map((orden, index) => {
-            // @ts-ignore - Fallback en caso de tipos no mapeados
-            const cfg = TIPO_CONFIG[orden.type] ?? TIPO_CONFIG.RECOLECCION;
+            const cfg  = TIPO_CONFIG[orden.type] ?? TIPO_CONFIG.RECOLECCION;
             const Icon = cfg.Icon;
-            const acento = STATUS_ACENTO[orden.status] ?? "bg-neutral-300";
+            const acento      = STATUS_ACENTO[orden.status] ?? "bg-neutral-300";
             const isCompletada = orden.status === "COMPLETADA";
-            const totalItems = orden.items?.length || 0;
+            const totalItems  = orden.items?.length || 0;
 
-            // Generador de URL de Navegación seguro
-            const navUrl = orden.addressLat && orden.addressLng 
+            const navUrl = orden.addressLat && orden.addressLng
               ? `https://www.google.com/maps/dir/?api=1&destination=${orden.addressLat},${orden.addressLng}`
               : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(orden.address)}`;
 
@@ -271,7 +271,7 @@ export default function FlotillaDashboard() {
                   </div>
                 </div>
 
-                {/* Restock interno: Flecha de Bodegas */}
+                {/* Restock interno */}
                 {orden.type === "RESTOCK_INTERNO" && (
                   <div className="pl-2 mb-4">
                     <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-xl text-[9px] font-black text-purple-700 uppercase tracking-widest">
@@ -303,7 +303,7 @@ export default function FlotillaDashboard() {
                   )}
                 </div>
 
-                {/* Métricas de la parada */}
+                {/* Métricas */}
                 <div className="pl-2 grid grid-cols-2 gap-3 mb-5">
                   <div className="bg-[#F4F5F7] rounded-xl p-3 flex items-center gap-3">
                     <Clock size={16} className="text-neutral-500" />
@@ -321,10 +321,9 @@ export default function FlotillaDashboard() {
                   </div>
                 </div>
 
-                {/* Botonera de Acción */}
+                {/* Botonera */}
                 {!isCompletada ? (
                   <div className="pl-2 grid grid-cols-12 gap-3">
-                    {/* Botón Navegar Corregido */}
                     <a
                       href={navUrl}
                       target="_blank"
@@ -333,14 +332,12 @@ export default function FlotillaDashboard() {
                     >
                       <Navigation2 size={16} /> Navegar
                     </a>
-
                     <a
                       href={`tel:${orden.contactPhone ?? ""}`}
                       className="col-span-6 bg-neutral-100 hover:bg-neutral-200 active:scale-95 text-black h-14 rounded-2xl flex justify-center items-center gap-2 text-[10px] font-[900] uppercase tracking-widest transition-all border border-neutral-200/50"
                     >
                       <PhoneCall size={16} /> Llamar
                     </a>
-
                     <Link
                       href={`/flotilla/entregar/${orden.id}`}
                       className="col-span-12 bg-[#FDCB02] active:scale-95 text-black h-16 rounded-2xl flex justify-between items-center px-6 shadow-lg shadow-yellow-500/20 transition-all group mt-1"
