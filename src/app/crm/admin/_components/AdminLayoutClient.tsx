@@ -8,7 +8,8 @@ import {
   LayoutDashboard, Users, Target, Ticket,
   MessageSquare, Clock, BarChart, Settings,
   Search, Bell, Menu, X, ChevronDown, LogOut,
-  User, Package, Warehouse, Truck, AlertTriangle, ShieldCheck, ShoppingBag
+  User, Package, Warehouse, Truck, AlertTriangle, ShieldCheck, ShoppingBag,
+  Bot // <-- Ícono de Bot agregado aquí
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { EmployeeRole } from "@prisma/client";
@@ -42,6 +43,10 @@ const menuItems = [
     ],
   },
   { name: "Interacciones",     icon: MessageSquare,   href: "/crm/admin/interacciones" },
+  
+  // ─── NUEVA RUTA DEL BOT ───
+  { name: "Bot IA",            icon: Bot,             href: "/crm/admin/bot" },
+  
   { 
     name: "Clientes",          
     icon: Users,           
