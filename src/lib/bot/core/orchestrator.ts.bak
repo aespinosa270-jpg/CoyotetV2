@@ -273,13 +273,16 @@ export async function processMessage(
 
       apiMessages.push({
         role: "assistant",
-        content: response.text || "",
+        content: response.text || null,
         tool_calls: response.toolCalls.map((tc) => ({
           id: tc.id,
-          name: tc.name,
-          arguments: tc.arguments,
+          type: "function",
+          function: {
+            name: tc.name,
+            arguments: JSON.stringify(tc.arguments),
+          },
         })),
-      } as any);
+      });
 
       for (const call of response.toolCalls) {
         const result = await executeTool(
