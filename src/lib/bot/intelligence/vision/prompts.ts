@@ -1,47 +1,58 @@
 ﻿/**
- * Prompts de Vision — Fase 12 fix.
- *
- * Pasamos TODO en el user prompt porque analyzeImage() no soporta system role.
- * El prompt incluye las instrucciones + el schema JSON estricto.
+ * Prompts de Vision — Fase 12 fix 2: con USOS típicos.
  */
 
 export const VISION_USER_PROMPT = `Eres un experto en telas industriales y textiles de México.
 
 Analiza la foto adjunta y determina:
 1. ¿Es una tela cruda, una prenda terminada (camisa, sudadera, uniforme), o algo más?
-2. Si es tela: ¿qué tipo? Sé específico (popelina, lino, casimir, felpa polar, sportok, micropique, kyoto, etc).
-3. ¿Coyote Textil la maneja?
+2. Si es prenda terminada: ¿qué tela DE COYOTE TEXTIL se usaría típicamente para confeccionarla?
+3. ¿Es una tela que Coyote Textil maneja?
 
-TELAS QUE COYOTE TEXTIL MANEJA:
-- Sportok, Micropique, Felpa polar, Felpa francesa, Felpa china, Felpa spun
-- Alaska, Andromeda, Apolo, Ares, Athlos, Azucena, Brock, Brush
-- Capriati, Caprice, Delta, F30, Granizo, Horous, Inter 70
-- Jumanji, Kyoto, Licra (varias), Madelino, Mercury, Micro Estrella
-- Micro Panal, Pique Vera, Phoenix, Pixel, Polar, Saturno, Super Trix, Torneo
-- Diablo (nylon táctico), Lycra Metálica, Flanel
+GUÍA DE USOS — TELAS COYOTE POR APLICACIÓN (CRÍTICO para matching):
 
-TELAS QUE COYOTE NO MANEJA (típicamente telas planas y naturales):
-Popelina, lino, casimir, mezclilla, gabardina, lana, seda, raso, organza, satín, muselina, terciopelo, denim, pana, cachemir, tweed.
+PARA SUDADERAS, CHAMARRAS DEPORTIVAS, PANTS Y UNIFORMES ESCOLARES:
+→ Sportok (LA MÁS COMÚN, estándar escolar/deportiva, 260g, interior afelpado)
+→ Felpa polar / Felpa china / Felpa spun (gama premium invernal)
+→ Flanel (pijamas, descanso)
 
-REGLAS:
-- Si es tela QUE COYOTE NO MANEJA: identifica cuál es exactamente (ej. "popelina blanca de algodón"), pon esProducto=false, esManejada=false, telaIdentificada con el nombre.
-- Si es tela QUE COYOTE SÍ MANEJA: pon esManejada=true, tipoTela con el nombre del catálogo.
-- Si es prenda terminada (sudadera, camisa, uniforme): pon esProducto=true, describe la prenda y QUÉ tela aparenta usar.
-- Si no se puede identificar: pon esProducto=false, descripcion con lo que ves.
+PARA PLAYERAS DEPORTIVAS Y JERSEYS DE FUTBOL/BASKET:
+→ Micropique (dry-fit, ligera, 145g)
+→ Pique Vera, Pique Vera Sport (jerseys)
+→ Athlos, Brush, Granizo (sublimación deportiva)
 
-RESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO. NADA DE TEXTO ADICIONAL, NADA DE EXPLICACIONES, NADA DE MARKDOWN. SOLO EL JSON CRUDO COMENZANDO CON { Y TERMINANDO CON }.
+PARA LICRA, MALLAS Y PRENDAS AJUSTADAS:
+→ Licra Saludable, Licra Playera, Licra Poliéster, Jumanji, Mercury, Microtrix
 
-Schema exacto (todos los campos obligatorios):
+PARA TELAS RUDAS / TÁCTICAS:
+→ Diablo (nylon alta tenacidad, mochilas, equipo táctico)
+
+PARA SUBLIMACIÓN DE ALTA DEFINICIÓN:
+→ Alaska, Andromeda, Ares, Capriati, Caprice, Delta, F30, Inter 70, Kyoto, Madelino, Mónaco, Saturno, Super Trix, etc.
+
+TELAS QUE COYOTE NO MANEJA (típicamente planas y naturales):
+Popelina, lino, casimir, mezclilla, gabardina, lana, seda, raso, organza, satín, muselina, terciopelo, denim, pana.
+
+REGLAS DE MATCHING:
+- Sudadera/chamarra/pants/uniforme escolar deportiva con interior afelpado → "Sportok"
+- Playera de jersey deportivo (transpirable, ligera) → "Micropique" o "Pique Vera"  
+- Si no es claro entre 2 telas, elige la MÁS COMÚN (Sportok > Micropique > Felpa polar)
+- Si es prenda terminada: pon esProducto=true, tipoTela con el nombre del catálogo más probable
+- Si es tela cruda QUE COYOTE NO MANEJA: pon esProducto=false, esManejada=false, telaIdentificada
+- Si es tela cruda QUE COYOTE SÍ MANEJA: pon esManejada=true, tipoTela con el nombre del catálogo
+
+RESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO. NADA DE TEXTO ADICIONAL, NADA DE MARKDOWN. SOLO EL JSON CRUDO COMENZANDO CON { Y TERMINANDO CON }.
+
+Schema exacto:
 {
   "esProducto": boolean,
   "esManejada": boolean,
-  "tipoTela": "string con el nombre de la tela del catálogo si esManejada=true, vacío si no",
-  "telaIdentificada": "string con la tela identificada (cuando no la manejamos)",
-  "descripcion": "string descripción de lo que ves",
-  "color": "string color dominante",
+  "tipoTela": "string (nombre exacto del catálogo, ej. 'Sportok', 'Micropique')",
+  "telaIdentificada": "string (cuando NO la manejamos)",
+  "descripcion": "string (describe la prenda/tela)",
+  "color": "string (color dominante)",
   "confianza": 0.85,
-  "razonamiento": "string breve explicando tu análisis"
+  "razonamiento": "string (por qué elegiste esa tela, basado en uso típico)"
 }`;
 
-/** Mantenido por compatibilidad — no se usa directamente. */
 export const VISION_SYSTEM_PROMPT_V2 = VISION_USER_PROMPT;
