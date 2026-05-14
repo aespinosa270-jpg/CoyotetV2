@@ -650,7 +650,7 @@ const ProductRail = ({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         {items.map((product, i) => (
-          <ProductCard key={product.id || i} product={product} className="!w-full !min-w-0" />
+          <ProductCard key={product.id || i} product={product as any} className="!w-full !min-w-0" />
         ))}
       </div>
     </section>
@@ -924,7 +924,7 @@ export default function CoyoteMarketplace() {
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
                 {filteredProducts.map((p) => (
-                  <ProductCard key={p.id} product={p} className="!w-full !min-w-0" />
+                  <ProductCard key={p.id} product={p as any} className="!w-full !min-w-0" />
                 ))}
               </div>
             ) : (
