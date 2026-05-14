@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useState, useMemo } from "react"
 import Link from "next/link"
@@ -9,27 +9,12 @@ import { useCart } from "@/lib/context/cart-context"
 import { useSession } from "next-auth/react"
 import {
   Plus, Minus, Check, ArrowRight,
-  Flag, Star, Ruler, Sun, Weight,
+  Flag, Zap, Star, Ruler, Sun, Weight,
   BicepsFlexed, Package, Search, SlidersHorizontal, X,
   Truck, ChevronRight,
 } from "lucide-react"
 import Image from "next/image"
 import Lenis from "lenis"
-import dynamic from "next/dynamic"
-
-const GarmentSculpture = dynamic(
-  () => import("@/components/showroom/GarmentSculpture"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="text-[10px] tracking-[0.4em] text-white/30 font-mono animate-pulse">
-          ⌁ RENDERIZANDO MATERIAL
-        </div>
-      </div>
-    ),
-  }
-)
 
 // ─────────────────────────────────────────────
 // TYPES
@@ -782,10 +767,10 @@ export default function CoyoteMarketplace() {
     filters.sort !== "relevance"
 
   const categorySections = [
-    { id: "licras",          title: "Licras",          items: byCategory("Deportivo / Licra"),    icon: Package },
-    { id: "telas-escolares", title: "Telas Escolares", items: byCategory("Escolar / Deportivo"),  icon: Package },
-    { id: "telas-invierno",  title: "Línea Invernal",  items: byCategory("Línea Invernal"),       icon: Package },
-    { id: "telas-tecnicas",  title: "Telas Técnicas",  items: byCategory("Telas Técnicas"),       icon: Package },
+    { id: "licras",          title: "Licras",           items: byCategory("Deportivo / Licra"),       icon: Package },
+    { id: "telas-escolares", title: "Telas Escolares",  items: byCategory("Escolar / Deportivo"),     icon: Package },
+    { id: "telas-invierno",  title: "Línea Invernal",   items: byCategory("Línea Invernal"),          icon: Package },
+    { id: "telas-tecnicas",  title: "Telas Técnicas",   items: byCategory("Telas Técnicas"),          icon: Package },
   ]
 
   function clearFilters() {
@@ -805,29 +790,25 @@ export default function CoyoteMarketplace() {
       />
 
       {/* ──────────────────────────────────────
-          HERO
+          HERO — Centrado con blob 3D de tela
       ────────────────────────────────────── */}
       <section className="relative h-[82vh] md:h-[88vh] min-h-[580px] flex items-center justify-center bg-[#050505] overflow-hidden border-b border-white/5">
 
-        {/* Background imagen hero */}
+        {/* Background: imagen hero como base */}
         <Image
           src="/hero1.png"
           alt="Coyote Textil"
           fill
-          className="object-cover opacity-25 z-0"
+          className="object-cover opacity-50"
           priority
         />
 
-        {/* Escultura 3D */}
-        <div className="absolute inset-0 z-[5]">
-          <GarmentSculpture />
-        </div>
-
-        {/* Gradients */}
+        {/* Gradient overlay radial — oscurece bordes y centra la luz */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_80%_at_55%_50%,rgba(0,0,0,0.1)_0%,rgba(0,0,0,0.85)_100%)] z-10" />
+        {/* Gradiente lateral para separar del navbar */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/50 z-10" />
 
-        {/* Blob de luz */}
+        {/* Blob animado de luz — simula el glow del objeto 3D */}
         <motion.div
           animate={{ scale: [1, 1.06, 1], opacity: [0.15, 0.25, 0.15] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
@@ -848,7 +829,7 @@ export default function CoyoteMarketplace() {
             Infraestructura Nacional
           </motion.div>
 
-          {/* Headline */}
+          {/* Headline principal */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
@@ -934,6 +915,7 @@ export default function CoyoteMarketplace() {
         ) : (
           <div className="space-y-24 animate-in fade-in duration-700">
 
+            {/* Primera sección destacada */}
             <ProductRail
               id="telas-para-sublimar"
               title="Potencia en cada fibra"
