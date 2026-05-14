@@ -1,5 +1,5 @@
 ﻿import { NextResponse } from "next/server";
-import { handleWhatsAppWebhook } from "../../../../lib/bot/transports/whatsapp/adapter";
+import { handleWhatsAppWebhook } from "../../../../lib/bot/transports/whatsapp/inbound";
 
 export const runtime = "nodejs";
 
@@ -20,3 +20,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true }, { status: 200 });
   }
 }
+
