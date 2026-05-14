@@ -9,9 +9,32 @@ import {
   Check, ArrowRight, Ruler, Weight, Info, Plus, Minus, Star, Truck
 } from "lucide-react"
 
+// 1. TIPADO ESTRICTO: Definimos exactamente la forma de los datos
+export interface ColorOption {
+  name: string;
+  hex: string;
+  image?: string;
+}
+
+export interface CoyoteProduct {
+  id: string;
+  title: string;
+  thumbnail: string;
+  unit: 'Metro' | 'Kilo';
+  unidadesPorRollo: number;
+  rendimiento?: number;
+  composicion: string;
+  gramaje: string;
+  prices: {
+    mayoreo: number;
+    menudeo: number;
+  };
+  colors?: ColorOption[];
+}
+
 interface ProductProps {
-  product: any
-  className?: string
+  product: CoyoteProduct;
+  className?: string;
 }
 
 const formatMoney = (amount: number) => 
@@ -21,6 +44,7 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
     const { data: session } = useSession(); 
     const { addItem } = useCart();
     
+    // Lógica de Membresías
     const tier = session?.user?.membershipTier || "NONE";
     const isGold = tier === "GOLD";
     const isBlack = tier === "BLACK";
@@ -30,18 +54,19 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
     const discountMultiplier = isElite || isBlack ? 0.85 : isGold ? 0.90 : 1;
     const discountPercent = isElite || isBlack ? 15 : isGold ? 10 : 0;
 
-    // 🔥 FIX: Aseguramos que siempre haya una cadena, incluso si viene vacío el prop
+    // Estados
     const defaultImage = product?.thumbnail || "/placeholder.jpg";
-    const [activeImage, setActiveImage] = useState(defaultImage);
+    const [activeImage, setActiveImage] = useState<string>(defaultImage);
     const [selectedColorName, setSelectedColorName] = useState<string | null>(product?.colors?.[0]?.name || null);
-    
     const [hovered, setHovered] = useState(false);
     const [mode, setMode] = useState<'rollo' | 'kilo'>('rollo'); 
     const [quantity, setQuantity] = useState(1);
 
-    const basePrice = mode === 'rollo' ? product?.prices?.mayoreo : product?.prices?.menudeo;
+    // 2. SEGURIDAD MATEMÁTICA: Fallbacks a 0 por si falla la BD
+    const basePrice = mode === 'rollo' ? (product?.prices?.mayoreo || 0) : (product?.prices?.menudeo || 0);
     const finalPrice = basePrice * discountMultiplier; 
 
+    // Lógica de Unidades
     const isMeter = product?.unit === 'Metro';
     const unitLabel = isMeter ? 'Metro' : 'Kilo';
     const unitAbbr = isMeter ? 'm' : 'Kg';
@@ -53,7 +78,8 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
     
     const totalMeters = !isMeter ? (currentWeight * (product?.rendimiento || 4.3)).toFixed(1) : currentWeight;
 
-    const handleColorClick = (e: any, color: any) => {
+    // Handlers
+    const handleColorClick = (e: React.MouseEvent, color: ColorOption) => {
         e.preventDefault(); 
         e.stopPropagation();
         if (color.image) setActiveImage(color.image);
@@ -69,10 +95,7 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
             productId: product.id,
             title: product.title,
             price: finalPrice, 
-            
-            // 🔥 FIX: Le pasamos la imagen forzada, nunca null
             image: activeImage || product.thumbnail || "/placeholder.jpg",
-            
             quantity: currentWeight,
             unit: mode === 'rollo' ? `${unitAbbr} (Rollo)` : unitAbbr, 
             meta: {
@@ -81,8 +104,6 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                 packages: quantity,
                 meters: totalMeters,
                 tierApplied: tier,
-                
-                // 🔥 FIX EXTRA: Mandamos la imagen en el meta también por si acaso
                 image: activeImage || product.thumbnail || "/placeholder.jpg",
             }
         });
@@ -181,9 +202,9 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                         <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Colorido</span>
                         <span className="text-[9px] font-bold text-[#FDCB02] uppercase tracking-widest">{selectedColorName || "Seleccionar"}</span>
                     </div>
-                    {product?.colors && (
+                    {product?.colors && product.colors.length > 0 && (
                         <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-                            {product.colors.slice(0, 6).map((c: any, i: number) => (
+                            {product.colors.slice(0, 6).map((c, i) => (
                                 <button 
                                     key={i} 
                                     onClick={(e) => handleColorClick(e, c)} 
@@ -191,7 +212,7 @@ export default function ProductCard({ product, className = "" }: ProductProps) {
                                     style={{ backgroundColor: c.hex }} 
                                     title={c.name}
                                 >
-                                    {selectedColorName === c.name && <Check size={12} className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name === 'Blanco' || c.name === 'Beige' ? 'text-black' : 'text-white'}`}/>}
+                                    {selectedColorName === c.name && <Check size={12} className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${c.name === 'Blanco' || c.name === 'Beige' || c.name === 'Amarillo' ? 'text-black' : 'text-white'}`}/>}
                                 </button>
                             ))}
                         </div>
