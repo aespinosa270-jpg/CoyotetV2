@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useTransition } from "react";
 import {
@@ -19,10 +19,10 @@ interface RouteOrder {
 }
 
 const TIPO_CONFIG: Record<string, { label: string; cls: string; icon: React.ElementType }> = {
-  RECOLECCION:        { label: "Recolección",       cls: "bg-blue-500/10 text-blue-400 border-blue-800",       icon: Package  },
+  RECOLECCION:        { label: "RecolecciÃ³n",       cls: "bg-blue-500/10 text-blue-400 border-blue-800",       icon: Package  },
   RESTOCK_INTERNO:    { label: "Restock Interno",   cls: "bg-purple-500/10 text-purple-400 border-purple-800", icon: Store    },
   RESTOCK_PROVEEDOR:  { label: "Restock Proveedor", cls: "bg-orange-500/10 text-orange-400 border-orange-800", icon: Truck    },
-  ENTREGA_PAQUETERIA: { label: "Paquetería",        cls: "bg-sky-500/10 text-sky-400 border-sky-800",          icon: Package  },
+  ENTREGA_PAQUETERIA: { label: "PaqueterÃ­a",        cls: "bg-sky-500/10 text-sky-400 border-sky-800",          icon: Package  },
   ENTREGA_DOMICILIO:  { label: "Domicilio",         cls: "bg-emerald-500/10 text-emerald-400 border-emerald-800", icon: MapPin },
 };
 
@@ -98,7 +98,7 @@ export default function RutasPage() {
         <div>
           <p className="text-[9px] tracking-[0.3em] text-zinc-500 uppercase mb-0.5">Flotilla / Rutas</p>
           <h1 className="text-2xl font-black uppercase tracking-tighter text-white italic">
-            RUTAS <span className="text-[#FDCB02]">DEL DÍA</span>
+            RUTAS <span className="text-[#FDCB02]">DEL DÃA</span>
           </h1>
         </div>
         <div className="flex items-center gap-3">
@@ -137,7 +137,7 @@ export default function RutasPage() {
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
           <input
             value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por contacto, dirección o chofer..."
+            placeholder="Buscar por contacto, direcciÃ³n o chofer..."
             className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-2 pl-9 pr-4 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-[#FDCB02] transition-all"
           />
         </div>
@@ -160,16 +160,16 @@ export default function RutasPage() {
         {filtered.length === 0 ? (
           <div className="p-16 text-center">
             <p className="text-zinc-700 font-bold text-xs uppercase tracking-widest">
-              {loading ? "Cargando rutas..." : "Sin órdenes con ese filtro"}
+              {loading ? "Cargando rutas..." : "Sin Ã³rdenes con ese filtro"}
             </p>
           </div>
         ) : (
           <div className="divide-y divide-white/[0.03]">
             {filtered.map((r, idx) => {
-              const cfg    = TIPO_CONFIG[r.type]    ?? TIPO_CONFIG.RECOLECCION;
-              const sCfg   = STATUS_CONFIG[r.status] ?? STATUS_CONFIG.PENDIENTE;
+              const cfg    = TIPO_CONFIG[r.type as keyof typeof TIPO_CONFIG]    ?? TIPO_CONFIG.RECOLECCION;
+              const sCfg   = STATUS_CONFIG[r.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.PENDIENTE;
               const Icon   = cfg.icon;
-              const acciones = NEXT_STATUS[r.status] ?? [];
+              const acciones = NEXT_STATUS[r.status as keyof typeof NEXT_STATUS] ?? [];
               const isExpanded = expanded === r.id;
 
               return (
@@ -182,7 +182,7 @@ export default function RutasPage() {
                     className="p-5 flex items-start gap-4 hover:bg-white/[0.01] transition-colors cursor-pointer"
                     onClick={() => setExpanded(isExpanded ? null : r.id)}
                   >
-                    {/* Ícono tipo */}
+                    {/* Ãcono tipo */}
                     <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${cfg.cls}`}>
                       <Icon size={15} />
                     </div>
@@ -207,7 +207,7 @@ export default function RutasPage() {
                           {r.destLocation   === "PLOMO_203" ? "Plomo 203" : "Guatemala 97"}
                         </p>
                       ) : (
-                        <p className="text-[10px] text-zinc-500 truncate mt-0.5">📍 {r.address}</p>
+                        <p className="text-[10px] text-zinc-500 truncate mt-0.5">ðŸ“ {r.address}</p>
                       )}
 
                       <div className="flex items-center gap-4 mt-1.5">
@@ -256,7 +256,7 @@ export default function RutasPage() {
                       <div className="ml-13 bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden">
                         <div className="px-4 py-2 border-b border-zinc-800">
                           <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
-                            Items — {r.items.length} bulto{r.items.length !== 1 ? "s" : ""}
+                            Items â€” {r.items.length} bulto{r.items.length !== 1 ? "s" : ""}
                           </p>
                         </div>
                         <div className="divide-y divide-zinc-800">
@@ -315,3 +315,5 @@ export default function RutasPage() {
     </div>
   );
 }
+
+

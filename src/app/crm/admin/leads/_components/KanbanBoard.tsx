@@ -1,17 +1,17 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
 import { PipelineStatus } from "@prisma/client";
 import { moveDealAction } from "@/app/actions/deals";
-import { Plus, ChevronRight, ChevronLeft, Trophy, XCircle, TrendingUp, MessageCircle, Target } from "lucide-react";
+import { Plus, ChevronRight, ChevronLeft, Trophy, XCircle, TrendingUp, MessageCircle, Target , LucideIcon} from "lucide-react";
 import Link from "next/link";
 import ModalNuevoDeal from "@/app/crm/admin/leads/_components/ModalNuevoDeal";
 
-// 🔥 IMPORTACIONES PARA EL DRAG & DROP
+// ðŸ”¥ IMPORTACIONES PARA EL DRAG & DROP
 import { DndContext, DragEndEvent, closestCorners, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 
-// ── TYPES ─────────────────────────────────────────────────────────────────────
+// â”€â”€ TYPES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type DealRow = {
   id: string; title: string; company: string; value: number;
@@ -27,23 +27,23 @@ export type Product = { id: string; title: string; sku: string; unit: string; pr
 
 type Columns = Record<PipelineStatus, DealRow[]>;
 
-// ── STAGES CONFIG ─────────────────────────────────────────────────────────────
+// â”€â”€ STAGES CONFIG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const STAGES: {
   status: PipelineStatus;
   label:  string;
   accent: string;
   border: string;
-  icon:   React.ElementType;
+  icon: LucideIcon;
 }[] = [
   { status: "PROSPECTO",       label: "Prospecto",   accent: "text-zinc-400",    border: "border-zinc-700",    icon: Target        },
   { status: "COTIZANDO",       label: "Cotizando",   accent: "text-sky-400",     border: "border-sky-800",     icon: MessageCircle },
-  { status: "NEGOCIACION",     label: "Negociación", accent: "text-amber-400",  border: "border-amber-800",   icon: TrendingUp    },
-  { status: "CERRADO_GANADO",  label: "✓ Ganado",    accent: "text-emerald-400",border: "border-emerald-800", icon: Trophy        },
+  { status: "NEGOCIACION",     label: "NegociaciÃ³n", accent: "text-amber-400",  border: "border-amber-800",   icon: TrendingUp    },
+  { status: "CERRADO_GANADO",  label: "âœ“ Ganado",    accent: "text-emerald-400",border: "border-emerald-800", icon: Trophy        },
   { status: "CERRADO_PERDIDO", label: "Perdido",     accent: "text-red-400",    border: "border-red-900",     icon: XCircle       },
 ];
 
-// ── BOARD ─────────────────────────────────────────────────────────────────────
+// â”€â”€ BOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function KanbanBoard({
   initialColumns, agents, products,
@@ -74,16 +74,16 @@ export default function KanbanBoard({
     setShowModal(false);
   };
 
-  // 🔥 LÓGICA DE DRAG & DROP
+  // ðŸ”¥ LÃ“GICA DE DRAG & DROP
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     
-    if (!over) return; // Se soltó en el vacío
+    if (!over) return; // Se soltÃ³ en el vacÃ­o
 
     const dealId = String(active.id);
     const toStatus = String(over.id) as PipelineStatus;
 
-    // Buscamos en qué columna estaba originalmente
+    // Buscamos en quÃ© columna estaba originalmente
     let fromStatus: PipelineStatus | null = null;
     for (const status of Object.keys(columns) as PipelineStatus[]) {
       if (columns[status].some(d => d.id === dealId)) {
@@ -108,7 +108,7 @@ export default function KanbanBoard({
         </button>
       </div>
 
-      {/* 🔥 ENVOLVEMOS EL TABLERO EN EL CONTEXTO DND */}
+      {/* ðŸ”¥ ENVOLVEMOS EL TABLERO EN EL CONTEXTO DND */}
       <DndContext collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
         <div className="flex-1 overflow-x-auto min-h-0">
           <div className="flex gap-3 h-full min-w-[960px] pb-4">
@@ -137,12 +137,12 @@ export default function KanbanBoard({
   );
 }
 
-// ── DROPPABLE COLUMN (NUEVO COMPONENTE) ───────────────────────────────────────
+// â”€â”€ DROPPABLE COLUMN (NUEVO COMPONENTE) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function DroppableColumn({ stage, idx, deals, handleMove }: { stage: typeof STAGES[0], idx: number, deals: DealRow[], handleMove: any }) {
   const Icon = stage.icon;
   const total = deals.reduce((s, d) => s + d.value, 0);
 
-  // 🔥 Hook para que la columna acepte tarjetas
+  // ðŸ”¥ Hook para que la columna acepte tarjetas
   const { isOver, setNodeRef } = useDroppable({ id: stage.status });
 
   return (
@@ -164,7 +164,7 @@ function DroppableColumn({ stage, idx, deals, handleMove }: { stage: typeof STAG
       {/* Cards */}
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
         {deals.length === 0 && (
-          <p className="text-[9px] text-zinc-700 text-center uppercase tracking-widest pt-8 pointer-events-none">Vacío</p>
+          <p className="text-[9px] text-zinc-700 text-center uppercase tracking-widest pt-8 pointer-events-none">VacÃ­o</p>
         )}
         {deals.map((deal) => (
           <DealCard
@@ -179,7 +179,7 @@ function DroppableColumn({ stage, idx, deals, handleMove }: { stage: typeof STAG
   );
 }
 
-// ── DEAL CARD (ACTUALIZADA CON DRAG) ──────────────────────────────────────────
+// â”€â”€ DEAL CARD (ACTUALIZADA CON DRAG) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function DealCard({
   deal, onMoveLeft, onMoveRight,
@@ -191,7 +191,7 @@ function DealCard({
   const initials = deal.employee.name
     .split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
-  // 🔥 Hook para que la tarjeta se pueda arrastrar
+  // ðŸ”¥ Hook para que la tarjeta se pueda arrastrar
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: deal.id,
   });
@@ -222,7 +222,7 @@ function DealCard({
 
       {deal.product && (
         <p className="text-[9px] text-zinc-600 truncate mb-2">
-          📦 {deal.product.title}{deal.quantity ? ` · ${deal.quantity}` : ""}{deal.color ? ` · ${deal.color}` : ""}
+          ðŸ“¦ {deal.product.title}{deal.quantity ? ` Â· ${deal.quantity}` : ""}{deal.color ? ` Â· ${deal.color}` : ""}
         </p>
       )}
 
@@ -234,10 +234,10 @@ function DealCard({
           <span className="text-[9px] text-zinc-500 truncate max-w-[65px]">{deal.employee.name}</span>
         </div>
 
-        {/* Mantenemos los botones, pero les detenemos la propagación para que no interfieran con el drag */}
+        {/* Mantenemos los botones, pero les detenemos la propagaciÃ³n para que no interfieran con el drag */}
         <div 
           className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-          onPointerDown={(e) => e.stopPropagation()} // 🔥 EVITA QUE ARRASTRE AL DAR CLIC EN BOTONES
+          onPointerDown={(e) => e.stopPropagation()} // ðŸ”¥ EVITA QUE ARRASTRE AL DAR CLIC EN BOTONES
         >
           {onMoveLeft && (
             <button onClick={onMoveLeft}

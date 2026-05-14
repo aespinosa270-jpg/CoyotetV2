@@ -1,15 +1,16 @@
-import { getDealById } from "@/app/actions/deals";
+﻿import { getDealById } from "@/app/actions/deals";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Building2, User, Package,
   Calendar, DollarSign, Tag, Palette,
   Hash, TrendingUp, CheckCircle2, XCircle,
+  LucideIcon
 } from "lucide-react";
 import MoverDealButtons from "@/app/crm/admin/leads/_components/[id]/MoverDealButtons";
 import DeleteDealButton from "@/app/crm/admin/leads/_components/DeleteDealButton";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const fmt = (v: number) =>
   new Intl.NumberFormat("es-MX", {
     style: "currency", currency: "MXN", maximumFractionDigits: 0,
@@ -18,12 +19,12 @@ const fmt = (v: number) =>
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   PROSPECTO:       { label: "Prospecto",    cls: "text-slate-400  border-slate-700  bg-slate-900/40"   },
   COTIZANDO:       { label: "Cotizando",    cls: "text-sky-400    border-sky-800    bg-sky-900/20"     },
-  NEGOCIACION:     { label: "Negociación",  cls: "text-amber-400  border-amber-800  bg-amber-900/20"   },
-  CERRADO_GANADO:  { label: "✓ Ganado",    cls: "text-emerald-400 border-emerald-800 bg-emerald-900/20" },
+  NEGOCIACION:     { label: "NegociaciÃ³n",  cls: "text-amber-400  border-amber-800  bg-amber-900/20"   },
+  CERRADO_GANADO:  { label: "âœ“ Ganado",    cls: "text-emerald-400 border-emerald-800 bg-emerald-900/20" },
   CERRADO_PERDIDO: { label: "Perdido",      cls: "text-red-400    border-red-900    bg-red-950/40"     },
 };
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default async function DealDetailPage({
   params,
 }: {
@@ -39,7 +40,7 @@ export default async function DealDetailPage({
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
 
-      {/* ── Breadcrumb + back ───────────────────────────────────────────── */}
+      {/* â”€â”€ Breadcrumb + back â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex items-center justify-between">
         <Link
           href="/crm/admin/leads"
@@ -50,7 +51,7 @@ export default async function DealDetailPage({
         <span className="text-[10px] text-zinc-700 font-mono">{deal.id}</span>
       </div>
 
-      {/* ── Hero header ─────────────────────────────────────────────────── */}
+      {/* â”€â”€ Hero header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="relative border border-zinc-800 bg-zinc-950 rounded-2xl overflow-hidden">
         {/* Fondo decorativo */}
         <div
@@ -76,7 +77,7 @@ export default async function DealDetailPage({
             <DeleteDealButton dealId={deal.id} />
           </div>
 
-          {/* Título + empresa */}
+          {/* TÃ­tulo + empresa */}
           <h1 className="text-3xl font-[900] text-white tracking-tighter leading-tight mb-1">
             {deal.title}
           </h1>
@@ -116,7 +117,7 @@ export default async function DealDetailPage({
                       isDone    ? "text-zinc-500"  : "text-zinc-700"
                     }`}
                   >
-                    {s === "PROSPECTO" ? "Prospecto" : s === "COTIZANDO" ? "Cotizando" : "Negociación"}
+                    {s === "PROSPECTO" ? "Prospecto" : s === "COTIZANDO" ? "Cotizando" : "NegociaciÃ³n"}
                   </span>
                   {i < 2 && <div className={`flex-1 h-px mx-2 ${isDone ? "bg-emerald-800" : "bg-zinc-800"}`} />}
                 </div>
@@ -126,13 +127,13 @@ export default async function DealDetailPage({
         )}
       </div>
 
-      {/* ── Acciones de pipeline ────────────────────────────────────────── */}
+      {/* â”€â”€ Acciones de pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex items-center justify-between">
         <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">Mover en Pipeline</p>
         <MoverDealButtons dealId={deal.id} currentStatus={deal.status} />
       </div>
 
-      {/* ── Grid de datos ───────────────────────────────────────────────── */}
+      {/* â”€â”€ Grid de datos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Agente */}
@@ -160,7 +161,7 @@ export default async function DealDetailPage({
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-600 text-xs">Última actualización</span>
+              <span className="text-zinc-600 text-xs">Ãšltima actualizaciÃ³n</span>
               <span className="text-zinc-300 text-xs font-mono">
                 {new Date(deal.updatedAt).toLocaleDateString("es-MX", {
                   day: "2-digit", month: "short", year: "numeric",
@@ -210,7 +211,7 @@ export default async function DealDetailPage({
           </InfoCard>
         )}
 
-        {/* Cliente (si está vinculado) */}
+        {/* Cliente (si estÃ¡ vinculado) */}
         {deal.user && (
           <InfoCard title="Cliente Vinculado" icon={User}>
             <div className="space-y-1.5">
@@ -241,7 +242,7 @@ export default async function DealDetailPage({
       </div>
 
       <p className="text-[10px] text-zinc-700 text-center font-mono">
-        Creado: {new Date(deal.createdAt).toLocaleString("es-MX")} ·{" "}
+        Creado: {new Date(deal.createdAt).toLocaleString("es-MX")} Â·{" "}
         Actualizado: {new Date(deal.updatedAt).toLocaleString("es-MX")}
       </p>
     </div>
@@ -254,7 +255,7 @@ function InfoCard({
   children,
 }: {
   title: string;
-  icon: React.ElementType;
+  icon: LucideIcon;
   children: React.ReactNode;
 }) {
   return (
@@ -269,3 +270,4 @@ function InfoCard({
     </div>
   );
 }
+

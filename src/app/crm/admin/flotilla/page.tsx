@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useTransition } from "react";
 import {
@@ -6,12 +6,13 @@ import {
   Package, BarChart3, Plus, Calendar,
   ArrowRight, Store, RefreshCw, Gauge,
   AlertTriangle, Image as ImageIcon,
+  LucideIcon
 } from "lucide-react";
 import ModalNuevaOrdenRuta from "@/components/admin/ModalNuevaOrdenRuta";
 import RadarSonoro from "@/components/admin/RadarSonoro";
 import { motion } from "framer-motion";
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Tipos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface Orden {
   id: string; customerName: string; address: string | null;
   status: string; pickupLocation: string;
@@ -32,10 +33,10 @@ interface RouteOrder {
 interface Stats { entregadosEsteMes: number; enRuta: number; mesActual: string; }
 
 const TIPO_CONFIG: Record<string, { label: string; cls: string; icon: React.ElementType }> = {
-  RECOLECCION:       { label: "Recolección",       cls: "bg-blue-500/10 text-blue-400 border-blue-800",    icon: Package },
+  RECOLECCION:       { label: "RecolecciÃ³n",       cls: "bg-blue-500/10 text-blue-400 border-blue-800",    icon: Package },
   RESTOCK_INTERNO:   { label: "Restock Interno",   cls: "bg-purple-500/10 text-purple-400 border-purple-800", icon: Store },
   RESTOCK_PROVEEDOR: { label: "Restock Proveedor", cls: "bg-orange-500/10 text-orange-400 border-orange-800", icon: Truck },
-  ENTREGA_PAQUETERIA:{ label: "Paquetería",        cls: "bg-sky-500/10 text-sky-400 border-sky-800",       icon: Package },
+  ENTREGA_PAQUETERIA:{ label: "PaqueterÃ­a",        cls: "bg-sky-500/10 text-sky-400 border-sky-800",       icon: Package },
   ENTREGA_DOMICILIO: { label: "Domicilio",         cls: "bg-emerald-500/10 text-emerald-400 border-emerald-800", icon: MapPin },
 };
 
@@ -110,7 +111,7 @@ export default function FlotillaPage() {
         <div>
           <p className="text-[9px] tracking-[0.3em] text-zinc-500 uppercase mb-0.5">Flotilla / Centro de Mando</p>
           <h1 className="text-2xl font-black uppercase tracking-tighter text-white italic">
-            GESTIÓN DE <span className="text-[#FDCB02]">FLOTILLA</span>
+            GESTIÃ“N DE <span className="text-[#FDCB02]">FLOTILLA</span>
           </h1>
         </div>
         <div className="flex items-center gap-3">
@@ -132,7 +133,7 @@ export default function FlotillaPage() {
       {/* Radar sonoro */}
       <RadarSonoro hayAlertas={hayAlertas} />
 
-      {/* Alertas de telemetría */}
+      {/* Alertas de telemetrÃ­a */}
       {hayAlertas && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -141,7 +142,7 @@ export default function FlotillaPage() {
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600" />
             </span>
             <p className="text-[10px] font-black uppercase tracking-widest text-red-400">
-              Radar Activo — {telemetria.length} Alerta{telemetria.length > 1 ? "s" : ""}
+              Radar Activo â€” {telemetria.length} Alerta{telemetria.length > 1 ? "s" : ""}
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -152,8 +153,8 @@ export default function FlotillaPage() {
                     <Gauge size={18} className="text-red-400" />
                   </div>
                   <div>
-                    <p className="text-red-400 font-black text-[9px] uppercase tracking-widest mb-0.5">Conducción Riesgosa</p>
-                    <p className="text-sm text-red-300 font-bold">{t.employee.name} — {t.speed} km/h</p>
+                    <p className="text-red-400 font-black text-[9px] uppercase tracking-widest mb-0.5">ConducciÃ³n Riesgosa</p>
+                    <p className="text-sm text-red-300 font-bold">{t.employee.name} â€” {t.speed} km/h</p>
                     <p className="text-[10px] text-red-600 font-mono">{new Date(t.timestamp).toLocaleTimeString("es-MX")}</p>
                   </div>
                 </div>
@@ -171,7 +172,7 @@ export default function FlotillaPage() {
         <div className="bg-emerald-950/30 border border-emerald-900/40 rounded-2xl p-4 flex items-center gap-3">
           <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
           <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">
-            Radar tranquilo — Toda la flotilla opera dentro de parámetros normales
+            Radar tranquilo â€” Toda la flotilla opera dentro de parÃ¡metros normales
           </p>
         </div>
       )}
@@ -179,9 +180,9 @@ export default function FlotillaPage() {
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: "Éxito Mensual",     value: `${stats?.entregadosEsteMes ?? "—"} Entregas`, icon: BarChart3, color: "text-[#FDCB02]"  },
-          { label: "En Movimiento",     value: `${stats?.enRuta ?? "—"} Pedidos`,             icon: Clock,     color: "text-blue-400"   },
-          { label: "Rutas Activas",     value: `${activas.length} Órdenes`,                   icon: Calendar,  color: "text-amber-400"  },
+          { label: "Ã‰xito Mensual",     value: `${stats?.entregadosEsteMes ?? "â€”"} Entregas`, icon: BarChart3, color: "text-[#FDCB02]"  },
+          { label: "En Movimiento",     value: `${stats?.enRuta ?? "â€”"} Pedidos`,             icon: Clock,     color: "text-blue-400"   },
+          { label: "Rutas Activas",     value: `${activas.length} Ã“rdenes`,                   icon: Calendar,  color: "text-amber-400"  },
         ].map((k) => (
           <div key={k.label} className="bg-[#0a0a0a] border border-white/[0.03] p-5 rounded-2xl flex items-center gap-4">
             <div className="w-11 h-11 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-center shrink-0">
@@ -195,11 +196,11 @@ export default function FlotillaPage() {
         ))}
       </div>
 
-      {/* Órdenes de Ruta */}
+      {/* Ã“rdenes de Ruta */}
       <div className="bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden">
         <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-            Órdenes de Ruta
+            Ã“rdenes de Ruta
           </p>
           <span className="text-[10px] font-black text-zinc-600 uppercase">
             {activas.length} activa{activas.length !== 1 ? "s" : ""}
@@ -208,18 +209,18 @@ export default function FlotillaPage() {
 
         {routeOrders.length === 0 ? (
           <div className="p-12 text-center">
-            <p className="text-zinc-700 font-bold text-xs uppercase tracking-widest">Sin órdenes de ruta</p>
-            <p className="text-zinc-800 text-[10px] mt-1">Crea una con el botón amarillo ↑</p>
+            <p className="text-zinc-700 font-bold text-xs uppercase tracking-widest">Sin Ã³rdenes de ruta</p>
+            <p className="text-zinc-800 text-[10px] mt-1">Crea una con el botÃ³n amarillo â†‘</p>
           </div>
         ) : (
           <div className="divide-y divide-white/[0.03]">
             {routeOrders
               .filter((r) => r.status !== "CANCELADA")
               .map((r, idx) => {
-                const cfg  = TIPO_CONFIG[r.type]   ?? TIPO_CONFIG.RECOLECCION;
-                const sCfg = STATUS_CONFIG[r.status] ?? STATUS_CONFIG.PENDIENTE;
+                const cfg  = TIPO_CONFIG[r.type as keyof typeof TIPO_CONFIG] ?? TIPO_CONFIG.RECOLECCION;
+                const sCfg = STATUS_CONFIG[r.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.PENDIENTE;
                 const Icon = cfg.icon;
-                const acciones = NEXT_STATUS[r.status] ?? [];
+                const acciones = NEXT_STATUS[r.status as keyof typeof NEXT_STATUS] ?? [];
                 return (
                   <motion.div
                     key={r.id}
@@ -227,7 +228,7 @@ export default function FlotillaPage() {
                     transition={{ delay: idx * 0.04 }}
                     className="p-5 flex items-start gap-4 hover:bg-white/[0.01] transition-colors"
                   >
-                    {/* Ícono */}
+                    {/* Ãcono */}
                     <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${cfg.cls}`}>
                       <Icon size={15} />
                     </div>
@@ -250,7 +251,7 @@ export default function FlotillaPage() {
                           {r.destLocation  === "PLOMO_203" ? "Plomo 203" : "Guatemala 97"}
                         </p>
                       ) : (
-                        <p className="text-[10px] font-bold text-zinc-500 truncate mt-0.5">📍 {r.address}</p>
+                        <p className="text-[10px] font-bold text-zinc-500 truncate mt-0.5">ðŸ“ {r.address}</p>
                       )}
                       <div className="flex items-center gap-4 mt-1.5 flex-wrap">
                         <span className="text-[9px] font-mono text-zinc-600 flex items-center gap-1">
@@ -298,7 +299,7 @@ export default function FlotillaPage() {
       <div className="bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden">
         <div className="px-6 py-4 border-b border-white/5">
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-            Logística de Entregas Recientes
+            LogÃ­stica de Entregas Recientes
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -387,3 +388,9 @@ export default function FlotillaPage() {
     </div>
   );
 }
+
+
+
+
+
+
