@@ -17,7 +17,7 @@ export default auth((req) => {
 
   // =========================================================
   // 1. STOREFRONT
-  // =========================================================
+  // =====================================================
   const isStorefrontProtected =
     pathname.startsWith("/perfil") ||
     pathname.startsWith("/pedidos");
