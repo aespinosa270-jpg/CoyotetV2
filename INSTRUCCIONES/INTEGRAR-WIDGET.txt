@@ -1,0 +1,129 @@
+═══════════════════════════════════════════════════════════════════════════
+INSTRUCCIONES — Integración del Widget CoyoteWidget en el sitio público
+═══════════════════════════════════════════════════════════════════════════
+
+El ZIP trae:
+  - El transport web (inbound/outbound) → backend ya conectado al orchestrator
+  - El endpoint /api/chat/v2 → ya disponible después del build
+  - El componente <CoyoteWidget /> → falta ponerlo en alguna página
+
+
+PASO 1 — Decidir dónde mostrar el widget
+───────────────────────────────────────────────────────────────────────────
+
+Opción A — VISIBLE EN TODO EL SITIO PÚBLICO
+  Agrégalo al layout raíz del sitio público.
+
+  Archivo:  src/app/layout.tsx  (o equivalente, NO el /crm/admin/)
+
+  Edita el archivo y agrega:
+
+    import { CoyoteWidget } from "@/components/CoyoteWidget";
+
+    export default function RootLayout({ children }) {
+      return (
+        <html lang="es">
+          <body>
+            {children}
+            <CoyoteWidget />     {/* ← agregar esto antes de </body> */}
+          </body>
+        </html>
+      );
+    }
+
+
+Opción B — SOLO EN PÁGINAS ESPECÍFICAS
+  Agrégalo al layout/page de la sección deseada, por ejemplo:
+
+  src/app/catalogo/layout.tsx
+  src/app/checkout/layout.tsx
+
+  Con el mismo patrón de import + componente.
+
+
+Opción C — EXCLUIR ZONAS DEL ADMIN/CRM
+  Si pusiste el widget en el layout raíz pero NO lo quieres en /crm/* ni
+  /admin/*, agrégale una verificación condicional con usePathname():
+
+    "use client";
+    import { usePathname } from "next/navigation";
+    import { CoyoteWidget } from "@/components/CoyoteWidget";
+
+    export function ConditionalCoyoteWidget() {
+      const path = usePathname();
+      if (path.startsWith("/crm") || path.startsWith("/admin")) return null;
+      return <CoyoteWidget />;
+    }
+
+  Y en el layout usas <ConditionalCoyoteWidget /> en lugar del componente directo.
+
+  Recomendado: opción C si tienes admin/CRM, para que el widget no aparezca
+  en las pantallas internas.
+
+
+PASO 2 — Probar
+───────────────────────────────────────────────────────────────────────────
+
+  npm run dev
+
+  Abre cualquier página del sitio público (ej. http://localhost:3000/).
+  Deberías ver:
+    🐺  ← un botón flotante amarillo en bottom-right
+
+  Click → se abre la ventana de chat.
+  Escribe "hola" → debe responder El Coyote.
+
+
+PASO 3 — Verificar logs
+───────────────────────────────────────────────────────────────────────────
+
+  En la terminal del dev server, cada vez que mandas un mensaje deberías ver:
+
+    INFO Mensaje web procesado
+        sessionId: "abc-123-..."
+        latencyMs: 1234
+        outgoingCount: 1
+
+
+PASO 4 — (Opcional) Personalizar posición del widget
+───────────────────────────────────────────────────────────────────────────
+
+  <CoyoteWidget position="bottom-left" />
+
+  Por default es bottom-right. También puedes pasar endpoint custom si
+  quieres apuntar a una versión de staging:
+
+  <CoyoteWidget endpoint="/api/chat/v2-staging" />
+
+
+═══════════════════════════════════════════════════════════════════════════
+CONSIDERACIONES IMPORTANTES
+═══════════════════════════════════════════════════════════════════════════
+
+1. EL WIDGET USA EL MISMO BOT QUE WhatsApp
+   El cliente web pasa por exactamente el mismo orchestrator, RAG, memoria,
+   objeciones, etc. La única diferencia es su identidad: en lugar de un
+   número de teléfono, es `web:{uuid-de-localStorage}`.
+
+2. RATE LIMITING
+   El endpoint /api/chat/v2 tiene rate limit de 10 mensajes por minuto por
+   sessionId. Si alguien spamea, recibe error 429. Cada sessionId es
+   independiente.
+
+3. PERSISTENCIA DE CONVERSACIÓN
+   La conversación se guarda en Redis con la key `v2:cliente:web:{uuid}`
+   y `v2:historial:web:{uuid}`. Si el usuario cierra el browser y vuelve
+   al día siguiente, su conversación sigue activa porque el sessionId
+   está en localStorage.
+
+4. EL CLIENTE NO TIENE TELÉFONO
+   Cuando un visitante chatee y luego diga "quiero comprar", el bot
+   debería pedirle teléfono y email. Eso lo maneja el flujo de checkout
+   normal de Stripe — el bot ya pide datos cuando es momento de cobrar.
+   La conversación con `web:{uuid}` puede convertirse manualmente desde
+   el dashboard admin si quieres vincularla a un cliente con teléfono.
+
+5. AGREGAR EL WIDGET AL ADMIN/CRM ES UNA MALA IDEA
+   No lo pongas en /crm/* ni en /admin/*. Esos paneles son para Jack y
+   sus agentes, no para chatear con un bot. Usa la opción C de arriba
+   para excluirlo.

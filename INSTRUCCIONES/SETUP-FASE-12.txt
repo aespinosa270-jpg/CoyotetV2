@@ -1,0 +1,272 @@
+═══════════════════════════════════════════════════════════════════════════
+FASE 12 — PRODUCCIÓN AGRESIVA + CRM INTEGRADO
+═══════════════════════════════════════════════════════════════════════════
+
+🔥 LO QUE CIERRA ESTA FASE:
+
+✅ v1 muerto, v2 al 100% por default
+✅ Kill switch para apagar v2 en <10s sin redeploy
+✅ Auto-creación de órdenes en el CRM cuando bot cobra
+✅ Sección "Órdenes del Bot" con flujo de despacho completo
+✅ Vision V2 que identifica telas NO manejadas
+✅ Tool para registrar telas que clientes piden y no tenemos
+✅ Tool para programar volumen de telas para temporada
+✅ Sección "Telas solicitadas" para inteligencia de catálogo
+✅ Sección "Programaciones" para planeación de producción
+✅ Sección "Contactos" para outbound manual
+✅ Integración Stripe webhook → marca Order como PAID automáticamente
+
+
+═══════════════════════════════════════════════════════════════════════════
+PASOS DE INSTALACIÓN (en orden)
+═══════════════════════════════════════════════════════════════════════════
+
+PASO 1 — Agregar campos al schema.prisma
+─────────────────────────────────────────────────────────────────────────
+
+  Abre prisma/PATCH-SCHEMA.txt (incluido en este ZIP).
+  Sigue las instrucciones de ese archivo: agregar campos a Order +
+  pegar los 3 modelos nuevos al final del schema.
+
+  Luego corre:
+    npx prisma db push --accept-data-loss
+    (o `npx prisma migrate dev --name fase12_bot_ordenes`)
+
+
+PASO 2 — Aplicar el código del ZIP
+─────────────────────────────────────────────────────────────────────────
+
+  cd C:\Users\jackc_bte2q4a\Downloads\coyote-web\storefront
+  Expand-Archive -Path "$env:USERPROFILE\Downloads\coyote-bot-fase12.zip" `
+                 -DestinationPath . -Force
+
+
+PASO 3 — Integrar el hook de Stripe en tu webhook existente
+─────────────────────────────────────────────────────────────────────────
+
+  Abre tu webhook de Stripe (probablemente src/app/api/webhook/route.ts).
+  En el handler de `checkout.session.completed` agrega:
+
+    import { onStripePaymentSuccess } from "@/lib/bot/services/crm/stripe-hooks";
+
+    // Al final del handler de checkout.session.completed:
+    await onStripePaymentSuccess(session.id);
+
+  Si tu webhook es diferente, busca dónde manejas el evento de pago
+  exitoso y agrega la llamada ahí.
+
+
+PASO 4 — Variables de entorno
+─────────────────────────────────────────────────────────────────────────
+
+  Asegúrate que estas envs estén en Vercel:
+
+    BOT_V2_ENABLED=true        (ya no necesario, pero no estorba)
+    BOT_V2_PERCENTAGE=100      (ya no necesario, pero no estorba)
+
+  Realmente Fase 12 no necesita ninguna env nueva. El kill switch
+  vive en Redis.
+
+
+PASO 5 — Tests + Build
+─────────────────────────────────────────────────────────────────────────
+
+  npm run test:bot
+  npm run build
+
+  Esperado: ~610 tests verde, build verde con ~145 rutas.
+
+
+PASO 6 — Deploy a Vercel
+─────────────────────────────────────────────────────────────────────────
+
+  git add .
+  git commit -m "Fase 12: producción agresiva + CRM"
+  git push
+
+  Vercel auto-deploya.
+
+
+═══════════════════════════════════════════════════════════════════════════
+NUEVAS RUTAS API
+═══════════════════════════════════════════════════════════════════════════
+
+  GET  /api/admin/bot/kill-switch                    → estado actual
+  POST /api/admin/bot/kill-switch                    → {action:"kill"|"revive"}
+
+  POST /api/admin/bot/contactos                      → crear contacto
+  GET  /api/admin/bot/contactos                      → listar
+  POST /api/admin/bot/contactos/[id]/send            → enviar plantilla
+  DELETE /api/admin/bot/contactos/[id]               → eliminar
+
+  PATCH /api/admin/bot/ordenes/[orderId]             → cambiar status orden
+
+
+═══════════════════════════════════════════════════════════════════════════
+NUEVAS PÁGINAS CRM
+═══════════════════════════════════════════════════════════════════════════
+
+  /crm/admin/bot/ordenes              → todas las órdenes del bot
+  /crm/admin/bot/contactos            → outbound manual
+  /crm/admin/bot/telas-solicitadas    → telas que clientes piden
+  /crm/admin/bot/programaciones       → programaciones de volumen
+
+
+═══════════════════════════════════════════════════════════════════════════
+FLUJO COMPLETO DE UNA ORDEN
+═══════════════════════════════════════════════════════════════════════════
+
+  1. Cliente: "Quiero 50kg de felpa polar a Pachuca"
+  2. Bot: detecta intención + calcula envío + genera Stripe
+  3. Bot llama generar_cobro_stripe con productos[] = [{titulo, cantidad, precio}]
+  4. Tool handler:
+       a) Genera Stripe session (lógica original)
+       b) FASE 12: crea Order(status=PENDING, source=bot_v2) automáticamente
+       c) Devuelve link al bot
+  5. Bot envía link al cliente
+  6. Cliente paga
+  7. Stripe webhook → onStripePaymentSuccess → Order(status=PAID)
+  8. Aparece en /crm/admin/bot/ordenes (tab "Pagadas")
+  9. Logística click "📦 Preparar" → status=PROCESSING
+  10. Logística click "🚚 Marcar enviada" → status=SHIPPED
+  11. Logística click "✅ Marcar entregada" → status=DELIVERED
+
+
+═══════════════════════════════════════════════════════════════════════════
+FLUJO DE TELA NO MANEJADA
+═══════════════════════════════════════════════════════════════════════════
+
+  1. Cliente manda foto de popelina
+  2. Vision V2 analiza → esManejada=false, telaIdentificada="popelina"
+  3. Bot enriquece el system prompt con la info
+  4. Bot responde algo como:
+     "Identifiqué que es popelina (algodón liviano). Esa tela no la
+     manejamos por ahora, pero registré su interés. ¿Cuántos metros
+     necesitaría aproximadamente?"
+  5. Bot llama registrar_tela_no_manejada con cantidad/uso
+  6. Aparece en /crm/admin/bot/telas-solicitadas
+  7. El equipo evalúa: "5 clientes pidieron popelina, vamos a agregarla"
+
+
+═══════════════════════════════════════════════════════════════════════════
+FLUJO DE PROGRAMACIÓN DE VOLUMEN
+═══════════════════════════════════════════════════════════════════════════
+
+  1. Cliente: "Para temporada escolar necesito 200kg de sportok mensual"
+  2. Bot detecta señal "temporada escolar" + "mensual"
+  3. Bot llama programar_volumen_temporada:
+       tela_titulo: "Sportok"
+       kg_por_periodo: 200
+       periodo: "mensual"
+       fecha_inicio: "2026-08-01"
+       duracion_meses: 4
+  4. Aparece en /crm/admin/bot/programaciones (estado: propuesta)
+  5. Logística confirma disponibilidad y cambia a "confirmada"
+  6. Cliente queda con compromiso de compra
+
+
+═══════════════════════════════════════════════════════════════════════════
+KILL SWITCH — EMERGENCY STOP
+═══════════════════════════════════════════════════════════════════════════
+
+¿El bot está respondiendo cosas raras? ¿Hay un bug crítico?
+APÁGALO en 10 segundos:
+
+OPCIÓN 1 — Desde el dashboard:
+  /crm/admin/bot/config → botón rojo "Apagar v2"
+
+OPCIÓN 2 — Desde curl:
+  curl -X POST `
+    -H "Cookie: tu-cookie-admin" `
+    -H "Content-Type: application/json" `
+    -d '{"action":"kill"}' `
+    https://TU_DOMINIO.com/api/admin/bot/kill-switch
+
+OPCIÓN 3 — Directo en Redis:
+  En Upstash console: SET v2:kill_switch 1
+
+  Re-activar: DEL v2:kill_switch
+
+
+═══════════════════════════════════════════════════════════════════════════
+PROYECTO COMPLETO — ESTADO FINAL
+═══════════════════════════════════════════════════════════════════════════
+
+✅ Fase 0-4:    Cimientos + WhatsApp (DESPLEGADO desde el principio)
+✅ Fase 5:      Objeciones + memoria + resumen semántico
+✅ Fase 6:      RAG con pgvector
+✅ Fase 7:      Vision para fotos
+✅ Fase 8:      Dashboard admin completo
+✅ Fase 9A:     Web chat widget
+✅ Fase 9B:     Telegram (código listo)
+✅ Fase 9C:     Instagram (código listo)
+✅ Fase 10:     Cron + observabilidad + métricas
+✅ Fase 11A:    Membresías proactivas
+✅ Fase 11B:    Consentimiento + audios Whisper
+✅ Fase 11C:    Recordatorios reales con plantilla bienvenida
+✅ Fase 12:     Producción agresiva + CRM integrado ← AHORA
+
+
+═══════════════════════════════════════════════════════════════════════════
+SI ALGO SE ROMPE EN PRODUCCIÓN — CHECKLIST
+═══════════════════════════════════════════════════════════════════════════
+
+🔴 Si el bot da respuestas mal:
+  → ACTIVAR KILL SWITCH inmediatamente
+  → Investigar logs en Vercel
+  → Revisar /crm/admin/bot/conversaciones para ver qué respondió mal
+  → Si es problema de prompt: ajustar /crm/admin/bot/config (sin redeploy)
+  → Si es problema de código: fix + deploy
+  → Re-activar v2
+
+🔴 Si Stripe webhook falla:
+  → Las órdenes quedan en PENDING aunque el cliente pagó
+  → Logística puede cambiar manualmente a PAID desde el dashboard
+  → Investigar logs del webhook en Vercel
+
+🔴 Si vision V2 está rechazando muchas telas conocidas:
+  → Revisar el prompt en src/lib/bot/intelligence/vision/prompts.ts
+  → La lista de "TELAS QUE COYOTE MANEJA" debe actualizarse
+  → También editar /crm/admin/bot/catalogo si es ajuste de catálogo
+
+🔴 Si las órdenes no se crean automáticamente:
+  → Verificar que `prisma db push` corrió OK (campo `source` debe existir)
+  → Revisar logs del tool executor
+  → Manualmente: revisar /crm/admin/bot/conversaciones para ver si el
+    bot llamó el tool correctamente
+
+
+═══════════════════════════════════════════════════════════════════════════
+ARCHIVOS INCLUIDOS
+═══════════════════════════════════════════════════════════════════════════
+
+prisma/PATCH-SCHEMA.txt                                    ← INSTRUCCIONES SCHEMA
+
+src/lib/bot/config/feature-flags.ts                        ← v2 al 100% + kill
+src/lib/bot/services/crm/order-creator.ts                  ← crea órdenes
+src/lib/bot/services/crm/tela-tracker.ts                   ← telas + programación
+src/lib/bot/services/crm/stripe-hooks.ts                   ← Order PAID auto
+src/lib/bot/tools/definitions.ts                           ← +2 tools nuevos
+src/lib/bot/tools/executor.ts                              ← rutea +2 + auto-order
+src/lib/bot/tools/fase12-handlers.ts                       ← handlers nuevos
+src/lib/bot/intelligence/vision/prompts.ts                 ← Vision V2
+
+src/app/api/admin/bot/kill-switch/route.ts                 ← kill switch API
+src/app/api/admin/bot/ordenes/[orderId]/route.ts           ← cambiar status
+src/app/api/admin/bot/contactos/route.ts                   ← contactos CRUD
+src/app/api/admin/bot/contactos/[id]/send/route.ts         ← disparar plantilla
+src/app/api/admin/bot/contactos/[id]/route.ts              ← eliminar contacto
+
+src/app/crm/admin/bot/layout.tsx                           ← +4 secciones
+src/app/crm/admin/bot/_components/KillSwitchBanner.tsx     ← banner
+src/app/crm/admin/bot/_components/KillSwitchButton.tsx     ← botón config
+
+src/app/crm/admin/bot/ordenes/page.tsx                     ← órdenes
+src/app/crm/admin/bot/ordenes/_components/OrdenesActions.tsx
+src/app/crm/admin/bot/telas-solicitadas/page.tsx
+src/app/crm/admin/bot/programaciones/page.tsx
+src/app/crm/admin/bot/contactos/page.tsx
+src/app/crm/admin/bot/contactos/_components/ContactosForm.tsx
+src/app/crm/admin/bot/contactos/_components/ContactosTable.tsx
+
+src/lib/bot/__tests__/services/kill-switch.test.ts

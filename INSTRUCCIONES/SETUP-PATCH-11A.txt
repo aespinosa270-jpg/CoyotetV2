@@ -1,0 +1,130 @@
+═══════════════════════════════════════════════════════════════════════════
+INSTRUCCIONES — Patch Fase 11A (integración automática)
+═══════════════════════════════════════════════════════════════════════════
+
+Este ZIP SOBREESCRIBE 4 archivos para integrar membresías proactivas.
+NO requiere edición manual.
+
+Archivos que SOBREESCRIBE:
+
+  1. src/lib/bot/tools/definitions.ts
+     → Agrega los tools 'obtener_info_membresias' y 'proponer_membresia'
+       al array existente (los 5 originales se preservan idénticos)
+
+  2. src/lib/bot/tools/executor.ts
+     → Agrega los 2 case del switch (los 5 originales se preservan)
+
+  3. src/lib/bot/intelligence/prompts/builder.ts
+     → V6: inyecta bloque de membresía cuando aplica
+     → Acepta opcional `objecionActual` en BuildPromptOptions
+
+  4. src/lib/bot/core/orchestrator.ts
+     → V7: espera objeción + construye prompt en paralelo
+     → Si hay objeción O 3+ compras, re-construye prompt con contexto
+
+Archivo NUEVO (no estaba antes):
+
+  5. src/lib/bot/tools/membership-handlers.ts
+     → Handlers de los 2 tools nuevos
+
+
+═══════════════════════════════════════════════════════════════════════════
+PASOS
+═══════════════════════════════════════════════════════════════════════════
+
+  cd C:\Users\jackc_bte2q4a\Downloads\coyote-web\storefront
+
+  # Aplicar el patch
+  Expand-Archive -Path "$env:USERPROFILE\Downloads\coyote-bot-fase11a-patch.zip" `
+                 -DestinationPath . -Force
+
+  # Tests
+  npm run test:bot
+
+  # Build
+  npm run build
+
+
+═══════════════════════════════════════════════════════════════════════════
+LO QUE QUEDA INTEGRADO
+═══════════════════════════════════════════════════════════════════════════
+
+✅ Tools definidos: obtener_info_membresias + proponer_membresia
+✅ Executor rutea los 2 tools nuevos
+✅ Builder inyecta bloque de propuesta cuando aplica (B+C)
+✅ Orchestrator espera objeción y la pasa al builder
+✅ Validator anti-invención sigue activo (no toca membresías porque
+   son una URL pública, no telas inventadas)
+✅ Observability registra cada propuesta como evento
+✅ Tracking en perfil de cliente: vecesPropuesta, ultimaPropuesta,
+   ultimoPlanPropuesto, ultimoMotivo
+✅ Cooldowns: rechazo explícito (30d), spam (>=3 props sin respuesta = 14d)
+
+
+═══════════════════════════════════════════════════════════════════════════
+PRUEBAS LOCALES
+═══════════════════════════════════════════════════════════════════════════
+
+  npm run dev
+
+  Y desde otro terminal/widget:
+
+  1. Cliente con totalCompras >= 3:
+     "no, sale muy caro" → bot menciona GOLD con beneficio destacado
+
+  2. Cliente con totalCompras = 0 sin objeción:
+     "qué telas tienen?" → bot responde normal, sin mencionar membresía
+
+  3. Cliente pregunta directo:
+     "¿qué membresías hay?" → bot llama obtener_info_membresias y
+     enlista los 4 planes con precios
+
+  4. Después de la propuesta, el cliente dice "no me interesa":
+     próximas N veces, bot no insiste (rechazoExplicito en perfil)
+
+
+═══════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════
+
+Si tests fallan:
+
+  - Error de import en builder.ts:
+    Asegúrate que existe src/lib/bot/intelligence/prompts/membership-block.ts
+    (vino con el ZIP original de Fase 11A)
+
+  - Error de import en executor.ts:
+    Asegúrate que existe src/lib/bot/tools/membership-handlers.ts
+    (este ZIP lo trae actualizado)
+
+  - Tests del orchestrator timeout:
+    El cambio de paralelización puede afectar mocks. Si pasa, dime y
+    te tiro fix puntual
+
+Si el bot NUNCA propone membresía en producción:
+
+  1. Verifica en /crm/admin/bot/conversaciones que aparezca objeción
+     "precio" detectada
+  2. Verifica que el cliente tenga totalCompras >= 3
+  3. Mira logs buscando "PROPUESTA DE MEMBRESÍA SUGERIDA"
+  4. Si nada de eso aparece, posiblemente el extractObjecion no está
+     identificando la objeción. Verifica con un mensaje claro como
+     "está muy caro, no me alcanza"
+
+
+═══════════════════════════════════════════════════════════════════════════
+SOBRE LA DECISIÓN DE LA SEGUNDA LLAMADA A buildSystemPrompt
+═══════════════════════════════════════════════════════════════════════════
+
+El orchestrator V7 puede llamar a buildSystemPrompt DOS veces:
+  - Primera: sin objeción (parte de Promise.all paralelo)
+  - Segunda: con objeción (si necesitaReconstruir = true)
+
+Esto agrega ~50-100ms en clientes que objetan O tienen 3+ compras.
+A cambio, el bot reacciona en el MISMO turno al "está caro".
+
+Si te molesta a futuro, optimizamos así:
+  - Cache del system prompt por session (5min TTL)
+  - Solo regenerar el final del prompt (no todo)
+
+Por ahora prioricé claridad de código sobre micro-optimización.

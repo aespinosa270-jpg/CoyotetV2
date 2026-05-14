@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+﻿import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   analyzeIncomingImage,
   buildEnrichedMessage,
@@ -150,7 +150,7 @@ describe("vision/analyzer — buildEnrichedMessage", () => {
       ""
     );
     expect(r).toContain("no parece");
-    expect(r).toContain("pregunta");
+    expect(r.toLowerCase()).toContain("pregunta");
   });
 });
 
@@ -283,3 +283,4 @@ describe("vision/analyzer — analyzeIncomingImage", () => {
     );
   });
 });
+

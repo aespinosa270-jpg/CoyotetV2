@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/navbar";
@@ -7,7 +7,7 @@ import CartSidebar from "@/components/layout/cart-sidebar";
 import CookieBanner from "@/components/cookie-banner";
 import { Providers } from "@/components/providers";
 import HideInCRM from "../components/hide-in-crm";
-import CoyoteChat from "@/components/CoyoteChat";
+import { CoyoteWidget } from "@/components/CoyoteWidget";
 
 // Contacto Coyote Textil
 // Llamadas:  55 9602 3567
@@ -39,10 +39,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Footer />
             <CookieBanner />
             <CartSidebar />
-            <CoyoteChat />
+            <CoyoteWidget />
           </HideInCRM>
         </Providers>
       </body>
     </html>
   );
 }
+

@@ -1,0 +1,214 @@
+═══════════════════════════════════════════════════════════════════════════
+INSTRUCCIONES — Configurar cron-job.org para disparar los crons del bot
+═══════════════════════════════════════════════════════════════════════════
+
+Tu app Vercel está en Hobby tier, así que usamos cron-job.org como fuente
+externa de schedules. Es gratis, confiable, y no toca tu vercel.json
+existente (los crons de payroll-check e inventory-alerts siguen iguales).
+
+
+PASO 1 — Crear cuenta en cron-job.org
+───────────────────────────────────────────────────────────────────────────
+
+  1. Ve a https://cron-job.org/en/signup/
+  2. Email + password (gratis, no requiere tarjeta)
+  3. Confirma el email
+
+
+PASO 2 — Asegurar CRON_SECRET en producción
+───────────────────────────────────────────────────────────────────────────
+
+  Si todavía no lo has hecho:
+
+  1. Genera el secret (PowerShell):
+
+      $cronSecret = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Max 256 }))
+      Write-Host $cronSecret
+
+  2. Copia ese valor y agrégalo a Vercel:
+
+      https://vercel.com/dashboard → tu proyecto → Settings →
+      Environment Variables → Add
+
+      Name:  CRON_SECRET
+      Value: <el secret generado>
+      Scope: Production (mínimo)
+
+  3. Redeploy tu app para que la nueva env var se aplique:
+      Deployments → último deploy → ··· → Redeploy
+
+  4. Verifica que el endpoint responde con auth:
+
+      curl -X POST `
+        -H "Authorization: Bearer <tu_secret>" `
+        "https://TU_DOMINIO.com/api/cron/hourly?dryRun=1"
+
+      Debe responder JSON con resumen. Si responde 401 → secret incorrecto.
+
+
+PASO 3 — Crear el job HORARIO en cron-job.org
+───────────────────────────────────────────────────────────────────────────
+
+  En cron-job.org → Cronjobs → Create cronjob
+
+  Configuración:
+
+      Title:    Coyote Bot - Hourly (reminders)
+      URL:      https://TU_DOMINIO.com/api/cron/hourly
+      Schedule: Every 1 hour at minute 0
+                (o avanzado: 0 * * * *)
+
+  En la sección "Advanced":
+
+      Request method:  POST
+      Custom headers:
+        Authorization: Bearer <tu_CRON_SECRET>
+
+      Treat redirects as success:  yes
+      Notification on failure:     yes
+      Notification on disabled:    yes
+
+  Save.
+
+
+PASO 4 — Crear el job DIARIO en cron-job.org
+───────────────────────────────────────────────────────────────────────────
+
+  Create cronjob.
+
+  Configuración:
+
+      Title:    Coyote Bot - Daily (reactivation + cleanup)
+      URL:      https://TU_DOMINIO.com/api/cron/daily
+      Schedule: At 03:00 (Mexico City = UTC-6 sin DST)
+
+                cron-job.org permite elegir zona horaria. Selecciona
+                "America/Mexico_City" y pon hora local: 3:00 AM.
+
+                Alternativa: en UTC directo:  0 9 * * *
+
+  En Advanced:
+
+      Request method:  POST
+      Custom headers:
+        Authorization: Bearer <tu_CRON_SECRET>
+
+  Save.
+
+
+PASO 5 — Probar inmediatamente
+───────────────────────────────────────────────────────────────────────────
+
+  En cron-job.org, en cada job hay un botón "Run now". Dispara los 2.
+
+  Después ve a tu dashboard:
+
+      https://TU_DOMINIO.com/crm/admin/bot/metricas
+
+  Si todo funciona, verás:
+      - "Recordatorios enviados" en el contador
+      - O "Errores" si hubo un problema (con el mensaje exacto)
+
+
+═══════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════
+
+Si cron-job.org marca FAILED:
+
+1. Status 401:
+      → El header Authorization está mal. Verifica que no hay
+        espacios extra. Formato correcto:
+        Authorization: Bearer xxxxx
+        (Bearer con mayúscula, un espacio, el secret sin espacios)
+
+2. Status 404:
+      → La URL está mal o el endpoint no existe en producción.
+        Verifica que el build incluye:
+        ƒ /api/cron/hourly
+        ƒ /api/cron/daily
+
+3. Status 500:
+      → Bug en el job o problema con Redis/Supabase.
+        Revisa logs de Vercel. El error específico estará en:
+        /crm/admin/bot/metricas → "Últimos 20 errores"
+
+4. Timeout (>60s):
+      → Tu cuenta tiene muchos clientes (>10K) y los SCANs son lentos.
+        Avísame y migramos a métricas pre-agregadas en Redis.
+
+
+═══════════════════════════════════════════════════════════════════════════
+LO QUE PUEDES VER EN /crm/admin/bot/metricas
+═══════════════════════════════════════════════════════════════════════════
+
+KPIs principales (últimos 30 días):
+  ✓ Mensajes procesados
+  ✓ Conversiones (links de pago generados)
+  ✓ Tasa de conversión
+  ✓ Errores totales
+  ✓ Hallucinations cachadas por el validator
+
+Gráficos de barras por día (últimos 30):
+  ✓ Mensajes/día
+  ✓ Conversiones/día
+  ✓ Errores/día
+  ✓ Hallucinations/día
+  ✓ Fotos analizadas (Vision)/día
+  ✓ Objeciones detectadas/día
+
+Plus:
+  ✓ Uso del RAG vs catálogo completo (% adopción)
+  ✓ Lista de los últimos 20 errores con su contexto
+
+
+═══════════════════════════════════════════════════════════════════════════
+PROBARLO LOCAL ANTES DE PRODUCCIÓN (OPCIONAL)
+═══════════════════════════════════════════════════════════════════════════
+
+  npm run dev
+
+  # En otra terminal:
+  $SECRET = "test_cron_secret_abc123"  # el de vitest.config / .env local
+
+  Invoke-RestMethod -Uri "http://localhost:3000/api/cron/hourly?dryRun=1" `
+    -Method Post `
+    -Headers @{ Authorization = "Bearer $SECRET" }
+
+  Esperado:
+      ok      : True
+      tookMs  : 50
+      results : @{reminders=@{candidatos=0; enviados=0; ...}}
+      errors  : @{}
+
+  Si funciona local, también en producción.
+
+
+═══════════════════════════════════════════════════════════════════════════
+SCHEDULES SUGERIDOS (cron expressions)
+═══════════════════════════════════════════════════════════════════════════
+
+  Job: /api/cron/hourly
+    Frecuencia: cada hora
+    Cron:       0 * * * *
+    UTC:        sí
+    Justificación: los recordatorios necesitan baja latencia
+
+  Job: /api/cron/daily
+    Frecuencia: 1 vez al día
+    Cron:       0 9 * * *   (UTC = 3am CDMX, baja actividad)
+    Justificación: tareas pesadas de barrido de toda la base
+
+
+═══════════════════════════════════════════════════════════════════════════
+COSTOS ESPERADOS (mensuales)
+═══════════════════════════════════════════════════════════════════════════
+
+cron-job.org:              GRATIS (hasta 50 jobs)
+Vercel function invocations: ~24 (hourly) + ~1 (daily) = ~750 ejecuciones/mes
+                             Dentro del free tier de Vercel (1M invocations)
+
+Upstash Redis ops por el rollup: ~30K ops/mes
+                                 Dentro del free tier de Upstash (10K/día)
+
+TOTAL: $0/mes

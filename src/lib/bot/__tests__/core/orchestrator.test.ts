@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+﻿import { describe, it, expect, vi, beforeEach } from "vitest";
 import { processMessage } from "../../core/orchestrator";
 import * as chatService from "../../services/openai/chat";
 import * as clientRepo from "../../repositories/client-repo";
@@ -30,6 +30,7 @@ vi.mock("../../intelligence/objections/extractor");
 vi.mock("../../intelligence/memory/extractor");
 vi.mock("../../intelligence/summary/regenerator");
 vi.mock("../../repositories/memory-repo");
+vi.mock("../../observability/events");
 
 function makeIncomingMessage(
   text: string,
@@ -246,3 +247,4 @@ describe("core: orchestrator (Fase 5 integrada)", () => {
     expect(objExtractor.extractObjecion).toHaveBeenCalled();
   });
 });
+

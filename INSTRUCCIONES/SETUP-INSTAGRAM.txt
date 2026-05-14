@@ -1,0 +1,209 @@
+═══════════════════════════════════════════════════════════════════════════
+INSTRUCCIONES — Setup completo de Instagram Direct Messages
+═══════════════════════════════════════════════════════════════════════════
+
+NOTA REALISTA:
+Instagram requiere mucho más setup que Telegram. Los pasos abajo toman
+~30 min si ya tienes cuenta business y Facebook Page. Si no, agrégale 1-2 horas
+de paciencia con Meta Business.
+
+El código que entrego está LISTO PARA ACTIVAR. Cuando completes los pasos,
+solo tienes que agregar 3 env vars y el bot empieza a responder en IG.
+
+
+PASO 1 — Prerrequisitos
+───────────────────────────────────────────────────────────────────────────
+
+Necesitas:
+
+  1. Cuenta Instagram BUSINESS (no personal)
+     - Si tu cuenta es personal, conviértela: Configuración → Cuenta → Cambiar a profesional → Empresa
+
+  2. Facebook PAGE vinculada a esa cuenta Instagram
+     - Ir a la Facebook Page → Configuración → Linked Accounts → Instagram
+
+  3. Cuenta Meta Business Manager
+     - https://business.facebook.com
+     - Si no tienes una, créala (gratis)
+
+  4. App de Meta for Developers
+     - https://developers.facebook.com/apps
+     - Crear nueva app → tipo "Business"
+
+
+PASO 2 — Configurar la App de Meta
+───────────────────────────────────────────────────────────────────────────
+
+  1. En tu app de developers:
+        - Agregar producto "Instagram"
+        - Agregar producto "Webhooks"
+
+  2. En Instagram → Configurar:
+        - Vincular tu cuenta de Instagram Business
+        - Generar el PAGE ACCESS TOKEN
+        - Copiarlo (lo vas a meter como INSTAGRAM_PAGE_ACCESS_TOKEN)
+
+  3. En Configuración → Básica:
+        - Copiar el "App Secret"
+        - Es lo que vamos a usar como INSTAGRAM_APP_SECRET
+
+
+PASO 3 — Decidir un verify_token propio
+───────────────────────────────────────────────────────────────────────────
+
+  Inventa un string aleatorio (mínimo 8 chars), por ejemplo:
+
+      coyote_textil_ig_verify_2026_xyz
+
+  Lo vas a usar 2 veces:
+  - En el dashboard de Meta cuando configures el webhook
+  - En tu env como INSTAGRAM_VERIFY_TOKEN
+
+  Ambos DEBEN COINCIDIR exactamente.
+
+
+PASO 4 — Agregar env vars al schema
+───────────────────────────────────────────────────────────────────────────
+
+  Verifica si ya existen:
+
+      Get-Content src\lib\bot\config\env.ts | Select-String "INSTAGRAM"
+
+  Si NO aparece nada, agrégalas como opcionales en el schema (igual que
+  hicimos con TELEGRAM_WEBHOOK_SECRET). Editar src/lib/bot/config/env.ts y
+  agregar dentro del z.object({...}):
+
+        INSTAGRAM_PAGE_ACCESS_TOKEN: z.string().optional(),
+        INSTAGRAM_APP_SECRET: z.string().optional(),
+        INSTAGRAM_VERIFY_TOKEN: z.string().optional(),
+
+  Y en tu .env (y en producción Vercel/Railway):
+
+        INSTAGRAM_PAGE_ACCESS_TOKEN=EAAxxx...el_token_largo
+        INSTAGRAM_APP_SECRET=abc123...el_app_secret
+        INSTAGRAM_VERIFY_TOKEN=coyote_textil_ig_verify_2026_xyz
+
+  ATENCIÓN: También agrégalos al vitest.config.ts (env: {...}) para que
+  los tests sigan pasando. Te recomendamos:
+
+        INSTAGRAM_PAGE_ACCESS_TOKEN: "test_ig_page_token",
+        INSTAGRAM_APP_SECRET: "test_app_secret",
+        INSTAGRAM_VERIFY_TOKEN: "test_ig_verify_token",
+
+
+PASO 5 — Deploy
+───────────────────────────────────────────────────────────────────────────
+
+  Asegúrate que el deploy tenga las 3 env vars.
+
+  Verifica que el endpoint existe abriendo en browser:
+        https://TU_DOMINIO.com/api/webhooks/instagram?hub.mode=test
+
+  Debe responder 403 con texto "hub.mode inválido: test". Eso confirma que
+  el endpoint está vivo (es la respuesta esperada cuando no es un challenge real).
+
+
+PASO 6 — Configurar el webhook en Meta
+───────────────────────────────────────────────────────────────────────────
+
+  En tu app de developers, ir a Webhooks → Instagram → Subscribe to events.
+
+  Te pide 2 cosas:
+
+  1. Callback URL:
+        https://TU_DOMINIO.com/api/webhooks/instagram
+
+  2. Verify Token:
+        coyote_textil_ig_verify_2026_xyz  (el mismo del PASO 3)
+
+  Click "Verify and Save". Meta hace GET a tu URL con el challenge. Si
+  todo está bien, debe decir "Verified ✓".
+
+  Luego, suscríbete a los eventos:
+        ✅ messages
+        ✅ messaging_postbacks (opcional, para botones)
+
+
+PASO 7 — Probar
+───────────────────────────────────────────────────────────────────────────
+
+  Desde una cuenta DIFERENTE (no la business), abre Instagram → Mensajes
+  Direct → Buscar tu cuenta business → Mandar mensaje.
+
+  Esperado:
+      - El Coyote responde en pocos segundos
+      - En /crm/admin/bot/conversaciones aparece tu chat con clientId
+        "ig:17841_USER_xxx"
+      - En logs ves "Mensaje Instagram procesado"
+
+  Si NO responde:
+      - Verifica logs en tu hosting
+      - Errores comunes:
+          - signature inválida → INSTAGRAM_APP_SECRET incorrecto
+          - 401 en POST → revisa headers x-hub-signature-256
+          - send falla → INSTAGRAM_PAGE_ACCESS_TOKEN incorrecto o expirado
+
+
+═══════════════════════════════════════════════════════════════════════════
+LIMITACIONES OFICIALES DE META
+═══════════════════════════════════════════════════════════════════════════
+
+1. VENTANA DE 24 HORAS
+   Después de que un usuario te manda un mensaje, tienes 24h para
+   responderle libremente. Pasadas 24h sin actividad, NO puedes mandarle
+   nada salvo plantillas pre-aprobadas (similar a WhatsApp).
+
+   Para B2B textil, normalmente no es problema: respondes en minutos.
+
+2. APP MODE: development vs live
+   Tu app empieza en modo "development" — solo testers que agregues
+   manualmente pueden interactuar. Para que cualquier persona en
+   Instagram pueda mandar mensajes a tu bot, necesitas:
+        - Pasar el "App Review" de Meta (~1-2 semanas)
+        - Solicitar el permiso "instagram_manage_messages"
+
+   Esto puede ser tedioso. Si tu volumen es B2B y bajo, vale la pena.
+   Si solo es prueba interna, puedes quedarte en development con tu equipo
+   como testers.
+
+3. RATE LIMITS
+   ~250 mensajes/día por usuario en API. Para B2B textil es más que
+   suficiente. Si lo excedes, Meta tira 429.
+
+4. NO SOPORTAMOS AÚN
+   - Stickers, GIFs animados, audio mensajes
+   - Compartir productos del IG Shop (lo dejaremos pendiente)
+   - Reacciones a mensajes
+   - Stories del cliente (story replies — preparados para futuro)
+
+
+═══════════════════════════════════════════════════════════════════════════
+QUÉ FUNCIONA YA EN EL CÓDIGO (mismo que WhatsApp)
+═══════════════════════════════════════════════════════════════════════════
+
+✅ Texto entrante y saliente
+✅ Fotos del cliente (con análisis de Vision - Fase 7)
+✅ Memoria episódica entre sesiones (Fase 5)
+✅ RAG del catálogo (Fase 6)
+✅ Objeciones detectadas (Fase 5)
+✅ Visible en /crm/admin/bot/conversaciones (Fase 8)
+✅ Tools de cobro (mismo executor)
+✅ Quick replies (botones nativos de IG)
+✅ Validator anti-hallucination (Fase 4)
+
+
+═══════════════════════════════════════════════════════════════════════════
+SI POR AHORA NO ACTIVAS INSTAGRAM
+═══════════════════════════════════════════════════════════════════════════
+
+El código está aquí y testeado. NO requiere las env vars para que el resto
+de la app funcione — al estar declaradas como optional() en el schema, el
+endpoint existe pero retorna errores de "no configurado" si llega un webhook
+(que no llegará porque nadie está suscrito todavía).
+
+Cuando un día decidas activar Instagram, solo:
+  1. Agregar las 3 env vars al deploy
+  2. Configurar el webhook en Meta
+  3. (Si quieres para tráfico real) pasar el App Review
+
+Cero cambios de código.

@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+﻿import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import AdminLayoutClient from "./_components/AdminLayoutClient";
 import { redirect } from "next/navigation";
@@ -12,7 +12,7 @@ export default async function AdminLayout({
   // En NextAuth v5, auth() reemplaza a getServerSession()
   const session = await auth();
   
-  if (!session?.user?.email) redirect("/login");
+  if (!session?.user?.email) redirect("/crm/login");
 
   if (!ADMIN_EMAILS.includes(session.user.email)) {
     redirect("/crm/agente");
@@ -23,7 +23,7 @@ export default async function AdminLayout({
     select: { id: true, name: true, email: true, role: true },
   });
 
-  if (!employee) redirect("/login");
+  if (!employee) redirect("/crm/login");
 
   const ticketsUrgentes = await prisma.ticket.count({
     where: { priority: "URGENTE", status: "ABIERTO" },

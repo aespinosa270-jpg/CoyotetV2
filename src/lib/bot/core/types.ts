@@ -1,7 +1,6 @@
-﻿import type { ClientePerfil } from "../types/domain";
+import type { ClientePerfil } from "../types/domain";
 import type { IncomingMessage, OutgoingMessage } from "../types/messages";
 import type { Redis } from "@upstash/redis";
-
 export interface BotContext {
   message: IncomingMessage;
   redis: Redis;
@@ -14,7 +13,6 @@ export interface BotContext {
     extractedData?: Record<string, any>;
   };
 }
-
 export interface PipelineResult {
   success: boolean;
   messages: OutgoingMessage[];

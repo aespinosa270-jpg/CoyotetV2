@@ -1,0 +1,165 @@
+═══════════════════════════════════════════════════════════════════════════
+FASE 11B — Consentimiento + audios con Whisper
+═══════════════════════════════════════════════════════════════════════════
+
+Este ZIP SOBREESCRIBE archivos críticos y agrega nuevos. No requiere
+edición manual.
+
+ARCHIVOS NUEVOS:
+  - src/lib/bot/services/openai/whisper.ts
+  - src/lib/bot/intelligence/audio/transcriber.ts
+  - src/lib/bot/intelligence/consent/detector.ts
+  - src/lib/bot/repositories/consent-repo.ts
+  - src/lib/bot/__tests__/intelligence/consent-detector.test.ts
+  - src/lib/bot/__tests__/intelligence/consent-repo.test.ts
+  - src/lib/bot/__tests__/intelligence/audio-transcriber.test.ts
+
+ARCHIVOS SOBREESCRITOS:
+  - src/lib/bot/intelligence/membership/decider.ts (V2 — respeta consentimiento)
+  - src/lib/bot/intelligence/prompts/membership-block.ts (lee consentimiento)
+  - src/lib/bot/intelligence/prompts/builder.ts (V7 — pasa profile completo)
+  - src/lib/bot/transports/whatsapp/inbound.ts (audio dejó de retornar null)
+  - src/lib/bot/core/orchestrator.ts (V8 — audio + consentimiento)
+
+
+═══════════════════════════════════════════════════════════════════════════
+PASOS
+═══════════════════════════════════════════════════════════════════════════
+
+  cd C:\Users\jackc_bte2q4a\Downloads\coyote-web\storefront
+  Expand-Archive -Path "$env:USERPROFILE\Downloads\coyote-bot-fase11b.zip" `
+                 -DestinationPath . -Force
+
+  npm run test:bot
+  npm run build
+
+
+═══════════════════════════════════════════════════════════════════════════
+FLUJO COMPLETO POST-DEPLOY
+═══════════════════════════════════════════════════════════════════════════
+
+ESCENARIO 1 — Cliente nuevo, manda audio
+─────────────────────────────────────────────────────────────────────────
+
+  1. Cliente: 🎙️ (audio de 45 segundos pidiendo precio de felpa)
+  2. Bot: descarga audio → Whisper transcribe → "¿cuánto cuesta la felpa?"
+  3. Bot procesa como si fuera texto y responde
+  4. Cliente: 🎙️ (audio de 3 minutos hablando de su negocio)
+  5. Bot: ve sizeBytes >2MB → "🎙️ Su audio es un poco largo..."
+
+
+ESCENARIO 2 — Cliente con 3+ compras objeta precio
+─────────────────────────────────────────────────────────────────────────
+
+  1. Cliente: "está muy caro, no me alcanza"
+  2. Bot detecta:
+       - Objeción de precio severidad 3
+       - Cliente con 4 compras previas
+       - Estado consentimiento: "no_solicitado"
+  3. Bot responde algo como:
+       "Entiendo. La felpa polar a $185 es el mejor precio del mercado para esa
+       calidad. Por cierto, antes de continuar — para mandarle ofertas y novedades
+       de membresías necesito su autorización. Aplican nuestro aviso de privacidad
+       (https://www.coyotetextil.com/privacy) y términos (https://www.coyotetextil.com/terms).
+       ¿Me autoriza? Responda *SÍ* o *NO*."
+  4. Marca consentimiento como "pendiente"
+  5. Cliente: "sí"
+  6. Bot detecta acepta → marca "otorgado" → responde:
+       "¡Excelente! Quedó autorizado..."
+  7. Próximo mensaje del cliente: bot YA puede proponer membresía con
+     plan Socio Comercial ($299/mes) y llamar 'proponer_membresia'
+
+
+ESCENARIO 3 — Cliente rechaza
+─────────────────────────────────────────────────────────────────────────
+
+  1. Bot pregunta consentimiento
+  2. Cliente: "no gracias"
+  3. Bot marca rechazado con veto hasta +6 meses
+  4. Próximos 6 meses: bot NUNCA propone membresía (decider lo respeta)
+  5. Si en 6+ meses cumple triggers de nuevo, vuelve a pedir consentimiento
+
+
+ESCENARIO 4 — Cambias términos
+─────────────────────────────────────────────────────────────────────────
+
+  1. Actualizas CONSENT_VERSION en consent/detector.ts (ej. "2026-08")
+  2. Re-deploy
+  3. Clientes con consentimiento previo de "2026-05" → estado vuelve a
+     "no_solicitado" automáticamente al próximo mensaje
+  4. Bot vuelve a pedir consentimiento (cumplimiento legal)
+
+
+═══════════════════════════════════════════════════════════════════════════
+COSTOS ESTIMADOS WHISPER
+═══════════════════════════════════════════════════════════════════════════
+
+  Whisper API: $0.006 USD por minuto de audio
+  Audio típico B2B (60s): $0.006 = $0.10 MXN
+  Audio máximo (2 min): $0.012 = $0.21 MXN
+
+  Para 500 audios/mes: $3 USD/mes
+  Para 5000 audios/mes: $30 USD/mes
+
+  Con cache de transcripciones (7 días), un cliente que reenvía el mismo
+  audio NO se re-cobra. Cache hit ratio típico: 5-10%.
+
+  Plus: audios >2MB se rechazan ANTES de descargarse (cero costo Whisper).
+
+
+═══════════════════════════════════════════════════════════════════════════
+PRUEBAS LOCALES
+═══════════════════════════════════════════════════════════════════════════
+
+  npm run dev
+
+  Para probar consentimiento (sin necesitar audio real):
+
+  1. En Redis (Upstash), edita un cliente para forzar 3+ compras:
+     v2:cliente:521... → totalCompras: 5
+
+  2. Manda al bot: "no, está muy caro"
+     → debe pedir consentimiento
+
+  3. Manda: "sí"
+     → debe confirmar y guardar otorgado
+
+  4. Manda: "está caro de nuevo"
+     → ahora SÍ propone membresía con plan GOLD
+
+  Para probar audio:
+  - Mándale un audio cortito (<30s) por WhatsApp al bot v2
+  - Verifica en logs "Audio transcrito"
+  - El bot responde como si hubieras escrito el contenido del audio
+
+
+═══════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════
+
+Audio no se transcribe:
+  - Verifica que WHATSAPP_TOKEN está vigente
+  - Logs deben mostrar "Mensaje tipo audio recibido"
+  - Si dice "Audio rechazado por tamaño" → es >2MB
+  - Si Whisper tira error → ver mensaje exacto en logs
+
+Bot no pide consentimiento:
+  - Verifica que el cliente cumple los triggers (3+ compras O objeción precio severidad>=2)
+  - Verifica perfil en Redis: consentimientoPromociones debe ser undefined o estado=no_solicitado
+  - Si tiene estado="otorgado" con versión actual, no pide
+
+Después de aceptar consentimiento, bot no propone:
+  - Verifica perfil: consentimientoPromociones.estado === "otorgado"
+  - Verifica que totalCompras >= 3 O hay objeción detectada
+  - Verifica que membershipTracking.tier no sea BLACK o ELITE
+
+
+═══════════════════════════════════════════════════════════════════════════
+QUÉ NO HACE TODAVÍA (vendrá en Fase 11C)
+═══════════════════════════════════════════════════════════════════════════
+
+✗ Conexión real de recordatorios con plantilla `bienvenida` de WhatsApp
+✗ Job de reactivación que envía el mensaje real al cliente inactivo
+✗ Sección en admin para "Clientes con pedidos pendientes" para seguimiento humano
+
+Eso es Fase 11C, último paso del plan original.

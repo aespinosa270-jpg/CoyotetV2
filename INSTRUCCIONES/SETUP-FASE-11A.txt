@@ -1,0 +1,255 @@
+═══════════════════════════════════════════════════════════════════════════
+INSTRUCCIONES DE INTEGRACIÓN — FASE 11A (membresías proactivas)
+═══════════════════════════════════════════════════════════════════════════
+
+El ZIP tira archivos NUEVOS sin tocar tus existentes. Pero para que el
+bot REALMENTE proponga membresías hay que hacer 4 ediciones manuales
+pequeñas en archivos que ya existen.
+
+OBJETIVO: integrar 2 nuevos tools (obtener_info_membresias y proponer_membresia)
++ inyectar el bloque de membresía al system prompt cuando aplica.
+
+
+═══════════════════════════════════════════════════════════════════════════
+PASO 1 — Aplicar el ZIP y correr tests
+═══════════════════════════════════════════════════════════════════════════
+
+  cd C:\Users\jackc_bte2q4a\Downloads\coyote-web\storefront
+  Expand-Archive -Path "$env:USERPROFILE\Downloads\coyote-bot-fase11a.zip" `
+                 -DestinationPath . -Force
+
+  npm run test:bot
+
+  ESPERADO: 528 (previos) + ~30 nuevos = ~558 verde. El build seguirá
+  verde aunque NO hayas hecho los 4 cambios manuales todavía
+  (porque los archivos nuevos no se usan hasta que los importes).
+
+
+═══════════════════════════════════════════════════════════════════════════
+PASO 2 — Agregar los 2 tools a tu definitions.ts
+═══════════════════════════════════════════════════════════════════════════
+
+Archivo:  src/lib/bot/tools/definitions.ts
+
+Abre el archivo y busca el array BOT_TOOLS. Agrega estos 2 objetos al
+FINAL del array (justo antes del cierre `]`):
+
+```ts
+  {
+    type: "function" as const,
+    function: {
+      name: "obtener_info_membresias",
+      description: "Devuelve información completa de los 4 planes de membresía de Coyote Textil. Llamar SOLO cuando el cliente pregunta directamente por las membresías.",
+      parameters: {
+        type: "object",
+        properties: {
+          plan_especifico: {
+            type: "string",
+            enum: ["NONE", "GOLD", "BLACK", "ELITE", "TODOS"],
+            description: "Plan específico o TODOS",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "proponer_membresia",
+      description: "Registra que el bot propuso una membresía. Llamar SOLO cuando efectivamente la mencionaste en tu respuesta.",
+      parameters: {
+        type: "object",
+        properties: {
+          plan_propuesto: { type: "string", enum: ["GOLD", "BLACK", "ELITE"] },
+          motivo: { type: "string", enum: ["objecion_precio", "compras_acumuladas", "interes_explicito"] },
+        },
+        required: ["plan_propuesto", "motivo"],
+      },
+    },
+  },
+```
+
+
+═══════════════════════════════════════════════════════════════════════════
+PASO 3 — Agregar el switch case en executor.ts
+═══════════════════════════════════════════════════════════════════════════
+
+Archivo:  src/lib/bot/tools/executor.ts
+
+Busca la función principal que ejecuta los tools (probablemente
+`executeTool` o similar). Tiene un switch sobre `tool.name`. Agrega 2
+casos nuevos:
+
+```ts
+import {
+  ejecutarObtenerInfoMembresias,
+  ejecutarProponerMembresia,
+} from "./membership-handlers";
+
+// ... dentro del switch ...
+
+case "obtener_info_membresias":
+  return await ejecutarObtenerInfoMembresias(args, ctx);
+
+case "proponer_membresia":
+  return await ejecutarProponerMembresia(args, ctx);
+```
+
+(Si tu executor usa un mapa en lugar de switch, agrégalos al mapa.)
+
+
+═══════════════════════════════════════════════════════════════════════════
+PASO 4 — Inyectar el bloque de membresía al system prompt
+═══════════════════════════════════════════════════════════════════════════
+
+Archivo:  src/lib/bot/intelligence/prompts/builder.ts
+
+Este es el cambio MÁS importante. El bloque solo se inyecta cuando hay
+contexto que justifica proponer membresía (B+C combinadas).
+
+  4.1 — Agregar import al inicio del archivo:
+
+    import { buildMembershipBlock } from "./membership-block";
+
+  4.2 — En la función `buildSystemPrompt`, debes tener acceso a la
+       objeción detectada y al perfil del cliente. Mira tu firma actual,
+       probablemente luce así:
+
+    export async function buildSystemPrompt(
+      profile: any,
+      isAdmin: boolean,
+      options?: { redis?: any; userMessage?: string }
+    ): Promise<string>
+
+  4.3 — Necesitas que también reciba la objeción. Cámbiala a:
+
+    export async function buildSystemPrompt(
+      profile: any,
+      isAdmin: boolean,
+      options?: {
+        redis?: any;
+        userMessage?: string;
+        objecionActual?: { tipo: string; severidad: number; contexto: string };
+      }
+    ): Promise<string>
+
+  4.4 — Antes del `return` final del builder, agrega:
+
+    // ── Fase 11A: bloque de propuesta de membresía si aplica ──
+    if (!isAdmin && options?.objecionActual) {
+      const tracking = profile.membershipTracking ?? {};
+      const membershipBlock = buildMembershipBlock({
+        tierActual: tracking.tier ?? "NONE",
+        totalCompras: profile.totalCompras ?? 0,
+        vecesPropuesta: tracking.vecesPropuesta ?? 0,
+        ultimaPropuesta: tracking.ultimaPropuesta,
+        rechazoExplicito: tracking.rechazoExplicito,
+        vetoMarketing: profile.vetoMarketing,
+        objecionActual: options.objecionActual as any,
+      });
+
+      if (membershipBlock) {
+        // Concatenar al final del system prompt
+        promptParts.push(membershipBlock);
+        // O si tu builder retorna un string acumulado:
+        // systemPromptText += "\n\n" + membershipBlock;
+      }
+    }
+
+NOTA: Adapta el "push" al patrón que use tu builder (array de partes o
+string acumulado). Lo importante es que el bloque llegue al final del
+system prompt.
+
+
+═══════════════════════════════════════════════════════════════════════════
+PASO 5 — Pasar la objeción al builder desde el orchestrator
+═══════════════════════════════════════════════════════════════════════════
+
+Archivo:  src/lib/bot/core/orchestrator.ts
+
+Busca dónde se hace el `await buildSystemPrompt(...)`. Probablemente:
+
+    const systemContent = await buildSystemPrompt(profile, isAdmin, {
+      redis,
+      userMessage: userText,
+    });
+
+Debes ESPERAR a la promesa de objeción ANTES del buildSystemPrompt para
+que sepa si proponer. Eso cambia el orden actual (donde la objeción
+corre en paralelo). Cámbialo a:
+
+    // Esperar la objeción antes del prompt para poder inyectar membership block
+    const objecionActual = await objecionPromise;
+    // (re-asignar la promesa resuelta porque se usa después en processObjecion)
+    const objecionPromiseResuelta = Promise.resolve(objecionActual);
+
+    const systemContent = await buildSystemPrompt(profile, isAdmin, {
+      redis,
+      userMessage: userText,
+      objecionActual,
+    });
+
+Y donde antes pasabas `objecionPromise` a `processObjecion`, pasa
+`objecionPromiseResuelta`:
+
+    tasks.push(
+      withTimeout(
+        processObjecion(phone, ..., objecionPromiseResuelta, ...),
+        INTELLIGENCE_TIMEOUT_MS,
+        "objeciones"
+      )
+    );
+
+
+═══════════════════════════════════════════════════════════════════════════
+TRADEOFF — POR QUÉ HACEMOS LO DEL PASO 5
+═══════════════════════════════════════════════════════════════════════════
+
+La objeción ANTES corría en paralelo con la llamada a OpenAI (para no
+agregar latencia). Pero para que el bot sepa SI proponer la membresía,
+necesita el resultado de la objeción ANTES de construir el prompt.
+
+COSTO: ~300ms más de latencia por turno cuando hay objeción.
+BENEFICIO: el bot puede reaccionar inmediatamente al "está caro" con la
+           propuesta de membresía en el MISMO turno, no en el siguiente.
+
+Si esto te molesta a futuro, podemos guardar la objeción del turno
+anterior y usarla en el siguiente, eliminando la latencia extra. Por
+ahora, prioricé la reactividad.
+
+
+═══════════════════════════════════════════════════════════════════════════
+PRUEBAS DESPUÉS DE INTEGRAR
+═══════════════════════════════════════════════════════════════════════════
+
+  npm run test:bot
+  # ESPERADO: ~558 verde
+
+  npm run build
+  # ESPERADO: build verde, mismas rutas + módulos nuevos cargados
+
+Para probar el comportamiento en local:
+
+  1. npm run dev
+  2. Manda al bot un mensaje como cliente que ya tiene 3+ compras:
+     - "no, está muy caro, no me alcanza"
+  3. Esperado: el bot menciona el plan GOLD (porque tiene 3+ compras)
+     o BLACK (si tiene 10+ compras) con la URL.
+
+Si NO menciona la membresía:
+  - Verifica que en /crm/admin/bot/conversaciones/[phone] aparezca la
+    objeción "precio"
+  - Verifica que el perfil tenga totalCompras >= 3
+  - Mira logs de Vercel buscando "PROPUESTA DE MEMBRESÍA SUGERIDA"
+
+
+═══════════════════════════════════════════════════════════════════════════
+QUÉ NO HACE TODAVÍA (vendrá en Fase 11B)
+═══════════════════════════════════════════════════════════════════════════
+
+✗ Consentimiento explícito de marketing (con links a privacy/terms)
+✗ Transcripción de audios con Whisper
+✗ Vetoar marketing si el cliente dijo "no me mandes ofertas"
+
+Esto se verá en Fase 11B y se conectará con el campo
+`vetoMarketing` que el decider ya respeta.

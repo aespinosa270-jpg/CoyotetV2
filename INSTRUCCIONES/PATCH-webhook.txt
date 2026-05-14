@@ -1,0 +1,86 @@
+═══════════════════════════════════════════════════════════════════════════
+INSTRUCCIONES — Patch manual del webhook
+═══════════════════════════════════════════════════════════════════════════
+
+Para que los cambios del dashboard /crm/admin/bot/config surtan efecto
+sin redeploy, hay que cambiar UNA línea en tu webhook de WhatsApp.
+
+ARCHIVO:  src\app\api\whatsapp\webhook\route.ts
+
+
+PASO 1 — Cambiar el import
+───────────────────────────────────────────────────────────────────────────
+
+  ANTES:
+    import { shouldUseBotV2 } from "@/lib/bot/config/feature-flags";
+
+  DESPUÉS:
+    import { shouldUseBotV2Async } from "@/lib/bot/config/feature-flags";
+
+
+PASO 2 — Cambiar la llamada a la función
+───────────────────────────────────────────────────────────────────────────
+
+  Busca donde llamas shouldUseBotV2(phoneNumber). Probablemente se ve así:
+
+  ANTES:
+    if (shouldUseBotV2(phoneNumber)) {
+      // ... ruta a v2
+    }
+
+  DESPUÉS:
+    if (await shouldUseBotV2Async(phoneNumber)) {
+      // ... ruta a v2
+    }
+
+  Solo dos cambios: agregar 'await' y el sufijo 'Async'.
+
+
+PASO 3 — Asegurar que la función contenedora sea async
+───────────────────────────────────────────────────────────────────────────
+
+  Si el handler del webhook ya es async (lo normal en Next.js App Router),
+  no necesitas hacer nada. Si por alguna razón es sync, márcala async.
+
+
+PASO 4 — Verificar que compila
+───────────────────────────────────────────────────────────────────────────
+
+  npm run build
+
+  Debe pasar sin errores. Si TypeScript se queja, lo más probable es que
+  olvidaste el 'await' o el 'Async' al final del nombre.
+
+
+═══════════════════════════════════════════════════════════════════════════
+EFECTO EN PRODUCCIÓN
+═══════════════════════════════════════════════════════════════════════════
+
+Después de este cambio, cuando guardes config en /crm/admin/bot/config:
+
+  - Toggle "Bot v2 habilitado" → afecta a TODOS los webhooks en ≤30s
+  - Slider de porcentaje → afecta routing en ≤30s
+  - Whitelist de phones → afecta routing en ≤30s
+  - Tono especial → se inyecta al system prompt del próximo mensaje
+  - Instrucciones extra → se inyectan al system prompt del próximo mensaje
+
+El cache es de 30s para evitar martillar Redis. Si necesitas que un cambio
+surta efecto INMEDIATO, espera 30s o reinicia el proceso (Vercel los recicla
+naturalmente cada cierto tiempo).
+
+
+═══════════════════════════════════════════════════════════════════════════
+TESTS
+═══════════════════════════════════════════════════════════════════════════
+
+Después de aplicar el ZIP + el patch del webhook:
+
+  npm run test:bot
+
+Esperado: todos los tests verde (los anteriores + ~13 nuevos):
+  - runtime-config.test.ts: 7 tests
+  - feature-flags-async.test.ts: 6 tests
+
+Si algún test viejo falla, lo más probable es que sea un test del builder
+que esperaba ciertos bloques en el system prompt y ahora tiene los nuevos
+(tone, extraInstructions). En ese caso, mándame el test rojo y lo ajusto.

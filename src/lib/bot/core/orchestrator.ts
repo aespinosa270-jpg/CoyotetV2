@@ -1,4 +1,4 @@
-import { getLogger } from "../observability/logger";
+﻿import { getLogger } from "../observability/logger";
 import { getRedis } from "../repositories/redis";
 import * as clientRepo from "../repositories/client-repo";
 import * as conversationRepo from "../repositories/conversation-repo";
@@ -29,6 +29,27 @@ import type { ObjecionDetectada } from "../intelligence/objections/types";
 import type { HechoEpisodico } from "../intelligence/memory/types";
 // ── FASE 7: vision ─────────────────────────────────────────────────
 import { analyzeIncomingImage } from "../intelligence/vision/analyzer";
+// ── FASE 10: observabilidad ────────────────────────────────────────
+import { recordEvent } from "../observability/events";
+// ── FASE 11B: audio + consentimiento ───────────────────────────────
+import {
+  transcribeIncoming,
+  buildTooLongMessage,
+  buildTranscriptionFailedMessage,
+} from "../intelligence/audio/transcriber";
+import {
+  detectarRespuestaConsentimiento,
+  buildConsentAcceptedMessage,
+  buildConsentRejectedMessage,
+  buildConsentAmbiguousMessage,
+} from "../intelligence/consent/detector";
+import {
+  getConsentInfo,
+  marcarOtorgado,
+  marcarRechazado,
+  marcarPendiente,
+} from "../repositories/consent-repo";
+import { decidirPropuestaMembresia } from "../intelligence/membership/decider";
 // ── Tipos ──────────────────────────────────────────────────────────
 import type { IncomingMessage, OutgoingMessage } from "../types/messages";
 import type { BotContext } from "./types";
@@ -42,28 +63,91 @@ export async function processMessage(
 ): Promise<OutgoingMessage[]> {
   const redis = getRedis();
   const phone = message.from.id;
+  const startTime = Date.now();
 
   try {
     let profile = await clientRepo.findOrCreate(phone, redis);
 
-    // ── 1. FASE 7: si es imagen, analizar y enriquecer userText ──
+    // ── 1. FASE 11B: si es AUDIO, transcribir antes de seguir ──
     let userText = message.text || "";
+    let visionUsed = false;
+    let audioUsed = false;
 
+    if (message.type === "audio" && message.media?.nativeId) {
+      log.info({ phone }, "Mensaje tipo audio recibido, transcribiendo");
+      const result = await transcribeIncoming(
+        {
+          nativeId: message.media.nativeId,
+          mimeType: message.media.mimeType,
+          sha256: message.media.sha256,
+          sizeBytes: message.media.sizeBytes,
+        },
+        { redis }
+      );
+
+      // Observability
+      await recordEvent({
+        type: "vision", // reutilizo tipo (sería ideal nuevo "audio" en EventType)
+        clientId: phone,
+        channel: message.channel,
+        data: {
+          subtype: "audio_transcripcion",
+          ok: result.ok,
+          tooLong: !result.ok && (result as any).tooLong,
+        },
+      });
+
+      if (!result.ok) {
+        const respuestaTexto = (result as any).tooLong
+          ? buildTooLongMessage()
+          : buildTranscriptionFailedMessage();
+        // Persistir el turno aunque no haya texto del cliente
+        await conversationRepo.appendMensaje(
+          phone,
+          { role: "user", content: "[audio no procesado]" } as any,
+          redis
+        );
+        await conversationRepo.appendMensaje(
+          phone,
+          { role: "assistant", content: respuestaTexto } as any,
+          redis
+        );
+        return [
+          {
+            channel: message.channel,
+            to: { id: phone },
+            type: "text",
+            text: respuestaTexto,
+          },
+        ];
+      }
+
+      userText = result.text;
+      audioUsed = true;
+      log.info(
+        { phone, length: userText.length, fromCache: result.fromCache },
+        "Audio transcrito"
+      );
+    }
+
+    // ── 2. FASE 7: si es imagen, analizar y enriquecer userText ──
     if (message.type === "image" && message.media) {
       log.info({ phone }, "Mensaje tipo imagen recibido, analizando con vision");
       try {
         const visionResult = await analyzeIncomingImage(message, { redis });
         userText = visionResult.enrichedUserMessage;
-        log.info(
-          {
-            phone,
+        visionUsed = true;
+        await recordEvent({
+          type: "vision",
+          clientId: phone,
+          channel: message.channel,
+          data: {
             esProducto: visionResult.analysis.esProducto,
             tipoTela: visionResult.analysis.tipoTela,
-            fromCache: visionResult.fromCache,
             confianza: visionResult.analysis.confianza,
+            fromCache: visionResult.fromCache,
           },
-          "Imagen analizada"
-        );
+        });
       } catch (err) {
         log.error({ err, phone }, "Vision pipeline falló, continuando con caption");
         userText = message.media.caption
@@ -72,8 +156,39 @@ export async function processMessage(
       }
     }
 
-    // ── 2. Auto-extraer CP si vino texto del cliente ──
-    const cpDetectado = firstCp(message.text || "");
+    // ── 3. FASE 11B: ¿el cliente está respondiendo a la pregunta de consentimiento? ──
+    // Si su estado es "pendiente", interpretamos su mensaje como respuesta.
+    const consentInfo = getConsentInfo(profile);
+    if (consentInfo.estado === "pendiente" && userText) {
+      const respuesta = detectarRespuestaConsentimiento(userText);
+      log.info({ phone, respuesta }, "Procesando respuesta de consentimiento");
+
+      if (respuesta === "acepta") {
+        await marcarOtorgado(phone, redis);
+        const txt = buildConsentAcceptedMessage();
+        await persistTurnSimple(phone, userText, txt, redis);
+        return [
+          { channel: message.channel, to: { id: phone }, type: "text", text: txt },
+        ];
+      }
+      if (respuesta === "rechaza") {
+        await marcarRechazado(phone, redis);
+        const txt = buildConsentRejectedMessage();
+        await persistTurnSimple(phone, userText, txt, redis);
+        return [
+          { channel: message.channel, to: { id: phone }, type: "text", text: txt },
+        ];
+      }
+      // Ambiguo: volvemos a preguntar SIN cambiar estado
+      const txt = buildConsentAmbiguousMessage();
+      await persistTurnSimple(phone, userText, txt, redis);
+      return [
+        { channel: message.channel, to: { id: phone }, type: "text", text: txt },
+      ];
+    }
+
+    // ── 4. Auto-extraer CP si vino texto del cliente ──
+    const cpDetectado = firstCp(userText);
     if (cpDetectado && (profile as any).codigoPostalEnvio !== cpDetectado) {
       profile = (await clientRepo.update(
         phone,
@@ -95,18 +210,16 @@ export async function processMessage(
       state: { shouldAbort: false },
     };
 
-    // ── 3. FASE 5: extractor de objeciones en paralelo ──
-    // OJO: solo si hay texto real del cliente; las imágenes no aportan objeción
-    // verbalizada. Si fue solo imagen, lo dejamos como "ninguna".
+    // ── 5. FASE 5: extractor de objeciones en paralelo ──
     const hasRealUserText = (message.text || "").trim().length > 0;
-    const objecionPromise =
+    const objecionPromise: Promise<ObjecionDetectada> =
       isAdmin || !hasRealUserText
         ? Promise.resolve<ObjecionDetectada>({
             tipo: "ninguna",
             severidad: 1,
             contexto: "",
           })
-        : extractObjecion(message.text!).catch((err) => {
+        : extractObjecion(userText).catch((err) => {
             log.warn({ err, phone }, "Extractor de objeciones falló");
             return {
               tipo: "ninguna" as const,
@@ -115,23 +228,49 @@ export async function processMessage(
             };
           });
 
-    // ── 4. System prompt con RAG (Fase 6) + memoria/objeciones (Fase 5) ──
-    const systemContent = await buildSystemPrompt(profile, isAdmin, {
-      redis,
-      userMessage: userText,
-    });
+    // ── 6. Prompt + objeción en paralelo ──
+    const [objecionActual, systemContent] = await Promise.all([
+      objecionPromise,
+      buildSystemPrompt(profile, isAdmin, {
+        redis,
+        userMessage: userText,
+      }),
+    ]);
+
+    const necesitaReconstruir =
+      !isAdmin &&
+      (objecionActual.tipo !== "ninguna" || (profile.totalCompras ?? 0) >= 3);
+
+    const finalSystemContent = necesitaReconstruir
+      ? await buildSystemPrompt(profile, isAdmin, {
+          redis,
+          userMessage: userText,
+          objecionActual,
+        })
+      : systemContent;
+
     const apiMessages: any[] = [
-      { role: "system", content: systemContent },
+      { role: "system", content: finalSystemContent },
       ...history,
       { role: "user", content: userText },
     ];
 
-    // ── 5. Round 1 ──
+    // ── 7. Round 1 ──
     let response = await chat(apiMessages, { tools: BOT_TOOLS as any });
     let finalTexto = response.text;
+    let conversionGenerated = false;
+    let membresiaPropuesta = false;
 
-    // ── 6. Tool calling loop ──
+    // ── 8. Tool calling loop ──
     if (response.toolCalls && response.toolCalls.length > 0) {
+      const cobroTools = ["generar_cobro_stripe", "generar_cobro_spei"];
+      conversionGenerated = response.toolCalls.some((tc) =>
+        cobroTools.includes(tc.name)
+      );
+      membresiaPropuesta = response.toolCalls.some(
+        (tc) => tc.name === "proponer_membresia"
+      );
+
       apiMessages.push({
         role: "assistant",
         content: response.text || null,
@@ -146,7 +285,15 @@ export async function processMessage(
       });
 
       for (const call of response.toolCalls) {
-        const result = await executeTool(call as any, context);
+        const result = await executeTool(
+          {
+            function: {
+              name: call.name,
+              arguments: JSON.stringify(call.arguments),
+            },
+          } as any,
+          context
+        );
         apiMessages.push({
           role: "tool",
           tool_call_id: call.id,
@@ -162,7 +309,7 @@ export async function processMessage(
           botText: "Un momento, lo comunico con la Jauría.",
           profile,
           history,
-          objecionPromise,
+          objecionPromise: Promise.resolve(objecionActual),
           redis,
           isAdmin,
           hasRealUserText,
@@ -181,13 +328,22 @@ export async function processMessage(
       finalTexto = round2.text;
     }
 
-    // ── 7. Validador post-respuesta ──
+    // ── 9. Validador post-respuesta ──
     let validation = validateBotResponse(finalTexto);
     if (!validation.ok) {
       log.warn(
         { phone, prohibidas: validation.prohibidasMencionadas },
         "🚨 Hallucination detectada — forzando retry"
       );
+      await recordEvent({
+        type: "hallucination",
+        clientId: phone,
+        channel: message.channel,
+        data: {
+          prohibidas: validation.prohibidasMencionadas,
+        },
+      });
+
       apiMessages.push({ role: "assistant", content: finalTexto });
       apiMessages.push({
         role: "user",
@@ -198,27 +354,75 @@ export async function processMessage(
 
       validation = validateBotResponse(finalTexto);
       if (!validation.ok) {
-        log.error(
-          { phone, prohibidas: validation.prohibidasMencionadas },
-          "Hallucination persiste tras retry — usando fallback"
-        );
         finalTexto =
           "Permítame verificar la disponibilidad exacta y le confirmo en breve.";
       }
     }
 
-    // ── 8. Persistir turno + inteligencia ──
+    // ── 10. Persistir turno + inteligencia ──
     await persistTurnAndIntelligence({
       phone,
       userText,
       botText: finalTexto,
       profile,
       history,
-      objecionPromise,
+      objecionPromise: Promise.resolve(objecionActual),
       redis,
       isAdmin,
       hasRealUserText,
     });
+
+    // ── 11. Observability ──
+    if (!isAdmin) {
+      await recordEvent({
+        type: "message",
+        clientId: phone,
+        channel: message.channel,
+        data: {
+          inputType: message.type,
+          visionUsed,
+          audioUsed,
+          membresiaPropuesta,
+          latencyMs: Date.now() - startTime,
+        },
+      });
+
+      if (conversionGenerated) {
+        await recordEvent({
+          type: "conversion",
+          clientId: phone,
+          channel: message.channel,
+        });
+      }
+    }
+
+    // ── 12. FASE 11B: si en este turno el bot pidió consentimiento, marcar pendiente ──
+    // Heurística: si el cliente cumple triggers para membresía Y su estado de consentimiento
+    // era "no_solicitado", el system prompt instruyó al bot a pedirlo.
+    // Asumimos que el bot siguió la instrucción y marcamos pendiente.
+    if (!isAdmin && consentInfo.estado === "no_solicitado") {
+      const propuestaCheck = decidirPropuestaMembresia(
+        {
+          tierActual: (profile as any).membershipTracking?.tier ?? "NONE",
+          totalCompras: profile.totalCompras ?? 0,
+          vecesPropuesta:
+            (profile as any).membershipTracking?.vecesPropuesta ?? 0,
+          ultimaPropuesta: (profile as any).membershipTracking?.ultimaPropuesta,
+          rechazoExplicito: (profile as any).membershipTracking
+            ?.rechazoExplicito,
+          vetoMarketing: (profile as any).vetoMarketing,
+          consentEstado: "no_solicitado",
+        },
+        objecionActual
+      );
+      if (propuestaCheck.deberiaProponer && propuestaCheck.requierePedirConsentimiento) {
+        try {
+          await marcarPendiente(phone, redis);
+        } catch (err) {
+          log.warn({ err, phone }, "No se pudo marcar pendiente de consentimiento");
+        }
+      }
+    }
 
     return [
       {
@@ -229,7 +433,16 @@ export async function processMessage(
       },
     ];
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     log.error({ err: error, phone }, "Error crítico en orchestrator");
+
+    await recordEvent({
+      type: "error",
+      clientId: phone,
+      channel: message.channel,
+      data: { source: "orchestrator", message: msg },
+    });
+
     return [
       {
         channel: message.channel,
@@ -270,7 +483,7 @@ async function persistTurnAndIntelligence(input: PersistInput): Promise<void> {
     hasRealUserText,
   } = input;
 
-  await persistTurn(phone, userText, botText, redis);
+  await persistTurnSimple(phone, userText, botText, redis);
   if (isAdmin) return;
 
   const tasks: Array<Promise<unknown>> = [];
@@ -308,7 +521,7 @@ async function persistTurnAndIntelligence(input: PersistInput): Promise<void> {
   }
 }
 
-async function persistTurn(
+async function persistTurnSimple(
   phone: string,
   userText: string,
   botText: string,
@@ -338,17 +551,20 @@ async function processObjecion(
   if (obj.tipo !== "ninguna") {
     const updated = trackObjecion(profile, obj);
     await clientRepo.save(updated, redis);
-    log.info(
-      { phone, tipo: obj.tipo, severidad: obj.severidad },
-      "Objeción registrada"
-    );
+    await recordEvent({
+      type: "objection",
+      clientId: phone,
+      data: {
+        tipo: obj.tipo,
+        severidad: obj.severidad,
+      },
+    });
     return;
   }
 
   if (userText && esTonoPositivo(userText)) {
     const decayed = decayObjeciones(profile);
     await clientRepo.save(decayed, redis);
-    log.debug({ phone }, "Vector de objeciones aplicó decay");
   }
 }
 
@@ -386,31 +602,20 @@ async function regenerateSummaryAndMemory(
     regenerateSummary({
       historial: fullHistory as any,
       resumenAnterior: resumenAnterior ?? undefined,
-    }).catch((err) => {
-      log.warn({ err, phone }, "Resumen falló");
-      return "";
-    }),
+    }).catch(() => ""),
     extractHechosEpisodicos({
       mensajesRecientes: mensajesUsuario,
       hechosExistentes: memoriaActual.hechos.map((h) => h.hecho),
-    }).catch((err) => {
-      log.warn({ err, phone }, "Extractor de hechos falló");
-      return [] as HechoEpisodico[];
-    }),
+    }).catch(() => [] as HechoEpisodico[]),
   ]);
 
   if (nuevoResumen && nuevoResumen.length > 0) {
     await conversationRepo.setResumen(phone, nuevoResumen, redis);
-    log.info({ phone, length: nuevoResumen.length }, "Resumen regenerado");
   }
 
   if (hechosNuevos.length > 0) {
     const merged = mergeHechos(memoriaActual.hechos, hechosNuevos);
     await saveMemoria(phone, merged, redis);
-    log.info(
-      { phone, nuevos: hechosNuevos.length, total: merged.length },
-      "Memoria actualizada"
-    );
   }
 }
 
@@ -426,3 +631,4 @@ function withTimeout<T>(
     ),
   ]);
 }
+

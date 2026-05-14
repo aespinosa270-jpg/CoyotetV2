@@ -1,0 +1,161 @@
+═══════════════════════════════════════════════════════════════════════════
+INSTRUCCIONES — Setup completo del Bot de Telegram
+═══════════════════════════════════════════════════════════════════════════
+
+Una vez aplicado el ZIP, necesitas hacer 4 cosas:
+  1. Crear el bot en @BotFather
+  2. Agregar env vars (TELEGRAM_BOT_TOKEN + TELEGRAM_WEBHOOK_SECRET)
+  3. Hacer deploy (o exponer con ngrok si pruebas en local)
+  4. Configurar el webhook con setWebhook
+
+
+PASO 1 — Crear el bot en @BotFather
+───────────────────────────────────────────────────────────────────────────
+
+  1. Abre Telegram y busca @BotFather
+  2. Manda: /newbot
+  3. BotFather te pregunta:
+        - Nombre del bot:    "El Coyote Textil" (cualquiera)
+        - Username del bot:  "coyote_textil_bot" (debe terminar en "bot",
+                              debe ser único globalmente en Telegram)
+  4. BotFather te responde con un TOKEN que se ve así:
+        7654321098:AAH...xyz_largo_string_alfanumerico
+
+  GUARDA ESE TOKEN.  Es como un password — no lo subas a git.
+
+
+PASO 2 — Generar un secret para el webhook
+───────────────────────────────────────────────────────────────────────────
+
+  Genera un string aleatorio para validar que los webhooks vienen de
+  Telegram y no de un atacante. En PowerShell:
+
+        [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Max 256 }))
+
+  Copia ese string. Lo vas a usar en el siguiente paso.
+
+
+PASO 3 — Agregar env vars al proyecto
+───────────────────────────────────────────────────────────────────────────
+
+  Edita tu .env (y/o .env.local) y agrega:
+
+        TELEGRAM_BOT_TOKEN=7654321098:AAH...el_token_de_botfather
+        TELEGRAM_WEBHOOK_SECRET=el_string_aleatorio_del_paso_2
+
+  IMPORTANTE: el código actual (src/lib/bot/config/env.ts) probablemente
+  no incluye estas vars. Si tu env.ts tiene un schema de zod, agrégalas
+  como opcional al schema:
+
+        TELEGRAM_BOT_TOKEN: z.string().optional(),
+        TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
+
+  Si tu env.ts las declara obligatorias, el build va a tirar porque no
+  estaban definidas antes. Decláralas como .optional() para que el bot
+  funcione SIN Telegram (sólo WhatsApp y web) hasta que las configures.
+
+
+PASO 4 — Hacer deploy
+───────────────────────────────────────────────────────────────────────────
+
+  Las env vars también van en el dashboard de tu hosting (Vercel/Railway/etc):
+        TELEGRAM_BOT_TOKEN
+        TELEGRAM_WEBHOOK_SECRET
+
+  Haz deploy y verifica que la ruta existe:
+        https://TU_DOMINIO.com/api/webhooks/telegram
+
+  Abre esa URL en el browser. Debes ver:
+        {"ok":true,"message":"Telegram webhook endpoint listo. POST aquí desde Telegram."}
+
+  Si ves esa respuesta, el endpoint está vivo.
+
+
+PASO 5 — Configurar el webhook en Telegram (¡el paso clave!)
+───────────────────────────────────────────────────────────────────────────
+
+  Le decimos a Telegram dónde mandar los updates. Reemplaza TOKEN, SECRET
+  y DOMINIO con tus valores, y corre desde PowerShell o cualquier terminal:
+
+      $TOKEN  = "7654321098:AAH...tu_token"
+      $SECRET = "tu_secret_del_paso_2"
+      $URL    = "https://TU_DOMINIO.com/api/webhooks/telegram"
+
+      Invoke-RestMethod -Uri "https://api.telegram.org/bot$TOKEN/setWebhook" `
+        -Method Post `
+        -ContentType "application/json" `
+        -Body (@{
+            url = $URL
+            secret_token = $SECRET
+            allowed_updates = @("message")
+        } | ConvertTo-Json)
+
+  Esperado:
+      ok          : True
+      result      : True
+      description : Webhook was set
+
+
+PASO 6 — Verificar
+───────────────────────────────────────────────────────────────────────────
+
+  En Telegram, busca tu bot por su username (ej. @coyote_textil_bot)
+  y manda /start o "hola".
+
+  Esperado:
+      - El Coyote te responde
+      - En el dashboard /crm/admin/bot/conversaciones aparece tu chat
+        con clientId "tg:123456789"
+      - En los logs ves "Mensaje Telegram procesado"
+
+  Si NO responde, revisa los logs en tu hosting. Errores comunes:
+      - secret incorrecto → 401 en el endpoint
+      - TELEGRAM_BOT_TOKEN vacío → outbound failed
+      - webhook URL incorrecta → Telegram nunca llama
+
+
+═══════════════════════════════════════════════════════════════════════════
+PRUEBAS EN LOCAL (con ngrok)
+═══════════════════════════════════════════════════════════════════════════
+
+Si no quieres deployar para probar:
+
+  1. Instala ngrok: https://ngrok.com/download
+  2. Corre tu app:           npm run dev
+  3. En otra terminal:        ngrok http 3000
+  4. ngrok te da una URL tipo: https://abc123.ngrok-free.app
+  5. Usa esa URL en el setWebhook:
+        $URL = "https://abc123.ngrok-free.app/api/webhooks/telegram"
+
+  Las URLs de ngrok cambian cada vez que reinicias ngrok (excepto si pagas
+  el plan), así que tendrás que re-hacer el setWebhook cada vez.
+
+
+═══════════════════════════════════════════════════════════════════════════
+DESACTIVAR EL BOT
+═══════════════════════════════════════════════════════════════════════════
+
+Para quitar el webhook (el bot deja de responder):
+
+  Invoke-RestMethod -Uri "https://api.telegram.org/bot$TOKEN/deleteWebhook"
+
+Y para reactivar después, vuelves a hacer el setWebhook.
+
+
+═══════════════════════════════════════════════════════════════════════════
+COSAS QUE FUNCIONAN EN TELEGRAM (idénticas a WhatsApp)
+═══════════════════════════════════════════════════════════════════════════
+
+✅ Texto (mensajes normales)
+✅ Fotos del cliente (analizadas con Vision Fase 7)
+✅ Memoria episódica del cliente entre sesiones (Fase 5)
+✅ RAG del catálogo (Fase 6)
+✅ Objeciones detectadas y tracked (Fase 5)
+✅ Visible en /crm/admin/bot/conversaciones (Fase 8)
+✅ Tools de cobro Stripe / OXXO (mismo executor)
+✅ Validator anti-hallucination (Fase 4)
+
+Pendiente (no urgente):
+⏳ Inline keyboards (botones que se ven nativos en Telegram)
+⏳ Voice messages → transcribir con Whisper
+⏳ Stickers / animaciones (probablemente nunca útil para B2B)

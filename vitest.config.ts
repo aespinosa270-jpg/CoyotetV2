@@ -38,6 +38,11 @@ export default defineConfig({
       BOT_V2_ENABLED: "false",
       BOT_V2_PHONES: "",
       BOT_V2_PERCENTAGE: "0",
+      CRON_SECRET: "test_cron_secret_abc123",
+      TELEGRAM_BOT_TOKEN: "test_telegram_token_fake_1234567890",
+      INSTAGRAM_TOKEN: "test_ig_token",
+      INSTAGRAM_APP_SECRET: "test_app_secret",
+      INSTAGRAM_VERIFY_TOKEN: "test_ig_verify_token",
     },
 
     coverage: {
@@ -58,3 +63,6 @@ export default defineConfig({
     },
   },
 });
+
+
+

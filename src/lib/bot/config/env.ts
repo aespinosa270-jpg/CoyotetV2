@@ -76,7 +76,11 @@ const envSchema = z.object({
   // â”€â”€ Canales adicionales (opcionales) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   INSTAGRAM_TOKEN: z.string().optional(),
   INSTAGRAM_PAGE_ID: z.string().optional(),
+  INSTAGRAM_APP_SECRET: z.string().optional(),
+  INSTAGRAM_VERIFY_TOKEN: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
+  CRON_SECRET: z.string().optional(),
 
   // â”€â”€ OperaciÃ³n â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   AGENT_SILENCE_TIMEOUT_MS: z.coerce
@@ -131,3 +135,6 @@ export function getEnv(): Env {
 export function _resetEnvCacheForTests() {
   cached = null;
 }
+
+
+

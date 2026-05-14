@@ -1,0 +1,120 @@
+═══════════════════════════════════════════════════════════════════════════
+INSTRUCCIONES — Setup de CRON_SECRET y endpoints de cron
+═══════════════════════════════════════════════════════════════════════════
+
+Después de aplicar el ZIP necesitas:
+  1. Agregar CRON_SECRET al schema de env.ts
+  2. Agregar CRON_SECRET al vitest.config (para que los tests pasen)
+  3. Generar un valor de CRON_SECRET y guardarlo en .env + en Vercel
+  4. (Próximo paso, en Fase 10B): configurar cron-job.org
+
+
+PASO 1 — Agregar CRON_SECRET al schema de env.ts
+───────────────────────────────────────────────────────────────────────────
+
+Esto se hace UNA SOLA vez. PowerShell:
+
+  $file = "src\lib\bot\config\env.ts"
+  $content = Get-Content $file -Raw -Encoding UTF8
+
+  if ($content -notmatch "CRON_SECRET") {
+    # Insertar después de la línea de TELEGRAM_WEBHOOK_SECRET
+    $content = $content -replace `
+      "(TELEGRAM_WEBHOOK_SECRET: z\.string\(\)\.optional\(\),)", `
+      "`$1`r`n  CRON_SECRET: z.string().optional(),"
+    Set-Content -Path $file -Value $content -Encoding UTF8
+    Write-Host "✅ CRON_SECRET agregado a env.ts" -ForegroundColor Green
+  }
+
+  Get-Content $file | Select-String "CRON_SECRET"
+
+
+PASO 2 — Agregar CRON_SECRET al vitest.config.ts
+───────────────────────────────────────────────────────────────────────────
+
+  $file = "vitest.config.ts"
+  $content = Get-Content $file -Raw -Encoding UTF8
+
+  if ($content -notmatch "CRON_SECRET") {
+    $content = $content -replace `
+      '(BOT_V2_PERCENTAGE: "0",)', `
+      "`$1`r`n      CRON_SECRET: `"test_cron_secret_abc123`","
+    Set-Content -Path $file -Value $content -Encoding UTF8
+    Write-Host "✅ CRON_SECRET agregado a vitest.config" -ForegroundColor Green
+  }
+
+
+PASO 3 — Generar el valor real de CRON_SECRET
+───────────────────────────────────────────────────────────────────────────
+
+  En PowerShell:
+
+      $cronSecret = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Max 256 }))
+      Write-Host "Tu CRON_SECRET: $cronSecret"
+      Write-Host ""
+      Write-Host "Copia ese valor y:" -ForegroundColor Yellow
+      Write-Host "  1. Agrégalo a tu .env local"
+      Write-Host "  2. Agrégalo a Vercel: Settings → Environment Variables"
+
+  Después agrega a .env:
+
+      CRON_SECRET=tu-valor-generado-arriba
+
+  Y al deploy de Vercel:
+      https://vercel.com/dashboard → tu proyecto → Settings → Environment Variables
+      Nombre:  CRON_SECRET
+      Valor:   tu-valor-generado-arriba
+      Scope:   Production (mínimo), opcional Preview/Development
+
+
+PASO 4 — Tests y build
+───────────────────────────────────────────────────────────────────────────
+
+  npm run test:bot
+  npm run build
+
+  Esperado tests: ~530 verde (497 que tenías + ~30 nuevos de Fase 10A)
+  Esperado build: verde, con 2 rutas nuevas:
+        ƒ /api/cron/hourly
+        ƒ /api/cron/daily
+
+
+═══════════════════════════════════════════════════════════════════════════
+QUÉ HACE CADA ENDPOINT
+═══════════════════════════════════════════════════════════════════════════
+
+POST /api/cron/hourly
+  Headers:  Authorization: Bearer ${CRON_SECRET}
+  Body:     (vacío)
+  Query:    ?dryRun=1  (opcional, no manda mensajes reales)
+
+  Corre:    reminders (recordatorios a pendientes >24h)
+  Frecuencia recomendada: cada hora
+
+
+POST /api/cron/daily
+  Headers:  Authorization: Bearer ${CRON_SECRET}
+  Body:     (vacío)
+  Query:    ?dryRun=1  (opcional)
+
+  Corre:    reactivation + cleanup
+  Frecuencia recomendada: 1 vez al día a las 9:00 UTC (3am CDMX)
+
+
+═══════════════════════════════════════════════════════════════════════════
+PROBARLO DESPUÉS DEL DEPLOY
+═══════════════════════════════════════════════════════════════════════════
+
+  $URL = "https://TU_DOMINIO.com/api/cron/hourly"
+  $SECRET = "tu-valor-real"
+
+  # Health check (sin auth):
+  Invoke-RestMethod -Uri $URL -Method Get
+
+  # Disparar el job (con auth):
+  Invoke-RestMethod -Uri "$URL?dryRun=1" `
+    -Method Post `
+    -Headers @{ Authorization = "Bearer $SECRET" }
+
+  Si funciona, obtienes JSON con el resumen del job.
+  Si no, obtienes 401 (auth incorrecto) o 500 (bug — revisa logs).

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pipeline de análisis de imágenes.
  *
  *   IncomingMessage (type=image)
@@ -28,7 +28,7 @@ import type OpenAI from "openai";
 import { analyzeImage } from "../../services/openai/vision";
 import { downloadMedia, MediaError } from "../../services/meta/media";
 import { getCachedAnalysis, setCachedAnalysis } from "./cache";
-import { VISION_ANALYSIS_PROMPT } from "./prompts";
+import { VISION_USER_PROMPT } from "./prompts";
 import type {
   ImageProcessingResult,
   VisionAnalysisResult,
@@ -163,7 +163,7 @@ async function runVisionAnalysis(
     {
       imageBase64: base64,
       imageMimeType: mimeType,
-      prompt: VISION_ANALYSIS_PROMPT,
+      prompt: VISION_USER_PROMPT,
       maxTokens: 600,
     },
     openai

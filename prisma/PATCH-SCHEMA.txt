@@ -1,0 +1,120 @@
+// ════════════════════════════════════════════════════════════════════════
+// FASE 12 — Modelos nuevos a agregar al schema.prisma existente
+// ════════════════════════════════════════════════════════════════════════
+//
+// INSTRUCCIONES:
+//
+// 1. Abre prisma/schema.prisma
+//
+// 2. En el modelo `Order`, agrega ESTOS campos opcionales después de
+//    `wantsInvoice` y antes de `createdAt`:
+//
+//        // ── Bot v2 metadata (Fase 12) ──
+//        source            String?             // "bot_v2" | "crm" | "web" | null
+//        botPhone          String?             // teléfono E.164 del cliente en el bot
+//        botConversationId String?             // ID interno de la conversación
+//
+//        // ── Despacho (Fase 12) ──
+//        preparedAt        DateTime?
+//        preparedBy        String?
+//        shippedAt         DateTime?
+//        shippedBy         String?
+//        deliveredAt       DateTime?
+//
+// 3. Al FINAL del archivo, agrega los 3 modelos nuevos que están abajo
+//
+// 4. Corre:
+//    npx prisma migrate dev --name fase12_bot_ordenes_telas
+//    (o `npx prisma db push` si prefieres sin migración formal)
+//
+// 5. Listo. Prisma generate corre automático.
+
+// ════════════════════════════════════════════════════════════════════════
+// MODELOS NUEVOS — copiar al final de schema.prisma
+// ════════════════════════════════════════════════════════════════════════
+
+enum TelaSolicitadaStatus {
+  NUEVA
+  EN_EVALUACION
+  APROBADA
+  RECHAZADA
+  AGREGADA_AL_CATALOGO
+}
+
+model TelaNoManejada {
+  id              String                 @id @default(cuid())
+  // Datos del cliente que la pidió
+  clientePhone    String
+  clienteNombre   String?
+  clienteUserId   String?
+
+  // La tela
+  telaIdentificada String                // ej. "popelina", "lino", "casimir"
+  descripcionExtra String?               // descripción adicional del bot/vision
+  imagenUrl       String?                // si vino con foto
+  cantidadKg      Float?                 // cuánto necesita
+  frecuencia      String?                // "mensual", "única", "estacional"
+  usoFinal        String?                // "uniformes", "camisas", etc.
+
+  status          TelaSolicitadaStatus   @default(NUEVA)
+  notasInternas   String?
+
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@index([telaIdentificada])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+model ProgramacionVolumen {
+  id              String   @id @default(cuid())
+  // Datos del cliente
+  clientePhone    String
+  clienteNombre   String?
+  clienteUserId   String?
+
+  // Programación
+  telaSku         String?              // SKU si está en catálogo
+  telaTitulo      String               // nombre legible
+  kgPorPeriodo    Float                // cuántos kg cada periodo
+  periodo         String               // "mensual" | "quincenal" | "semanal" | "unico"
+  fechaInicio     DateTime
+  duracionMeses   Int                  @default(1)
+
+  estado          String               @default("propuesta")
+  // estados: propuesta | confirmada | en_curso | completada | cancelada
+
+  notas           String?
+
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([clientePhone])
+  @@index([estado])
+  @@index([fechaInicio])
+}
+
+model ContactoOutbound {
+  id              String   @id @default(cuid())
+  phone           String   @unique
+  nombre          String?
+  empresa         String?
+  notas           String?
+  agregadoPor     String?              // email del admin que lo agregó
+
+  // Estado de la plantilla outbound
+  plantillaEnviada   Boolean   @default(false)
+  plantillaEnviadaAt DateTime?
+  plantillaResponse  String?           // SUCCESS | ERROR | NULL
+
+  // Estado de la interacción
+  clienteRespondio   Boolean   @default(false)
+  primeraRespuestaAt DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([phone])
+  @@index([plantillaEnviada])
+}

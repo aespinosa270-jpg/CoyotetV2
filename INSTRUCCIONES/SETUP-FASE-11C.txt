@@ -1,0 +1,206 @@
+═══════════════════════════════════════════════════════════════════════════
+FASE 11C — Recordatorios reales (última fase del plan original)
+═══════════════════════════════════════════════════════════════════════════
+
+Este ZIP completa lo que faltaba del plan inicial:
+  ✅ Membresías proactivas (11A)
+  ✅ Consentimiento + audio Whisper (11B)
+  ✅ Recordatorios reales con plantilla bienvenida (11C — este ZIP)
+
+
+ARCHIVOS NUEVOS:
+  - src/lib/bot/services/meta/template.ts  (servicio de envío de plantillas)
+  - src/app/api/admin/bot/send-template/route.ts  (endpoint manual)
+  - src/app/crm/admin/bot/pendientes/page.tsx  (lista de pendientes)
+  - src/lib/bot/__tests__/services/template.test.ts
+  - src/lib/bot/__tests__/jobs/reactivation.test.ts (sobreescribe V1)
+  - src/lib/bot/__tests__/jobs/reminders.test.ts (sobreescribe V1)
+
+ARCHIVOS SOBREESCRITOS:
+  - src/lib/bot/jobs/reactivation.ts (V2: ahora ENVÍA plantilla real)
+  - src/lib/bot/jobs/reminders.ts (V2: marca flag para review humano)
+  - src/app/crm/admin/bot/layout.tsx (agrega "Pendientes" al nav)
+
+
+═══════════════════════════════════════════════════════════════════════════
+PASOS
+═══════════════════════════════════════════════════════════════════════════
+
+  cd C:\Users\jackc_bte2q4a\Downloads\coyote-web\storefront
+  Expand-Archive -Path "$env:USERPROFILE\Downloads\coyote-bot-fase11c.zip" `
+                 -DestinationPath . -Force
+
+  npm run test:bot
+  npm run build
+
+
+═══════════════════════════════════════════════════════════════════════════
+FLUJOS COMPLETOS
+═══════════════════════════════════════════════════════════════════════════
+
+FLUJO 1 — Cliente inactivo >30 días (reactivación AUTOMÁTICA)
+─────────────────────────────────────────────────────────────────────────
+
+  1. Cron diario corre runReactivationJob a las 3am CDMX
+  2. Detecta cliente con:
+       - >30 días sin contacto
+       - 1+ compras previas
+       - Canal WhatsApp (no web/tg/ig)
+       - Consentimiento NO rechazado
+       - Sin reactivación en últimos 15 días
+  3. Envía plantilla "bienvenida" → cliente recibe en WhatsApp
+  4. Marca perfil: segmento="inactivo", ultimaReactivacion=now
+  5. Si cliente responde → bot v2 retoma con contexto y RAG completo
+  6. Si cliente no responde → se queda como "inactivo" (próximo cron lo
+     ignora por cooldown de 15 días)
+
+FLUJO 2 — Cliente con pago pendiente >24h (revisión HUMANA)
+─────────────────────────────────────────────────────────────────────────
+
+  1. Cron horario corre runRemindersJob
+  2. Detecta clientes con pedido status="pendiente_pago" >24h
+  3. Marca perfil: pedidoPendienteFlag=true, pedidoPendienteMonto=$XXX
+  4. Setea cooldown 24h (no re-flagea inmediato si ya está marcado)
+  5. Cliente aparece en /crm/admin/bot/pendientes
+  6. Tu equipo humano:
+       - Ve la lista ordenada por más antiguo primero
+       - Click "📤 Enviar" → manda plantilla bienvenida
+       - O click "💬 Ver chat" → ve el historial completo y responde
+         manualmente desde el chat existente
+  7. Cuando cliente paga, el webhook de Stripe limpia el flag automáticamente
+
+FLUJO 3 — Envío manual de plantilla (admin)
+─────────────────────────────────────────────────────────────────────────
+
+  POST /api/admin/bot/send-template
+  Authorization: cookie de admin
+  Body: { "telefono": "5215551234567", "templateName": "bienvenida" }
+
+  Respuesta exitosa:
+  {
+    "ok": true,
+    "messageId": "wamid.HBgN..."
+  }
+
+  Respuesta con error de Meta:
+  {
+    "ok": false,
+    "error": "Template name does not exist in the translation",
+    "errorCode": 132001
+  }
+
+
+═══════════════════════════════════════════════════════════════════════════
+LIMITACIONES IMPORTANTES — LEE ESTO
+═══════════════════════════════════════════════════════════════════════════
+
+1. CALIDAD DE TU PLANTILLA "bienvenida"
+   Tu plantilla está marcada como "Activa: calidad pendiente" en Meta.
+
+   - Mientras esté activa SE PUEDE USAR
+   - Pero si la calidad baja a "Roja", Meta bloquea envíos
+   - Para mantener buena calidad:
+       a) Solo enviar a clientes que ya conoces (no a leads fríos)
+       b) Espaciar envíos (cooldown 15 días que ya implementamos ayuda)
+       c) Si te marcan spam, Meta penaliza
+   - Si te bloquean, debes esperar 24-48h o re-crear la plantilla
+
+2. EL BOT NO PUEDE INICIAR CONVERSACIÓN FUERA DE 24H SIN PLANTILLA
+   Meta cobra "conversation fees" por iniciar contacto. La plantilla
+   bienvenida se considera "marketing" para Meta. Costo aproximado:
+   $0.0394 USD por conversación iniciada en México (verifica tarifa actual).
+
+3. VENTANA DE 24H POST-RESPUESTA
+   Cuando el cliente responde a la plantilla, se abre ventana de 24h
+   donde el bot v2 puede mandar lo que quiera (texto libre). Después
+   de 24h sin actividad, vuelve a necesitar plantilla.
+
+4. CANALES NO-WHATSAPP NO RECIBEN REACTIVACIÓN
+   - Web: no hay forma de "iniciar conversación" si no están en el sitio
+   - Telegram/Instagram: técnicamente posible pero NO implementado en este ZIP
+   - Solo WhatsApp recibe la plantilla bienvenida
+
+
+═══════════════════════════════════════════════════════════════════════════
+PROBARLO ANTES DE DEJAR EL CRON CORRIENDO
+═══════════════════════════════════════════════════════════════════════════
+
+  # 1. Hacer dry-run primero (no manda mensajes reales)
+  curl -X POST `
+    -H "Authorization: Bearer $env:CRON_SECRET" `
+    "https://TU_DOMINIO.com/api/cron/daily?dryRun=1"
+
+  Esperado: JSON con resumen de candidatos sin mandar nada.
+
+  # 2. Verificar tu propio número primero (envío manual)
+  curl -X POST `
+    -H "Cookie: tu-cookie-de-admin" `
+    -H "Content-Type: application/json" `
+    -d '{"telefono":"5215551234567","templateName":"bienvenida"}' `
+    "https://TU_DOMINIO.com/api/admin/bot/send-template"
+
+  El número que pongas debe recibir la plantilla en su WhatsApp.
+
+  # 3. Si funciona el manual, dejar el cron correr normal
+
+
+═══════════════════════════════════════════════════════════════════════════
+INTEGRACIÓN CON CRON-JOB.ORG
+═══════════════════════════════════════════════════════════════════════════
+
+Ya tienes 2 jobs configurados (de Fase 10):
+  - /api/cron/hourly      → corre reminders (ya está)
+  - /api/cron/daily       → corre reactivation + cleanup (ya está)
+
+NO necesitas crear jobs nuevos. La diferencia es que ahora reactivation V2
+manda plantillas reales en lugar de solo marcar inactivos.
+
+
+═══════════════════════════════════════════════════════════════════════════
+DASHBOARD ACTUALIZADO
+═══════════════════════════════════════════════════════════════════════════
+
+Nav final del bot admin (9 items):
+  📊 Dashboard
+  💬 Conversaciones
+  ⏳ Pendientes        ← NUEVO en 11C
+  📦 Catálogo
+  ⚙️ Configuración
+  🛑 Objeciones
+  📈 Métricas
+  🩺 Estado técnico
+
+
+═══════════════════════════════════════════════════════════════════════════
+PLAN ORIGINAL: COMPLETADO
+═══════════════════════════════════════════════════════════════════════════
+
+✅ Ofrecer proactivamente membresías (11A — triggers B+C combinados)
+✅ Consentimiento sujeto a privacidad/términos (11B — Opción A persistente)
+✅ Ofrecer beneficios proactivamente (11A — bloque en system prompt)
+✅ Interpretar audios (11B — Whisper con cache + límite 2min)
+✅ Conexión real de recordatorios (11C — plantilla bienvenida)
+
+
+═══════════════════════════════════════════════════════════════════════════
+QUÉ PUEDE VENIR DESPUÉS (NO URGENTE)
+═══════════════════════════════════════════════════════════════════════════
+
+Si en el futuro quieres mejoras adicionales:
+
+A) Plantillas específicas por caso (requiere aprobación Meta 1-3 días):
+   - recordatorio_pago_pendiente (con variables: nombre, monto)
+   - reactivacion_con_promocion (con variable: descuento)
+   - promocion_membresia (con variables: nombre, beneficio)
+
+B) Múltiples idiomas (si tienes clientes en EUA)
+
+C) Mensajes proactivos a Telegram/Instagram cuando estén activos
+
+D) Reactivación segmentada (clientes A: más agresivo, clientes Z: pasivo)
+
+E) A/B testing de mensajes (ahora todos reciben el mismo)
+
+F) Métricas: tasa de respuesta a reactivaciones, ROI por canal
+
+Estos no son urgentes — el sistema base está completo y funcional.
