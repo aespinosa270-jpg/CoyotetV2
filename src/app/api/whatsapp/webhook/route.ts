@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { determineRouting } from "@/lib/crm-router";
 import { createTrace } from "@/lib/tracer";
 import { shouldUseBotV2 } from "@/lib/bot/config/feature-flags";
-import { handleWhatsAppWebhook as handleWhatsAppWebhookV2 } from "@/lib/bot/transports/whatsapp/adapter";
+import { handleWhatsAppWebhook as handleWhatsAppWebhookV2 } from "@/lib/bot/transports/whatsapp/inbound";
 
 // ==========================================
 // ðŸ”‘ LLAVES MAESTRAS
@@ -2568,3 +2568,4 @@ export async function GET(req: Request) {
   console.log('âŒ VerificaciÃ³n Meta fallida');
   return new NextResponse('Acceso denegado', { status: 403 });
 }
+
