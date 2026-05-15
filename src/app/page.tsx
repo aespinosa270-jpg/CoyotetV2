@@ -788,92 +788,98 @@ export default function CoyoteMarketplace() {
         }}
       />
 
-      {/* ──────────────────────────────────────
-          HERO
-      ────────────────────────────────────── */}
-      <section className="relative h-[82vh] md:h-[88vh] min-h-[580px] flex items-center justify-center bg-[#050505] overflow-hidden border-b border-white/5">
+{/* ──────────────────────────────────────
+    HERO - MODIFICADO CON VIDEO
+────────────────────────────────────── */}
+<section className="relative h-[82vh] md:h-[88vh] min-h-[580px] flex items-center justify-center bg-[#050505] overflow-hidden border-b border-white/5">
 
-        {/* Background imagen hero */}
-        <Image
-          src="/hero2.png"
-          alt="Coyote Textil"
-          fill
-          className="object-cover opacity-80 z-0"
-          priority
-        />
-{/* Gradients */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_80%_at_55%_50%,rgba(0,0,0,0.1)_0%,rgba(0,0,0,0.85)_100%)] z-10" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/50 z-10" />
+  {/* Background Video Hero */}
+  <video
+    autoPlay
+    muted
+    loop
+    playsInline
+    className="absolute inset-0 w-full h-full object-cover opacity-60 z-0"
+  >
+    <source src="/herovid.mp4" type="video/mp4" />
+  </video>
 
-        {/* Blob de luz */}
-        <motion.div
-          animate={{ scale: [1, 1.06, 1], opacity: [0.15, 0.25, 0.15] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute z-10 w-[500px] h-[400px] rounded-full bg-[#FDCB02]/10 blur-[100px] pointer-events-none"
-          style={{ top: "50%", left: "55%", transform: "translate(-50%, -50%)" }}
-        />
+  {/* Gradients de Integración Orgánica */}
+  {/* Este gradiente radial oscurece los bordes para centrar la atención */}
+  <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_80%_at_55%_50%,rgba(0,0,0,0.1)_0%,rgba(0,0,0,0.85)_100%)] z-10" />
+  
+  {/* Este gradiente lineal asegura que el video no se corte abruptamente arriba o abajo */}
+  <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/60 z-10" />
 
-        {/* Contenido centrado */}
-        <div className="relative z-20 flex flex-col items-center justify-center text-center px-6 max-w-5xl mx-auto w-full">
+  {/* Blob de luz (Mantenido para dar profundidad al video) */}
+  <motion.div
+    animate={{ scale: [1, 1.06, 1], opacity: [0.15, 0.25, 0.15] }}
+    transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+    className="absolute z-10 w-[500px] h-[400px] rounded-full bg-[#FDCB02]/10 blur-[100px] pointer-events-none"
+    style={{ top: "50%", left: "55%", transform: "translate(-50%, -50%)" }}
+  />
 
-          {/* Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.1 }}
-            className="inline-flex items-center gap-3 border-l-4 border-[#FDCB02] pl-5 mb-8 uppercase text-[10px] font-[900] tracking-[0.35em] text-[#FDCB02]"
-          >
-            Infraestructura Nacional
-          </motion.div>
+  {/* Contenido centrado (Z-20 para estar sobre los gradientes) */}
+  <div className="relative z-20 flex flex-col items-center justify-center text-center px-6 max-w-5xl mx-auto w-full">
+    
+    {/* Badge */}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8, delay: 0.1 }}
+      className="inline-flex items-center gap-3 border-l-4 border-[#FDCB02] pl-5 mb-8 uppercase text-[10px] font-[900] tracking-[0.35em] text-[#FDCB02]"
+    >
+      Infraestructura Nacional
+    </motion.div>
 
-          {/* Headline */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-col items-center leading-[0.82] mb-8"
-          >
-            <h1 className="text-[clamp(3rem,9vw,7.5rem)] font-[1000] uppercase text-white tracking-tighter drop-shadow-2xl">
-               LA FUERZA
-            </h1>
-            <h1 className="text-[clamp(3.2rem,10vw,8.5rem)] font-[1000] uppercase text-[#FDCB02] tracking-tighter drop-shadow-2xl">
-              DE MÉXICO
-            </h1>
-          </motion.div>
+    {/* Headline */}
+    <motion.div
+      initial={{ opacity: 0, y: 40 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 1, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+      className="flex flex-col items-center leading-[0.82] mb-8"
+    >
+      <h1 className="text-[clamp(3rem,9vw,7.5rem)] font-[1000] uppercase text-white tracking-tighter drop-shadow-2xl">
+          LA FUERZA
+      </h1>
+      <h1 className="text-[clamp(3.2rem,10vw,8.5rem)] font-[1000] uppercase text-[#FDCB02] tracking-tighter drop-shadow-2xl">
+        DE MÉXICO
+      </h1>
+    </motion.div>
 
-          {/* Subtítulo */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1, delay: 0.5 }}
-            className="text-base md:text-xl text-white/70 font-[700] uppercase italic tracking-tight max-w-2xl mb-10"
-          >
-            Control Absoluto del Suministro. Sin Rivales. Sin Excusas.
-          </motion.p>
+    {/* Subtítulo */}
+    <motion.p
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 1, delay: 0.5 }}
+      className="text-base md:text-xl text-white/70 font-[700] uppercase italic tracking-tight max-w-2xl mb-10"
+    >
+      Control Absoluto del Suministro. Sin Rivales. Sin Excusas.
+    </motion.p>
 
-          {/* CTAs */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.7 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto"
-          >
-            <Link
-              href="/contenedor"
-              className="w-full sm:w-auto h-14 px-10 border-2 border-white/30 bg-black/50 backdrop-blur-md text-white font-[900] uppercase text-[11px] tracking-[0.2em] rounded flex items-center justify-center hover:bg-white hover:text-black hover:border-white transition-all duration-400"
-            >
-              Cotizar Contenedor
-            </Link>
-            <button
-              onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })}
-              className="w-full sm:w-auto h-14 px-10 bg-[#FDCB02] text-black font-[900] uppercase text-[11px] tracking-[0.2em] rounded flex items-center justify-center gap-2 hover:bg-white hover:shadow-[0_0_40px_rgba(253,203,2,0.35)] transition-all duration-400"
-            >
-              Ver Stock
-              <ChevronRight size={15} />
-            </button>
-          </motion.div>
-        </div>
-      </section>
+    {/* CTAs */}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8, delay: 0.7 }}
+      className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto"
+    >
+      <Link
+        href="/contenedor"
+        className="w-full sm:w-auto h-14 px-10 border-2 border-white/30 bg-black/50 backdrop-blur-md text-white font-[900] uppercase text-[11px] tracking-[0.2em] rounded flex items-center justify-center hover:bg-white hover:text-black hover:border-white transition-all duration-400"
+      >
+        Cotizar Contenedor
+      </Link>
+      <button
+        onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })}
+        className="w-full sm:w-auto h-14 px-10 bg-[#FDCB02] text-black font-[900] uppercase text-[11px] tracking-[0.2em] rounded flex items-center justify-center gap-2 hover:bg-white hover:shadow-[0_0_40px_rgba(253,203,2,0.35)] transition-all duration-400"
+      >
+        Ver Stock
+        <ChevronRight size={15} />
+      </button>
+    </motion.div>
+  </div>
+</section>
 
       {/* Filter bar */}
       <FilterBar
