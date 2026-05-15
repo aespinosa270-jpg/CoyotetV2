@@ -32,7 +32,7 @@ interface RouteOrder {
 }
 interface Stats { entregadosEsteMes: number; enRuta: number; mesActual: string; }
 
-const TIPO_CONFIG: Record<string, { label: string; cls: string; icon: React.ElementType }> = {
+const TIPO_CONFIG: Record<string, { label: string; cls: string; icon: LucideIcon }> = {
   RECOLECCION:       { label: "RecolecciÃ³n",       cls: "bg-blue-500/10 text-blue-400 border-blue-800",    icon: Package },
   RESTOCK_INTERNO:   { label: "Restock Interno",   cls: "bg-purple-500/10 text-purple-400 border-purple-800", icon: Store },
   RESTOCK_PROVEEDOR: { label: "Restock Proveedor", cls: "bg-orange-500/10 text-orange-400 border-orange-800", icon: Truck },
@@ -388,6 +388,8 @@ export default function FlotillaPage() {
     </div>
   );
 }
+
+
 
 
 
