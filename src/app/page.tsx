@@ -15,22 +15,6 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import Lenis from "lenis"
-import dynamic from "next/dynamic"
-
-const GarmentSculpture = dynamic(
-  () => import("@/components/showroom/GarmentSculpture"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="text-[10px] tracking-[0.4em] text-white/30 font-mono animate-pulse">
-          ⌁ RENDERIZANDO MATERIAL
-        </div>
-      </div>
-    ),
-  }
-)
-
 // ─────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────
@@ -811,19 +795,13 @@ export default function CoyoteMarketplace() {
 
         {/* Background imagen hero */}
         <Image
-          src="/hero1.png"
+          src="/hero2.png"
           alt="Coyote Textil"
           fill
-          className="object-cover opacity-25 z-0"
+          className="object-cover opacity-80 z-0"
           priority
         />
-
-        {/* Escultura 3D */}
-        <div className="absolute inset-0 z-[5]">
-          <GarmentSculpture />
-        </div>
-
-        {/* Gradients */}
+{/* Gradients */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_80%_at_55%_50%,rgba(0,0,0,0.1)_0%,rgba(0,0,0,0.85)_100%)] z-10" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/50 z-10" />
 
@@ -856,7 +834,7 @@ export default function CoyoteMarketplace() {
             className="flex flex-col items-center leading-[0.82] mb-8"
           >
             <h1 className="text-[clamp(3rem,9vw,7.5rem)] font-[1000] uppercase text-white tracking-tighter drop-shadow-2xl">
-              VISTIENDO LA FUERZA
+               LA FUERZA
             </h1>
             <h1 className="text-[clamp(3.2rem,10vw,8.5rem)] font-[1000] uppercase text-[#FDCB02] tracking-tighter drop-shadow-2xl">
               DE MÉXICO
@@ -980,3 +958,4 @@ export default function CoyoteMarketplace() {
     </div>
   )
 }
+
