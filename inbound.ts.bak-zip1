@@ -4,8 +4,6 @@ import { getRedis } from "../../repositories/redis";
 import { getLogger } from "../../observability/logger";
 import { processMessage } from "../../core/orchestrator";
 import { sendText } from "../../services/meta/send";
-import { appendMedia, type MediaTipo } from "../../repositories/media-repo";
-import { prisma } from "@/lib/prisma";
 
 const log = getLogger({ module: "whatsapp-adapter" });
 
@@ -25,37 +23,6 @@ export async function handleWhatsAppWebhook(payload: any): Promise<void> {
 
   const redis = getRedis();
   if (await isDuplicateMessage(messageId, redis)) return;
-
-  // ── FASE 12-fix #1: marcar ContactoOutbound como respondió ─────────
-  // Si el teléfono está en la tabla de contactos outbound (alguien le mandó
-  // plantilla manualmente), lo marcamos como "respondió" para que el panel
-  // de Contactos se actualice en tiempo real.
-  markContactoRespondio(phone).catch((err) => {
-    log.warn({ err, phone }, "No se pudo marcar ContactoOutbound como respondido");
-  });
-
-  // ── FASE 12-fix #2: registrar media en media-repo (paralelo al historial) ──
-  // Si el mensaje es imagen/audio/video, guardamos los metadatos en Redis
-  // para que el CRM pueda renderizar inline. No bloquea el pipeline del bot.
-  if (["image", "audio", "video", "document"].includes(msg.type)) {
-    const media = msg[msg.type];
-    if (media?.id) {
-      appendMedia(
-        phone,
-        {
-          messageId,
-          nativeId: media.id,
-          tipo: msg.type as MediaTipo,
-          mimeType: media.mime_type,
-          caption: media.caption ?? "",
-          timestamp: new Date().toISOString(),
-        },
-        redis
-      ).catch((err) => {
-        log.warn({ err, phone, messageId }, "No se pudo registrar media");
-      });
-    }
-  }
 
   // ── Construir IncomingMessage según el tipo ──
   const incoming = buildIncomingMessage(msg, messageId, phone);
@@ -79,35 +46,9 @@ export async function handleWhatsAppWebhook(payload: any): Promise<void> {
   }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-/**
- * Marca el ContactoOutbound como respondido si existe y aún no estaba marcado.
- * Idempotente: si ya tiene `clienteRespondio: true`, no hace nada.
- */
-async function markContactoRespondio(phone: string): Promise<void> {
-  try {
-    const existing = await prisma.contactoOutbound.findUnique({
-      where: { phone },
-      select: { id: true, clienteRespondio: true },
-    });
-
-    if (!existing) return; // No es un contacto outbound, ignorar
-    if (existing.clienteRespondio) return; // Ya estaba marcado, idempotente
-
-    await prisma.contactoOutbound.update({
-      where: { phone },
-      data: {
-        clienteRespondio: true,
-        primeraRespuestaAt: new Date(),
-      },
-    });
-
-    log.info({ phone }, "ContactoOutbound marcado como respondió");
-  } catch (err) {
-    log.error({ err, phone }, "Error en markContactoRespondio");
-  }
-}
+// ─────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────
 
 function buildIncomingMessage(
   msg: any,
@@ -157,6 +98,27 @@ function buildIncomingMessage(
           mimeType: msg.audio?.mime_type ?? msg.voice?.mime_type,
           sha256: msg.audio?.sha256 ?? msg.voice?.sha256,
           sizeBytes: msg.audio?.file_size ?? msg.voice?.file_size,
+        },
+      };
+
+    case "video":
+    case "document":
+      // Por ahora no soportados pero al menos los registramos
+      return null;
+
+    case "interactive":
+      // Botones / listas que el bot envió previamente
+      return {
+        ...base,
+        type: "interactive",
+        interactive: {
+          payload:
+            msg.interactive?.button_reply?.id ??
+            msg.interactive?.list_reply?.id ??
+            "",
+          label:
+            msg.interactive?.button_reply?.title ??
+            msg.interactive?.list_reply?.title,
         },
       };
 
