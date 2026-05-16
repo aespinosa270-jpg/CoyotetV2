@@ -1,4 +1,4 @@
-Ôªøimport type { BotContext } from "../../core/types";
+import type { BotContext } from "../../core/types";
 import { calcularEnvio } from "../../domain/shipping/calculator";
 import { resolverZona } from "../../domain/shipping/zones";
 import * as clientRepo from "../../repositories/client-repo";
@@ -7,7 +7,7 @@ import { getLogger } from "../../observability/logger";
 const log = getLogger({ module: "tool-calcular-envio" });
 
 export async function calcularEnvioHandler(args: any, context: BotContext) {
-  log.info({ args }, "Calculando env√≠o v√≠a Tool");
+  log.info({ args }, "Calculando envÌo vÌa Tool");
   try {
     const { cp, productos, subtotal, requiere_factura } = args;
 
@@ -45,10 +45,10 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
               carrier: data.bestQuote.carrier,
               days: data.bestQuote.days || 3
             };
-            log.info({ skydropxData }, "Skydropx cotiz√≥");
+            log.info({ skydropxData }, "Skydropx cotizÛ");
           }
         } else {
-          log.warn({ status: res.status }, "Skydropx API no respondi√≥ OK");
+          log.warn({ status: res.status }, "Skydropx API no respondiÛ OK");
         }
       } catch (err) {
         log.error({ err }, "Error cotizando Skydropx, usando fallback");
@@ -73,19 +73,19 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
         iva: Math.round(ivaReal * 100) / 100,
         total: Math.round(totalReal * 100) / 100,
         desglose: [
-          `üì¶ *Desglose de su cotizaci√≥n*`,
-          `‚Ä¢ Subtotal productos: $${subtotal.toFixed(2)} MXN`,
-          `‚Ä¢ Flete (manejo de bultos): $${resultado.flete.toFixed(2)}`,
-          `‚Ä¢ Traslado v√≠a ${skydropxData.carrier} (${skydropxData.days} d√≠as h√°biles): $${trasladoReal.toFixed(2)}`,
-          `‚Ä¢ Tarifa de servicio: $${resultado.tarifaServicio.toFixed(2)}`,
-          `‚Ä¢ Base: $${baseReal.toFixed(2)}`,
-          requiere_factura ? `‚Ä¢ IVA 16%: $${ivaReal.toFixed(2)}` : null,
-          `‚Ä¢ *TOTAL: $${totalReal.toFixed(2)} MXN*`
+          `?? *Desglose de su cotizaciÛn*`,
+          `ï Subtotal productos: $${subtotal.toFixed(2)} MXN`,
+          `ï Flete (manejo de bultos): $${resultado.flete.toFixed(2)}`,
+          `ï Traslado vÌa ${skydropxData.carrier} (${skydropxData.days} dÌas h·biles): $${trasladoReal.toFixed(2)}`,
+          `ï Tarifa de servicio: $${resultado.tarifaServicio.toFixed(2)}`,
+          `ï Base: $${baseReal.toFixed(2)}`,
+          requiere_factura ? `ï IVA 16%: $${ivaReal.toFixed(2)}` : null,
+          `ï *TOTAL: $${totalReal.toFixed(2)} MXN*`
         ].filter(Boolean).join("\n")
       };
     }
 
-    // 5. Guardar cotizaci√≥n
+    // 5. Guardar cotizaciÛn
     context.profile.ultimaCotizacionObj = {
       productos: JSON.stringify(productos),
       kg: productos.reduce((acc: number, p: any) => acc + p.kg, 0),
@@ -98,15 +98,15 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
       fecha: new Date().toISOString()
     };
 
-    context.profile.ultimaCotizacion = `Cotizaci√≥n a CP ${cp}: $${resultadoFinal.total.toFixed(2)} MXN`;
+    context.profile.ultimaCotizacion = `CotizaciÛn a CP ${cp}: $${resultadoFinal.total.toFixed(2)} MXN`;
     await clientRepo.save(context.profile, context.redis);
 
-    // 6. Instrucci√≥n mejorada para que el bot mencione el carrier
-    let instruccion = "Muestra el total al cliente y preg√∫ntale si requiere factura o si procedemos al cobro.";
+    // 6. InstrucciÛn mejorada para que el bot mencione el carrier
+    let instruccion = "Muestra el total al cliente y preg˙ntale si requiere factura o si procedemos al cobro.";
     if (skydropxData) {
-      instruccion = `IMPORTANTE: El env√≠o va con ${skydropxData.carrier} en ${skydropxData.days} d√≠as h√°biles. Menciona claramente al cliente qui√©n entregar√° y en cu√°ntos d√≠as. Despu√©s pregunta si procedemos al cobro.`;
+      instruccion = `IMPORTANTE: El envÌo va con ${skydropxData.carrier} en ${skydropxData.days} dÌas h·biles. Menciona claramente al cliente quiÈn entregar· y en cu·ntos dÌas. DespuÈs pregunta si procedemos al cobro.`;
     } else if (zona.tipo === "COYOTE") {
-      instruccion = `IMPORTANTE: El env√≠o va con NUESTRA FLOTILLA COYOTE (entrega directa a ${zona.etiqueta}). Menciona que es entrega de nuestra propia flotilla. Despu√©s pregunta si procedemos al cobro.`;
+      instruccion = `IMPORTANTE: El envÌo va con NUESTRA FLOTILLA COYOTE (entrega directa a ${zona.etiqueta}). Menciona que es entrega de nuestra propia flotilla. DespuÈs pregunta si procedemos al cobro.`;
     }
 
     return {
@@ -120,7 +120,7 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
       instruccion_para_ia: instruccion
     };
   } catch (error: any) {
-    log.error({ err: error }, "Error en c√°lculo de env√≠o");
-    return { success: false, error: "CP inv√°lido o problema calculando la ruta." };
+    log.error({ err: error }, "Error en c·lculo de envÌo");
+    return { success: false, error: "CP inv·lido o problema calculando la ruta." };
   }
 }

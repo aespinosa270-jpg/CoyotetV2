@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Zonas de envío de Coyote Textil.
  *
  * Mapea el prefijo de CP (los primeros 2 dígitos, o sea floor(cp/1000))
@@ -99,11 +99,6 @@ export function resolverZona(cp: string): ZonaEnvio {
   // ── Cuernavaca / Morelos (62) ────────────────────────────────────
   if (prefix2 === 62) {
     return { tipo: "COYOTE", distanciaKm: 90, etiqueta: "Cuernavaca / Morelos" };
-  }
-
-  // ── Tlaxcala (90) ─────────────────────────────────────────────────────────
-  if (prefix2 === 90) {
-    return { tipo: "COYOTE", distanciaKm: 120, etiqueta: "Tlaxcala" };
   }
 
   // ── Resto del país: paquetería ───────────────────────────────────

@@ -1,4 +1,4 @@
-﻿// Le quitamos el tipo estricto de OpenAI para evitar el doble enrutamiento en chat.ts
+// Le quitamos el tipo estricto de OpenAI para evitar el doble enrutamiento en chat.ts
 export const BOT_TOOLS: any[] = [
   {
     name: "calcular_envio",
@@ -30,8 +30,7 @@ export const BOT_TOOLS: any[] = [
     parameters: {
       type: "object",
       properties: {
-        monto: { type: "number", description: "Monto total exacto a cobrar en MXN. Si con_factura=true este monto DEBE incluir el IVA 16%." },
-        monto_incluye_iva: { type: "boolean", description: "Marcar true si el monto ya tiene IVA incluido (viene de calcular_envio con requiere_factura=true)" },
+        monto: { type: "number", description: "Monto total exacto a cobrar en MXN" },
         metodo: { type: "string", enum: ["tarjeta", "oxxo"], description: "Método de pago preferido" },
         con_factura: { type: "boolean" },
         rfc: { type: "string", description: "RFC del cliente (solo si requiere factura)" },
@@ -65,14 +64,7 @@ export const BOT_TOOLS: any[] = [
     parameters: {
       type: "object",
       properties: {
-        monto: { type: "number", description: "Monto total exacto. Si requiere factura DEBE incluir IVA 16%." },
-        con_factura: { type: "boolean", description: "Si el cliente requiere factura fiscal" },
-        monto_incluye_iva: { type: "boolean", description: "Marcar true si el monto ya tiene IVA incluido" },
-        rfc: { type: "string" },
-        razon_social: { type: "string" },
-        cp_fiscal: { type: "string" },
-        regimen_fiscal: { type: "string" },
-        uso_cfdi: { type: "string" },
+        monto: { type: "number", description: "Monto total exacto a cobrar en MXN" },
         productos: {
           type: "array",
           items: {
