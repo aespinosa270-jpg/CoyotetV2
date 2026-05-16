@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Formatea los resultados del RAG para inyectarlos al system prompt.
  *
  * Diferencia vs catalog-block (Fase 5):
@@ -21,25 +21,10 @@ function productoToLine(result: SearchResult): string {
   const precios = `$${p.menudeo}/$${p.mayoreo} por ${unidad}`;
   const usos = p.categoriaLibre ? ` | ${p.categoriaLibre}` : "";
 
-  // FASE 12 FIX: incluir colores
-  const colorList = (p as any).colores as Array<{ nombre: string }> | undefined;
-  let coloresInfo = "";
-  if (colorList && colorList.length > 0) {
-    coloresInfo = ` | Colores: ${colorList.map((c) => c.nombre).join(", ")}`;
-  } else if ((p as any).colorUnico === true) {
-    coloresInfo = " | Solo blanco";
-  }
-
-  // Specs técnicas
-  const detalles: string[] = [];
-  if ((p as any).gramaje) detalles.push(`${(p as any).gramaje}g/m²`);
-  if ((p as any).ancho) detalles.push(`ancho ${(p as any).ancho}m`);
-  const tech = detalles.length > 0 ? ` | ${detalles.join(" ")}` : "";
-
   // Marcador visible para que GPT vea match exacto vs semántico
   const tag = matchType === "exact" ? "[MATCH EXACTO]" : `[${(similarity * 100).toFixed(0)}%]`;
 
-  return `${tag} ${p.id} | ${p.nombre} | ${p.categoria} | ${precios}${tech}${coloresInfo}${usos}`;
+  return `${tag} ${p.id} | ${p.nombre} | ${p.categoria} | ${precios}${usos}`;
 }
 
 /**

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Indexer del catálogo en pgvector.
  *
  * Genera embeddings de cada producto del catálogo (source-of-truth desde
@@ -49,15 +49,6 @@ export function productToEmbedText(p: Producto): string {
     if (tela.kgPorRollo) {
       parts.push(`Presentación: rollo de ${tela.kgPorRollo} kg`);
     }
-  }
-
-  // FASE 12 FIX: incluir colores disponibles en el embedding
-  const colores = (p as any).colores as Array<{ nombre: string }> | undefined;
-  if (colores && colores.length > 0) {
-    const nombres = colores.map((c) => c.nombre).join(", ");
-    parts.push(`Colores disponibles: ${nombres}`);
-  } else if ((p as any).colorUnico === true) {
-    parts.push(`Color: solo blanco`);
   }
 
   return parts.join(". ");
