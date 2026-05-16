@@ -132,6 +132,5 @@ export const TELAS_PROHIBIDAS = [
   "lana",
   "cachemir",
   "tweed",
-  "oxford",
   "bramante",
 ];

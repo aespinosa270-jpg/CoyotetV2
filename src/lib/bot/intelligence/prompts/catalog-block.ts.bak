@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Generador del bloque de catálogo para system prompt.
  *
  * El v1 le decía a GPT "no inventes precios" sin darle el catálogo. Resultado:
@@ -28,7 +28,28 @@ function productoToLine(p: Producto): string {
         : "metro";
   const precios = `$${p.menudeo}/$${p.mayoreo} por ${unidad}`;
   const usos = p.categoriaLibre ? ` | ${p.categoriaLibre}` : "";
-  return `${p.id} | ${p.nombre} | ${p.categoria} | ${precios}${usos}`;
+
+  // FASE 12 FIX: incluir colores disponibles
+  const colorList = (p as any).colores as Array<{ nombre: string }> | undefined;
+  let coloresInfo = "";
+  if (colorList && colorList.length > 0) {
+    const nombres = colorList.map((c) => c.nombre).join(", ");
+    coloresInfo = ` | Colores: ${nombres}`;
+  } else if ((p as any).colorUnico === true) {
+    coloresInfo = " | Solo blanco";
+  }
+
+  // Info técnica (gramaje + composición + ancho) cuando aplique
+  const detalles: string[] = [];
+  const gramaje = (p as any).gramaje;
+  if (gramaje) detalles.push(`${gramaje}g/m²`);
+  const ancho = (p as any).ancho;
+  if (ancho) detalles.push(`ancho ${ancho}m`);
+  const rendimiento = (p as any).rendimientoMxKg;
+  if (rendimiento) detalles.push(`${rendimiento}m/kg`);
+  const tech = detalles.length > 0 ? ` | ${detalles.join(" ")}` : "";
+
+  return `${p.id} | ${p.nombre} | ${p.categoria} | ${precios}${tech}${coloresInfo}${usos}`;
 }
 
 /**
