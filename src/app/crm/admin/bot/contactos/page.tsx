@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Página: Contactos Outbound
  *
  * Permite al admin agregar números manualmente y dispararles la plantilla
@@ -8,6 +8,7 @@
 import { prisma } from "@/lib/prisma";
 import ContactosForm from "./_components/ContactosForm";
 import ContactosTable from "./_components/ContactosTable";
+import SendAllButton from "./_components/SendAllButton";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -24,6 +25,11 @@ export default async function ContactosPage() {
     respondieron: contactos.filter((c) => c.clienteRespondio).length,
   };
 
+  // FEATURE: contactos pendientes = no enviados O enviados sin respuesta
+  const pendingCount = contactos.filter(
+    (c) => !c.plantillaEnviada || (c.plantillaEnviada && !c.clienteRespondio)
+  ).length;
+
   return (
     <div className="space-y-6">
       <header>
@@ -38,6 +44,11 @@ export default async function ContactosPage() {
           cuando respondan.
         </p>
       </header>
+
+      {/* Botón envío masivo */}
+      <div className="flex justify-end">
+        <SendAllButton pendingCount={pendingCount} />
+      </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-3">
