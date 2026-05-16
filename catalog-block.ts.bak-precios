@@ -26,13 +26,7 @@ function productoToLine(p: Producto): string {
       : p.categoria === "hilos"
         ? "cono"
         : "metro";
-  // FASE 12 FIX: etiquetar explícitamente menudeo vs mayoreo + presentación por rollo
-  const precios = `Menudeo $${p.menudeo}/${unidad} | Mayoreo $${p.mayoreo}/${unidad} (más barato por volumen)`;
-  const kgPorRollo = (p as any).kgPorRollo;
-  const presentacion =
-    p.categoria === "telas" && kgPorRollo
-      ? ` | Presentación: rollo de ${kgPorRollo} kg (precio rollo = $${(p.mayoreo * kgPorRollo).toLocaleString("es-MX")})`
-      : "";
+  const precios = `$${p.menudeo}/$${p.mayoreo} por ${unidad}`;
   const usos = p.categoriaLibre ? ` | ${p.categoriaLibre}` : "";
 
   // FASE 12 FIX: incluir colores disponibles
@@ -55,7 +49,7 @@ function productoToLine(p: Producto): string {
   if (rendimiento) detalles.push(`${rendimiento}m/kg`);
   const tech = detalles.length > 0 ? ` | ${detalles.join(" ")}` : "";
 
-  return `${p.id} | ${p.nombre} | ${p.categoria} | ${precios}${presentacion}${tech}${coloresInfo}${usos}`;
+  return `${p.id} | ${p.nombre} | ${p.categoria} | ${precios}${tech}${coloresInfo}${usos}`;
 }
 
 /**

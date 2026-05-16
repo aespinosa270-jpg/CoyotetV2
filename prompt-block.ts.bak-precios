@@ -18,13 +18,7 @@ function productoToLine(result: SearchResult): string {
       : p.categoria === "hilos"
         ? "cono"
         : "metro";
-  // FASE 12 FIX: etiquetar explícitamente menudeo vs mayoreo + presentación por rollo
-  const precios = `Menudeo $${p.menudeo}/${unidad} | Mayoreo $${p.mayoreo}/${unidad} (más barato por volumen)`;
-  const kgPorRollo = (p as any).kgPorRollo;
-  const presentacion =
-    p.categoria === "telas" && kgPorRollo
-      ? ` | Presentación: rollo de ${kgPorRollo} kg (precio rollo = $${(p.mayoreo * kgPorRollo).toLocaleString("es-MX")})`
-      : "";
+  const precios = `$${p.menudeo}/$${p.mayoreo} por ${unidad}`;
   const usos = p.categoriaLibre ? ` | ${p.categoriaLibre}` : "";
 
   // FASE 12 FIX: incluir colores
@@ -45,7 +39,7 @@ function productoToLine(result: SearchResult): string {
   // Marcador visible para que GPT vea match exacto vs semántico
   const tag = matchType === "exact" ? "[MATCH EXACTO]" : `[${(similarity * 100).toFixed(0)}%]`;
 
-  return `${tag} ${p.id} | ${p.nombre} | ${p.categoria} | ${precios}${presentacion}${tech}${coloresInfo}${usos}`;
+  return `${tag} ${p.id} | ${p.nombre} | ${p.categoria} | ${precios}${tech}${coloresInfo}${usos}`;
 }
 
 /**
