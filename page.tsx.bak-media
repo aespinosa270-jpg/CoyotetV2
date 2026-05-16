@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Detalle de una conversación específica.
  *
  * Layout de 2 columnas:
@@ -8,8 +8,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getConversacionDetallada } from "@/lib/bot/repositories/admin-queries";
-import { getMediaList, type MediaMensaje } from "@/lib/bot/repositories/media-repo";
-import MediaMessage from "./_components/MediaMessage";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,10 +20,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
   const { phone: phoneEncoded } = await params;
   const phone = decodeURIComponent(phoneEncoded);
 
-  const [detalle, mediaList] = await Promise.all([
-    getConversacionDetallada(phone),
-    getMediaList(phone),
-  ]);
+  const detalle = await getConversacionDetallada(phone);
   if (!detalle) notFound();
 
   const { perfil, historial, resumen, memoria, pedidos, topObjeciones } =
@@ -175,7 +170,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
             ) : (
               <div className="space-y-2 max-h-[700px] overflow-y-auto">
                 {historial.map((m, i) => (
-                  <MessageBubble key={i} mensaje={m} mediaList={mediaList} />
+                  <MessageBubble key={i} mensaje={m} />
                 ))}
               </div>
             )}
@@ -253,13 +248,7 @@ function DLBar({
   );
 }
 
-function MessageBubble({
-  mensaje,
-  mediaList = [],
-}: {
-  mensaje: any;
-  mediaList?: MediaMensaje[];
-}) {
+function MessageBubble({ mensaje }: { mensaje: any }) {
   const isUser = mensaje.role === "user";
   const isTool = mensaje.role === "tool";
   const isAssistant = mensaje.role === "assistant";
@@ -271,16 +260,6 @@ function MessageBubble({
       </div>
     );
   }
-
-  // FASE 12-fix #2: buscar media asociada por timestamp (±5 seg)
-  const media =
-    isUser && mensaje.timestamp
-      ? mediaList.find((m) => {
-          const msgTs = new Date(mensaje.timestamp).getTime();
-          const mediaTs = new Date(m.timestamp).getTime();
-          return Math.abs(msgTs - mediaTs) < 5000;
-        })
-      : undefined;
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -295,18 +274,6 @@ function MessageBubble({
           <div className="text-xs text-slate-500 mb-0.5">🐺 El Coyote</div>
         )}
         <div className="text-sm whitespace-pre-line">{mensaje.content}</div>
-        {media && (
-          <div className="mt-2">
-            <MediaMessage
-              mediaId={media.nativeId}
-              tipo={media.tipo}
-              caption={media.caption}
-              mimeType={media.mimeType}
-              vision={media.vision}
-              transcripcion={media.transcripcion}
-            />
-          </div>
-        )}
         {mensaje.timestamp && (
           <div
             className={`text-xs mt-1 ${isUser ? "text-blue-100" : "text-slate-400"}`}
