@@ -10,6 +10,12 @@ import Link from "next/link";
 import { getConversacionDetallada } from "@/lib/bot/repositories/admin-queries";
 import { getMediaList, type MediaMensaje } from "@/lib/bot/repositories/media-repo";
 import MediaMessage from "./_components/MediaMessage";
+import {
+  getPauseState,
+  getPauseTTL,
+  isBotPaused,
+} from "@/lib/bot/repositories/pause-repo";
+import TakeOverPanel from "./_components/TakeOverPanel";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,9 +28,12 @@ export default async function ConversacionDetallePage({ params }: Props) {
   const { phone: phoneEncoded } = await params;
   const phone = decodeURIComponent(phoneEncoded);
 
-  const [detalle, mediaList] = await Promise.all([
+  const [detalle, mediaList, paused, pauseState, ttlSeconds] = await Promise.all([
     getConversacionDetallada(phone),
     getMediaList(phone),
+    isBotPaused(phone),
+    getPauseState(phone),
+    getPauseTTL(phone),
   ]);
   if (!detalle) notFound();
 
@@ -50,6 +59,14 @@ export default async function ConversacionDetallePage({ params }: Props) {
           </p>
         </div>
       </header>
+
+      {/* FEATURE 3: Panel de control humano */}
+      <TakeOverPanel
+        phone={phone}
+        initialPaused={paused}
+        initialState={pauseState}
+        initialTTLSeconds={ttlSeconds}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* ── Columna izquierda: perfil + memoria + objeciones ── */}

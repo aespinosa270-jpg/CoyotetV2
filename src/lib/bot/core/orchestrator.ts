@@ -50,6 +50,8 @@ import {
   marcarPendiente,
 } from "../repositories/consent-repo";
 import { decidirPropuestaMembresia } from "../intelligence/membership/decider";
+// ── FEATURE 3: control humano ──────────────────────────────────────
+import { isBotPaused } from "../repositories/pause-repo";
 // ── Tipos ──────────────────────────────────────────────────────────
 import type { IncomingMessage, OutgoingMessage } from "../types/messages";
 import type { BotContext } from "./types";
@@ -64,6 +66,25 @@ export async function processMessage(
   const redis = getRedis();
   const phone = message.from.id;
   const startTime = Date.now();
+
+  // ── FEATURE 3: si el bot está pausado (control humano activo), no responder ──
+  const paused = await isBotPaused(phone, redis);
+  if (paused) {
+    log.info({ phone }, "Bot PAUSADO — control humano activo, no se responde");
+    try {
+      await conversationRepo.appendMensaje(
+        phone,
+        {
+          role: "user",
+          content: message.type === "text" ? (message as any).text || "" : `[${message.type}]`,
+        } as any,
+        redis
+      );
+    } catch (err) {
+      log.warn({ err, phone }, "No se pudo registrar mensaje en historial durante pause");
+    }
+    return [];
+  }
 
   try {
     let profile = await clientRepo.findOrCreate(phone, redis);
