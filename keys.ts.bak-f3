@@ -30,10 +30,8 @@ export const keys = {
   resumenSemantico: (phone: string) => `${PREFIX}:resumen:${safe(phone)}`,
   /** Memoria de largo plazo (Fase 4) */
   memoria: (phone: string) => `${PREFIX}:memoria:${safe(phone)}`,
-  /** FASE 12-fix: media (image/audio/video) recibida del cliente */
+  /** FASE 12-fix: media (image/audio/video) recibida del cliente, paralelo al historial */
   media: (phone: string) => `${PREFIX}:media:${safe(phone)}`,
-  /** FEATURE 3: bot pausado para esta conversación (control humano activo). TTL 23h. */
-  botPaused: (phone: string) => `${PREFIX}:paused:${safe(phone)}`,
 
   // ── Pedidos ─────────────────────────────────────────────────────────────
   pedidos: (phone: string) => `${PREFIX}:pedidos:${safe(phone)}`,
