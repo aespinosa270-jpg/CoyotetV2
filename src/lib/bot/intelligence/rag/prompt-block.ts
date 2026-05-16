@@ -84,5 +84,14 @@ export function buildRagBlock(results: SearchResult[]): string {
  * extraer la entidad del mensaje y solo embed eso.
  */
 export function extractQueryFromMessage(message: string): string {
-  return message.trim();
+  // FASE 12 FIX: limpiar la query para mejor match con embeddings.
+  // Removemos cantidades (kg, metros, números), CPs, y palabras de relleno.
+  return message
+    .toLowerCase()
+    .replace(/\bcp\s*\d{4,5}\b/gi, "")           // "cp 06000" → ""
+    .replace(/\b\d+\s*(kg|kilos?|metros?|m)\b/gi, "") // "50 kg" → ""
+    .replace(/\b(necesito|quiero|tienes|me|por|al|de|el|la|los|las|en|color|favor|buenos días|buenas tardes|hola)\b/gi, "")
+    .replace(/[¿?¡!.,;:]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }

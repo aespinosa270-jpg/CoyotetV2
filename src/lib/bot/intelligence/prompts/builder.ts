@@ -61,7 +61,7 @@ Respuestas cortas. Tono de confianza entre socios. Tienes acceso completo a la b
       useRag
         ? searchProducts(
             extractQueryFromMessage(options.userMessage!),
-            { k: 5, threshold: 0.5 },
+            { k: 5, threshold: 0.3 },
             options.openaiClient
           ).catch(() => [])
         : Promise.resolve([]),

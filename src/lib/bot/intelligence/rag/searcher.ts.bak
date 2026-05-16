@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Búsqueda semántica del catálogo (RAG).
  *
  * Pipeline:
@@ -115,33 +115,11 @@ export async function searchProducts(
  *
  * Esto ahorra latencia + costo de embeddings en saludos y small talk.
  */
-const PRODUCTOS_CONOCIDOS = [
-  "sportok", "sportock", "micropique", "micro pique", "micro piqué", "pique vera",
-  "alaska", "andromeda", "apolo", "ares", "athlos", "azucena", "brock", "brush",
-  "capriati", "caprice", "delta", "diablo", "f30", "f-30", "felpa china", "felpa spun",
-  "felpa polar", "polar", "flanel", "granizo", "horous", "inter 70", "inter70",
-  "jumanji", "kyoto", "licra liluna", "licra playera", "licra poliester", "licra saludable",
-  "lycra metalica", "lycra metálica", "madelino", "mercury", "micro estrella",
-  "micro panal", "micropique fusionado", "microtrix", "miky", "monaco", "mónaco",
-  "nagasaky", "nagasaki", "panal nitro", "panal plus", "phoenix", "pique lacoste",
-  "pixel", "saturno", "super trix", "torneo", "elastico", "elástico", "hilo"
-];
-
 export function shouldUseRag(message: string): boolean {
   if (!message || message.trim().length < 5) return false;
 
-  // FASE 12 FIX: si menciona un producto del catálogo, usa catálogo completo (NO RAG)
-  const normalizado = message.toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  const mencionaProducto = PRODUCTOS_CONOCIDOS.some(nombre => {
-    const slug = nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    return normalizado.includes(slug);
-  });
-  if (mencionaProducto) {
-    return false;
-  }
+  const productHints =
+    /tela|hilo|el[áa]stic|kilo|metro|rollo|cono|caja|pieza|precio|costo|cotiz|color|gramaje|peso|para\s+(hacer|fabricar|coser|confeccionar)|me\s+sirve|necesito|quiero|busco|tienen|hay/i;
 
-  const productHints = /tela|hilo|el[áa]stic|kilo|metro|rollo|cono|caja|pieza|precio|costo|cotiz|color|gramaje|peso|para\s+(hacer|fabricar|coser|confeccionar)|me\s+sirve|necesito|quiero|busco|tienen|hay/i;
   return productHints.test(message);
 }
