@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Cron DIARIO: tareas pesadas que solo necesitan correr 1 vez al día.
  *
  * Llamado por cron-job.org una vez al día con:
@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCronAuth } from "../_lib/guard";
 import { runReactivationJob } from "@/lib/bot/jobs/reactivation";
 import { runCleanupJob } from "@/lib/bot/jobs/cleanup";
+import { runRecompraPredictivaJob } from "@/lib/bot/services/followup/recompra-predictiva";
 import { getLogger } from "@/lib/bot/observability/logger";
 import { recordEvent } from "@/lib/bot/observability/events";
 
@@ -72,6 +73,6 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     endpoint: "cron/daily",
-    jobs: ["reactivation", "cleanup"],
+    jobs: ["reactivation", "recompra_predictiva", "cleanup"],
   });
 }
