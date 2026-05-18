@@ -34,12 +34,6 @@ export async function POST(
       return NextResponse.json({ error: "phone inválido" }, { status: 400 });
     }
 
-    if (phone.startsWith("web:")) {
-      return NextResponse.json(
-        { error: "Esta conversación es del chat web. El cliente solo recibe respuestas inmediatas. Si quieres atender personalmente, contáctalo por otro canal." },
-        { status: 400 }
-      );
-    }
 
   try {
     // 1. Pausar el bot en Redis (TTL 23h)
