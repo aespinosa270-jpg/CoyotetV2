@@ -13,6 +13,17 @@ const SEGMENTO_BADGE: Record<string, string> = {
   inactivo: "bg-orange-100 text-orange-800",
 };
 
+// FASE B: badges del lead score
+const LEAD_BADGE: Record<string, { emoji: string; label: string; classes: string }> = {
+  hot: { emoji: "🔥", label: "Hot", classes: "bg-red-100 text-red-800 border-red-300" },
+  vip: { emoji: "💎", label: "VIP", classes: "bg-purple-100 text-purple-800 border-purple-300" },
+  premium: { emoji: "💰", label: "Premium", classes: "bg-amber-100 text-amber-800 border-amber-300" },
+  precio: { emoji: "💸", label: "Precio", classes: "bg-blue-100 text-blue-800 border-blue-300" },
+  casual: { emoji: "🤷", label: "Casual", classes: "bg-slate-100 text-slate-700 border-slate-300" },
+  frio: { emoji: "❄️", label: "Frío", classes: "bg-cyan-100 text-cyan-800 border-cyan-300" },
+  curioso: { emoji: "👀", label: "Curioso", classes: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+};
+
 function tempColor(temp: number): string {
   if (temp >= 70) return "text-red-600 font-semibold";
   if (temp >= 50) return "text-orange-600 font-semibold";
@@ -51,66 +62,91 @@ export function ConversacionesTable({ items }: Props) {
           <tr>
             <Th>Teléfono</Th>
             <Th>Nombre</Th>
+            <Th>Lead</Th>
             <Th>Segmento</Th>
+            <Th>Negocio</Th>
             <Th>Compras</Th>
             <Th>Temp.</Th>
-            <Th>Confianza</Th>
-            <Th>Táctica</Th>
             <Th>Objeciones</Th>
             <Th>Últ. contacto</Th>
             <Th></Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {items.map((c) => (
-            <tr key={c.phone} className="hover:bg-slate-50">
-              <Td>
-                <code className="text-xs text-slate-700">{c.phone}</code>
-              </Td>
-              <Td>{c.nombre}</Td>
-              <Td>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-xs ${SEGMENTO_BADGE[c.segmento] ?? "bg-slate-100 text-slate-700"}`}
-                >
-                  {c.segmento}
-                </span>
-              </Td>
-              <Td className="tabular-nums">{c.totalCompras}</Td>
-              <Td className={`tabular-nums ${tempColor(c.temperaturaCompra)}`}>
-                {c.temperaturaCompra}
-              </Td>
-              <Td className="tabular-nums text-slate-600">{c.nivelConfianza}</Td>
-              <Td className="text-xs text-slate-500">{c.tacticaActual}</Td>
-              <Td>
-                {c.topObjeciones.length === 0 ? (
-                  <span className="text-xs text-slate-400">—</span>
-                ) : (
-                  <div className="flex flex-wrap gap-1">
-                    {c.topObjeciones.map((o, i) => (
-                      <span
-                        key={i}
-                        className="text-xs bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded"
-                        title={`Peso: ${o.score.toFixed(1)}`}
-                      >
-                        {o.label}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </Td>
-              <Td className="text-xs text-slate-500 tabular-nums">
-                {relativeTime(c.ultimoContacto)}
-              </Td>
-              <Td>
-                <Link
-                  href={`/crm/admin/bot/conversaciones/${encodeURIComponent(c.phone)}`}
-                  className="text-blue-600 hover:underline text-xs"
-                >
-                  Ver →
-                </Link>
-              </Td>
-            </tr>
-          ))}
+          {items.map((c) => {
+            const leadInfo = c.leadScore ? LEAD_BADGE[c.leadScore] : null;
+            return (
+              <tr key={c.phone} className="hover:bg-slate-50">
+                <Td>
+                  <code className="text-xs text-slate-700">{c.phone}</code>
+                </Td>
+                <Td>{c.nombre}</Td>
+                <Td>
+                  {leadInfo ? (
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-medium border ${leadInfo.classes}`}
+                      title={`Lead score: ${leadInfo.label}`}
+                    >
+                      {leadInfo.emoji} {leadInfo.label}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-400">—</span>
+                  )}
+                </Td>
+                <Td>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs ${SEGMENTO_BADGE[c.segmento] ?? "bg-slate-100 text-slate-700"}`}
+                  >
+                    {c.segmento}
+                  </span>
+                </Td>
+                <Td className="text-xs text-slate-600">
+                  {c.tipoNegocio && c.tipoNegocio !== "desconocido" ? (
+                    <span>
+                      {c.tipoNegocio}
+                      {c.volumenTipicoKg ? (
+                        <span className="text-slate-400"> · {c.volumenTipicoKg}kg</span>
+                      ) : null}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">—</span>
+                  )}
+                </Td>
+                <Td className="tabular-nums">{c.totalCompras}</Td>
+                <Td className={`tabular-nums ${tempColor(c.temperaturaCompra)}`}>
+                  {c.temperaturaCompra}
+                </Td>
+                <Td>
+                  {c.topObjeciones.length === 0 ? (
+                    <span className="text-xs text-slate-400">—</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {c.topObjeciones.map((o, i) => (
+                        <span
+                          key={i}
+                          className="text-xs bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded"
+                          title={`Peso: ${o.score.toFixed(1)}`}
+                        >
+                          {o.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </Td>
+                <Td className="text-xs text-slate-500 tabular-nums">
+                  {relativeTime(c.ultimoContacto)}
+                </Td>
+                <Td>
+                  <Link
+                    href={`/crm/admin/bot/conversaciones/${encodeURIComponent(c.phone)}`}
+                    className="text-blue-600 hover:underline text-xs"
+                  >
+                    Ver →
+                  </Link>
+                </Td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -134,4 +170,3 @@ function Td({
 }) {
   return <td className={`px-3 py-2 ${className}`}>{children}</td>;
 }
-

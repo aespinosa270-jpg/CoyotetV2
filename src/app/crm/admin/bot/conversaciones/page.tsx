@@ -1,10 +1,11 @@
-/**
+﻿/**
  * Lista paginada de conversaciones del bot.
  * Filtros: por segmento (query param ?segmento=vip).
  * Paginación: ?offset=50&limit=50
  */
 import Link from "next/link";
 import { listConversaciones } from "@/lib/bot/repositories/admin-queries";
+import LeadFilterBar from "./_components/LeadFilterBar";
 import { ConversacionesTable } from "../_components/ConversacionesTable";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ export const revalidate = 0;
 interface PageProps {
   searchParams: Promise<{
     segmento?: string;
+    lead?: string;
     offset?: string;
     limit?: string;
   }>;
@@ -25,12 +27,28 @@ export default async function ConversacionesPage({ searchParams }: PageProps) {
   const offset = Number(params.offset ?? 0);
   const limit = Number(params.limit ?? 50);
   const segmento = params.segmento;
+  const lead = params.lead;
 
-  const { items, total } = await listConversaciones({
+  let { items, total } = await listConversaciones({
     offset,
-    limit,
+    limit: lead ? 10000 : limit, // si hay filtro de lead, traer todos primero
     segmentoFilter: segmento,
   });
+
+  // FASE B: filtro adicional por leadScore en memoria
+  if (lead) {
+    const filtered = items.filter((i) => i.leadScore === lead);
+    total = filtered.length;
+    items = filtered.slice(offset, offset + limit);
+  }
+
+  // KPIs por lead score (sobre todos los items cargados)
+  const leadKpis: Record<string, number> = {};
+  for (const it of items) {
+    if (it.leadScore) {
+      leadKpis[it.leadScore] = (leadKpis[it.leadScore] ?? 0) + 1;
+    }
+  }
 
   const currentPage = Math.floor(offset / limit) + 1;
   const totalPages = Math.ceil(total / limit);
@@ -66,6 +84,9 @@ export default async function ConversacionesPage({ searchParams }: PageProps) {
           />
         ))}
       </div>
+
+      {/* FASE B: filtros por lead score */}
+      <LeadFilterBar activeLead={lead} leadKpis={leadKpis} />
 
       <ConversacionesTable items={items} />
 

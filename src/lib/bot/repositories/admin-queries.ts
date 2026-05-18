@@ -37,6 +37,10 @@ export interface ConversacionResumen {
   tacticaActual: string;
   ultimoContacto: string;
   topObjeciones: Array<{ label: string; score: number }>;
+  // FASE B: lead scoring
+  leadScore?: string;
+  tipoNegocio?: string;
+  volumenTipicoKg?: number;
 }
 
 export interface ConversacionDetallada {
@@ -142,6 +146,10 @@ export async function listConversaciones(
         tacticaActual: p.tacticaActual || "valor_rendimiento",
         ultimoContacto: p.ultimoContacto || new Date(0).toISOString(),
         topObjeciones: topObjsFromVector(p.vectorObjeciones as VectorObjeciones),
+        // FASE B
+        leadScore: (p as any).leadScore,
+        tipoNegocio: (p as any).tipoNegocio,
+        volumenTipicoKg: (p as any).volumenTipicoKg,
       }))
       .sort(
         (a, b) =>
