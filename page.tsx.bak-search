@@ -14,33 +14,21 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function ContactosPage() {
-  // FIX: subir límite y obtener stats reales desde BD (no del subset)
-  const [contactos, totalReal, plantillasEnviadasReal, respondieronReal, pendingReal] =
-    await Promise.all([
-      prisma.contactoOutbound.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 10000,
-      }),
-      prisma.contactoOutbound.count(),
-      prisma.contactoOutbound.count({ where: { plantillaEnviada: true } }),
-      prisma.contactoOutbound.count({ where: { clienteRespondio: true } }),
-      prisma.contactoOutbound.count({
-        where: {
-          OR: [
-            { plantillaEnviada: false },
-            { AND: [{ plantillaEnviada: true }, { clienteRespondio: false }] },
-          ],
-        },
-      }),
-    ]);
+  const contactos = await prisma.contactoOutbound.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
 
   const stats = {
-    total: totalReal,
-    plantillasEnviadas: plantillasEnviadasReal,
-    respondieron: respondieronReal,
+    total: contactos.length,
+    plantillasEnviadas: contactos.filter((c) => c.plantillaEnviada).length,
+    respondieron: contactos.filter((c) => c.clienteRespondio).length,
   };
 
-  const pendingCount = pendingReal;
+  // FEATURE: contactos pendientes = no enviados O enviados sin respuesta
+  const pendingCount = contactos.filter(
+    (c) => !c.plantillaEnviada || (c.plantillaEnviada && !c.clienteRespondio)
+  ).length;
 
   return (
     <div className="space-y-6">
