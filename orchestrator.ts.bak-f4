@@ -1,4 +1,4 @@
-import { getLogger } from "../observability/logger";
+﻿import { getLogger } from "../observability/logger";
 import { getRedis } from "../repositories/redis";
 import * as clientRepo from "../repositories/client-repo";
 import * as conversationRepo from "../repositories/conversation-repo";
@@ -57,12 +57,6 @@ import {
 import { decidirPropuestaMembresia } from "../intelligence/membership/decider";
 // ── FEATURE 3: control humano ──────────────────────────────────────
 import { isBotPaused } from "../repositories/pause-repo";
-// ── FEATURE 4: escalaciones ────────────────────────────────────────
-import {
-  detectAllReasons,
-  incrementHallucinationCount,
-} from "../domain/escalation/detector";
-import { triggerEscalation } from "../services/escalation-notifier";
 // ── Tipos ──────────────────────────────────────────────────────────
 import type { IncomingMessage, OutgoingMessage } from "../types/messages";
 import type { BotContext } from "./types";
@@ -187,10 +181,6 @@ export async function processMessage(
       }
     }
 
-    // ── Flags base (movidas arriba para usarse en escalación) ──
-    const isAdmin = userText.trim().toLowerCase() === "elcoyote56";
-    const hasRealUserText = (message.text || "").trim().length > 0;
-
     // ── 3. FASE 11B: ¿el cliente está respondiendo a la pregunta de consentimiento? ──
     const consentInfo = getConsentInfo(profile);
     if (consentInfo.estado === "pendiente" && userText) {
@@ -268,49 +258,8 @@ export async function processMessage(
       }
     }
 
-    // ── 4.6. FEATURE 4: detectar escalación automática ──
-    if (!isAdmin && userText && hasRealUserText) {
-      const detection = await detectAllReasons(userText, phone, redis);
-      if (detection.detected && detection.razon) {
-        log.info(
-          { phone, razon: detection.razon, contexto: detection.contexto },
-          "🚨 Escalación automática detectada"
-        );
-        const result = await triggerEscalation({
-          phone,
-          nombre: profile.nombre || undefined,
-          razon: detection.razon,
-          contexto: detection.contexto ?? "",
-          ultimoMsg: userText,
-        });
-        if (result.ok && !result.alreadyEscalated) {
-          // Persistir el turno del usuario y retornar SIN llamar al LLM
-          // (el mensaje del bot ya se persiste dentro de triggerEscalation)
-          try {
-            await conversationRepo.appendMensaje(
-              phone,
-              { role: "user", content: userText } as any,
-              redis
-            );
-          } catch (err) {
-            log.warn({ err, phone }, "No se pudo registrar mensaje del cliente en escalación");
-          }
-          await recordEvent({
-            type: "error",
-            clientId: phone,
-            channel: message.channel,
-            data: {
-              subtype: "escalation",
-              razon: detection.razon,
-              contexto: detection.contexto,
-            },
-          });
-          return [];
-        }
-      }
-    }
-
     const history = await conversationRepo.getHistorial(phone, redis);
+    const isAdmin = userText.trim().toLowerCase() === "elcoyote56";
 
     const context: BotContext = {
       message,
@@ -322,6 +271,7 @@ export async function processMessage(
     };
 
     // ── 5. FASE 5: extractor de objeciones en paralelo ──
+    const hasRealUserText = (message.text || "").trim().length > 0;
     const objecionPromise: Promise<ObjecionDetectada> =
       isAdmin || !hasRealUserText
         ? Promise.resolve<ObjecionDetectada>({
@@ -435,12 +385,6 @@ export async function processMessage(
         { phone, prohibidas: validation.prohibidasMencionadas },
         "🚨 Hallucination detectada — forzando retry"
       );
-      // FEATURE 4: contador de hallucinations (escalación si pasa umbral)
-      try {
-        await incrementHallucinationCount(phone, redis);
-      } catch (err) {
-        log.warn({ err }, "No se pudo incrementar counter de hallucinations");
-      }
       await recordEvent({
         type: "hallucination",
         clientId: phone,

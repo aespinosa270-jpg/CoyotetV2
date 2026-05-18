@@ -829,3 +829,20 @@ model ContactoOutbound {
   @@index([phone])
   @@index([plantillaEnviada])
 }
+model BotEscalation {
+  id           String    @id @default(cuid())
+  phone        String
+  nombre       String?
+  razon        String    // queja | humano | alto_valor | retries | frustracion | facturacion
+  contexto     String    @db.Text
+  ultimoMsg    String    @db.Text
+  estado       String    @default("pendiente") // pendiente | atendida | descartada
+  atendidaPor  String?
+  atendidaAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([phone])
+  @@index([estado])
+  @@index([createdAt])
+  @@index([razon])
+}
