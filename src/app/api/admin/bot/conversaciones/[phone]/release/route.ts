@@ -1,4 +1,4 @@
-/**
+﻿/**
  * POST /api/admin/bot/conversaciones/[phone]/release
  *
  * Libera el control humano. El bot reanuda inmediatamente.
@@ -26,7 +26,7 @@ export async function POST(
   const { phone: phoneEncoded } = await params;
   const phone = decodeURIComponent(phoneEncoded);
 
-  if (!phone || !/^\d{10,15}$/.test(phone.replace(/\D/g, ""))) {
+    if (!phone || (!/^\d{10,15}$/.test(phone.replace(/\D/g, "")) && !phone.startsWith("web:"))) {
     return NextResponse.json({ error: "phone inválido" }, { status: 400 });
   }
 

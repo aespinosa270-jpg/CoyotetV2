@@ -1,4 +1,4 @@
-/**
+﻿/**
  * POST /api/admin/bot/conversaciones/[phone]/send
  *
  * El admin envía un mensaje al cliente desde el CRM. Solo permitido si la
@@ -30,7 +30,7 @@ export async function POST(
   const { phone: phoneEncoded } = await params;
   const phone = decodeURIComponent(phoneEncoded);
 
-  if (!phone || !/^\d{10,15}$/.test(phone.replace(/\D/g, ""))) {
+    if (!phone || (!/^\d{10,15}$/.test(phone.replace(/\D/g, "")) && !phone.startsWith("web:"))) {
     return NextResponse.json({ error: "phone inválido" }, { status: 400 });
   }
 
