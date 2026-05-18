@@ -17,7 +17,6 @@
  */
 import type { Redis } from "@upstash/redis";
 import { getRedis } from "./redis";
-import { keys } from "./keys";
 import type { ClientePerfil, MensajeHistorial } from "../types/domain";
 import type { MemoriaEpisodica } from "../intelligence/memory/types";
 import { OBJECION_LABELS, type VectorObjeciones } from "../intelligence/objections/types";
@@ -171,11 +170,11 @@ export async function getConversacionDetallada(
 ): Promise<ConversacionDetallada | null> {
   try {
     const [perfil, historial, resumen, memoria, pedidos] = await Promise.all([
-      redis.get<ClientePerfil>(keys.cliente(phone)).catch(() => null),
-      redis.get<{ mensajes: MensajeHistorial[] } | MensajeHistorial[]>(keys.historial(phone)).catch(() => null),
-      redis.get<string>(keys.resumenSemantico(phone)).catch(() => null),
-      redis.get<MemoriaEpisodica>(keys.memoria(phone)).catch(() => null),
-      redis.get<any[]>(keys.pedidos(phone)).catch(() => null),
+      redis.get<ClientePerfil>(`v2:cliente:${phone}`).catch(() => null),
+      redis.get<{ mensajes: MensajeHistorial[] } | MensajeHistorial[]>(`v2:historial:${phone}`).catch(() => null),
+      redis.get<string>(`v2:resumen:${phone}`).catch(() => null),
+      redis.get<MemoriaEpisodica>(`v2:memoria:${phone}`).catch(() => null),
+      redis.get<any[]>(`v2:pedidos:${phone}`).catch(() => null),
     ]);
 
     if (!perfil) return null;
