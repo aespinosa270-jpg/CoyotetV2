@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: "/crm/admin/bot/conversaciones", label: "Conversaciones", icon: "💬" },
   { href: "/crm/admin/bot/ordenes", label: "Órdenes del Bot", icon: "📦", highlight: true },
   { href: "/crm/admin/bot/escalaciones", label: "Escalaciones", icon: "🚨", highlight: true },
+  { href: "/crm/admin/bot/seguimientos", label: "Seguimientos", icon: "📬" },
   { href: "/crm/admin/bot/contactos", label: "Contactos", icon: "📞" },
   { href: "/crm/admin/bot/pendientes", label: "Pagos pendientes", icon: "⏳" },
   { href: "/crm/admin/bot/telas-solicitadas", label: "Telas solicitadas", icon: "🧵" },
