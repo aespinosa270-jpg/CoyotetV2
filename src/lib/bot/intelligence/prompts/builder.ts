@@ -1,5 +1,5 @@
-﻿/**
- * Constructor del system prompt para El Coyote — V7.
+/**
+ * Constructor del system prompt para El Coyote — V8.
  *
  * EVOLUCIÓN:
  *  - V1: "no inventes precios" sin catálogo → alucinaba popelina
@@ -9,9 +9,8 @@
  *  - V5 (fix-runtime): + tone y extraInstructions
  *  - V6 (Fase 11A): + bloque de propuesta de membresía
  *  - V7 (Fase 11B): + el bloque ahora considera consentimiento de marketing
- *
- * Cambios en V7:
- *  - buildMembershipBlock recibe el perfil completo (para leer consentimiento)
+ *  - V8 (Fase 12): + reglas F-J (colores), K-M (precios), N-O (envíos),
+ *                    P-S (muestrarios), T-W (captación nombre/email)
  */
 import type { Redis } from "@upstash/redis";
 import type OpenAI from "openai";
@@ -100,7 +99,7 @@ F. Cada producto en el bloque de catálogo tiene una sección "Colores: ..." con
 G. Cuando el cliente pregunte por un color específico de un producto (ej. "tienes Sportok negro?"), BUSCA EXHAUSTIVAMENTE en la lista "Colores: ..." de ese producto. La lista puede ser larga (40+ colores).
 H. Si el color EXACTO o uno equivalente aparece en la lista → CONFIRMA disponibilidad con el precio. Ejemplos de equivalencias:
    - "negro" = "Negro"
-   - "azul rey" = "Rey" o "Azul Rey"  
+   - "azul rey" = "Rey" o "Azul Rey"
    - "rojo" = "Rojo" o "Rojo Quemado"
    - "blanco" = "Blanco"
 I. SOLO niega disponibilidad de un color si después de buscar EXHAUSTIVAMENTE en la lista NO aparece ningún color equivalente.
@@ -129,6 +128,14 @@ R. FLUJO DEL MUESTRARIO:
    5. NUNCA cobres por el muestrario en sí. ÚNICAMENTE por el envío.
 S. Si el cliente pregunta "¿es gratis el muestrario?" o "¿tiene costo?", confirma claramente: "El muestrario es 100% GRATIS. Solo paga el envío según su ubicación."
 
+REGLAS DE CAPTACIÓN DE NOMBRE Y EMAIL (CRÍTICO):
+T. Si el perfil del cliente YA tiene nombre Y correo electrónico llenos (mira el bloque CONTEXTO DEL CLIENTE más abajo), NO los pidas otra vez. Saludo personalizado usando su nombre.
+U. Si NO tiene nombre o correo, pídelos en estos momentos exactos:
+   1. Al terminar de dar una cotización formal (cuando ya diste precios + envío), agrega al final: "Para enviarle la cotización formal y darle seguimiento, ¿podría darme su nombre completo y correo electrónico?"
+   2. ANTES de generar cualquier link de pago (Stripe o SPEI): si falta correo, pídelo PRIMERO. NO llames a generar_cobro_stripe o generar_cobro_spei sin tener correo. Mensaje: "Para emitir su pago/factura necesito su nombre completo y correo electrónico, ¿me los podría compartir?"
+V. Si el cliente da datos obviamente falsos (ej. nombre "asdf", "X", "test"; correo "x@x.com", "asd@asd.com"), pide amablemente que los corrija explicando que es para emisión de factura o seguimiento del pedido.
+W. NUNCA pidas nombre o correo en el primer mensaje "hola". Solo cuando el cliente muestre interés real (cotización, precio, muestrario, compra). Cliente que solo saluda → bot saluda y pregunta en qué puede ayudar, NADA MÁS.
+
 REGLAS ANTI-INVENCIÓN:
 A. SOLO puedes mencionar, recomendar o cotizar productos que aparecen en el bloque de catálogo de abajo.
 B. Si el cliente pide una tela que NO está en el bloque (popelina, lino, mezclilla, casimir, gabardina, lana, seda, raso, organza, satín, muselina, terciopelo, etc.), responde con HONESTIDAD:
@@ -140,6 +147,7 @@ ${productBlock}`;
   const contextoCliente = `
 CONTEXTO DEL CLIENTE:
 - Nombre: ${perfil.nombre || "Desconocido"}
+- Correo electrónico: ${(perfil as any).correoElectronico || "No proporcionado todavía"}
 - Nivel de confianza: ${perfil.nivelConfianza || 40}/100
 - Compras previas: ${perfil.totalCompras}
 - Segmento: ${perfil.segmento || "prospecto"}

@@ -8,6 +8,11 @@ import { BOT_TOOLS } from "../tools/definitions";
 import { executeTool } from "../tools/executor";
 import { firstCp } from "../domain/extractors/postal-code";
 import {
+  extractContactInfo,
+  isValidEmail,
+  isValidName,
+} from "../domain/extractors/contact-info";
+import {
   buildCorrectiveMessage,
   validateBotResponse,
 } from "../postprocessing/product-validator";
@@ -108,7 +113,7 @@ export async function processMessage(
 
       // Observability
       await recordEvent({
-        type: "vision", // reutilizo tipo (sería ideal nuevo "audio" en EventType)
+        type: "vision",
         clientId: phone,
         channel: message.channel,
         data: {
@@ -122,7 +127,6 @@ export async function processMessage(
         const respuestaTexto = (result as any).tooLong
           ? buildTooLongMessage()
           : buildTranscriptionFailedMessage();
-        // Persistir el turno aunque no haya texto del cliente
         await conversationRepo.appendMensaje(
           phone,
           { role: "user", content: "[audio no procesado]" } as any,
@@ -178,7 +182,6 @@ export async function processMessage(
     }
 
     // ── 3. FASE 11B: ¿el cliente está respondiendo a la pregunta de consentimiento? ──
-    // Si su estado es "pendiente", interpretamos su mensaje como respuesta.
     const consentInfo = getConsentInfo(profile);
     if (consentInfo.estado === "pendiente" && userText) {
       const respuesta = detectarRespuestaConsentimiento(userText);
@@ -219,6 +222,42 @@ export async function processMessage(
       log.info({ phone, cp: cpDetectado }, "CP autodetectado del mensaje");
     }
 
+    // ── 4.5. FEATURE: auto-detectar nombre y email del mensaje ──
+    if (userText) {
+      const contactInfo = extractContactInfo(userText);
+      const patch: any = {};
+
+      if (
+        contactInfo.nombre &&
+        !profile.nombre &&
+        isValidName(contactInfo.nombre)
+      ) {
+        patch.nombre = contactInfo.nombre;
+      }
+      if (
+        contactInfo.email &&
+        !(profile as any).correoElectronico &&
+        isValidEmail(contactInfo.email)
+      ) {
+        patch.correoElectronico = contactInfo.email;
+        patch.correoVerificado = false;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        profile = (await clientRepo.update(phone, patch, redis)) as any;
+        log.info(
+          { phone, captured: Object.keys(patch) },
+          "Datos de contacto autodetectados del mensaje"
+        );
+        await recordEvent({
+          type: "message",
+          clientId: phone,
+          channel: message.channel,
+          data: { subtype: "contact_info_captured", fields: Object.keys(patch) },
+        });
+      }
+    }
+
     const history = await conversationRepo.getHistorial(phone, redis);
     const isAdmin = userText.trim().toLowerCase() === "elcoyote56";
 
@@ -252,10 +291,7 @@ export async function processMessage(
     // ── 6. Prompt + objeción en paralelo ──
     const [objecionActual, systemContent] = await Promise.all([
       objecionPromise,
-      buildSystemPrompt(profile, isAdmin, {
-        redis,
-        userMessage: userText,
-      }),
+      buildSystemPrompt(profile, isAdmin),
     ]);
 
     const necesitaReconstruir =
@@ -263,11 +299,7 @@ export async function processMessage(
       (objecionActual.tipo !== "ninguna" || (profile.totalCompras ?? 0) >= 3);
 
     const finalSystemContent = necesitaReconstruir
-      ? await buildSystemPrompt(profile, isAdmin, {
-          redis,
-          userMessage: userText,
-          objecionActual,
-        })
+      ? await buildSystemPrompt(profile, isAdmin)
       : systemContent;
 
     const apiMessages: any[] = [
@@ -415,9 +447,6 @@ export async function processMessage(
     }
 
     // ── 12. FASE 11B: si en este turno el bot pidió consentimiento, marcar pendiente ──
-    // Heurística: si el cliente cumple triggers para membresía Y su estado de consentimiento
-    // era "no_solicitado", el system prompt instruyó al bot a pedirlo.
-    // Asumimos que el bot siguió la instrucción y marcamos pendiente.
     if (!isAdmin && consentInfo.estado === "no_solicitado") {
       const propuestaCheck = decidirPropuestaMembresia(
         {
@@ -649,4 +678,3 @@ function withTimeout<T>(
     ),
   ]);
 }
-
