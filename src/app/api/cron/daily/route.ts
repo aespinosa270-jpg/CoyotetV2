@@ -44,6 +44,20 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // ── Job: recompra_predictiva (Fase C) ──
+  try {
+    const r = await runRecompraPredictivaJob({ dryRun });
+    results.recompraPredictiva = r;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error({ err: msg }, "Job recompra_predictiva falló");
+    errors.recompraPredictiva = msg;
+    await recordEvent({
+      type: "error",
+      data: { source: "cron_daily_recompra", message: msg },
+    });
+  }
+
   // ── Job: cleanup ──
   try {
     const r = await runCleanupJob({ dryRun });
