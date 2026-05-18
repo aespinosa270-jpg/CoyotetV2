@@ -1,5 +1,5 @@
-﻿import { NextRequest, NextResponse } from "next/server";
-import { getConversation } from "@/lib/bot/repositories/conversation-repo";
+import { NextRequest, NextResponse } from "next/server";
+import { getHistorial } from "@/lib/bot/repositories/conversation-repo";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const history = await getConversation(web: + sessionId);
+    const history = await getHistorial("web:" + sessionId);
     return NextResponse.json({ messages: history });
   } catch (error) {
     return NextResponse.json({ error: "Error leyendo historial" }, { status: 500 });

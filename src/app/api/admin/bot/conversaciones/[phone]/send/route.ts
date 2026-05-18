@@ -66,7 +66,7 @@ export async function POST(
 
   try {
       if (phone.startsWith("web:")) {
-        await appendMensaje(phone, { role: "assistant", content: text, type: "text" });
+        await appendMensaje(phone, { role: "assistant", content: text, timestamp: new Date().toISOString() });
         await renewPause(phone);
         log.info({ phone }, "Mensaje web guardado en BD desde CRM");
         return NextResponse.json({ success: true, channel: "web" });
