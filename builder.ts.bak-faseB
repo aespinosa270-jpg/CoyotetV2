@@ -32,8 +32,6 @@ import {
 } from "../rag/prompt-block";
 import { getRuntimeConfig } from "../../config/runtime-config";
 import { buildMembershipBlock } from "./membership-block";
-// ── FASE B: lead scoring ──────────────────────────────────────────
-import { scoreLead, buildTacticBlock } from "../scoring/lead-scorer";
 
 export interface BuildPromptOptions {
   userMessage?: string;
@@ -251,12 +249,6 @@ CONTEXTO DEL CLIENTE:
     ? "\n\n" + membershipBlockText
     : "";
 
-  // FASE B: bloque de táctica según lead score
-  const leadResult = options.userMessage
-    ? scoreLead(perfil, options.userMessage)
-    : null;
-  const tacticBlock = leadResult ? buildTacticBlock(leadResult) : "";
-
   return (
     base +
     contextoCliente +
@@ -264,7 +256,6 @@ CONTEXTO DEL CLIENTE:
     objecionesBlock +
     resumenBlock +
     extraBlock +
-    membershipBlock +
-    tacticBlock
+    membershipBlock
   );
 }

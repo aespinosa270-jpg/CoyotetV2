@@ -1,4 +1,4 @@
-﻿import { getLogger } from "../observability/logger";
+import { getLogger } from "../observability/logger";
 import { getRedis } from "../repositories/redis";
 import * as clientRepo from "../repositories/client-repo";
 import * as conversationRepo from "../repositories/conversation-repo";
@@ -63,9 +63,6 @@ import {
   incrementHallucinationCount,
 } from "../domain/escalation/detector";
 import { triggerEscalation } from "../services/escalation-notifier";
-// ── FASE B: lead scoring + enrichment ──────────────────────────────
-import { scoreLead } from "../intelligence/scoring/lead-scorer";
-import { enrichProfile } from "../intelligence/scoring/profile-enricher";
 // ── Tipos ──────────────────────────────────────────────────────────
 import type { IncomingMessage, OutgoingMessage } from "../types/messages";
 import type { BotContext } from "./types";
@@ -268,38 +265,6 @@ export async function processMessage(
           channel: message.channel,
           data: { subtype: "contact_info_captured", fields: Object.keys(patch) },
         });
-      }
-    }
-
-    // ── 4.55. FASE B: enriquecer perfil con datos extraídos del mensaje ──
-    let leadScoreResult = null as any;
-    if (!isAdmin && userText) {
-      try {
-        const enrichment = enrichProfile(profile, userText);
-        if (Object.keys(enrichment.patches).length > 0) {
-          profile = (await clientRepo.update(phone, enrichment.patches as any, redis)) as any;
-          log.info(
-            { phone, detected: enrichment.detected },
-            "Perfil enriquecido automáticamente"
-          );
-        }
-
-        // Calcular lead score (siempre, incluso sin patches)
-        leadScoreResult = scoreLead(profile, userText);
-        if ((profile as any).leadScore !== leadScoreResult.categoria) {
-          await clientRepo.update(
-            phone,
-            { leadScore: leadScoreResult.categoria } as any,
-            redis
-          );
-          (profile as any).leadScore = leadScoreResult.categoria;
-          log.info(
-            { phone, categoria: leadScoreResult.categoria, razones: leadScoreResult.razones },
-            "Lead score actualizado"
-          );
-        }
-      } catch (err) {
-        log.warn({ err, phone }, "Error en enrichment/scoring (no bloqueante)");
       }
     }
 
