@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import LlamarButton from "../../_components/LlamarButton";
 
 interface Escalation {
   id: string;
@@ -200,6 +201,7 @@ export default function EscalationsTable({ items }: { items: Escalation[] }) {
                         >
                           {busy === e.id ? "..." : "✓ Atender"}
                         </button>
+                        <LlamarButton phone={e.phone} variant="secondary" size="sm" label="Llamar" />
                         <button
                           onClick={() => handleDescartar(e.id)}
                           disabled={busy === e.id}
