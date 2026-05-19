@@ -22,6 +22,8 @@
  * Fail-safe: si CUALQUIER paso falla, devolvemos un resultado dummy
  * que dice "no pude analizar la imagen" y el bot responde pidiendo
  * descripción por texto. Nunca se rompe el flujo.
+ *
+ * G3-Vision: schema completo, no descarta esManejada/razonamiento/telaIdentificada.
  */
 import type { Redis } from "@upstash/redis";
 import type OpenAI from "openai";
@@ -43,15 +45,9 @@ const log = getLogger({ module: "vision/analyzer" });
 export interface AnalyzeMessageOptions {
   redis?: Redis;
   openai?: OpenAI;
-  /** Override del fetch para tests. */
   fetchImpl?: typeof fetch;
 }
 
-/**
- * Analiza una imagen contenida en un IncomingMessage de tipo "image".
- *
- * @returns análisis estructurado + texto enriquecido para inyectar al chat
- */
 export async function analyzeIncomingImage(
   message: IncomingMessage,
   options: AnalyzeMessageOptions = {}
@@ -114,18 +110,12 @@ interface ImageBytes {
   mimeType: string;
 }
 
-/**
- * Resuelve los bytes de la imagen.
- * Prioriza nativeId (descarga vía Meta) sobre url directa,
- * porque las URLs de Meta caducan y requieren auth.
- */
 async function getImageBase64(
   message: IncomingMessage,
   fetchImpl?: typeof fetch
 ): Promise<ImageBytes> {
   const media = message.media!;
 
-  // Caso 1: tenemos nativeId → descargar vía Meta API
   if (media.nativeId) {
     const downloaded = await downloadMedia(media.nativeId, fetchImpl ?? fetch);
     return {
@@ -134,8 +124,6 @@ async function getImageBase64(
     };
   }
 
-  // Caso 2: tenemos una URL pública (ej. Telegram, Instagram, o un transport
-  // que ya descargó y reuploadeo). Bajamos directo.
   if (media.url) {
     const res = await (fetchImpl ?? fetch)(media.url);
     if (!res.ok) {
@@ -151,9 +139,6 @@ async function getImageBase64(
   throw new Error("Mensaje de imagen sin nativeId ni url");
 }
 
-/**
- * Llama a GPT-4o vision con el prompt textil y parsea la respuesta JSON.
- */
 async function runVisionAnalysis(
   base64: string,
   mimeType: string,
@@ -164,29 +149,27 @@ async function runVisionAnalysis(
       imageBase64: base64,
       imageMimeType: mimeType,
       prompt: VISION_USER_PROMPT,
-      maxTokens: 600,
+      maxTokens: 700,
     },
     openai
   );
 
+  log.info({ rawPreview: raw.slice(0, 200) }, "Vision raw response");
+
   return parseVisionResponse(raw);
 }
 
-/**
- * Parsea la respuesta de GPT a VisionAnalysisResult.
- * Defensive: si GPT puso ```json``` o texto extra, lo limpia.
- */
 export function parseVisionResponse(raw: string): VisionAnalysisResult {
   if (!raw || raw.trim().length === 0) {
     return makeFallbackAnalysis(new Error("Respuesta vacía de vision"));
   }
 
-  // Limpiar markdown fences si los puso
+  // Limpiar markdown fences
   let cleaned = raw.trim();
   cleaned = cleaned.replace(/^```(?:json)?\s*/i, "");
   cleaned = cleaned.replace(/\s*```$/i, "");
 
-  // A veces GPT antepone "Aquí está el JSON:" — sacamos el primer {
+  // Sacar SOLO el primer JSON entre { y }
   const firstBrace = cleaned.indexOf("{");
   const lastBrace = cleaned.lastIndexOf("}");
   if (firstBrace > 0 && lastBrace > firstBrace) {
@@ -194,24 +177,45 @@ export function parseVisionResponse(raw: string): VisionAnalysisResult {
   }
 
   try {
-    const parsed = JSON.parse(cleaned) as Partial<VisionAnalysisResult>;
+    const parsed = JSON.parse(cleaned) as Partial<VisionAnalysisResult> & {
+      color?: string | string[]; // GPT a veces lo manda en singular
+    };
     return normalize(parsed);
   } catch (err) {
     log.warn(
-      { err, rawPreview: raw.slice(0, 120) },
+      { err, rawPreview: raw.slice(0, 200) },
       "No se pudo parsear JSON de vision, usando fallback"
     );
     return makeFallbackAnalysis(err);
   }
 }
 
-function normalize(parsed: Partial<VisionAnalysisResult>): VisionAnalysisResult {
+/**
+ * Normaliza el parsed JSON al schema completo.
+ * G3: ya NO descarta esManejada/telaIdentificada/razonamiento.
+ * Si GPT manda "color" en singular, lo convierte a array.
+ */
+function normalize(
+  parsed: Partial<VisionAnalysisResult> & { color?: string | string[] }
+): VisionAnalysisResult {
+  // Manejar caso donde GPT manda "color" singular en vez de "colores"
+  let colores: string[] = [];
+  if (Array.isArray(parsed.colores)) {
+    colores = parsed.colores.map(String);
+  } else if (Array.isArray(parsed.color)) {
+    colores = parsed.color.map(String);
+  } else if (typeof parsed.color === "string" && parsed.color.trim()) {
+    colores = parsed.color.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+  }
+
   return {
     esProducto: Boolean(parsed.esProducto),
     razonNoEsProducto: parsed.razonNoEsProducto ?? undefined,
+    esManejada: parsed.esManejada !== undefined ? Boolean(parsed.esManejada) : undefined,
     descripcion: String(parsed.descripcion ?? "").trim(),
-    tipoTela: parsed.tipoTela ?? undefined,
-    colores: Array.isArray(parsed.colores) ? parsed.colores.map(String) : [],
+    tipoTela: parsed.tipoTela ? String(parsed.tipoTela).trim() : undefined,
+    telaIdentificada: parsed.telaIdentificada ? String(parsed.telaIdentificada).trim() : undefined,
+    colores,
     atributos: Array.isArray(parsed.atributos)
       ? parsed.atributos.map(String)
       : [],
@@ -219,6 +223,7 @@ function normalize(parsed: Partial<VisionAnalysisResult>): VisionAnalysisResult 
       ? parsed.usosProbables.map(String)
       : [],
     confianza: clamp01(Number(parsed.confianza ?? 0.5)),
+    razonamiento: parsed.razonamiento ? String(parsed.razonamiento).trim() : undefined,
   };
 }
 
@@ -237,7 +242,6 @@ function makeFallbackAnalysis(err: unknown): VisionAnalysisResult {
     atributos: [],
     usosProbables: [],
     confianza: 0,
-    // Guardamos el motivo para debugging interno
     ...({ _error: msg } as any),
   };
 }
@@ -246,17 +250,13 @@ function makeFallbackAnalysis(err: unknown): VisionAnalysisResult {
 
 /**
  * Construye el texto que se inyecta al chat como el "user message".
- * Incluye:
- *  - El caption del cliente (lo que escribió junto a la foto)
- *  - La descripción visual generada
- *  - Atributos detectados, para que el RAG y el bot puedan responder
- *
- * Si NO es producto, el mensaje pide al cliente describir o reenviar.
+ * G3: usa el schema completo, incluye razonamiento y esManejada.
  */
 export function buildEnrichedMessage(
   analysis: VisionAnalysisResult,
   caption: string
 ): string {
+  // Caso: GPT marcó esProducto=false
   if (!analysis.esProducto) {
     const motivo = analysis.razonNoEsProducto
       ? ` (parece ${analysis.razonNoEsProducto})`
@@ -267,26 +267,46 @@ export function buildEnrichedMessage(
   }
 
   const partes: string[] = [];
-  partes.push(`[IMAGEN ANALIZADA por el bot]`);
+  partes.push(`[IMAGEN ANALIZADA por el bot — confianza ${(analysis.confianza * 100).toFixed(0)}%]`);
   partes.push(`Descripción: ${analysis.descripcion}`);
-  if (analysis.tipoTela) partes.push(`Tipo aparente: ${analysis.tipoTela}`);
-  if (analysis.colores.length > 0)
-    partes.push(`Colores: ${analysis.colores.join(", ")}`);
-  if (analysis.atributos.length > 0)
-    partes.push(`Atributos: ${analysis.atributos.join(", ")}`);
-  if (analysis.usosProbables.length > 0)
-    partes.push(`Usos típicos: ${analysis.usosProbables.join(", ")}`);
-  partes.push(`Confianza del análisis: ${(analysis.confianza * 100).toFixed(0)}%`);
+
+  // Bifurcamos según si la tela es manejada o no
+  if (analysis.esManejada === false && analysis.telaIdentificada) {
+    partes.push(`⚠️ Tela identificada: ${analysis.telaIdentificada} — Coyote NO maneja esta tela.`);
+    if (analysis.razonamiento) {
+      partes.push(`Razonamiento: ${analysis.razonamiento}`);
+    }
+    partes.push("");
+    partes.push(
+      "INSTRUCCIÓN: Explica al cliente que esa tela específica no la manejamos, pero pregunta si hay alguna alternativa Coyote que pueda servirle (Sportok, Micropique, etc según uso). No inventes que SÍ la tenemos."
+    );
+  } else {
+    if (analysis.tipoTela) {
+      partes.push(`Tela del catálogo Coyote: ${analysis.tipoTela}`);
+    }
+    if (analysis.razonamiento) {
+      partes.push(`Razonamiento: ${analysis.razonamiento}`);
+    }
+    if (analysis.colores.length > 0) {
+      partes.push(`Colores: ${analysis.colores.join(", ")}`);
+    }
+    if (analysis.atributos.length > 0) {
+      partes.push(`Atributos: ${analysis.atributos.join(", ")}`);
+    }
+    if (analysis.usosProbables.length > 0) {
+      partes.push(`Usos típicos: ${analysis.usosProbables.join(", ")}`);
+    }
+
+    partes.push("");
+    partes.push(
+      "INSTRUCCIÓN: Usa la descripción y el tipo de tela identificada para responder con seguridad. Si el cliente preguntó precio/disponibilidad, ya tienes la info para responder directamente. Si la confianza es baja (<60%), valida con el cliente: '¿es para X uso o Y uso?'."
+    );
+  }
 
   if (caption.trim()) {
     partes.push("");
     partes.push(`El cliente escribió junto a la foto: "${caption.trim()}"`);
   }
-
-  partes.push("");
-  partes.push(
-    "INSTRUCCIÓN: usa la descripción de la imagen para identificar qué producto del catálogo se parece. Si ninguno coincide, dilo honestamente."
-  );
 
   return partes.join("\n");
 }
