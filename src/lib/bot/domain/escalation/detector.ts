@@ -45,12 +45,22 @@ function detectarQueja(text: string): DetectionResult {
 // ─── B. Petición de humano ───────────────────────────────────────────────────
 
 const HUMANO_PATTERNS: RegExp[] = [
+  // Originales
   /\b(asesor|agente|persona|humano|alguien)\s+(real|de\s+verdad|verdadero)\b/i,
   /\b(con\s+(un\s+)?(supervisor|humano|persona|asesor|gerente))\b/i,
   /\b(quiero\s+hablar\s+con\s+(alguien|un\s+humano|una\s+persona))/i,
   /\b(no\s+(entiend|resuel)|no\s+me\s+est[aá]s?\s+entendi)/i,
   /\b(otra\s+persona|otro\s+asesor)\b/i,
   /\b(eres\s+un\s+(bot|robot|m[aá]quina))/i,
+  // NUEVO: ejecutiv*, encargad*, jefe, dueño, atención humana, etc.
+  /\b(ejecutiv[oa]s?|encargad[oa]s?|due[ñn][oa]|jef[ea])\b/i,
+  /\b(hablar\s+con\s+(una?\s+)?(ejecutiv|encargad|jef|due|gerent|supervis|coordinad|representant|director))/i,
+  /\b(comuni(que|car|c[aá]me)me?\s+con)/i,
+  /\b(quiero\s+(que\s+me\s+)?(atiend|hable|contact|llame|marqu))/i,
+  /\b(me\s+(atiend|llame|marqu|contact)\s+(un|una|alguien))/i,
+  /\b(n[uú]mero\s+(de\s+)?(tel[eé]fono|contacto)\s+(de\s+)?(la\s+|el\s+)?(sucursal|tienda|ejecutiv|encargad|jef|due|gerent|supervis))/i,
+  /\b(p[aá]same|p[aá]se|transfi[ée]rame|tr[aá]nsfi[ée]reme)\s+con/i,
+  /\b(quiero\s+(un|una)\s+(humano|persona|ejecutiv|encargad|asesor))/i,
 ];
 
 function detectarPeticionHumano(text: string): DetectionResult {
