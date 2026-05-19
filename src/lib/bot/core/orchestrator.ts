@@ -197,31 +197,46 @@ export async function processMessage(
     // ── 3. FASE 11B: ¿el cliente está respondiendo a la pregunta de consentimiento? ──
     const consentInfo = getConsentInfo(profile);
     if (consentInfo.estado === "pendiente" && userText) {
-      const respuesta = detectarRespuestaConsentimiento(userText);
-      log.info({ phone, respuesta }, "Procesando respuesta de consentimiento");
+      // ── G1 FIX: si el cliente habla de venta/frustración, cancelar consent y atender venta ──
+      const ventaPattern = /(precio|cu[aá]nto|cotiza|contenedor|tonelada|lote|kg|kilos?|comprar|pedido|quiero|necesito|urgente|env[ií]o|pago|stock|disponib|mu[eé]strame|mu[eé]stre)/i;
+      const frustracionPattern = /(p[eé]simo|pendejo|verga|chinga|fuera\s+de\s+contexto|no\s+entiend|mal\s+servicio|ctm|wtf|qu[eé]\s+pas|pinche)/i;
+      const cambioTema = ventaPattern.test(userText) || frustracionPattern.test(userText);
 
-      if (respuesta === "acepta") {
-        await marcarOtorgado(phone, redis);
-        const txt = buildConsentAcceptedMessage();
+      if (cambioTema) {
+        log.info({ phone, userText }, "G1: Cliente cambió tema — cancelando consent, atendiendo venta");
+        try {
+          await marcarRechazado(phone, redis);
+        } catch (err) {
+          log.warn({ err, phone }, "No se pudo marcar consent rechazado");
+        }
+        // NO retornamos — caemos al flujo normal abajo
+      } else {
+        const respuesta = detectarRespuestaConsentimiento(userText);
+        log.info({ phone, respuesta }, "Procesando respuesta de consentimiento");
+
+        if (respuesta === "acepta") {
+          await marcarOtorgado(phone, redis);
+          const txt = buildConsentAcceptedMessage();
+          await persistTurnSimple(phone, userText, txt, redis);
+          return [
+            { channel: message.channel, to: { id: phone }, type: "text", text: txt },
+          ];
+        }
+        if (respuesta === "rechaza") {
+          await marcarRechazado(phone, redis);
+          const txt = buildConsentRejectedMessage();
+          await persistTurnSimple(phone, userText, txt, redis);
+          return [
+            { channel: message.channel, to: { id: phone }, type: "text", text: txt },
+          ];
+        }
+        // Ambiguo: volvemos a preguntar SIN cambiar estado
+        const txt = buildConsentAmbiguousMessage();
         await persistTurnSimple(phone, userText, txt, redis);
         return [
           { channel: message.channel, to: { id: phone }, type: "text", text: txt },
         ];
       }
-      if (respuesta === "rechaza") {
-        await marcarRechazado(phone, redis);
-        const txt = buildConsentRejectedMessage();
-        await persistTurnSimple(phone, userText, txt, redis);
-        return [
-          { channel: message.channel, to: { id: phone }, type: "text", text: txt },
-        ];
-      }
-      // Ambiguo: volvemos a preguntar SIN cambiar estado
-      const txt = buildConsentAmbiguousMessage();
-      await persistTurnSimple(phone, userText, txt, redis);
-      return [
-        { channel: message.channel, to: { id: phone }, type: "text", text: txt },
-      ];
     }
 
     // ── 4. Auto-extraer CP si vino texto del cliente ──

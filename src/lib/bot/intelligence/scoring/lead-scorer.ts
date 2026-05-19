@@ -32,6 +32,11 @@ const VIP_PATTERNS: RegExp[] = [
   /\b(uniformes?\s+(para\s+)?(empresa|escuela|equipo|deportivos?))\b/i,
   /\b(revendedor|mayorista|distribuidor)\b/i,
   /\b(empresa|negocio|tienda)\b/i,
+  // G1: pedidos extra grandes
+  /\b(contenedor(es)?|container)\b/i,
+  /\b(tonelada(s)?|tn|ton)\b/i,
+  /\b(lote\s+(grande|completo)|pallet(s)?)\b/i,
+  /\b(importar|exportaci[oó]n|exportar)\b/i,
 ];
 
 const PRECIO_PATTERNS: RegExp[] = [
@@ -184,9 +189,9 @@ export function scoreLead(
  */
 export function buildTacticBlock(result: LeadScoreResult): string {
   const tacticas: Record<LeadCategory, string> = {
-    hot: `🔥 LEAD HOT — Cliente listo para cerrar. NO sigas perfilando. Pide únicamente lo que falte (nombre/email/CP) y genera el cobro YA. Mensaje corto y directo.`,
+    hot: `🔥 LEAD HOT — Cliente listo para cerrar. NO sigas perfilando. Pide únicamente lo que falte (nombre/email/CP) y genera el cobro YA. Mensaje corto y directo. PROHIBIDO decir "comuníquese con un representante" — TÚ ERES el representante.`,
 
-    vip: `💎 LEAD VIP — Cliente de alto valor (maquila/empresa/volumen). Tono profesional y directo. Enfatiza: precio mayoreo, continuidad de stock, atención prioritaria. Ofrece membresía si aplica. Pide nombre+email+empresa antes de cotizar formalmente.`,
+    vip: `💎 LEAD VIP — Cliente de alto valor (maquila/empresa/contenedor/volumen). Tono profesional y directo. ACCIONES OBLIGATORIAS: (1) NUNCA digas "comuníquese con un representante" — TÚ ERES el representante. (2) Si pide CONTENEDOR/TONELADA: da rango de precio aproximado de inmediato (ej. "un contenedor de Sportok andará entre $X y $Y dependiendo cantidad y color, ¿qué colores busca y qué volumen exacto?"). (3) Captura nombre+email+empresa+volumen+telas con preguntas naturales una a la vez, NO en bloque. (4) Ofrece llamada del equipo comercial DESPUÉS de tener al menos nombre+email. Enfatiza: precio mayoreo, continuidad de stock, atención prioritaria.`,
 
     premium: `💰 LEAD PREMIUM — Cliente con historial bueno. Tono cálido pero profesional. Enfatiza calidad, exclusividad. Menciona telas premium del catálogo (Alaska, Apolo, Kyoto). Recuerda compras previas si es relevante.`,
 
