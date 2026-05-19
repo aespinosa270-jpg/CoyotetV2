@@ -1,12 +1,20 @@
-{
-    "crons": [
-      {
-        "path": "/api/cron/payroll-check",
-        "schedule": "0 0 1 * *"
-      },
-      {
-        "path": "/api/cron/inventory-alerts",
-        "schedule": "0 8 * * *"
-      }
-    ]
-  }
+﻿{
+  "crons": [
+    {
+      "path": "/api/cron/payroll-check",
+      "schedule": "0 0 1 * *"
+    },
+    {
+      "path": "/api/cron/inventory-alerts",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/hourly",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/daily",
+      "schedule": "0 16 * * *"
+    }
+  ]
+}
