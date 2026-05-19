@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 
@@ -34,8 +34,14 @@ export default function LlamarButton({
     setEstado("llamando");
     setMensaje("");
 
+    // Quitar el "52" inicial si lo tiene (Zadarma lo agrega automáticamente para MX)
     let toNumber = phoneNorm;
-    if (toNumber.length === 10) toNumber = "52" + toNumber;
+    if (toNumber.length === 12 && toNumber.startsWith("52")) {
+      toNumber = toNumber.slice(2);
+    }
+    if (toNumber.length === 13 && toNumber.startsWith("521")) {
+      toNumber = toNumber.slice(3);
+    }
 
     try {
       const w = window as any;
