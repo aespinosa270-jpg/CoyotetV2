@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Detalle de una conversación específica.
  *
  * Layout de 2 columnas:
@@ -16,6 +16,7 @@ import {
   isBotPaused,
 } from "@/lib/bot/repositories/pause-repo";
 import TakeOverPanel from "./_components/TakeOverPanel";
+import LlamarButton from "../../_components/LlamarButton";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -42,7 +43,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
 
   return (
     <div className="space-y-4">
-      <header className="flex justify-between items-baseline">
+      <header className="flex justify-between items-start gap-4">
         <div>
           <Link
             href="/crm/admin/bot/conversaciones"
@@ -57,6 +58,9 @@ export default async function ConversacionDetallePage({ params }: Props) {
             <code>{perfil.telefono}</code> · {perfil.segmento || "prospecto"} ·{" "}
             {perfil.totalCompras} compra{perfil.totalCompras !== 1 ? "s" : ""}
           </p>
+        </div>
+        <div className="pt-1">
+          <LlamarButton phone={phone} variant="primary" size="md" label="Llamar ahora" />
         </div>
       </header>
 
