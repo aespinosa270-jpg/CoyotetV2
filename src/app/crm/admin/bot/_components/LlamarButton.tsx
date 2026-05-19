@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useZadarmaCall } from "./useZadarmaCall";
+import CallWidget from "./CallWidget";
 
 interface Props {
   phone: string;
@@ -13,8 +14,9 @@ interface Props {
 }
 
 /**
- * Botón click-to-call con Zadarma.
- * Manda POST a /api/admin/bot/llamadas/iniciar y muestra feedback inline.
+ * Botón click-to-call con Zadarma WebRTC.
+ * Marca DESDE el navegador del agente — no necesita app móvil.
+ * Renderiza un CallWidget flotante con estado de la llamada.
  */
 export default function LlamarButton({
   phone,
@@ -22,38 +24,19 @@ export default function LlamarButton({
   size = "sm",
   label = "Llamar",
 }: Props) {
-  const [estado, setEstado] = useState<"idle" | "llamando" | "ok" | "error">("idle");
-  const [mensaje, setMensaje] = useState<string>("");
+  const { state, error, duration, call, hangup, isMuted, toggleMute } = useZadarmaCall();
 
   // No llamamos a clientes web (IDs UUID)
-  const phoneEsNum = /^\d{10,15}$/.test(phone.replace(/[^\d]/g, ""));
+  const phoneNorm = phone.replace(/[^\d]/g, "");
+  const phoneEsNum = /^\d{10,15}$/.test(phoneNorm);
   if (!phoneEsNum) return null;
 
   async function iniciar() {
-    setEstado("llamando");
-    setMensaje("");
-    try {
-      const res = await fetch("/api/admin/bot/llamadas/iniciar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setEstado("ok");
-        setMensaje(data.message ?? "Llamada iniciada");
-        // Reset después de 6s
-        setTimeout(() => setEstado("idle"), 6000);
-      } else {
-        setEstado("error");
-        setMensaje(data.error ?? "Error iniciando llamada");
-        setTimeout(() => setEstado("idle"), 8000);
-      }
-    } catch (err) {
-      setEstado("error");
-      setMensaje("Error de red");
-      setTimeout(() => setEstado("idle"), 6000);
-    }
+    if (state !== "idle") return;
+    // Normalizar: agregar 52 si es celular MX sin lada
+    let toNumber = phoneNorm;
+    if (toNumber.length === 10) toNumber = "52" + toNumber;
+    await call(toNumber);
   }
 
   const baseClass =
@@ -66,30 +49,33 @@ export default function LlamarButton({
       ? "bg-amber-400 text-slate-900 hover:bg-amber-500 border-amber-500"
       : "bg-white text-slate-700 hover:bg-slate-50 border-slate-300";
 
-  const disabledClass =
-    estado === "llamando" ? "opacity-60 cursor-wait" : "cursor-pointer";
+  const occupied = state !== "idle";
 
   return (
-    <span className="inline-flex items-center gap-2">
+    <>
       <button
         type="button"
         onClick={iniciar}
-        disabled={estado === "llamando"}
-        className={`${baseClass} ${variantClass} ${disabledClass} rounded border font-semibold transition`}
-        title={`Llamar a ${phone} vía Zadarma`}
+        disabled={occupied}
+        className={`${baseClass} ${variantClass} ${occupied ? "opacity-60 cursor-wait" : "cursor-pointer"} rounded border font-semibold transition`}
+        title={`Llamar a ${phone} vía WebRTC`}
       >
-        📞 {estado === "llamando" ? "Llamando..." : label}
+        📞 {state === "connecting" ? "Conectando..." :
+            state === "ringing" ? "Sonando..." :
+            state === "connected" ? "En llamada" :
+            label}
       </button>
-      {estado === "ok" && (
-        <span className="text-xs text-emerald-700 font-medium">
-          ✅ {mensaje}
-        </span>
-      )}
-      {estado === "error" && (
-        <span className="text-xs text-red-700 font-medium" title={mensaje}>
-          ❌ {mensaje.length > 40 ? mensaje.slice(0, 40) + "…" : mensaje}
-        </span>
-      )}
-    </span>
+
+      {/* Widget flotante con controles */}
+      <CallWidget
+        toNumber={phoneNorm}
+        state={state}
+        duration={duration}
+        error={error}
+        isMuted={isMuted}
+        onHangup={hangup}
+        onToggleMute={toggleMute}
+      />
+    </>
   );
 }
