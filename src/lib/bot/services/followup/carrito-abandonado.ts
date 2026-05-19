@@ -51,8 +51,8 @@ export interface CarritoJobResult {
 }
 
 function buildMensaje(nombre: string | undefined): string {
-  const saludo = nombre ? `Qué onda ${nombre}` : "Qué onda";
-  return `${saludo} 👋 solo quería ver si todavía ocupaba el material que cotizamos ayer. ¿Le ayudo a finalizar el pedido? 🐺`;
+  const saludo = nombre ? `Hola ${nombre}` : "Buen día";
+  return `${saludo} 👋 quería darle seguimiento a la cotización que le pasamos ayer. ¿Le interesa proceder con el pedido o tiene alguna duda? 🐺`;
 }
 
 export async function runCarritoAbandonadoJob(

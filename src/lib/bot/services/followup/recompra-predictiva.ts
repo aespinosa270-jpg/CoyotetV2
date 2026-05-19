@@ -53,8 +53,8 @@ function buildMensaje(perfil: any): string {
     perfil.productosFavoritos?.[0] ||
     perfil.productosComprados?.[0] ||
     "material";
-  const saludo = nombre ? `Oye ${nombre}` : "Oye";
-  return `${saludo} 👋 probablemente ya ande necesitando más ${productoFavorito} 🔥 ¿le aparto rollo?`;
+  const saludo = nombre ? `Hola ${nombre}` : "Buen día";
+  return `${saludo} 👋 según su historial, calculo que probablemente ya esté necesitando más ${productoFavorito}. ¿Le confirmo disponibilidad y le aparto?`;
 }
 
 export async function runRecompraPredictivaJob(
