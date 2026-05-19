@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import LlamarButton from "../../_components/LlamarButton";
 
 interface Contacto {
   id: string;
@@ -213,6 +214,7 @@ export default function ContactosTable({
                     )}
                   </td>
                   <td className="px-3 py-2 text-right space-x-1">
+                    <LlamarButton phone={c.phone} variant="secondary" size="sm" label="" />
                     {!c.plantillaEnviada && (
                       <button
                         onClick={() => handleEnviar(c.id)}
