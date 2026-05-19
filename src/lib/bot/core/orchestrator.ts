@@ -1,4 +1,4 @@
-﻿import { getLogger } from "../observability/logger";
+import { getLogger } from "../observability/logger";
 import { getRedis } from "../repositories/redis";
 import * as clientRepo from "../repositories/client-repo";
 import * as conversationRepo from "../repositories/conversation-repo";
@@ -601,7 +601,7 @@ export async function processMessage(
         channel: message.channel,
         to: { id: phone },
         type: "text",
-        text: "🐺 Denos un momento y le daremos seguimiento.",
+        text: "Disculpe, tuve un problema procesando su mensaje. ¿Puede repetirme su última solicitud? Estoy aquí para ayudarle 🐺",
       },
     ];
   }

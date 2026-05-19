@@ -1,7 +1,8 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { handleWhatsAppWebhook } from "../../../../lib/bot/transports/whatsapp/inbound";
 
 export const runtime = "nodejs";
+export const maxDuration = 60; // FIX: antes 10s default cortaba mensajes → "Denos un momento" loop
 
 export async function POST(req: Request) {
   try {
