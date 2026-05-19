@@ -1,4 +1,4 @@
-﻿// Le quitamos el tipo estricto de OpenAI para evitar el doble enrutamiento en chat.ts
+// Le quitamos el tipo estricto de OpenAI para evitar el doble enrutamiento en chat.ts
 export const BOT_TOOLS: any[] = [
   {
     name: "calcular_envio",
@@ -94,14 +94,29 @@ export const BOT_TOOLS: any[] = [
   },
   {
     name: "escalar_a_humano",
-    description: "Transfiere la conversación a un agente humano en el CRM cuando hay una queja grave o duda fuera del catálogo.",
+    description: "CRÍTICO: Llamar SOLO después de haber recopilado al menos NOMBRE + MOTIVO del cliente. Transfiere conversación a un humano de la Jauría cuando el cliente: (a) pide explícitamente hablar con ejecutiva/encargada/asesor/persona, (b) tiene queja grave, (c) tema fuera del catálogo. ESTA ACCIÓN crea una escalación visible en el CRM /crm/admin/bot/escalaciones y notifica al admin por WhatsApp.",
     parameters: {
       type: "object",
       properties: {
-        motivo: { type: "string", description: "Explicación breve de por qué se transfiere el chat" },
-        prioridad: { type: "string", enum: ["alta", "media", "baja"] }
+        nombre: {
+          type: "string",
+          description: "Nombre completo del cliente (preguntarle SIEMPRE antes de escalar si no lo tienes en el perfil)"
+        },
+        motivo: {
+          type: "string",
+          description: "Para qué necesita hablar con humano. Ej: 'Cotización contenedor de Sportok 3 ton para maquila', 'Queja por demora en pedido X', 'Problema con factura RFC'. SÉ ESPECÍFICO."
+        },
+        telefono: {
+          type: "string",
+          description: "Teléfono donde quiere ser contactado. Default: el mismo del chat. Pregunta solo si el cliente sugiere otro número."
+        },
+        prioridad: {
+          type: "string",
+          enum: ["alta", "media", "baja"],
+          description: "Alta = contenedor/queja/urgente. Media = cotización grande. Baja = consulta general."
+        }
       },
-      required: ["motivo"]
+      required: ["nombre", "motivo"]
     }
   },
   {
