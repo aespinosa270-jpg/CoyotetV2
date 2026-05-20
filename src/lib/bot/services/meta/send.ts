@@ -55,3 +55,93 @@ export async function sendText(to: string, text: string, retries = 2): Promise<b
   
   return false;
 }
+
+
+// ─────────────────────────────────────────────────────────────────────
+// sendMedia: envío de imagen / documento / video / audio
+// ─────────────────────────────────────────────────────────────────────
+
+export type MediaType = "image" | "document" | "video" | "audio";
+
+export interface SendMediaInput {
+  to: string;
+  mediaUrl: string;          // URL pública (Supabase Storage)
+  mediaType: MediaType;
+  caption?: string;          // Texto que acompaña imagen/video
+  filename?: string;         // Solo para documentos (PDF, DOCX...)
+}
+
+/**
+ * Envía media (imagen, doc, video, audio) por WhatsApp Cloud API.
+ * Retorna true si Meta aceptó, false si falló.
+ */
+export async function sendMedia(input: SendMediaInput, retries = 2): Promise<boolean> {
+  const env = getEnv();
+  const token = env.WHATSAPP_TOKEN;
+  const phoneId = env.WHATSAPP_PHONE_NUMBER_ID;
+
+  // Normalizar número (misma lógica que sendText)
+  let cleanTo = input.to.replace(/\D/g, "");
+  if (cleanTo.startsWith("521") && cleanTo.length === 13) {
+    cleanTo = cleanTo.replace(/^521/, "52");
+  }
+
+  // Construir payload según tipo
+  const mediaPayload: any = { link: input.mediaUrl };
+  if (input.caption && (input.mediaType === "image" || input.mediaType === "video" || input.mediaType === "document")) {
+    mediaPayload.caption = input.caption;
+  }
+  if (input.filename && input.mediaType === "document") {
+    mediaPayload.filename = input.filename;
+  }
+
+  const payload = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: cleanTo,
+    type: input.mediaType,
+    [input.mediaType]: mediaPayload,
+  };
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const url = `https://graph.facebook.com/v19.0/${phoneId}/messages`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        log.info(
+          { to: cleanTo, mediaType: input.mediaType, attempt: attempt + 1 },
+          "✅ Media enviado exitosamente por Meta API"
+        );
+        return true;
+      }
+
+      log.error(
+        { data, mediaType: input.mediaType, attempt: attempt + 1 },
+        "❌ Error de Meta API al enviar media"
+      );
+    } catch (error) {
+      log.error(
+        { err: error, attempt: attempt + 1 },
+        "⚠️ Excepción de red al enviar media"
+      );
+    }
+
+    if (attempt < retries) {
+      const waitMs = 1000 * (attempt + 1);
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
+
+  return false;
+}

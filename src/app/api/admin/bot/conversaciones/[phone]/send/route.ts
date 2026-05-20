@@ -1,24 +1,35 @@
 ﻿/**
  * POST /api/admin/bot/conversaciones/[phone]/send
  *
- * El admin envía un mensaje al cliente desde el CRM. Solo permitido si la
- * conversación está pausada (control humano activo).
+ * El admin envía mensaje (texto O media) al cliente desde el CRM.
+ * Solo permitido si la conversación está pausada (control humano activo).
+ *
+ * Body:
+ *   { text: string }                                    → texto plano
+ *   { mediaUrl, mediaType, filename?, caption? }        → imagen/doc/video/audio
+ *   Puede combinar text + media en una sola llamada (manda media con caption).
  *
  * Side effects:
  *  - Envía vía Meta API al cliente.
- *  - Registra en historial como `role: "assistant"`.
- *  - Renueva el TTL del pause (23h desde ahora).
- *
- * Body: { text: string }
+ *  - Registra en historial.
+ *  - Renueva el TTL del pause (23h).
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "../../../_lib/guard";
 import { isBotPaused, renewPause } from "@/lib/bot/repositories/pause-repo";
-import { sendText } from "@/lib/bot/services/meta/send";
+import { sendText, sendMedia, type MediaType } from "@/lib/bot/services/meta/send";
 import { appendMensaje } from "@/lib/bot/repositories/conversation-repo";
 import { getLogger } from "@/lib/bot/observability/logger";
 
 const log = getLogger({ module: "api/conversaciones/send" });
+
+interface SendBody {
+  text?: string;
+  mediaUrl?: string;
+  mediaType?: MediaType;
+  filename?: string;
+  caption?: string;
+}
 
 export async function POST(
   req: NextRequest,
@@ -30,11 +41,11 @@ export async function POST(
   const { phone: phoneEncoded } = await params;
   const phone = decodeURIComponent(phoneEncoded);
 
-    if (!phone || (!/^\d{10,15}$/.test(phone.replace(/\D/g, "")) && !phone.startsWith("web:"))) {
+  if (!phone || (!/^\d{10,15}$/.test(phone.replace(/\D/g, "")) && !phone.startsWith("web:"))) {
     return NextResponse.json({ error: "phone inválido" }, { status: 400 });
   }
 
-  let body: { text?: string };
+  let body: SendBody;
   try {
     body = await req.json();
   } catch {
@@ -42,12 +53,26 @@ export async function POST(
   }
 
   const text = (body.text ?? "").trim();
-  if (!text) {
-    return NextResponse.json({ error: "text vacío" }, { status: 400 });
+  const mediaUrl = body.mediaUrl?.trim();
+  const mediaType = body.mediaType;
+  const filename = body.filename?.trim();
+  const caption = body.caption?.trim();
+
+  // Validar que venga al menos algo
+  if (!text && !mediaUrl) {
+    return NextResponse.json({ error: "Debe enviar 'text' o 'mediaUrl'" }, { status: 400 });
   }
-  if (text.length > 4000) {
+
+  if (text && text.length > 4000) {
     return NextResponse.json(
       { error: "text muy largo (máx 4000 caracteres)" },
+      { status: 400 }
+    );
+  }
+
+  if (mediaUrl && !mediaType) {
+    return NextResponse.json(
+      { error: "mediaType requerido cuando se manda mediaUrl" },
       { status: 400 }
     );
   }
@@ -57,23 +82,51 @@ export async function POST(
   if (!paused) {
     return NextResponse.json(
       {
-        error:
-          'El bot NO está pausado para esta conversación. Primero llama a "Tomar control".',
+        error: 'El bot NO está pausado para esta conversación. Primero llama a "Tomar control".',
       },
       { status: 409 }
     );
   }
 
   try {
-      if (phone.startsWith("web:")) {
-        await appendMensaje(phone, { role: "assistant", content: text, timestamp: new Date().toISOString() });
-        await renewPause(phone);
-        log.info({ phone }, "Mensaje web guardado en BD desde CRM");
-        return NextResponse.json({ success: true, channel: "web" });
-      }
-      
-      // CANAL WHATSAPP
-    const sent = await sendText(phone, text);
+    // ── CANAL WEB (chat de la página, no WhatsApp) ──
+    if (phone.startsWith("web:")) {
+      const content = mediaUrl
+        ? `[${mediaType?.toUpperCase()}: ${filename || mediaUrl}]${caption ? `\n${caption}` : ""}`
+        : text;
+      await appendMensaje(phone, {
+        role: "assistant",
+        content,
+        timestamp: new Date().toISOString(),
+      });
+      await renewPause(phone);
+      log.info({ phone, hasMedia: !!mediaUrl }, "Mensaje web guardado en BD desde CRM");
+      return NextResponse.json({ success: true, channel: "web" });
+    }
+
+    // ── CANAL WHATSAPP ──
+    let sent = false;
+    let historyContent = "";
+
+    if (mediaUrl && mediaType) {
+      // Envío de media
+      sent = await sendMedia({
+        to: phone,
+        mediaUrl,
+        mediaType,
+        caption: caption || text || undefined,
+        filename: filename || undefined,
+      });
+      const icon =
+        mediaType === "image" ? "📸" :
+        mediaType === "video" ? "🎥" :
+        mediaType === "audio" ? "🎙️" : "📎";
+      historyContent = `${icon} ${mediaType.toUpperCase()}: ${filename || "archivo"}${caption ? `\n${caption}` : text ? `\n${text}` : ""}`;
+    } else {
+      // Envío de texto plano
+      sent = await sendText(phone, text);
+      historyContent = text;
+    }
 
     if (!sent) {
       return NextResponse.json(
@@ -82,21 +135,22 @@ export async function POST(
       );
     }
 
-    // Renovar TTL del pause (cada mensaje del agente extiende 23h más)
+    // Renovar TTL del pause (cada mensaje del agente extiende 23h)
     await renewPause(phone);
 
-    // Registrar en historial como mensaje del bot (visible en CRM)
+    // Registrar en historial
     try {
       await appendMensaje(phone, {
         role: "assistant",
-        content: text,
+        content: historyContent,
         timestamp: new Date().toISOString(),
-      });
+        ...(mediaUrl && { mediaUrl, mediaType }),
+      } as any);
     } catch (err) {
       log.warn({ err, phone }, "No se pudo registrar mensaje en historial");
     }
 
-    return NextResponse.json({ ok: true, delivered: true });
+    return NextResponse.json({ ok: true, delivered: true, mediaUrl: mediaUrl || null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.error({ err, phone }, "Error enviando mensaje del agente");
