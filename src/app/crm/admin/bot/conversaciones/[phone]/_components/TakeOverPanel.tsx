@@ -1,17 +1,18 @@
-/**
+﻿/**
  * TakeOverPanel — UI para control humano de la conversación.
  *
- * Estados:
- *  - Bot activo: muestra botón "Tomar control"
- *  - Bot pausado: muestra banner amarillo + tiempo restante + textarea para
- *    enviar mensajes + botón "Liberar control"
+ * G3 MEDIA: soporta envío de imágenes, documentos, videos y audios.
  *
- * Server-side data (initialState) viene del page.tsx; el cliente refresca al
- * actuar sobre los botones.
+ * Flujo:
+ *  1. Click 📎 → file picker
+ *  2. Upload a /api/admin/bot/upload-media → URL Supabase
+ *  3. Preview + caption opcional
+ *  4. Click Enviar → POST /conversaciones/[phone]/send con mediaUrl
+ *  5. Cliente recibe en WhatsApp
  */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface PauseState {
@@ -27,6 +28,23 @@ interface Props {
   initialTTLSeconds: number;
 }
 
+type MediaType = "image" | "document" | "video" | "audio";
+
+interface UploadedMedia {
+  mediaUrl: string;
+  mediaType: MediaType;
+  filename: string;
+  mimeType: string;
+  size: number;
+}
+
+const SIZE_LIMITS_MB: Record<MediaType, number> = {
+  image: 5,
+  document: 100,
+  video: 16,
+  audio: 16,
+};
+
 export default function TakeOverPanel({
   phone,
   initialPaused,
@@ -34,11 +52,15 @@ export default function TakeOverPanel({
   initialTTLSeconds,
 }: Props) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [paused, setPaused] = useState(initialPaused);
   const [state, setState] = useState<PauseState | null>(initialState);
   const [ttlSeconds, setTtlSeconds] = useState(initialTTLSeconds);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [text, setText] = useState("");
+  const [media, setMedia] = useState<UploadedMedia | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -77,8 +99,7 @@ export default function TakeOverPanel({
 
   async function handleRelease() {
     if (busy) return;
-    if (!confirm("¿Liberar control y reanudar el bot? Se le avisará al cliente."))
-      return;
+    if (!confirm("¿Liberar control y reanudar el bot? Se le avisará al cliente.")) return;
     setBusy(true);
     setError(null);
     setSuccess(null);
@@ -92,6 +113,8 @@ export default function TakeOverPanel({
       setPaused(false);
       setState(null);
       setTtlSeconds(0);
+      setMedia(null);
+      setText("");
       setSuccess("Bot reanudado. Cliente notificado.");
       router.refresh();
     } catch (err) {
@@ -101,25 +124,101 @@ export default function TakeOverPanel({
     }
   }
 
+  function detectMediaType(mimeType: string): MediaType {
+    if (mimeType.startsWith("image/")) return "image";
+    if (mimeType.startsWith("video/")) return "video";
+    if (mimeType.startsWith("audio/")) return "audio";
+    return "document";
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tamaño en cliente antes de subir
+    const mediaType = detectMediaType(file.type);
+    const limitMB = SIZE_LIMITS_MB[mediaType];
+    const sizeMB = file.size / 1024 / 1024;
+
+    if (sizeMB > limitMB) {
+      setError(
+        `Archivo muy grande (${sizeMB.toFixed(2)} MB). Límite para ${mediaType}: ${limitMB} MB`
+      );
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setError(null);
+    setSuccess(null);
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/admin/bot/upload-media", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error subiendo archivo");
+
+      setMedia({
+        mediaUrl: data.mediaUrl,
+        mediaType: data.mediaType,
+        filename: data.filename,
+        mimeType: data.mimeType,
+        size: data.size,
+      });
+      setSuccess(`✅ Archivo subido (${(data.size / 1024).toFixed(0)} KB). Agregue caption o envíe.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function handleRemoveMedia() {
+    setMedia(null);
+    setSuccess(null);
+  }
+
   async function handleSend() {
-    if (busy || !text.trim()) return;
+    if (busy || uploading) return;
+    if (!text.trim() && !media) return;
+
     setBusy(true);
     setError(null);
     setSuccess(null);
+
     try {
+      const body: any = {};
+      if (media) {
+        body.mediaUrl = media.mediaUrl;
+        body.mediaType = media.mediaType;
+        body.filename = media.filename;
+        if (text.trim()) body.caption = text.trim();
+      } else {
+        body.text = text.trim();
+      }
+
       const res = await fetch(
         `/api/admin/bot/conversaciones/${encodeURIComponent(phone)}/send`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: text.trim() }),
+          body: JSON.stringify(body),
         }
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al enviar mensaje");
+
       setText("");
-      setTtlSeconds(60 * 60 * 23); // El backend renueva, replicamos en UI
-      setSuccess("Mensaje enviado al cliente.");
+      setMedia(null);
+      setTtlSeconds(60 * 60 * 23);
+      setSuccess(media ? "📎 Archivo enviado al cliente." : "Mensaje enviado al cliente.");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -128,6 +227,16 @@ export default function TakeOverPanel({
     }
   }
 
+  function getMediaIcon(t: MediaType): string {
+    if (t === "image") return "📸";
+    if (t === "video") return "🎥";
+    if (t === "audio") return "🎙️";
+    return "📎";
+  }
+
+  // ═══════════════════════════════════════
+  // RENDER: Bot activo (no pausado)
+  // ═══════════════════════════════════════
   if (!paused) {
     return (
       <div className="bg-white border border-slate-200 rounded-md p-4 space-y-2">
@@ -136,9 +245,7 @@ export default function TakeOverPanel({
             <p className="text-xs uppercase text-slate-500 tracking-wide font-semibold">
               Control de la conversación
             </p>
-            <p className="text-sm text-slate-700">
-              🟢 Bot atendiendo automáticamente
-            </p>
+            <p className="text-sm text-slate-700">🟢 Bot atendiendo automáticamente</p>
           </div>
           <button
             onClick={handleTakeOver}
@@ -154,7 +261,9 @@ export default function TakeOverPanel({
     );
   }
 
-  // Estado: BOT PAUSADO
+  // ═══════════════════════════════════════
+  // RENDER: Bot pausado (control humano)
+  // ═══════════════════════════════════════
   return (
     <div className="bg-amber-50 border-2 border-amber-400 rounded-md p-4 space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -174,8 +283,7 @@ export default function TakeOverPanel({
             </p>
           )}
           <p className="text-xs text-amber-700 mt-0.5">
-            Bot regresa automáticamente en{" "}
-            <strong>{formatTTL(ttlSeconds)}</strong>
+            Bot regresa automáticamente en <strong>{formatTTL(ttlSeconds)}</strong>
           </p>
         </div>
         <button
@@ -192,10 +300,44 @@ export default function TakeOverPanel({
         <p className="text-xs text-slate-600 font-medium">
           Responder como asesor (se envía con el número del bot):
         </p>
+
+        {/* Media preview */}
+        {media && (
+          <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded p-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {media.mediaType === "image" ? (
+                <img
+                  src={media.mediaUrl}
+                  alt={media.filename}
+                  className="w-12 h-12 object-cover rounded border border-slate-200"
+                />
+              ) : (
+                <span className="text-2xl">{getMediaIcon(media.mediaType)}</span>
+              )}
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium text-slate-700 truncate">
+                  {media.filename}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {media.mediaType.toUpperCase()} · {(media.size / 1024).toFixed(0)} KB
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={handleRemoveMedia}
+              disabled={busy}
+              className="text-red-500 hover:text-red-700 text-lg font-bold w-6 h-6 flex items-center justify-center"
+              title="Quitar archivo"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Escribe tu mensaje al cliente..."
+          placeholder={media ? "Caption opcional para el archivo..." : "Escribe tu mensaje al cliente..."}
           rows={3}
           disabled={busy}
           className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -206,17 +348,46 @@ export default function TakeOverPanel({
             }
           }}
         />
-        <div className="flex justify-between items-center">
-          <span className="text-xs text-slate-400">
-            {text.length}/4000 caracteres · Ctrl+Enter para enviar
-          </span>
-          <button
-            onClick={handleSend}
-            disabled={busy || !text.trim()}
-            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-sm font-bold rounded shadow"
-          >
-            {busy ? "Enviando..." : "📤 Enviar"}
-          </button>
+
+        {/* Toolbar */}
+        <div className="flex justify-between items-center flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
+              onChange={handleFileSelect}
+              disabled={busy || uploading}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={busy || uploading}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 disabled:bg-slate-50 disabled:text-slate-300 border border-slate-300 text-slate-700 text-xs font-medium rounded flex items-center gap-1"
+              title="Adjuntar imagen, PDF, video o audio"
+            >
+              {uploading ? (
+                <>⏳ Subiendo...</>
+              ) : (
+                <>📎 Adjuntar</>
+              )}
+            </button>
+            <span className="text-xs text-slate-400 hidden sm:inline">
+              IMG 5MB · DOC 100MB · Video/Audio 16MB
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-400">
+              {text.length}/4000 · Ctrl+Enter
+            </span>
+            <button
+              onClick={handleSend}
+              disabled={busy || uploading || (!text.trim() && !media)}
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-sm font-bold rounded shadow"
+            >
+              {busy ? "Enviando..." : media ? "📤 Enviar archivo" : "📤 Enviar"}
+            </button>
+          </div>
         </div>
       </div>
 
