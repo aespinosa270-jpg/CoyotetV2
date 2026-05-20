@@ -197,25 +197,34 @@ export async function processMessage(
     // ── 3. FASE 11B: ¿el cliente está respondiendo a la pregunta de consentimiento? ──
     const consentInfo = getConsentInfo(profile);
     if (consentInfo.estado === "pendiente" && userText) {
-      // ── G1 FIX: si el cliente habla de venta/frustración, cancelar consent y atender venta ──
-      const ventaPattern = /(precio|cu[aá]nto|cotiza|contenedor|tonelada|lote|kg|kilos?|comprar|pedido|quiero|necesito|urgente|env[ií]o|pago|stock|disponib|mu[eé]strame|mu[eé]stre)/i;
-      const frustracionPattern = /(p[eé]simo|pendejo|verga|chinga|fuera\s+de\s+contexto|no\s+entiend|mal\s+servicio|ctm|wtf|qu[eé]\s+pas|pinche)/i;
+      // ── G1+ ESCAPE HATCH AMPLIADO ──
+      // Si el cliente habla de venta/producto/frustración → cancelar consent y atender venta.
+      // Patrones AMPLIOS porque pedir consent en medio de una venta MATA conversión.
+      const ventaPattern = /(precio|cu[aá]nto|cotiza|contenedor|tonelada|lote|kg|kilos?|rollos?|metros?|comprar|adquirir|pedido|quiero|necesito|me\s+interesa|me\s+gustar[ií]a|me\s+manda|puede|podr[ií]a|tiene|tienen|hay|urgente|env[ií]o|env[ií]a|pago|pagar|stock|disponib|mu[eé]strame|mu[eé]stre|catalog|prepar(a|e)\s+(el\s+|mi\s+)?pedido|color(es)?|blanco|negro|rojo|azul|verde|amarillo|gris|rosa|marino|rey|fiusha|vino|menta|caqui|cielo|petr[oó]leo|naranja|p[uú]rpura|morado|magenta|lila|aqua|botella|militar|oxford|perla|turquesa|navy|francia|bandera|chedron|fresa|mango|menta|mostaza|uva|canario|coral|caf[eé]|bronce|oro|plata|tubular|gramaje|calibre|ancho|rendimien|sublimaci|deportiv|invernal|escolar|playera|licra|panal|panaltrio|pique|piquet|sportok|micropique|felpa|polar|inter|madelino|diablo|liluna|spandex|polyester|poli[eé]ster|algod[oó]n|dry.?fit|tela|telas|prenda|costo|sale\s+en|le\s+queda|me\s+queda)/i;
+
+      const frustracionPattern = /(p[eé]simo|pendejo|verga|chinga|fuera\s+de\s+contexto|no\s+entiend|mal\s+servicio|ctm|wtf|qu[eé]\s+pas|pinche|robo|estafa|mam[oó]n)/i;
+
       const cambioTema = ventaPattern.test(userText) || frustracionPattern.test(userText);
 
+      // ── Contador de re-preguntas (máximo 1) ──
+      const reaskCount = await getReaskCount(phone, redis);
+
       if (cambioTema) {
-        log.info({ phone, userText }, "G1: Cliente cambió tema — cancelando consent, atendiendo venta");
+        log.info({ phone, userText, reaskCount }, "G1+: Cliente cambió tema — cancelando consent, atendiendo venta");
         try {
           await marcarRechazado(phone, redis);
+          await resetReaskCount(phone, redis);
         } catch (err) {
           log.warn({ err, phone }, "No se pudo marcar consent rechazado");
         }
         // NO retornamos — caemos al flujo normal abajo
       } else {
         const respuesta = detectarRespuestaConsentimiento(userText);
-        log.info({ phone, respuesta }, "Procesando respuesta de consentimiento");
+        log.info({ phone, respuesta, reaskCount }, "Procesando respuesta de consentimiento");
 
         if (respuesta === "acepta") {
           await marcarOtorgado(phone, redis);
+          await resetReaskCount(phone, redis);
           const txt = buildConsentAcceptedMessage();
           await persistTurnSimple(phone, userText, txt, redis);
           return [
@@ -224,18 +233,34 @@ export async function processMessage(
         }
         if (respuesta === "rechaza") {
           await marcarRechazado(phone, redis);
+          await resetReaskCount(phone, redis);
           const txt = buildConsentRejectedMessage();
           await persistTurnSimple(phone, userText, txt, redis);
           return [
             { channel: message.channel, to: { id: phone }, type: "text", text: txt },
           ];
         }
-        // Ambiguo: volvemos a preguntar SIN cambiar estado
-        const txt = buildConsentAmbiguousMessage();
-        await persistTurnSimple(phone, userText, txt, redis);
-        return [
-          { channel: message.channel, to: { id: phone }, type: "text", text: txt },
-        ];
+
+        // Ambiguo
+        if (reaskCount >= 1) {
+          // Ya re-preguntamos antes: cancelamos consent y atendemos venta
+          log.info({ phone, userText, reaskCount }, "G1+: 2 ambiguos seguidos — abandonando consent, atendiendo conversación normal");
+          try {
+            await marcarRechazado(phone, redis);
+            await resetReaskCount(phone, redis);
+          } catch (err) {
+            log.warn({ err, phone }, "No se pudo marcar consent rechazado tras 2 ambiguos");
+          }
+          // NO retornamos — caemos al flujo normal
+        } else {
+          // Primera vez ambiguo: re-preguntamos UNA sola vez
+          await incrementReaskCount(phone, redis);
+          const txt = buildConsentAmbiguousMessage();
+          await persistTurnSimple(phone, userText, txt, redis);
+          return [
+            { channel: message.channel, to: { id: phone }, type: "text", text: txt },
+          ];
+        }
       }
     }
 
@@ -783,4 +808,41 @@ function withTimeout<T>(
       setTimeout(() => reject(new Error(`Task "${label}" timeout`)), ms)
     ),
   ]);
+}
+
+
+// ─────────────────────────────────────────────────────────
+// G1+ Reask Count helpers (consent: máximo 1 re-pregunta)
+// ─────────────────────────────────────────────────────────
+
+const REASK_KEY = (phone: string) => `v2:consent_reask:${phone}`;
+const REASK_TTL = 60 * 60; // 1 hora
+
+async function getReaskCount(phone: string, redis: ReturnType<typeof getRedis>): Promise<number> {
+  try {
+    const val = await redis.get<number>(REASK_KEY(phone));
+    return typeof val === "number" ? val : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function incrementReaskCount(phone: string, redis: ReturnType<typeof getRedis>): Promise<void> {
+  try {
+    const key = REASK_KEY(phone);
+    const count = await redis.incr(key);
+    if (count === 1) {
+      await redis.expire(key, REASK_TTL);
+    }
+  } catch {
+    // silently ignore
+  }
+}
+
+async function resetReaskCount(phone: string, redis: ReturnType<typeof getRedis>): Promise<void> {
+  try {
+    await redis.del(REASK_KEY(phone));
+  } catch {
+    // silently ignore
+  }
 }
