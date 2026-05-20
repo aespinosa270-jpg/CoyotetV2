@@ -3,6 +3,9 @@
  *
  * Pausa el bot para esta conversación. Manda mensaje al cliente avisando
  * que un asesor humano le atenderá personalmente.
+ *
+ * G-WebFix: soporta clientes web (phone con prefijo "web:"). Para clientes
+ * web NO se llama sendText (que es WhatsApp API), solo se guarda en historial.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "../../../_lib/guard";
@@ -14,8 +17,7 @@ import { getLogger } from "@/lib/bot/observability/logger";
 
 const log = getLogger({ module: "api/conversaciones/take-over" });
 
-const MENSAJE_CLIENTE =
-  "Un asesor humano le atenderá personalmente.";
+const MENSAJE_CLIENTE = "Un asesor humano le atenderá personalmente.";
 
 export async function POST(
   _req: NextRequest,
@@ -30,26 +32,34 @@ export async function POST(
   const { phone: phoneEncoded } = await params;
   const phone = decodeURIComponent(phoneEncoded);
 
-    if (!phone) {
-      return NextResponse.json({ error: "phone inválido" }, { status: 400 });
-    }
+  // Validar formato: WhatsApp (10-15 dígitos) O web:UUID
+  if (!phone || (!/^\d{10,15}$/.test(phone.replace(/\D/g, "")) && !phone.startsWith("web:"))) {
+    return NextResponse.json({ error: "phone inválido" }, { status: 400 });
+  }
 
+  const isWebClient = phone.startsWith("web:");
 
   try {
     // 1. Pausar el bot en Redis (TTL 23h)
     const state = await pauseBot(phone, adminEmail);
 
-    // 2. Enviar mensaje al cliente vía Meta API
-    const sent = await sendText(phone, MENSAJE_CLIENTE);
+    let sent = true;
 
-    if (!sent) {
-      log.warn({ phone }, "Pause aplicado pero falló envío de mensaje al cliente");
+    // 2. CANAL WHATSAPP: Enviar mensaje al cliente vía Meta API
+    if (!isWebClient) {
+      sent = await sendText(phone, MENSAJE_CLIENTE);
+      if (!sent) {
+        log.warn({ phone }, "Pause aplicado pero falló envío de mensaje al cliente WhatsApp");
+      }
+    } else {
+      log.info({ phone }, "Cliente web — pause aplicado, mensaje solo en historial (polling lo recogerá)");
     }
 
-    // 3. Registrar en historial como mensaje del agente (para que quede registrado)
+    // 3. Registrar en historial — para WhatsApp queda registrado;
+    //    para WEB es el ÚNICO modo de que el cliente lo vea (via polling sync)
     try {
       await appendMensaje(phone, {
-        role: "assistant", // Mismo role para que aparezca del lado del bot/asesor
+        role: "assistant",
         content: MENSAJE_CLIENTE,
         timestamp: new Date().toISOString(),
       });
@@ -60,6 +70,7 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       paused: true,
+      channel: isWebClient ? "web" : "whatsapp",
       state,
       messageDelivered: sent,
     });
