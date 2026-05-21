@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import AnalysisResult from "./AnalysisResult";
 
 type Employee = { id: string; name: string; email: string; role: string };
 type Order = {
@@ -372,12 +373,10 @@ export default function ContactDetail({
           </div>
         </div>
 
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-          <p className="font-semibold">⏭ Próxima fase</p>
-          <p className="mt-1 text-xs">
-            En Fase 2 aquí aparecerá el botón <strong>"Analizar con IA"</strong> que genera situación + estrategia + mensaje listo para WhatsApp.
-          </p>
-        </div>
+        <AnalysisResult
+          contactId={contact.id}
+          onMessageSent={() => router.refresh()}
+        />
       </aside>
     </div>
   );
