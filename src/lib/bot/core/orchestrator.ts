@@ -1,4 +1,4 @@
-import { getLogger } from "../observability/logger";
+﻿import { getLogger } from "../observability/logger";
 import { getRedis } from "../repositories/redis";
 import * as clientRepo from "../repositories/client-repo";
 import * as conversationRepo from "../repositories/conversation-repo";
@@ -504,7 +504,23 @@ export async function processMessage(
     }
 
     // ── 9. Validador post-respuesta ──
-    let validation = validateBotResponse(finalTexto);
+    // Whitelist: extraer telas registradas en este turno via registrar_tela_no_manejada
+    const telasRegistradasEnTurno: string[] = [];
+    for (const m of apiMessages) {
+      if ((m as any).role === "assistant" && (m as any).tool_calls) {
+        for (const tc of (m as any).tool_calls as any[]) {
+          if (tc.function?.name === "registrar_tela_no_manejada") {
+            try {
+              const args = JSON.parse(tc.function.arguments || "{}");
+              const tela = (args.tela_identificada || "").toLowerCase().trim();
+              if (tela) telasRegistradasEnTurno.push(tela);
+            } catch {}
+          }
+        }
+      }
+    }
+
+    let validation = validateBotResponse(finalTexto, telasRegistradasEnTurno);
     if (!validation.ok) {
       log.warn(
         { phone, prohibidas: validation.prohibidasMencionadas },
@@ -533,7 +549,7 @@ export async function processMessage(
       const retry = await chat(apiMessages, { tools: BOT_TOOLS as any });
       finalTexto = retry.text;
 
-      validation = validateBotResponse(finalTexto);
+      validation = validateBotResponse(finalTexto, telasRegistradasEnTurno);
       if (!validation.ok) {
         finalTexto =
           "Permítame verificar la disponibilidad exacta y le confirmo en breve.";

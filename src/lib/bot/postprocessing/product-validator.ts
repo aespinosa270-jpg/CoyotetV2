@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Validador post-respuesta del bot.
  *
  * Defensa en profundidad: aunque el system prompt de Fase 5 le diga a GPT
@@ -41,7 +41,10 @@ const PROHIBIDAS_REGEX = new RegExp(
  * Valida una respuesta del bot. Devuelve `ok: true` si está limpia,
  * `ok: false` con la lista de telas prohibidas detectadas si no.
  */
-export function validateBotResponse(texto: string): ValidationResult {
+export function validateBotResponse(
+  texto: string,
+  permitidas: string[] = []
+): ValidationResult {
   if (!texto || texto.trim() === "") {
     return { ok: true, prohibidasMencionadas: [], texto };
   }
@@ -53,7 +56,11 @@ export function validateBotResponse(texto: string): ValidationResult {
     matches.add(m[1].toLowerCase());
   }
 
-  const prohibidasMencionadas = Array.from(matches);
+  // Whitelist: si la tela fue registrada con tool en este turno, NO cuenta como hallucination
+  const permitidasLower = permitidas.map((p) => p.toLowerCase());
+  const prohibidasMencionadas = Array.from(matches).filter(
+    (tela) => !permitidasLower.includes(tela.toLowerCase())
+  );
   const ok = prohibidasMencionadas.length === 0;
 
   if (!ok) {
