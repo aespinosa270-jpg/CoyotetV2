@@ -16,6 +16,7 @@
 import { prisma } from "@/lib/prisma";
 import { getLogger } from "../../observability/logger";
 import { recordEvent } from "../../observability/events";
+import { evaluateSourcing, calcularKilosTotales } from "../sourcing/evaluator";
 
 const log = getLogger({ module: "crm/order-creator" });
 
@@ -102,8 +103,17 @@ export async function createOrderFromBot(
         );
       }
     }
+    // 2. Evaluar sourcing operativo (¿requiere cola por >1tn?)
+    const totalKg = calcularKilosTotales(input.items);
+    const sourcing = evaluateSourcing(totalKg);
+    if (sourcing.requiresSourcing) {
+      log.info(
+        { totalKg, phone: input.clientePhone, status: sourcing.sourcingStatus },
+        "Order requiere sourcing operativo (>1tn) - entra a cola"
+      );
+    }
 
-    // 2. Crear la Order + items en una sola transacción
+    // 3. Crear la Order + items en una sola transaccion
     const order = await prisma.order.create({
       data: {
         userId,
@@ -126,6 +136,11 @@ export async function createOrderFromBot(
         source: "bot_v2" as any,
         botPhone: input.clientePhone,
         botConversationId: input.botConversationId,
+        // Sourcing operativo (Fase 1.6) - oculto al cliente
+        requiresSourcing: sourcing.requiresSourcing,
+        sourcingStatus: sourcing.sourcingStatus,
+        sourcingDays: sourcing.sourcingDays,
+        sourcingPromisedAt: sourcing.requiresSourcing ? new Date() : null,
         items: {
           create: input.items.map((item) => ({
             title: item.title,
