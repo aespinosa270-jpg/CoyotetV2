@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Servicio orquestador de escalación:
  *  1. Crea registro en Prisma
  *  2. Envía mensaje al cliente
@@ -17,6 +17,7 @@ import { createEscalation } from "../repositories/escalation-repo";
 import { pauseBot } from "../repositories/pause-repo";
 import { appendMensaje } from "../repositories/conversation-repo";
 import { getLogger } from "../observability/logger";
+import { getRedis } from "../repositories/redis";
 
 const log = getLogger({ module: "escalation-notifier" });
 
@@ -108,10 +109,30 @@ export async function triggerEscalation(
     baseUrl: BASE_URL,
   });
 
+  // Throttle: máximo 1 push al admin cada 5 min por mismo cliente
+  // (evita spam si cliente escala varias veces seguidas)
   try {
-    const sent = await sendText(ADMIN_PHONE, adminMsg);
-    if (!sent) {
-      log.warn({ admin: ADMIN_PHONE }, "Notificación admin no entregada");
+    const redis = getRedis();
+    const throttleKey = `v2:admin_push_throttle:${input.phone}`;
+    const recent = await redis.get<string>(throttleKey);
+
+    if (recent) {
+      log.info(
+        { phone: input.phone, razon: input.razon },
+        "⏸️ Push admin omitido — throttle activo (último push hace <5 min)"
+      );
+    } else {
+      const sent = await sendText(ADMIN_PHONE, adminMsg);
+      if (!sent) {
+        log.warn({ admin: ADMIN_PHONE }, "Notificación admin no entregada");
+      } else {
+        // Marcar throttle: 5 min TTL
+        await redis.set(throttleKey, new Date().toISOString(), { ex: 300 });
+        log.info(
+          { phone: input.phone, razon: input.razon },
+          "✅ Notificación push enviada al admin"
+        );
+      }
     }
   } catch (err) {
     log.error({ err, admin: ADMIN_PHONE }, "Error notificando admin");
