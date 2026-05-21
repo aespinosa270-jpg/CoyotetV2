@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Cron DIARIO: tareas pesadas que solo necesitan correr 1 vez al día.
  *
  * Llamado por cron-job.org una vez al día con:
@@ -14,6 +14,7 @@ import { requireCronAuth } from "../_lib/guard";
 import { runReactivationJob } from "@/lib/bot/jobs/reactivation";
 import { runCleanupJob } from "@/lib/bot/jobs/cleanup";
 import { runRecompraPredictivaJob } from "@/lib/bot/services/followup/recompra-predictiva";
+import { runAftercareJob } from "@/lib/bot/jobs/aftercare";
 import { getLogger } from "@/lib/bot/observability/logger";
 import { recordEvent } from "@/lib/bot/observability/events";
 
@@ -58,6 +59,20 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // ── Job: aftercare (D+7 entrega exitosa, D+30 re-engagement) ──
+  try {
+    const r = await runAftercareJob({ dryRun });
+    results.aftercare = r;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error({ err: msg }, "Job aftercare fallo");
+    errors.aftercare = msg;
+    await recordEvent({
+      type: "error",
+      data: { source: "cron_daily_aftercare", message: msg },
+    });
+  }
+
   // ── Job: cleanup ──
   try {
     const r = await runCleanupJob({ dryRun });
@@ -87,6 +102,6 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     endpoint: "cron/daily",
-    jobs: ["reactivation", "recompra_predictiva", "cleanup"],
+    jobs: ["reactivation", "recompra_predictiva", "aftercare", "cleanup"],
   });
 }
