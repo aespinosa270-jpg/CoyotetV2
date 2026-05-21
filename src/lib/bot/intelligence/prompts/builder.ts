@@ -34,6 +34,8 @@ import { getRuntimeConfig } from "../../config/runtime-config";
 import { buildMembershipBlock } from "./membership-block";
 import { getCustomerHistory } from "../profile/customer-history";
 import { buildCustomerHistoryBlock } from "./customer-history-block";
+import { detectLastQuote } from "../profile/last-quote-detector";
+import { buildLastQuoteBlock } from "./last-quote-block";
 // ── FASE B: lead scoring ──────────────────────────────────────────
 import { scoreLead, buildTacticBlock } from "../scoring/lead-scorer";
 
@@ -56,12 +58,13 @@ Respuestas cortas. Tono de confianza entre socios. Tienes acceso completo a la b
 
   const useRag = !!options.userMessage && shouldUseRag(options.userMessage);
 
-  const [catalogBlock, memoria, resumen, customerHistory, ragResults, runtimeConfig] =
+  const [catalogBlock, memoria, resumen, customerHistory, lastQuote, ragResults, runtimeConfig] =
     await Promise.all([
       useRag ? Promise.resolve("") : buildCatalogBlock(),
       getMemoria(perfil.telefono, options.redis).catch(() => null),
       getResumen(perfil.telefono, options.redis).catch(() => null),
       getCustomerHistory(perfil.telefono).catch(() => null),
+      detectLastQuote(perfil.telefono).catch(() => null),
       useRag
         ? searchProducts(
             extractQueryFromMessage(options.userMessage!),
@@ -453,6 +456,11 @@ CONTEXTO DEL CLIENTE:
   // ── FASE B+ Memoria recurrente: historial real desde Prisma ──
   const historialBlock = customerHistory
     ? buildCustomerHistoryBlock(customerHistory, perfil.nombre)
+    : "";
+
+  // ── FASE H Lead caliente: cliente volvió sin cerrar venta ──
+  const lastQuoteBlock = lastQuote
+    ? buildLastQuoteBlock(lastQuote, perfil.nombre)
     : "";
 
   const memoryBlock = memoria ? buildMemoryBlock(memoria) : "";
