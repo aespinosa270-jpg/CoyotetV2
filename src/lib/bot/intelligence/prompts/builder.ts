@@ -40,6 +40,7 @@ import { detectSentiment } from "../sentiment/detector";
 import { buildSentimentBlock } from "./sentiment-block";
 import { detectFraud } from "../fraud/detector";
 import { buildFraudBlock } from "./fraud-block";
+import { buildLearnedRulesBlock } from "./learned-rules-block";
 // ── FASE B: lead scoring ──────────────────────────────────────────
 import { scoreLead, buildTacticBlock } from "../scoring/lead-scorer";
 
@@ -504,6 +505,9 @@ CONTEXTO DEL CLIENTE:
     ? buildFraudBlock(detectFraud(options.userMessage))
     : "";
 
+  // ── FASE N Reglas aprendidas del análisis semanal ──
+  const learnedRulesBlock = await buildLearnedRulesBlock().catch(() => "");
+
   const memoryBlock = memoria ? buildMemoryBlock(memoria) : "";
   const objecionesTop = topObjeciones(perfil, 3);
   const objecionesBlock =
@@ -521,6 +525,9 @@ CONTEXTO DEL CLIENTE:
   const extraBlock = runtimeConfig?.extraInstructions
     ? `\n\nINSTRUCCIONES ADICIONALES VIGENTES (del admin):\n${runtimeConfig.extraInstructions}`
     : "";
+
+  // Reglas aprendidas se agregan al final para tener máxima frescura/prioridad
+  const learnedBlockFinal = learnedRulesBlock || "";
 
   // ── FASE 11A/B: bloque de propuesta de membresía si aplica ──
   const tracking = (perfil as any).membershipTracking ?? {};
