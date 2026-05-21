@@ -32,6 +32,8 @@ import {
 } from "../rag/prompt-block";
 import { getRuntimeConfig } from "../../config/runtime-config";
 import { buildMembershipBlock } from "./membership-block";
+import { getCustomerHistory } from "../profile/customer-history";
+import { buildCustomerHistoryBlock } from "./customer-history-block";
 // ── FASE B: lead scoring ──────────────────────────────────────────
 import { scoreLead, buildTacticBlock } from "../scoring/lead-scorer";
 
@@ -54,11 +56,12 @@ Respuestas cortas. Tono de confianza entre socios. Tienes acceso completo a la b
 
   const useRag = !!options.userMessage && shouldUseRag(options.userMessage);
 
-  const [catalogBlock, memoria, resumen, ragResults, runtimeConfig] =
+  const [catalogBlock, memoria, resumen, customerHistory, ragResults, runtimeConfig] =
     await Promise.all([
       useRag ? Promise.resolve("") : buildCatalogBlock(),
       getMemoria(perfil.telefono, options.redis).catch(() => null),
       getResumen(perfil.telefono, options.redis).catch(() => null),
+      getCustomerHistory(perfil.telefono).catch(() => null),
       useRag
         ? searchProducts(
             extractQueryFromMessage(options.userMessage!),
@@ -446,6 +449,11 @@ CONTEXTO DEL CLIENTE:
 - Compras previas: ${perfil.totalCompras}
 - Segmento: ${perfil.segmento || "prospecto"}
 - Táctica de venta activa: ${perfil.tacticaActual || "valor_rendimiento"}`;
+
+  // ── FASE B+ Memoria recurrente: historial real desde Prisma ──
+  const historialBlock = customerHistory
+    ? buildCustomerHistoryBlock(customerHistory, perfil.nombre)
+    : "";
 
   const memoryBlock = memoria ? buildMemoryBlock(memoria) : "";
   const objecionesTop = topObjeciones(perfil, 3);
