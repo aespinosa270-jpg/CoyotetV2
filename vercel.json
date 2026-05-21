@@ -7,14 +7,6 @@
       {
         "path": "/api/cron/inventory-alerts",
         "schedule": "0 8 * * *"
-      },
-      {
-        "path": "/api/cron/nightly-summary",
-        "schedule": "0 4 * * *"
-      },
-      {
-        "path": "/api/cron/weekly-learning",
-        "schedule": "0 0 * * 6"
       }
     ]
   }
