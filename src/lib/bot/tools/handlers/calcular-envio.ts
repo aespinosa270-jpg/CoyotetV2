@@ -1,5 +1,6 @@
-﻿import type { BotContext } from "../../core/types";
+import type { BotContext } from "../../core/types";
 import { calcularEnvio } from "../../domain/shipping/calculator";
+import { firstCp } from "../../domain/extractors/postal-code";
 import { resolverZona } from "../../domain/shipping/zones";
 import * as clientRepo from "../../repositories/client-repo";
 import { getLogger } from "../../observability/logger";
@@ -9,7 +10,30 @@ const log = getLogger({ module: "tool-calcular-envio" });
 export async function calcularEnvioHandler(args: any, context: BotContext) {
   log.info({ args }, "Calculando envío vía Tool");
   try {
-    const { cp, productos, subtotal, requiere_factura } = args;
+    const { cp: cpDeGPT, productos, subtotal, requiere_factura } = args;
+
+    // ⚠️ ANTI-ALUCINACIÓN: validar que el CP que GPT pasó coincida con el del mensaje real.
+    // Si GPT inventó un CP (o tomó uno viejo del historial), usamos el que tipeó el cliente AHORA.
+    const cpDelMensajeActual = firstCp(context.message?.text ?? "");
+    const cpDelPerfil = (context.profile as any).codigoPostalEnvio ?? null;
+
+    // Prioridad: 1) CP del mensaje actual  2) CP del perfil  3) CP de GPT (último recurso)
+    const cp = cpDelMensajeActual ?? cpDelPerfil ?? cpDeGPT;
+
+    if (cpDeGPT && cp !== cpDeGPT) {
+      log.warn(
+        { cpDeGPT, cpDelMensajeActual, cpDelPerfil, cpUsado: cp },
+        "⚠️ ANTI-ALUCINACION: GPT paso CP distinto al del cliente. Override aplicado."
+      );
+    }
+
+    if (!cp || !/^\d{5}$/.test(cp)) {
+      log.error({ cpDeGPT, cpDelMensajeActual }, "No hay CP válido ni de GPT ni del cliente");
+      return {
+        success: false,
+        error: "Necesito un código postal de 5 dígitos. ¿Me lo confirmas?",
+      };
+    }
 
     // 1. Resolver zona primero para decidir flujo
     const zona = resolverZona(cp);
@@ -99,6 +123,8 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
     };
 
     context.profile.ultimaCotizacion = `Cotización a CP ${cp}: $${resultadoFinal.total.toFixed(2)} MXN`;
+    // Guardar el CP validado en el perfil para futuras referencias
+    (context.profile as any).codigoPostalEnvio = cp;
     await clientRepo.save(context.profile, context.redis);
 
     // 6. Instrucción mejorada para que el bot mencione el carrier
