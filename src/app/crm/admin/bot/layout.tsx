@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Layout del dashboard del Bot v2 — Fase 12.
  *
  * Agrega:
@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { href: "/crm/admin/bot/escalaciones", label: "Escalaciones", icon: "🚨", highlight: true },
   { href: "/crm/admin/bot/seguimientos", label: "Seguimientos", icon: "📬" },
   { href: "/crm/admin/bot/contactos", label: "Contactos", icon: "📞" },
+  { href: "/crm/admin/sales-agent", label: "Sales Agent", icon: "🎯", highlight: true },
   { href: "/crm/admin/bot/pendientes", label: "Pagos pendientes", icon: "⏳" },
   { href: "/crm/admin/bot/telas-solicitadas", label: "Telas solicitadas", icon: "🧵" },
   { href: "/crm/admin/bot/programaciones", label: "Programaciones", icon: "📅" },
