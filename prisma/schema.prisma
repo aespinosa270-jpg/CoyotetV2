@@ -154,22 +154,22 @@ enum TelaSolicitadaStatus {
 // 1. USUARIO / CLIENTE (B2B & B2C)
 // ==========================================================
 model User {
-  id                           String             @id @default(cuid())
-  hashId                       String             @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
+  id                           String         @id @default(cuid())
+  hashId                       String         @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
   name                         String?
-  email                        String             @unique
+  email                        String         @unique
   password                     String
   image                        String?
   phone                        String?
-  role                         String             @default("USER")
-  membershipTier               MembershipTier     @default(NONE)
+  role                         String         @default("USER")
+  membershipTier               MembershipTier @default(NONE)
   membershipExpiry             DateTime?
-  membershipColocacionesUsadas Int                @default(0)
-  points                       Int                @default(0)
+  membershipColocacionesUsadas Int            @default(0)
+  points                       Int            @default(0)
   stripeCustomerId             String?
   stripeSubscriptionId         String?
   stripeSubscriptionStatus     String?
-  ltv                          Float              @default(0)
+  ltv                          Float          @default(0)
   rfc                          String?
   taxRegime                    String?
   cfdiUse                      String?
@@ -180,20 +180,20 @@ model User {
   state                        String?
   company                      String?
   notes                        String?
-  optedIn                      Boolean            @default(false)
-  suppressed                   Boolean            @default(false)
+  optedIn                      Boolean        @default(false)
+  suppressed                   Boolean        @default(false)
   consentDate                  DateTime?
   optOutDate                   DateTime?
-  createdAt                    DateTime           @default(now())
-  updatedAt                    DateTime           @updatedAt
+  createdAt                    DateTime       @default(now())
+  updatedAt                    DateTime       @updatedAt
 
-  orders                       Order[]
-  interactions                 Interaction[]
-  tickets                      Ticket[]
-  deals                        Deal[]
-  waConversations              WaConversation[]
-  passwordResetToken           PasswordResetToken?
-  ticketMessages               TicketMessage[]
+  orders             Order[]
+  interactions       Interaction[]
+  tickets            Ticket[]
+  deals              Deal[]
+  waConversations    WaConversation[]
+  passwordResetToken PasswordResetToken?
+  ticketMessages     TicketMessage[]
 
   // Índices de rendimiento
   @@index([email])
@@ -216,32 +216,37 @@ model PasswordResetToken {
 // 2. LA JAURIA (EQUIPO INTERNO)
 // ==========================================================
 model Employee {
-  id                 String           @id @default(cuid())
-  name               String
-  email              String           @unique
-  password           String
-  role               EmployeeRole     @default(VENDEDORA)
-  isActive           Boolean          @default(true)
-  
-  isBlocked          Boolean          @default(false) 
-  suspendedFunctions String[]         
-  
-  commissionRate     Float            @default(0.03)
-  status             String           @default("offline")
-  lastActiveAt       DateTime?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id       String       @id @default(cuid())
+  name     String
+  email    String       @unique
+  password String
+  role     EmployeeRole @default(VENDEDORA)
+  isActive Boolean      @default(true)
 
-  logs               AuditLog[]
-  attendances        Attendance[]
-  interactions       Interaction[]
-  assignedTickets    Ticket[]
-  ticketMessages     TicketMessage[]
-  telemetry          Telemetry[]
-  routeOrders        RouteOrder[]
-  deals              Deal[]
-  commissions        Commission[]
-  waConversations    WaConversation[]
+  isBlocked          Boolean  @default(false)
+  suspendedFunctions String[]
+
+  commissionRate Float     @default(0.03)
+  status         String    @default("offline")
+  lastActiveAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  logs            AuditLog[]
+  attendances     Attendance[]
+  interactions    Interaction[]
+  assignedTickets Ticket[]
+  ticketMessages  TicketMessage[]
+  telemetry       Telemetry[]
+  routeOrders     RouteOrder[]
+  deals           Deal[]
+  commissions     Commission[]
+  waConversations WaConversation[]
+
+  // Sales Agent (Fase 1 — reactivacion contactos frios)
+  assignedColdContacts ContactoOutbound[]   @relation("AssignedColdContacts")
+  salesAgentAttempts   SalesAgentAttempt[]  @relation("SalesAgentSentBy")
+  salesAgentFeedbacks  SalesAgentFeedback[] @relation("SalesAgentFeedbacks")
 }
 
 model AuditLog {
@@ -264,10 +269,10 @@ model AuditLog {
 // 3. CATALOGO CENTRAL & INVENTARIO FISICO
 // ==========================================================
 model Product {
-  id               String              @id @default(cuid())
-  sku              String              @unique
+  id               String   @id @default(cuid())
+  sku              String   @unique
   title            String
-  unit             UnitType            @default(KILO)
+  unit             UnitType @default(KILO)
   thumbnail        String?
   description      String?
   composicion      String?
@@ -276,20 +281,20 @@ model Product {
   rendimiento      Float?
   priceMenudeo     Float
   priceMayoreo     Float
-  hasRollo         Boolean             @default(true)
+  hasRollo         Boolean  @default(true)
   unidadesPorRollo Float?
-  singleColor      Boolean             @default(true)
+  singleColor      Boolean  @default(true)
   origin           String?
   category         String
-  isActive         Boolean             @default(true)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  colors           ProductColor[]
-  inventory        Inventory[]
-  orderItems       OrderItem[]
-  deals            Deal[]
-  movements        InventoryMovement[]
+  colors     ProductColor[]
+  inventory  Inventory[]
+  orderItems OrderItem[]
+  deals      Deal[]
+  movements  InventoryMovement[]
 
   // Índices de rendimiento
   @@index([category])
@@ -297,9 +302,9 @@ model Product {
 }
 
 model ProductColor {
-  id        String              @id @default(cuid())
+  id        String  @id @default(cuid())
   productId String
-  product   Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   name      String
   hex       String
   imageUrl  String?
@@ -400,60 +405,60 @@ model Commission {
 // 5. E-COMMERCE & LOGISTICA DE COMPRA
 // ==========================================================
 model Order {
-  id                String              @id @default(cuid())
-  orderNumber       String              @unique @default(cuid())
-  userId            String?
-  user              User?               @relation(fields: [userId], references: [id])
-  subtotal          Float               @default(0)
-  freightCost       Float               @default(0)
-  shippingCost      Float               @default(0)
-  serviceFee        Float               @default(0)
-  taxIVA            Float               @default(0)
-  total             Float
-  status            OrderStatus         @default(PENDING)
-  evidenceUrl       String?
-  deliveryLat       Float?
-  deliveryLng       Float?
-  paymentMethod     String              @default("card")
-  paymentId         String?
-  logisticsType     LogisticsType       @default(SKYDROPX_NACIONAL)
-  pickupLocation    PickupLocation      @default(GUATEMALA_97)
-  
-  pickupIdPhotoUrl  String?              
-  pickupPlateNumber String?              
-  pickupConfirmedBy String?              
-  pickupConfirmedAt DateTime?            
+  id             String         @id @default(cuid())
+  orderNumber    String         @unique @default(cuid())
+  userId         String?
+  user           User?          @relation(fields: [userId], references: [id])
+  subtotal       Float          @default(0)
+  freightCost    Float          @default(0)
+  shippingCost   Float          @default(0)
+  serviceFee     Float          @default(0)
+  taxIVA         Float          @default(0)
+  total          Float
+  status         OrderStatus    @default(PENDING)
+  evidenceUrl    String?
+  deliveryLat    Float?
+  deliveryLng    Float?
+  paymentMethod  String         @default("card")
+  paymentId      String?
+  logisticsType  LogisticsType  @default(SKYDROPX_NACIONAL)
+  pickupLocation PickupLocation @default(GUATEMALA_97)
 
-  vehiclesNeeded    Int                 @default(1)
-  trackingNumber    String?
-  trackingUrl       String?
-  customerName      String
-  customerEmail     String
-  customerPhone     String?
-  address           String?
-  wantsInvoice      Boolean             @default(false)
-  invoiceStatus     String?
+  pickupIdPhotoUrl  String?
+  pickupPlateNumber String?
+  pickupConfirmedBy String?
+  pickupConfirmedAt DateTime?
+
+  vehiclesNeeded Int     @default(1)
+  trackingNumber String?
+  trackingUrl    String?
+  customerName   String
+  customerEmail  String
+  customerPhone  String?
+  address        String?
+  wantsInvoice   Boolean @default(false)
+  invoiceStatus  String?
 
   // ── Bot v2 metadata (Fase 12) ──
-  source            String?             // "bot_v2" | "crm" | "web" | null
-  botPhone          String?             // teléfono E.164 del cliente en el bot
-  botConversationId String?             // ID interno de la conversación
+  source            String? // "bot_v2" | "crm" | "web" | null
+  botPhone          String? // teléfono E.164 del cliente en el bot
+  botConversationId String? // ID interno de la conversación
 
   // ── Despacho (Fase 12) ──
-  preparedAt        DateTime?
-  preparedBy        String?
-  shippedAt         DateTime?
-  shippedBy         String?
-  deliveredAt       DateTime?
+  preparedAt  DateTime?
+  preparedBy  String?
+  shippedAt   DateTime?
+  shippedBy   String?
+  deliveredAt DateTime?
 
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  items             OrderItem[]
-  tickets           Ticket[]
-  movements         InventoryMovement[]
-  vehicleId         String?
-  vehicle           Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  items     OrderItem[]
+  tickets   Ticket[]
+  movements InventoryMovement[]
+  vehicleId String?
+  vehicle   Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
   // Índices de rendimiento
   @@index([userId])
@@ -481,10 +486,10 @@ model OrderItem {
 // 6. ERP & OPERACION INTERNA
 // ==========================================================
 model Attendance {
-  id              String            @id @default(cuid())
+  id              String    @id @default(cuid())
   employeeId      String
-  employee        Employee          @relation(fields: [employeeId], references: [id])
-  checkIn         DateTime          @default(now())
+  employee        Employee  @relation(fields: [employeeId], references: [id])
+  checkIn         DateTime  @default(now())
   checkOut        DateTime?
   horasTrabajadas Float?
   ipAddress       String?
@@ -493,10 +498,10 @@ model Attendance {
   lng             Float?
   checkOutLat     Float?
   checkOutLng     Float?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  breaks          AttendanceBreak[]
+  breaks AttendanceBreak[]
 
   @@index([employeeId])
   @@index([createdAt(sort: Desc)])
@@ -516,17 +521,17 @@ model AttendanceBreak {
 }
 
 model Interaction {
-  id             String         @id @default(cuid())
+  id             String          @id @default(cuid())
   employeeId     String?
-  employee       Employee?      @relation(fields: [employeeId], references: [id])
+  employee       Employee?       @relation(fields: [employeeId], references: [id])
   userId         String
-  user           User           @relation(fields: [userId], references: [id])
+  user           User            @relation(fields: [userId], references: [id])
   type           InteractionType
   summary        String
   content        Json?
-  status         String         @default("open")
+  status         String          @default("open")
   pipelineStatus PipelineStatus?
-  date           DateTime       @default(now())
+  date           DateTime        @default(now())
   nextFollowUp   DateTime?
 
   @@index([userId])
@@ -558,7 +563,7 @@ model Ticket {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
-  messages     TicketMessage[]
+  messages TicketMessage[]
 
   @@index([userId])
   @@index([status])
@@ -584,18 +589,18 @@ model TicketMessage {
 // 7. FLOTILLA AVANZADA Y RUTAS
 // ==========================================================
 model Vehicle {
-  id              String         @id @default(cuid())
-  plate           String         @unique
+  id              String        @id @default(cuid())
+  plate           String        @unique
   model           String
-  lastMaintenance DateTime       @default(now())
+  lastMaintenance DateTime      @default(now())
   nextMaintenance DateTime
-  mileage         Float          @default(0)
-  status          VehicleStatus  @default(ACTIVE)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  mileage         Float         @default(0)
+  status          VehicleStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
-  orders          Order[]
-  logs            VehicleLog[]
+  orders Order[]
+  logs   VehicleLog[]
 }
 
 model Telemetry {
@@ -651,8 +656,8 @@ model RouteOrder {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
-  items                RouteOrderItem[]
-  issueLogs            IssueLog[]
+  items     RouteOrderItem[]
+  issueLogs IssueLog[]
 
   @@index([employeeId])
   @@index([status])
@@ -688,26 +693,26 @@ model IssueLog {
 // 8. WHATSAPP CHAT (META API READY)
 // ==========================================================
 model WaConversation {
-  id                  String      @id @default(cuid())
-  employeeId          String?
-  employee            Employee?   @relation(fields: [employeeId], references: [id])
-  userId              String?
-  user                User?       @relation(fields: [userId], references: [id])
-  contactName         String?
-  contactPhone        String      @unique
-  isOpen              Boolean     @default(true)
-  
+  id           String    @id @default(cuid())
+  employeeId   String?
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id])
+  contactName  String?
+  contactPhone String    @unique
+  isOpen       Boolean   @default(true)
+
   handledBy           ChatHandler @default(BOT)
-  lastAdminMessageAt  DateTime?   
-  aiResumePausedUntil DateTime?   
+  lastAdminMessageAt  DateTime?
+  aiResumePausedUntil DateTime?
 
-  lastMessage         String?
-  lastMessageAt       DateTime?
-  unreadCount         Int         @default(0)
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
+  lastMessage   String?
+  lastMessageAt DateTime?
+  unreadCount   Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  messages            WaMessage[]
+  messages WaMessage[]
 
   // Índices de rendimiento para CRM fluido
   @@index([employeeId])
@@ -735,43 +740,30 @@ model WaMessage {
 // ==========================================================
 // 9. OUTBOUND & MARKETING (CONTACTOS MANUALES)
 // ==========================================================
-model OutboundContact {
-  id        String   @id @default(cuid())
-  phone     String   @unique
-  name      String
-  notes     String?  
-  optIn     Boolean  @default(true) 
-  status    String   @default("pending") // pending, contacted, converted
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([phone])
-  @@index([status])
-}
 
 // ==========================================================
 // FASE 12 — MODELOS NUEVOS (BOT V2)
 // ==========================================================
 model TelaNoManejada {
-  id               String               @id @default(cuid())
+  id            String  @id @default(cuid())
   // Datos del cliente que la pidió
-  clientePhone     String
-  clienteNombre    String?
-  clienteUserId    String?
+  clientePhone  String
+  clienteNombre String?
+  clienteUserId String?
 
   // La tela
-  telaIdentificada String                // ej. "popelina", "lino", "casimir"
-  descripcionExtra String?               // descripción adicional del bot/vision
-  imagenUrl        String?               // si vino con foto
-  cantidadKg       Float?                // cuánto necesita
-  frecuencia       String?               // "mensual", "única", "estacional"
-  usoFinal         String?               // "uniformes", "camisas", etc.
+  telaIdentificada String // ej. "popelina", "lino", "casimir"
+  descripcionExtra String? // descripción adicional del bot/vision
+  imagenUrl        String? // si vino con foto
+  cantidadKg       Float? // cuánto necesita
+  frecuencia       String? // "mensual", "única", "estacional"
+  usoFinal         String? // "uniformes", "camisas", etc.
 
-  status           TelaSolicitadaStatus  @default(NUEVA)
-  notasInternas    String?
+  status        TelaSolicitadaStatus @default(NUEVA)
+  notasInternas String?
 
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([telaIdentificada])
   @@index([status])
@@ -779,27 +771,27 @@ model TelaNoManejada {
 }
 
 model ProgramacionVolumen {
-  id             String   @id @default(cuid())
+  id            String  @id @default(cuid())
   // Datos del cliente
-  clientePhone   String
-  clienteNombre  String?
-  clienteUserId  String?
+  clientePhone  String
+  clienteNombre String?
+  clienteUserId String?
 
   // Programación
-  telaSku        String?              // SKU si está en catálogo
-  telaTitulo     String               // nombre legible
-  kgPorPeriodo   Float                // cuántos kg cada periodo
-  periodo        String               // "mensual" | "quincenal" | "semanal" | "unico"
-  fechaInicio    DateTime
-  duracionMeses  Int                  @default(1)
+  telaSku       String? // SKU si está en catálogo
+  telaTitulo    String // nombre legible
+  kgPorPeriodo  Float // cuántos kg cada periodo
+  periodo       String // "mensual" | "quincenal" | "semanal" | "unico"
+  fechaInicio   DateTime
+  duracionMeses Int      @default(1)
 
-  estado         String               @default("propuesta")
+  estado String @default("propuesta")
   // estados: propuesta | confirmada | en_curso | completada | cancelada
 
-  notas          String?
+  notas String?
 
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([clientePhone])
   @@index([estado])
@@ -807,42 +799,105 @@ model ProgramacionVolumen {
 }
 
 model ContactoOutbound {
-  id                 String   @id @default(cuid())
-  phone              String   @unique
-  nombre             String?
-  empresa            String?
-  notas              String?
-  agregadoPor        String?              // email del admin que lo agregó
+  id          String  @id @default(cuid())
+  phone       String  @unique
+  nombre      String?
+  empresa     String?
+  notas       String?
+  agregadoPor String?
 
-  // Estado de la plantilla outbound
   plantillaEnviada   Boolean   @default(false)
   plantillaEnviadaAt DateTime?
-  plantillaResponse  String?            // SUCCESS | ERROR | NULL
+  plantillaResponse  String?
 
-  // Estado de la interacción
   clienteRespondio   Boolean   @default(false)
   primeraRespuestaAt DateTime?
 
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  // Sales Agent Intelligence (Fase 1)
+  coldReason           String?
+  engagementScore      Int      @default(0)
+  reactivationPriority Int      @default(0)
+  status               String   @default("PENDING")
+  tags                 String[] @default([])
+
+  assignedToEmployeeId String?
+  assignedToEmployee   Employee? @relation("AssignedColdContacts", fields: [assignedToEmployeeId], references: [id])
+  assignedAt           DateTime?
+
+  lastAttemptAt  DateTime?
+  totalAttempts  Int       @default(0)
+  nextFollowUpAt DateTime?
+
+  attempts  SalesAgentAttempt[]
+  feedbacks SalesAgentFeedback[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([phone])
   @@index([plantillaEnviada])
+  @@index([status])
+  @@index([reactivationPriority(sort: Desc)])
+  @@index([assignedToEmployeeId])
+  @@index([nextFollowUpAt])
 }
+
 model BotEscalation {
-  id           String    @id @default(cuid())
-  phone        String
-  nombre       String?
-  razon        String    // queja | humano | alto_valor | retries | frustracion | facturacion
-  contexto     String    @db.Text
-  ultimoMsg    String    @db.Text
-  estado       String    @default("pendiente") // pendiente | atendida | descartada
-  atendidaPor  String?
-  atendidaAt   DateTime?
-  createdAt    DateTime  @default(now())
+  id          String    @id @default(cuid())
+  phone       String
+  nombre      String?
+  razon       String // queja | humano | alto_valor | retries | frustracion | facturacion
+  contexto    String    @db.Text
+  ultimoMsg   String    @db.Text
+  estado      String    @default("pendiente") // pendiente | atendida | descartada
+  atendidaPor String?
+  atendidaAt  DateTime?
+  createdAt   DateTime  @default(now())
 
   @@index([phone])
   @@index([estado])
   @@index([createdAt])
   @@index([razon])
+}
+
+// ==========================================================
+// SALES AGENT - Fase 1 (reactivacion contactos frios)
+// ==========================================================
+model SalesAgentAttempt {
+  id        String           @id @default(cuid())
+  contactId String
+  contact   ContactoOutbound @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  channel      String
+  messageSent  String  @db.Text
+  strategy     String?
+  agentVersion String?
+
+  sentAt           DateTime  @default(now())
+  sentByEmployeeId String?
+  sentByEmployee   Employee? @relation("SalesAgentSentBy", fields: [sentByEmployeeId], references: [id])
+
+  outcome      String?
+  respondedAt  DateTime?
+  responseText String?   @db.Text
+
+  @@index([contactId])
+  @@index([sentAt(sort: Desc)])
+  @@index([outcome])
+}
+
+model SalesAgentFeedback {
+  id         String           @id @default(cuid())
+  contactId  String
+  contact    ContactoOutbound @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee         @relation("SalesAgentFeedbacks", fields: [employeeId], references: [id])
+
+  feedback String  @db.Text
+  category String?
+
+  createdAt DateTime @default(now())
+
+  @@index([contactId])
+  @@index([employeeId])
 }
