@@ -38,6 +38,8 @@ import { detectLastQuote } from "../profile/last-quote-detector";
 import { buildLastQuoteBlock } from "./last-quote-block";
 import { detectSentiment } from "../sentiment/detector";
 import { buildSentimentBlock } from "./sentiment-block";
+import { detectFraud } from "../fraud/detector";
+import { buildFraudBlock } from "./fraud-block";
 // ── FASE B: lead scoring ──────────────────────────────────────────
 import { scoreLead, buildTacticBlock } from "../scoring/lead-scorer";
 
@@ -495,6 +497,11 @@ CONTEXTO DEL CLIENTE:
   // ── FASE J Sentimiento: detectar tono del último mensaje del cliente ──
   const sentimentBlock = options.userMessage
     ? buildSentimentBlock(detectSentiment(options.userMessage))
+    : "";
+
+  // ── FASE L Anti-fraud: red flags en el mensaje del cliente ──
+  const fraudBlock = options.userMessage
+    ? buildFraudBlock(detectFraud(options.userMessage))
     : "";
 
   const memoryBlock = memoria ? buildMemoryBlock(memoria) : "";
