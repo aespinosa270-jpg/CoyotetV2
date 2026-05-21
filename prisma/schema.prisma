@@ -269,26 +269,28 @@ model AuditLog {
 // 3. CATALOGO CENTRAL & INVENTARIO FISICO
 // ==========================================================
 model Product {
-  id               String   @id @default(cuid())
-  sku              String   @unique
-  title            String
-  unit             UnitType @default(KILO)
-  thumbnail        String?
-  description      String?
-  composicion      String?
-  gramaje          String?
-  ancho            String?
-  rendimiento      Float?
-  priceMenudeo     Float
-  priceMayoreo     Float
-  hasRollo         Boolean  @default(true)
-  unidadesPorRollo Float?
-  singleColor      Boolean  @default(true)
-  origin           String?
-  category         String
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  sku                 String   @unique
+  title               String
+  unit                UnitType @default(KILO)
+  thumbnail           String?
+  description         String?
+  composicion         String?
+  gramaje             String?
+  ancho               String?
+  rendimiento         Float?
+  priceMenudeo        Float
+  priceMayoreo        Float
+  hasRollo            Boolean  @default(true)
+  unidadesPorRollo    Float?
+  singleColor         Boolean  @default(true)
+  origin              String?
+  category            String
+  // Sourcing operativo
+  cantidadInmediataKg Float?
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   colors     ProductColor[]
   inventory  Inventory[]
@@ -451,8 +453,15 @@ model Order {
   shippedBy   String?
   deliveredAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Sourcing operativo (interno, oculto al cliente)
+  requiresSourcing      Boolean   @default(false)
+  sourcingStatus        String?
+  sourcingDays          Int?
+  sourcingPromisedAt    DateTime?
+  sourcingResolvedAt    DateTime?
+  sourcingInternalNotes String?   @db.Text
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   items     OrderItem[]
   tickets   Ticket[]
@@ -900,4 +909,19 @@ model SalesAgentFeedback {
 
   @@index([contactId])
   @@index([employeeId])
+}
+
+// ==========================================================
+// PGVECTOR — Embeddings catalogo bot V2 (managed fuera de Prisma)
+// ==========================================================
+// La tabla la maneja MIGRATION.sql porque pgvector usa vector(1536)
+// que Prisma no soporta. La declaramos con @@ignore para que
+// Prisma sepa que existe y NO proponga reset por drift.
+model bot_catalog_embeddings {
+  product_id String   @id
+  content    String
+  metadata   Json?    @default("{}")
+  updated_at DateTime @default(now()) @db.Timestamptz
+
+  @@ignore
 }
