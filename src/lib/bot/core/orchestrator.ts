@@ -61,6 +61,7 @@ import { isBotPaused } from "../repositories/pause-repo";
 import {
   detectAllReasons,
   incrementHallucinationCount,
+  resetHallucinationCount,
 } from "../domain/escalation/detector";
 import { triggerEscalation } from "../services/escalation-notifier";
 // ── FASE B: lead scoring + enrichment ──────────────────────────────
@@ -521,6 +522,20 @@ export async function processMessage(
     }
 
     let validation = validateBotResponse(finalTexto, telasRegistradasEnTurno);
+
+    // FIX: si bot llamó registrar_tela_no_manejada exitosamente, reset hallucinations
+    // (la mención de la tela no-catálogo es LEGÍTIMA, no es invención)
+    if (telasRegistradasEnTurno.length > 0 && validation.ok) {
+      try {
+        await resetHallucinationCount(phone, redis);
+        log.info(
+          { phone, telas: telasRegistradasEnTurno },
+          "🔄 Counter hallucinations reseteado tras registro legítimo de tela"
+        );
+      } catch (err) {
+        log.warn({ err }, "No se pudo resetear counter hallucinations");
+      }
+    }
     if (!validation.ok) {
       log.warn(
         { phone, prohibidas: validation.prohibidasMencionadas },

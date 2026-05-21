@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Detector de razones de escalación.
  *
  * Implementa los 6 triggers definidos por Jack:
@@ -124,7 +124,7 @@ function detectarAltoValor(text: string): DetectionResult {
 
 const HALLUCINATION_KEY = (phone: string) => `v2:hallucination_count:${phone}`;
 const HALLUCINATION_TTL = 60 * 60; // 1 hora
-const HALLUCINATION_THRESHOLD = 2;
+const HALLUCINATION_THRESHOLD = 4;
 
 export async function incrementHallucinationCount(
   phone: string,
@@ -145,6 +145,20 @@ export async function getHallucinationCount(
   const key = HALLUCINATION_KEY(phone);
   const val = await redis.get<number>(key);
   return typeof val === "number" ? val : 0;
+}
+
+/**
+ * Resetea el contador de hallucinations del cliente. Se llama cuando:
+ *  - El bot ejecutó un tool exitosamente (ej. registrar_tela_no_manejada)
+ *    indicando que la mención de tela no-catálogo fue LEGÍTIMA, no hallucination
+ *  - Admin libera al cliente manualmente
+ */
+export async function resetHallucinationCount(
+  phone: string,
+  redis: Redis
+): Promise<void> {
+  const key = HALLUCINATION_KEY(phone);
+  await redis.del(key);
 }
 
 export async function detectarRetries(
