@@ -1,4 +1,4 @@
-﻿import { getLogger } from "../observability/logger";
+import { getLogger } from "../observability/logger";
 import { getRedis } from "../repositories/redis";
 import * as clientRepo from "../repositories/client-repo";
 import * as conversationRepo from "../repositories/conversation-repo";
@@ -7,6 +7,7 @@ import { chat } from "../services/openai/chat";
 import { BOT_TOOLS } from "../tools/definitions";
 import { executeTool } from "../tools/executor";
 import { firstCp } from "../domain/extractors/postal-code";
+import { detectTelaNoManejada } from "../domain/extractors/tela-no-manejada";
 import {
   extractContactInfo,
   isValidEmail,
@@ -274,6 +275,70 @@ export async function processMessage(
         redis
       )) as any;
       log.info({ phone, cp: cpDetectado }, "CP autodetectado del mensaje");
+    }
+
+    // ── 4.2. PRE-DETECTOR de telas FUERA del catálogo (anti-rate-limit) ──
+    // Si el cliente pide "manta", "lino", "casimir", etc. detectamos AQUÍ
+    // y registramos la oportunidad ANTES de mandar a GPT.
+    // Así no perdemos el registro aunque OpenAI falle por 429/timeout.
+    if (userText) {
+      const telaDetection = detectTelaNoManejada(userText);
+      if (telaDetection.detected && telaDetection.telaIdentificada) {
+        // Evitar duplicar si ya se registró la misma tela en esta sesión
+        const yaRegistrada =
+          (profile as any).telasNoManejadasRegistradas?.includes(telaDetection.telaIdentificada) ?? false;
+
+        if (!yaRegistrada) {
+          try {
+            const result = await executeTool(
+              {
+                function: {
+                  name: "registrar_tela_no_manejada",
+                  arguments: JSON.stringify({
+                    tela_identificada: telaDetection.telaIdentificada,
+                    descripcion: `Detectado automáticamente del mensaje del cliente: "${userText.substring(0, 200)}"`,
+                  }),
+                },
+              } as any,
+              {
+                message,
+                redis,
+                profile,
+                history: [],
+              } as any
+            );
+
+            log.info(
+              { phone, tela: telaDetection.telaIdentificada, matched: telaDetection.matched, result },
+              "🎯 PRE-DETECTOR: tela fuera de catálogo registrada determinísticamente"
+            );
+
+            await recordEvent({
+              type: "objection",
+              clientId: phone,
+              channel: "whatsapp",
+              data: {
+                subtype: "tela_no_manejada_pre_detected",
+                tela: telaDetection.telaIdentificada,
+                mensaje: userText.substring(0, 200),
+              },
+            });
+
+            // Marcar en perfil que ya se registró esta tela (evita duplicados)
+            const yaRegistradas = (profile as any).telasNoManejadasRegistradas ?? [];
+            profile = (await clientRepo.update(
+              phone,
+              {
+                telasNoManejadasRegistradas: [...yaRegistradas, telaDetection.telaIdentificada],
+              } as any,
+              redis
+            )) as any;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            log.warn({ phone, err: msg }, "Fallo pre-detector tela no manejada (continúa flujo normal)");
+          }
+        }
+      }
     }
 
     // ── 4.5. FEATURE: auto-detectar nombre y email del mensaje ──
