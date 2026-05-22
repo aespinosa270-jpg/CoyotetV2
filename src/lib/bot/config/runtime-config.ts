@@ -22,12 +22,29 @@ const log = getLogger({ module: "runtime-config" });
 const CONFIG_KEY = "v2:config";
 const CACHE_TTL_MS = 30_000; // 30 segundos
 
+/**
+ * Voz de marca estructurada — editable desde /crm/admin/voz-de-marca
+ * Si está null/vacío, el bot usa los defaults del prompt builder.
+ */
+export interface BrandVoice {
+  tone?: string;                   // "directo, cálido, no empalagoso"
+  allowedPhrases?: string[];       // ["te confirmo", "claro que sí"]
+  forbiddenPhrases?: string[];     // ["Espero que te encuentres bien"]
+  emojis?: string[];               // ["🐺", "🔥", "✅"]
+  signature?: string;              // "Jack de Coyote"
+  structuralRules?: string;        // "Max 4-5 líneas WA. Termina con pregunta SÍ/NO."
+  extraNotes?: string;             // Notas libres del admin
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 export interface BotConfigOverlay {
   enabled?: boolean;
   percentage?: number;
   phones?: string[];
   extraInstructions?: string;
   tone?: string;
+  brandVoice?: BrandVoice;
   updatedAt?: string;
 }
 
@@ -42,6 +59,8 @@ export interface RuntimeConfig {
   extraInstructions: string;
   /** Tono especial del bot (puede ser "") */
   tone: string;
+  /** Voz de marca estructurada (null si no se ha configurado) */
+  brandVoice: BrandVoice | null;
   /** Cuándo se actualizó el overlay por última vez en Redis (null si nunca) */
   updatedAt: string | null;
 }
@@ -82,6 +101,7 @@ export async function getRuntimeConfig(
     phones: env.BOT_V2_PHONES || [],
     extraInstructions: "",
     tone: "",
+    brandVoice: null,
     updatedAt: null,
   };
 
@@ -110,6 +130,7 @@ export async function getRuntimeConfig(
             : base.phones,
         extraInstructions: overlay.extraInstructions ?? "",
         tone: overlay.tone ?? "",
+        brandVoice: overlay.brandVoice ?? null,
         updatedAt: overlay.updatedAt ?? null,
       }
     : base;
@@ -135,6 +156,7 @@ export function getRuntimeConfigSyncFallback(): RuntimeConfig {
     phones: env.BOT_V2_PHONES || [],
     extraInstructions: "",
     tone: "",
+    brandVoice: null,
     updatedAt: null,
   };
 }

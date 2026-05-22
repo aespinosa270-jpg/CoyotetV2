@@ -41,6 +41,7 @@ import { buildSentimentBlock } from "./sentiment-block";
 import { detectFraud } from "../fraud/detector";
 import { buildFraudBlock } from "./fraud-block";
 import { buildLearnedRulesBlock } from "./learned-rules-block";
+import { buildBrandVoiceBlock } from "../../services/brand-voice/builder";
 // ── FASE B: lead scoring ──────────────────────────────────────────
 import { scoreLead, buildTacticBlock } from "../scoring/lead-scorer";
 
@@ -88,7 +89,7 @@ Respuestas cortas. Tono de confianza entre socios. Tienes acceso completo a la b
         : catalogBlock;
 
   const toneBlock = runtimeConfig?.tone
-    ? `\nTONO ESPECIAL: ${runtimeConfig.tone}`
+    ? `\n${buildBrandVoiceBlock(runtimeConfig.brandVoice)}${runtimeConfig.tone ? `\nTONO ESPECIAL: ${runtimeConfig.tone}` : ""}`
     : "";
 
   const base = `Eres EL COYOTE 🐺, vendedor experto de Coyote Textil. Hablas como un vendedor mexicano real: directo, amigable, rápido, resolutivo.

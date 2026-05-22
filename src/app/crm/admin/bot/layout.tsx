@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { href: "/crm/admin/sales-agent", label: "Sales Agent", icon: "🎯", highlight: true },
   { href: "/crm/admin/sourcing-queue", label: "Sourcing >1tn", icon: "🔧", highlight: true },
   { href: "/crm/admin/aftercare", label: "Aftercare", icon: "💝", highlight: true },
+  { href: "/crm/admin/voz-de-marca", label: "Voz de Marca", icon: "🎭", highlight: true },
   { href: "/crm/admin/bot/pendientes", label: "Pagos pendientes", icon: "⏳" },
   { href: "/crm/admin/bot/telas-solicitadas", label: "Telas solicitadas", icon: "🧵" },
   { href: "/crm/admin/bot/programaciones", label: "Programaciones", icon: "📅" },
