@@ -14,7 +14,7 @@ describe("config/env", () => {
   it("carga las variables de entorno con valores por defecto", () => {
     const env = getEnv();
     expect(env.NODE_ENV).toBe("test");
-    expect(env.OPENAI_MODEL).toBe("gpt-4o");
+    expect(env.OPENAI_MODEL).toBe("gpt-4o-mini");
     expect(env.RATE_LIMIT_PER_MINUTE).toBe(8);
     expect(env.AGENT_SILENCE_TIMEOUT_MS).toBe(15 * 60 * 1000);
   });

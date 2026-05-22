@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Validador de variables de entorno.
  *
  * Se ejecuta una sola vez al arrancar. Si falta una variable crÃ­tica,
@@ -29,8 +29,8 @@ const envSchema = z.object({
 
   // â”€â”€ OpenAI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   OPENAI_API_KEY: z.string().min(20, "OPENAI_API_KEY parece vacÃ­a"),
-  OPENAI_MODEL: z.string().default("gpt-4o"),
-  OPENAI_MODEL_FALLBACK: z.string().default("gpt-4o-mini"),
+  OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+  OPENAI_MODEL_FALLBACK: z.string().default("gpt-4o"),
   OPENAI_EMBEDDING_MODEL: z.string().default("text-embedding-3-small"),
   OPENAI_VISION_MODEL: z.string().default("gpt-4o"),
 
