@@ -5,6 +5,8 @@
  * Todo se calcula leyendo del Redis (Upstash) en cada render.
  */
 import { getDashboardMetrics } from "@/lib/bot/repositories/admin-queries";
+import { getExecutiveDashboard } from "@/lib/bot/repositories/executive-dashboard";
+import ExecutiveSection from "./_components/ExecutiveSection";
 import { MetricCard } from "./_components/MetricCard";
 import { ObjecionBar } from "./_components/ObjecionBar";
 
@@ -12,7 +14,13 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function BotDashboardPage() {
-  const metrics = await getDashboardMetrics();
+  const [metrics, exec] = await Promise.all([
+    getDashboardMetrics(),
+    getExecutiveDashboard().catch((err) => {
+      console.error("Failed to load executive dashboard:", err);
+      return null;
+    }),
+  ]);
   const maxObj =
     metrics.topObjecionesGlobales[0]?.total ?? 1;
 
@@ -138,6 +146,9 @@ export default async function BotDashboardPage() {
           />
         </div>
       </section>
+
+      {/* ════ EXECUTIVE OVERVIEW ════ */}
+      {exec && <ExecutiveSection data={exec} />}
     </div>
   );
 }
