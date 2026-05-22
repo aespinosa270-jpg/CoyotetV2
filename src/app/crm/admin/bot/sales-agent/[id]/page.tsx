@@ -57,7 +57,7 @@ export default async function ContactDetailPage({
     <div className="min-h-screen bg-neutral-50 p-6">
       <div className="mb-4 flex items-center gap-2 text-sm">
         <Link
-          href="/crm/admin/sales-agent"
+          href="/crm/admin/bot/sales-agent"
           className="text-neutral-500 hover:text-neutral-900"
         >
           ← Volver a Sales Agent

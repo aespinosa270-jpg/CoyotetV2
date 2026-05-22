@@ -247,7 +247,7 @@ export default function SalesAgentTable() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link
-                        href={`/crm/admin/sales-agent/${c.id}`}
+                        href={`/crm/admin/bot/sales-agent/${c.id}`}
                         className="rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-neutral-900 hover:bg-amber-500"
                       >
                         Ver →
