@@ -154,27 +154,26 @@ enum TelaSolicitadaStatus {
 // 1. USUARIO / CLIENTE (B2B & B2C)
 // ==========================================================
 model User {
-  id                           String           @id @default(cuid())
-  hashId                       String           @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
+  id                           String         @id @default(cuid())
+  hashId                       String         @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
   name                         String?
-  email                        String           @unique
+  email                        String         @unique
   password                     String
   image                        String?
   phone                        String?
-  role                         String           @default("USER")
-  membershipTier               MembershipTier   @default(NONE)
+  role                         String         @default("USER")
+  membershipTier               MembershipTier @default(NONE)
   membershipExpiry             DateTime?
-  membershipColocacionesUsadas Int              @default(0)
-  points                       Int              @default(0)
+  membershipColocacionesUsadas Int            @default(0)
+  points                       Int            @default(0)
   stripeCustomerId             String?
   stripeSubscriptionId         String?
   stripeSubscriptionStatus     String?
-  ltv                          Float            @default(0)
+  ltv                          Float          @default(0)
   // Trust Score (Fase Aftercare)
-  trustScore                   Int              @default(70)
-  trustEvents                  Int              @default(0)
+  trustScore                   Int            @default(70)
+  trustEvents                  Int            @default(0)
   lastAftercareAt              DateTime?
-  aftercareEvents              AftercareEvent[]
   rfc                          String?
   taxRegime                    String?
   cfdiUse                      String?
@@ -185,12 +184,12 @@ model User {
   state                        String?
   company                      String?
   notes                        String?
-  optedIn                      Boolean          @default(false)
-  suppressed                   Boolean          @default(false)
+  optedIn                      Boolean        @default(false)
+  suppressed                   Boolean        @default(false)
   consentDate                  DateTime?
   optOutDate                   DateTime?
-  createdAt                    DateTime         @default(now())
-  updatedAt                    DateTime         @updatedAt
+  createdAt                    DateTime       @default(now())
+  updatedAt                    DateTime       @updatedAt
 
   orders             Order[]
   interactions       Interaction[]
@@ -199,6 +198,7 @@ model User {
   waConversations    WaConversation[]
   passwordResetToken PasswordResetToken?
   ticketMessages     TicketMessage[]
+  aftercareEvents    AftercareEvent[]
 
   // Índices de rendimiento
   @@index([email])
@@ -316,9 +316,8 @@ model ProductColor {
   hex       String
   imageUrl  String?
 
-  inventory       Inventory[]
-  movements       InventoryMovement[]
-  aftercareEvents AftercareEvent[]
+  inventory Inventory[]
+  movements InventoryMovement[]
 
   @@index([productId])
 }
@@ -472,9 +471,9 @@ model Order {
   items           OrderItem[]
   tickets         Ticket[]
   movements       InventoryMovement[]
-  aftercareEvents AftercareEvent[]
   vehicleId       String?
   vehicle         Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  aftercareEvents AftercareEvent[]
 
   // Índices de rendimiento
   @@index([userId])
@@ -956,9 +955,7 @@ model AftercareEvent {
   triggeredAt DateTime  @default(now())
   respondedAt DateTime?
 
-  notas          String?       @db.Text
-  ProductColor   ProductColor? @relation(fields: [productColorId], references: [id])
-  productColorId String?
+  notas String? @db.Text
 
   @@index([userId])
   @@index([contactId])
