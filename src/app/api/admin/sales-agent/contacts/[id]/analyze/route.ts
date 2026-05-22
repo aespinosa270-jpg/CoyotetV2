@@ -17,6 +17,8 @@ import { requireAdmin } from "../../../../bot/_lib/guard";
 import { prisma } from "@/lib/prisma";
 import { getRedis } from "@/lib/bot/repositories/redis";
 import OpenAI from "openai";
+import { getRuntimeConfig } from "@/lib/bot/config/runtime-config";
+import { buildBrandVoiceCompact } from "@/lib/bot/services/brand-voice/builder";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const MODEL = "gpt-4o";
@@ -102,7 +104,12 @@ export async function POST(
 
   // Construir prompt enriquecido
   const promptContext = buildContext(contact, orders);
-  const systemPrompt = buildSystemPrompt();
+  // Cargar voz de marca dinamica (admin la edita sin redeploy)
+  const runtimeConfig = await getRuntimeConfig().catch(() => null);
+  const voiceBlock = runtimeConfig?.brandVoice
+    ? "\n\n=== VOZ DE MARCA (override admin) ===\n" + buildBrandVoiceCompact(runtimeConfig.brandVoice) + "\n=== FIN VOZ ===\n"
+    : "";
+  const systemPrompt = buildSystemPrompt() + voiceBlock;
 
   // Llamar GPT-4o
   let response;

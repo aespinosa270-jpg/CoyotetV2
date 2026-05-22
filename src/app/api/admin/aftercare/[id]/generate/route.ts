@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "../../../bot/_lib/guard";
 import { prisma } from "@/lib/prisma";
 import OpenAI from "openai";
+import { getRuntimeConfig } from "@/lib/bot/config/runtime-config";
+import { buildBrandVoiceCompact } from "@/lib/bot/services/brand-voice/builder";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -41,6 +43,12 @@ export async function POST(
     return NextResponse.json({ error: "Event no existe" }, { status: 404 });
   }
 
+  // Voz de marca dinamica (admin la edita sin redeploy)
+  const runtimeConfig = await getRuntimeConfig().catch(() => null);
+  const voiceBlock = runtimeConfig?.brandVoice
+    ? "\n\n=== VOZ DE MARCA ===\n" + buildBrandVoiceCompact(runtimeConfig.brandVoice)
+    : "";
+
   const nombre = event.user?.name ?? event.order?.customerName ?? "amigo";
   const orderInfo = event.order
     ? `${event.order.orderNumber} ($${event.order.total.toLocaleString("es-MX")} MXN)`
@@ -58,7 +66,7 @@ export async function POST(
 TONO: directo, calido, breve (max 3-4 lineas). Termina con UNA pregunta SI/NO sobre como le llego.
 NUNCA empieces con "Espero que te encuentres bien".
 EJEMPLO de estilo: "Hola [nombre] 🐺 te escribo a ver como te llego la [tela] del pedido [num]. ¿Quedaste contento o hubo algun detalle? Cualquier feedback me sirve un mundo."
-Devuelve SOLO el texto del mensaje, sin comillas, sin markdown.`;
+Devuelve SOLO el texto del mensaje, sin comillas, sin markdown.${voiceBlock}`;
 
     userPrompt = `Cliente: ${nombre}\nPedido: ${orderInfo}\nItems: ${itemsTexto ?? "tela"}\nFecha entrega: ${event.order?.deliveredAt}\nTrust score actual: ${event.user?.trustScore ?? 70}`;
   } else if (event.type === "re_engagement_30d") {
@@ -66,7 +74,7 @@ Devuelve SOLO el texto del mensaje, sin comillas, sin markdown.`;
 TONO: directo, calido, NO insistente. Max 4 lineas WhatsApp.
 ANGULO: que se sienta recordado, NO presionado. Una pregunta abierta o de 1 paso.
 EJEMPLO de estilo: "Hola [nombre] 🐺 ya pasaron 30 dias desde que te entregamos [tela]. ¿Como te ha funcionado? Si vas a entrar a otra produccion, te dejo agendado el siguiente pedido con mismo precio."
-Devuelve SOLO el texto del mensaje, sin comillas, sin markdown.`;
+Devuelve SOLO el texto del mensaje, sin comillas, sin markdown.${voiceBlock}`;
 
     userPrompt = `Cliente: ${nombre}\nUltimo pedido: ${orderInfo} hace 30 dias\nItems: ${itemsTexto ?? "tela"}\nTrust score: ${event.user?.trustScore ?? 70}`;
   } else {
