@@ -18,6 +18,7 @@ import { getLogger } from "../../observability/logger";
 import { recordEvent } from "../../observability/events";
 import { evaluateSourcing, calcularKilosTotales } from "../sourcing/evaluator";
 import { convertReferral, generateReferralCode } from "../referrals/service";
+import { notifyReferrerOfConversion } from "../referrals/notifier";
 import { REFERRALS_CONFIG } from "../referrals/config";
 
 const log = getLogger({ module: "crm/order-creator" });
@@ -256,6 +257,7 @@ export async function updateOrderStatus(
             id: true,
             total: true,
             customerPhone: true,
+            customerName: true,
             userId: true,
             referralId: true,
             user: { select: { referralCode: true } },
@@ -283,6 +285,19 @@ export async function updateOrderStatus(
                   reward: convResult.referral.creditEarned,
                 },
                 "Referral convertido + credito al referrer"
+              );
+
+              // Notificar al referrer por WA (no bloquear si falla)
+              notifyReferrerOfConversion({
+                referralId: convResult.referral.id,
+                referrerId: convResult.referrer.id,
+                referrerPhone: convResult.referrer.phone,
+                referrerName: convResult.referrer.name,
+                refereeName: orderForReferral.customerName ?? null,
+                creditEarned: convResult.referral.creditEarned,
+                newBalance: convResult.referrer.referralCredit,
+              }).catch((err) =>
+                log.warn({ err, orderId }, "Notificacion al referrer fallo silenciosamente")
               );
             }
           }
