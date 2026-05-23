@@ -17,6 +17,8 @@ import { prisma } from "@/lib/prisma";
 import { getLogger } from "../../observability/logger";
 import { recordEvent } from "../../observability/events";
 import { evaluateSourcing, calcularKilosTotales } from "../sourcing/evaluator";
+import { convertReferral, generateReferralCode } from "../referrals/service";
+import { REFERRALS_CONFIG } from "../referrals/config";
 
 const log = getLogger({ module: "crm/order-creator" });
 
@@ -244,6 +246,61 @@ export async function updateOrderStatus(
       where: { id: orderId },
       data: updates,
     });
+
+    // ── PROGRAMA DE REFERIDOS ──
+    if (status === "PAID") {
+      try {
+        const orderForReferral = await prisma.order.findUnique({
+          where: { id: orderId },
+          select: {
+            id: true,
+            total: true,
+            customerPhone: true,
+            userId: true,
+            referralId: true,
+            user: { select: { referralCode: true } },
+          },
+        });
+
+        if (orderForReferral) {
+          // 1. Convertir referral pending si aplica
+          if (
+            !orderForReferral.referralId &&
+            orderForReferral.customerPhone &&
+            orderForReferral.total >= REFERRALS_CONFIG.minOrderAmount
+          ) {
+            const convResult = await convertReferral({
+              orderId: orderForReferral.id,
+              orderTotal: orderForReferral.total,
+              refereePhone: orderForReferral.customerPhone,
+              refereeUserId: orderForReferral.userId ?? undefined,
+            });
+            if (convResult.ok) {
+              log.info(
+                {
+                  orderId,
+                  referrerName: convResult.referrer.name,
+                  reward: convResult.referral.creditEarned,
+                },
+                "Referral convertido + credito al referrer"
+              );
+            }
+          }
+
+          // 2. Auto-generar referralCode para el user (asi puede compartir su codigo)
+          if (orderForReferral.userId && !orderForReferral.user?.referralCode) {
+            try {
+              const code = await generateReferralCode(orderForReferral.userId);
+              log.info({ userId: orderForReferral.userId, code }, "ReferralCode auto-generado");
+            } catch (err) {
+              log.warn({ err, userId: orderForReferral.userId }, "Falla auto-gen referralCode");
+            }
+          }
+        }
+      } catch (err) {
+        log.warn({ err, orderId }, "Programa de referidos: error procesando PAID");
+      }
+    }
 
     log.info({ orderId, status, updatedBy }, "Order status actualizado");
     return { ok: true };

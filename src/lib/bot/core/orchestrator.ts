@@ -8,6 +8,7 @@ import { BOT_TOOLS } from "../tools/definitions";
 import { executeTool } from "../tools/executor";
 import { firstCp } from "../domain/extractors/postal-code";
 import { detectTelaNoManejada } from "../domain/extractors/tela-no-manejada";
+import { extractReferralCode } from "../services/referrals/service";
 import {
   extractContactInfo,
   isValidEmail,
@@ -283,6 +284,31 @@ export async function processMessage(
     // Así no perdemos el registro aunque OpenAI falle por 429/timeout.
     if (userText) {
       const telaDetection = detectTelaNoManejada(userText);
+
+        // PRE-DETECTOR REFERIDOS (deterministico, NO depende de GPT)
+        const codigoReferido = extractReferralCode(userText);
+        if (codigoReferido) {
+          try {
+            await executeTool(
+              {
+                function: {
+                  name: "aplicar_codigo_referido",
+                  arguments: JSON.stringify({ codigo: codigoReferido }),
+                },
+              } as any,
+              {
+                message,
+                redis,
+                profile,
+                history: [],
+              } as any
+            );
+            log.info({ phone, codigo: codigoReferido }, "Pre-detector aplico codigo referido");
+          } catch (err) {
+            log.warn({ err, phone, codigo: codigoReferido }, "Pre-detector referido fallo");
+          }
+        }
+
       if (telaDetection.detected && telaDetection.telaIdentificada) {
         // Evitar duplicar si ya se registró la misma tela en esta sesión
         const yaRegistrada =

@@ -226,5 +226,19 @@ export const BOT_TOOLS: any[] = [
       },
       required: ["tela_titulo", "kg_por_periodo", "periodo", "fecha_inicio", "duracion_meses"]
     }
+  },
+  {
+    name: "aplicar_codigo_referido",
+    description: "Cuando un cliente NUEVO menciona un codigo de referido (ej. 'COYOTE-JACX12', 'vengo con codigo', 'me lo recomendo X y me dio codigo'), llamar este tool para registrarlo. El descuento de $500 se aplica solo si la orden final es de $5,000+ MXN. NO lo llames si el cliente ya tiene historial de ordenes (no es nuevo).",
+    parameters: {
+      type: "object",
+      properties: {
+        codigo: {
+          type: "string",
+          description: "El codigo exacto mencionado por el cliente (ej. 'COYOTE-JACX12'). Normaliza a mayusculas."
+        }
+      },
+      required: ["codigo"]
+    }
   }
 ];

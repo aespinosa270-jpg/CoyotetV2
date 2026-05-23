@@ -174,6 +174,10 @@ model User {
   trustScore                   Int            @default(70)
   trustEvents                  Int            @default(0)
   lastAftercareAt              DateTime?
+  // Programa de Referidos
+  referralCode                 String?        @unique
+  referralCredit               Float          @default(0)
+  referredById                 String?
   rfc                          String?
   taxRegime                    String?
   cfdiUse                      String?
@@ -199,6 +203,9 @@ model User {
   passwordResetToken PasswordResetToken?
   ticketMessages     TicketMessage[]
   aftercareEvents    AftercareEvent[]
+  // Referidos
+  referralsMade      Referral[]          @relation("ReferralsMade")
+  referralsReceived  Referral[]          @relation("ReferralReceived")
 
   // Índices de rendimiento
   @@index([email])
@@ -467,6 +474,10 @@ model Order {
   sourcingInternalNotes String?   @db.Text
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+
+  // Programa de Referidos
+  referralId    String?
+  creditApplied Float   @default(0)
 
   items           OrderItem[]
   tickets         Ticket[]
@@ -962,4 +973,33 @@ model AftercareEvent {
   @@index([orderId])
   @@index([type])
   @@index([triggeredAt])
+}
+
+// ============================================================
+// REFERIDOS (Fase Programa de Referidos)
+// ============================================================
+model Referral {
+  id           String  @id @default(cuid())
+  referrerId   String // User que recomendó
+  referrer     User    @relation("ReferralsMade", fields: [referrerId], references: [id], onDelete: Cascade)
+  refereeId    String? // User que fue recomendado (puede ser null si aún no es User)
+  referee      User?   @relation("ReferralReceived", fields: [refereeId], references: [id], onDelete: SetNull)
+  refereePhone String? // backup si no hay User aún
+  refereeName  String?
+
+  codeUsed     String // "COYOTE-JACK01"
+  status       String  @default("pending") // pending | converted | rejected
+  orderId      String? // FK a Order cuando convierte
+  orderTotal   Float? // snapshot del total al convertir
+  creditEarned Float   @default(0) // monto MXN ganado por referrer
+
+  createdAt   DateTime  @default(now())
+  convertedAt DateTime?
+  notifiedAt  DateTime?
+
+  @@index([referrerId])
+  @@index([refereeId])
+  @@index([refereePhone])
+  @@index([codeUsed])
+  @@index([status])
 }

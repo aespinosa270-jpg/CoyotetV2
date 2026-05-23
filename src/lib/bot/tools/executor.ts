@@ -7,6 +7,7 @@ import {
   ejecutarObtenerInfoMembresias,
   ejecutarProponerMembresia,
 } from "./membership-handlers";
+import { ejecutarAplicarCodigoReferido } from "./referrals-handler";
 import {
   ejecutarRegistrarTelaNoManejada,
   ejecutarProgramarVolumen,
@@ -65,6 +66,9 @@ export async function executeTool(toolCall: any, context: BotContext): Promise<a
 
       case "programar_volumen_temporada":
         return await ejecutarProgramarVolumen(args, context);
+
+      case "aplicar_codigo_referido":
+        return await ejecutarAplicarCodigoReferido(args, context);
 
       default:
         log.warn({ tool: toolCall.function.name }, "Tool invocada no existe");
