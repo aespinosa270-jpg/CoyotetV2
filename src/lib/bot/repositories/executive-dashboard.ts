@@ -231,3 +231,131 @@ export async function getExecutiveDashboard(): Promise<ExecutiveDashboard> {
     },
   };
 }
+
+// ─── CHARTS DATA (series temporales últimos 30 días) ────────────
+
+export interface ChartsData {
+  /** Últimos 30 días con ventas + órdenes por día. */
+  salesByDay: Array<{
+    date: string; // "Mar 15"
+    fullDate: string; // "2026-03-15"
+    revenue: number;
+    orders: number;
+  }>;
+  /** Últimos 30 días con mensajes + conversiones del bot. */
+  activityByDay: Array<{
+    date: string; // "Mar 15"
+    fullDate: string;
+    messages: number;
+    conversions: number;
+  }>;
+  /** Últimos 7 días con errores + alucinaciones. */
+  healthLast7Days: Array<{
+    date: string;
+    fullDate: string;
+    errors: number;
+    hallucinations: number;
+  }>;
+}
+
+/**
+ * Devuelve datos para las gráficas del Command Center.
+ *
+ * SalesByDay: una query SQL agrupada por día sobre Order PAID.
+ * ActivityByDay: itera por 30 días llamando countEventsForDay (Redis).
+ *   - Puede tardar más, pero es solo lectura y se cachea via revalidate=0.
+ */
+export async function getChartsData(): Promise<ChartsData> {
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  const days30Ago = new Date(today);
+  days30Ago.setDate(days30Ago.getDate() - 30);
+  days30Ago.setHours(0, 0, 0, 0);
+
+  // ── 1. Ventas por día (últimos 30) ──
+  const salesRaw: Array<{ day: Date; revenue: number; orders: bigint }> = await prisma.$queryRaw`
+    SELECT
+      DATE_TRUNC('day', "createdAt") as day,
+      COALESCE(SUM("total"), 0)::float as revenue,
+      COUNT(*)::bigint as orders
+    FROM "Order"
+    WHERE "createdAt" >= ${days30Ago}
+      AND "status" IN ('PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED')
+    GROUP BY day
+    ORDER BY day ASC
+  `;
+
+  // Llenar días sin ventas con 0
+  const salesByDay: ChartsData["salesByDay"] = [];
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(days30Ago);
+    d.setDate(d.getDate() + i);
+    const dateKey = d.toISOString().split("T")[0];
+    const found = salesRaw.find(
+      (r) => new Date(r.day).toISOString().split("T")[0] === dateKey
+    );
+    salesByDay.push({
+      date: d.toLocaleDateString("es-MX", { day: "numeric", month: "short" }),
+      fullDate: dateKey,
+      revenue: found ? Math.round(found.revenue) : 0,
+      orders: found ? Number(found.orders) : 0,
+    });
+  }
+
+  // ── 2. Actividad por día (mensajes + conversiones) ──
+  const activityByDay: ChartsData["activityByDay"] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dateKey = d.toISOString().split("T")[0];
+    try {
+      const [messages, conversions] = await Promise.all([
+        countEventsForDay("message", d),
+        countEventsForDay("conversion", d),
+      ]);
+      activityByDay.push({
+        date: d.toLocaleDateString("es-MX", { day: "numeric", month: "short" }),
+        fullDate: dateKey,
+        messages: messages ?? 0,
+        conversions: conversions ?? 0,
+      });
+    } catch {
+      activityByDay.push({
+        date: d.toLocaleDateString("es-MX", { day: "numeric", month: "short" }),
+        fullDate: dateKey,
+        messages: 0,
+        conversions: 0,
+      });
+    }
+  }
+
+  // ── 3. Salud (errores + alucinaciones últimos 7 días) ──
+  const healthLast7Days: ChartsData["healthLast7Days"] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dateKey = d.toISOString().split("T")[0];
+    try {
+      const [errors, hallucinations] = await Promise.all([
+        countEventsForDay("error", d),
+        countEventsForDay("hallucination", d),
+      ]);
+      healthLast7Days.push({
+        date: d.toLocaleDateString("es-MX", { day: "numeric", month: "short" }),
+        fullDate: dateKey,
+        errors: errors ?? 0,
+        hallucinations: hallucinations ?? 0,
+      });
+    } catch {
+      healthLast7Days.push({
+        date: d.toLocaleDateString("es-MX", { day: "numeric", month: "short" }),
+        fullDate: dateKey,
+        errors: 0,
+        hallucinations: 0,
+      });
+    }
+  }
+
+  return { salesByDay, activityByDay, healthLast7Days };
+}

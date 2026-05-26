@@ -5,8 +5,9 @@
  * Todo se calcula leyendo del Redis (Upstash) en cada render.
  */
 import { getDashboardMetrics } from "@/lib/bot/repositories/admin-queries";
-import { getExecutiveDashboard } from "@/lib/bot/repositories/executive-dashboard";
+import { getExecutiveDashboard, getChartsData } from "@/lib/bot/repositories/executive-dashboard";
 import ExecutiveSection from "./_components/ExecutiveSection";
+import CommandCharts from "./_components/CommandCharts";
 import { MetricCard } from "./_components/MetricCard";
 import { ObjecionBar } from "./_components/ObjecionBar";
 
@@ -14,10 +15,14 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function BotDashboardPage() {
-  const [metrics, exec] = await Promise.all([
+  const [metrics, exec, charts] = await Promise.all([
     getDashboardMetrics(),
     getExecutiveDashboard().catch((err) => {
       console.error("Failed to load executive dashboard:", err);
+      return null;
+    }),
+    getChartsData().catch((err) => {
+      console.error("Failed to load charts data:", err);
       return null;
     }),
   ]);
@@ -149,6 +154,7 @@ export default async function BotDashboardPage() {
 
       {/* ════ EXECUTIVE OVERVIEW ════ */}
       {exec && <ExecutiveSection data={exec} />}
+      {charts && <CommandCharts data={charts} />}
     </div>
   );
 }
