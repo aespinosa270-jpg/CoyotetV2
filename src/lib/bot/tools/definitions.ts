@@ -240,5 +240,19 @@ export const BOT_TOOLS: any[] = [
       },
       required: ["codigo"]
     }
+  },
+  {
+    name: "consultar_transportistas",
+    description: "Cuando el cliente pregunta por opciones de PAQUETERIA DE RUTA o transportistas tradicionales (NO confundir con Skydropx que ya manejas con calcular_envio). Usar cuando dice: 'que paqueteria me recomiendas', 'tienes opcion mas barata para Chiapas', 'la quiero recoger en una linea', 'a que paqueteria de centro/cabeza/vallejo lo dejo', o pregunta por nombres de transportistas. Devuelve lista organizada por zona de CDMX (Centro Historico, Cabeza de Juarez, Vallejo) que el cliente puede usar para recoger su paquete y llevarselo el mismo. Esto es ADICIONAL a Skydropx, no lo reemplaza.",
+    parameters: {
+      type: "object",
+      properties: {
+        destino: {
+          type: "string",
+          description: "Ciudad o estado destino mencionado por el cliente (ej. 'Comitan Chiapas', 'Oaxaca', 'Veracruz'). Opcional - si no menciona destino, devuelve listado general."
+        }
+      },
+      required: []
+    }
   }
 ];

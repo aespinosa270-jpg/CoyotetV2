@@ -1003,3 +1003,22 @@ model Referral {
   @@index([codeUsed])
   @@index([status])
 }
+
+// ============================================================
+// TRANSPORTISTAS / PAQUETERIAS por zona de CDMX
+// ============================================================
+model Transportista {
+  id        String   @id @default(cuid())
+  nombre    String
+  zona      String // "cabeza_juarez" | "centro" | "vallejo" | "tapo" | "otro"
+  direccion String? // opcional, calle exacta
+  telefono  String?
+  destinos  String[] // ej. ["Chiapas - Comitán", "Oaxaca", "Nacional"]
+  notas     String?  @db.Text
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([zona])
+  @@index([activo])
+}

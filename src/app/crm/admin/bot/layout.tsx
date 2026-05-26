@@ -24,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/crm/admin/bot/aftercare", label: "Aftercare", icon: "💝", highlight: true },
   { href: "/crm/admin/bot/voz-de-marca", label: "Voz de Marca", icon: "🎭", highlight: true },
   { href: "/crm/admin/bot/referidos", label: "Referidos", icon: "🎁", highlight: true },
+  { href: "/crm/admin/bot/transportistas", label: "Transportistas", icon: "🚛", highlight: true },
   { href: "/crm/admin/bot/pendientes", label: "Pagos pendientes", icon: "⏳" },
   { href: "/crm/admin/bot/telas-solicitadas", label: "Telas solicitadas", icon: "🧵" },
   { href: "/crm/admin/bot/programaciones", label: "Programaciones", icon: "📅" },

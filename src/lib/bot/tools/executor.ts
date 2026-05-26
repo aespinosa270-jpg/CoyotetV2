@@ -8,6 +8,7 @@ import {
   ejecutarProponerMembresia,
 } from "./membership-handlers";
 import { ejecutarAplicarCodigoReferido } from "./referrals-handler";
+import { ejecutarConsultarTransportistas } from "./transportistas-handler";
 import {
   ejecutarRegistrarTelaNoManejada,
   ejecutarProgramarVolumen,
@@ -69,6 +70,9 @@ export async function executeTool(toolCall: any, context: BotContext): Promise<a
 
       case "aplicar_codigo_referido":
         return await ejecutarAplicarCodigoReferido(args, context);
+
+      case "consultar_transportistas":
+        return await ejecutarConsultarTransportistas(args, context);
 
       default:
         log.warn({ tool: toolCall.function.name }, "Tool invocada no existe");
