@@ -9,9 +9,766 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ==========================================================
-// ENUMS GLOBALES
-// ==========================================================
+model User {
+  id                           String              @id @default(cuid())
+  name                         String?
+  email                        String              @unique
+  password                     String
+  image                        String?
+  role                         String              @default("USER")
+  createdAt                    DateTime            @default(now())
+  updatedAt                    DateTime            @updatedAt
+  cfdiUse                      String?
+  city                         String?
+  consentDate                  DateTime?
+  hashId                       String              @unique @default(dbgenerated("concat('CL-', substr((gen_random_uuid())::text, 1, 6))"))
+  ltv                          Float               @default(0)
+  neighborhood                 String?
+  optOutDate                   DateTime?
+  optedIn                      Boolean             @default(false)
+  phone                        String?
+  rfc                          String?
+  state                        String?
+  street                       String?
+  suppressed                   Boolean             @default(false)
+  taxRegime                    String?
+  zipCode                      String?
+  company                      String?
+  membershipColocacionesUsadas Int                 @default(0)
+  membershipExpiry             DateTime?
+  membershipTier               MembershipTier      @default(NONE)
+  notes                        String?
+  points                       Int                 @default(0)
+  stripeCustomerId             String?
+  stripeSubscriptionId         String?
+  stripeSubscriptionStatus     String?
+  trustScore                   Int                 @default(70)
+  trustEvents                  Int                 @default(0)
+  lastAftercareAt              DateTime?
+  referralCredit               Float               @default(0)
+  referredById                 String?
+  referralCode                 String?             @unique
+  aftercareEvents              AftercareEvent[]
+  deals                        Deal[]
+  interactions                 Interaction[]
+  orders                       Order[]
+  passwordResetToken           PasswordResetToken?
+  referralsReceived            Referral[]          @relation("ReferralReceived")
+  referralsMade                Referral[]          @relation("ReferralsMade")
+  tickets                      Ticket[]
+  ticketMessages               TicketMessage[]
+  waConversations              WaConversation[]
+
+  @@index([email])
+  @@index([phone])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  tokenHash String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Employee {
+  id                   String               @id @default(cuid())
+  name                 String
+  email                String               @unique
+  password             String
+  role                 EmployeeRole         @default(VENDEDORA)
+  isActive             Boolean              @default(true)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  commissionRate       Float                @default(0.03)
+  isBlocked            Boolean              @default(false)
+  lastActiveAt         DateTime?
+  status               String               @default("offline")
+  suspendedFunctions   String[]
+  attendances          Attendance[]
+  logs                 AuditLog[]
+  commissions          Commission[]
+  assignedColdContacts ContactoOutbound[]   @relation("AssignedColdContacts")
+  deals                Deal[]
+  interactions         Interaction[]
+  routeOrders          RouteOrder[]
+  salesAgentAttempts   SalesAgentAttempt[]  @relation("SalesAgentSentBy")
+  salesAgentFeedbacks  SalesAgentFeedback[] @relation("SalesAgentFeedbacks")
+  telemetry            Telemetry[]
+  assignedTickets      Ticket[]
+  ticketMessages       TicketMessage[]
+  waConversations      WaConversation[]
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  timestamp  DateTime  @default(now())
+  employeeId String?
+  action     String
+  resourceId String?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([timestamp(sort: Desc)])
+}
+
+model Product {
+  id                  String              @id @default(cuid())
+  sku                 String              @unique
+  title               String
+  unit                UnitType            @default(KILO)
+  thumbnail           String?
+  description         String?
+  composicion         String?
+  gramaje             String?
+  ancho               String?
+  rendimiento         Float?
+  priceMenudeo        Float
+  priceMayoreo        Float
+  hasRollo            Boolean             @default(true)
+  unidadesPorRollo    Float?
+  singleColor         Boolean             @default(true)
+  origin              String?
+  category            String
+  isActive            Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  cantidadInmediataKg Float?
+  deals               Deal[]
+  inventory           Inventory[]
+  movements           InventoryMovement[]
+  orderItems          OrderItem[]
+  colors              ProductColor[]
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model ProductColor {
+  id        String              @id @default(cuid())
+  productId String
+  name      String
+  hex       String
+  imageUrl  String?
+  inventory Inventory[]
+  movements InventoryMovement[]
+  product   Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model Inventory {
+  id        String         @id @default(cuid())
+  productId String
+  colorId   String?
+  location  PickupLocation
+  quantity  Float
+  rollCount Int            @default(0)
+  updatedAt DateTime       @updatedAt
+  color     ProductColor?  @relation(fields: [colorId], references: [id])
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, colorId, location])
+  @@index([location])
+}
+
+model InventoryMovement {
+  id           String         @id @default(cuid())
+  productId    String
+  colorId      String?
+  location     PickupLocation
+  type         MovementType
+  quantity     Float
+  rollCount    Int            @default(0)
+  provider     String?
+  authorizedBy String
+  notes        String?
+  orderId      String?
+  createdAt    DateTime       @default(now())
+  color        ProductColor?  @relation(fields: [colorId], references: [id])
+  order        Order?         @relation(fields: [orderId], references: [id])
+  product      Product        @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model Deal {
+  id         String         @id @default(cuid())
+  title      String
+  company    String
+  userId     String?
+  employeeId String
+  productId  String?
+  color      String?
+  quantity   Float?
+  value      Float          @default(0)
+  status     PipelineStatus @default(PROSPECTO)
+  notes      String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  commission Commission?
+  employee   Employee       @relation(fields: [employeeId], references: [id])
+  product    Product?       @relation(fields: [productId], references: [id])
+  user       User?          @relation(fields: [userId], references: [id])
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+model Commission {
+  id         String           @id @default(cuid())
+  employeeId String
+  dealId     String           @unique
+  amount     Float
+  rate       Float
+  status     CommissionStatus @default(PENDIENTE)
+  approvedBy String?
+  approvedAt DateTime?
+  paidAt     DateTime?
+  notes      String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  deal       Deal             @relation(fields: [dealId], references: [id])
+  employee   Employee         @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+model Order {
+  id                    String              @id @default(cuid())
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  total                 Float
+  paymentId             String?
+  customerName          String
+  customerEmail         String
+  customerPhone         String?
+  address               String?
+  freightCost           Float               @default(0)
+  invoiceStatus         String?
+  logisticsType         LogisticsType       @default(SKYDROPX_NACIONAL)
+  orderNumber           String              @unique @default(cuid())
+  paymentMethod         String              @default("card")
+  serviceFee            Float               @default(0)
+  shippingCost          Float               @default(0)
+  subtotal              Float               @default(0)
+  taxIVA                Float               @default(0)
+  trackingNumber        String?
+  trackingUrl           String?
+  userId                String?
+  vehiclesNeeded        Int                 @default(1)
+  wantsInvoice          Boolean             @default(false)
+  status                OrderStatus         @default(PENDING)
+  botConversationId     String?
+  botPhone              String?
+  deliveredAt           DateTime?
+  deliveryLat           Float?
+  deliveryLng           Float?
+  evidenceUrl           String?
+  pickupConfirmedAt     DateTime?
+  pickupConfirmedBy     String?
+  pickupIdPhotoUrl      String?
+  pickupLocation        PickupLocation      @default(GUATEMALA_97)
+  pickupPlateNumber     String?
+  preparedAt            DateTime?
+  preparedBy            String?
+  shippedAt             DateTime?
+  shippedBy             String?
+  source                String?
+  vehicleId             String?
+  requiresSourcing      Boolean             @default(false)
+  sourcingStatus        String?
+  sourcingDays          Int?
+  sourcingPromisedAt    DateTime?
+  sourcingResolvedAt    DateTime?
+  sourcingInternalNotes String?
+  referralId            String?
+  creditApplied         Float               @default(0)
+  aftercareEvents       AftercareEvent[]
+  movements             InventoryMovement[]
+  user                  User?               @relation(fields: [userId], references: [id])
+  vehicle               Vehicle?            @relation(fields: [vehicleId], references: [id])
+  items                 OrderItem[]
+  tickets               Ticket[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  productId String?
+  title     String
+  price     Float
+  quantity  Float
+  unit      String?
+  color     String?
+  sku       String?
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+model Attendance {
+  id              String            @id @default(cuid())
+  employeeId      String
+  checkIn         DateTime          @default(now())
+  checkOut        DateTime?
+  horasTrabajadas Float?
+  ipAddress       String?
+  location        String?
+  lat             Float?
+  lng             Float?
+  checkOutLat     Float?
+  checkOutLng     Float?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  employee        Employee          @relation(fields: [employeeId], references: [id])
+  breaks          AttendanceBreak[]
+
+  @@index([employeeId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model AttendanceBreak {
+  id           String     @id @default(cuid())
+  attendanceId String
+  type         BreakType
+  startAt      DateTime   @default(now())
+  endAt        DateTime?
+  duration     Float?
+  createdAt    DateTime   @default(now())
+  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+
+  @@index([attendanceId])
+}
+
+model Interaction {
+  id             String          @id @default(cuid())
+  employeeId     String?
+  userId         String
+  type           InteractionType
+  summary        String
+  content        Json?
+  status         String          @default("open")
+  pipelineStatus PipelineStatus?
+  date           DateTime        @default(now())
+  nextFollowUp   DateTime?
+  employee       Employee?       @relation(fields: [employeeId], references: [id])
+  user           User            @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([employeeId])
+}
+
+model ShippingZone {
+  id            String   @id @default(cuid())
+  name          String
+  zipCodes      String[]
+  baseRate      Float    @default(0)
+  estimatedDays Int      @default(1)
+  isActive      Boolean  @default(true)
+}
+
+model Ticket {
+  id           String          @id @default(cuid())
+  ticketNumber String          @unique @default(dbgenerated("concat('TK-', substr((gen_random_uuid())::text, 1, 6))"))
+  userId       String
+  employeeId   String?
+  orderId      String?
+  subject      String
+  description  String
+  status       TicketStatus    @default(ABIERTO)
+  priority     TicketPriority  @default(MEDIA)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  employee     Employee?       @relation(fields: [employeeId], references: [id])
+  order        Order?          @relation(fields: [orderId], references: [id])
+  user         User            @relation(fields: [userId], references: [id])
+  messages     TicketMessage[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model TicketMessage {
+  id         String    @id @default(cuid())
+  ticketId   String
+  employeeId String?
+  userId     String?
+  body       String
+  isInternal Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  ticket     Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user       User?     @relation(fields: [userId], references: [id])
+
+  @@index([ticketId])
+  @@index([createdAt])
+}
+
+model Vehicle {
+  id              String        @id @default(cuid())
+  plate           String        @unique
+  model           String
+  lastMaintenance DateTime      @default(now())
+  nextMaintenance DateTime
+  mileage         Float         @default(0)
+  status          VehicleStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  orders          Order[]
+  logs            VehicleLog[]
+}
+
+model Telemetry {
+  id         String   @id @default(cuid())
+  employeeId String
+  lat        Float
+  lng        Float
+  speed      Float?
+  isSpeeding Boolean  @default(false)
+  timestamp  DateTime @default(now())
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([timestamp(sort: Desc)])
+}
+
+model VehicleLog {
+  id        String         @id @default(cuid())
+  vehicleId String
+  type      VehicleLogType
+  cost      Float
+  date      DateTime       @default(now())
+  notes     String?
+  vehicle   Vehicle        @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId])
+}
+
+model RouteOrder {
+  id                   String           @id @default(cuid())
+  type                 RouteOrderType
+  status               RouteOrderStatus @default(PENDIENTE)
+  contactName          String
+  contactPhone         String?
+  contactEmail         String?
+  address              String
+  addressLat           Float?
+  addressLng           Float?
+  scheduledAt          DateTime
+  notes                String?
+  employeeId           String?
+  originLocation       String?
+  destLocation         String?
+  carrier              String?
+  sucursalNombre       String?
+  signatureOrigin      String?
+  signatureDestination String?
+  photoDropoff         String[]
+  completedAt          DateTime?
+  deliveryLat          Float?
+  deliveryLng          Float?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  issueLogs            IssueLog[]
+  employee             Employee?        @relation(fields: [employeeId], references: [id])
+  items                RouteOrderItem[]
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model RouteOrderItem {
+  id            String     @id @default(cuid())
+  routeOrderId  String
+  tag           String
+  description   String?
+  qtyDispatched Int
+  qtyDelivered  Int?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  routeOrder    RouteOrder @relation(fields: [routeOrderId], references: [id], onDelete: Cascade)
+
+  @@index([routeOrderId])
+}
+
+model IssueLog {
+  id           String     @id @default(cuid())
+  routeOrderId String
+  note         String
+  hasDelta     Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  routeOrder   RouteOrder @relation(fields: [routeOrderId], references: [id])
+
+  @@index([routeOrderId])
+}
+
+model WaConversation {
+  id                  String      @id @default(cuid())
+  employeeId          String?
+  userId              String?
+  contactName         String?
+  contactPhone        String      @unique
+  isOpen              Boolean     @default(true)
+  handledBy           ChatHandler @default(BOT)
+  lastAdminMessageAt  DateTime?
+  aiResumePausedUntil DateTime?
+  lastMessage         String?
+  lastMessageAt       DateTime?
+  unreadCount         Int         @default(0)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  employee            Employee?   @relation(fields: [employeeId], references: [id])
+  user                User?       @relation(fields: [userId], references: [id])
+  messages            WaMessage[]
+
+  @@index([employeeId])
+  @@index([handledBy])
+  @@index([updatedAt(sort: Desc)])
+}
+
+model WaMessage {
+  id             String         @id @default(cuid())
+  waId           String?        @unique
+  conversationId String
+  role           WaMessageRole
+  body           String
+  mediaUrl       String?
+  mediaType      String?
+  isRead         Boolean        @default(false)
+  sentAt         DateTime       @default(now())
+  conversation   WaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([sentAt(sort: Desc)])
+}
+
+model TelaNoManejada {
+  id               String               @id @default(cuid())
+  clientePhone     String
+  clienteNombre    String?
+  clienteUserId    String?
+  telaIdentificada String
+  descripcionExtra String?
+  imagenUrl        String?
+  cantidadKg       Float?
+  frecuencia       String?
+  usoFinal         String?
+  status           TelaSolicitadaStatus @default(NUEVA)
+  notasInternas    String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([telaIdentificada])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+model ProgramacionVolumen {
+  id            String   @id @default(cuid())
+  clientePhone  String
+  clienteNombre String?
+  clienteUserId String?
+  telaSku       String?
+  telaTitulo    String
+  kgPorPeriodo  Float
+  periodo       String
+  fechaInicio   DateTime
+  duracionMeses Int      @default(1)
+  estado        String   @default("propuesta")
+  notas         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([clientePhone])
+  @@index([estado])
+  @@index([fechaInicio])
+}
+
+model ContactoOutbound {
+  id                   String               @id @default(cuid())
+  phone                String               @unique
+  nombre               String?
+  empresa              String?
+  notas                String?
+  agregadoPor          String?
+  plantillaEnviada     Boolean              @default(false)
+  plantillaEnviadaAt   DateTime?
+  plantillaResponse    String?
+  clienteRespondio     Boolean              @default(false)
+  primeraRespuestaAt   DateTime?
+  coldReason           String?
+  engagementScore      Int                  @default(0)
+  reactivationPriority Int                  @default(0)
+  status               String               @default("PENDING")
+  tags                 String[]             @default([])
+  assignedToEmployeeId String?
+  assignedAt           DateTime?
+  lastAttemptAt        DateTime?
+  totalAttempts        Int                  @default(0)
+  nextFollowUpAt       DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  temperatura          String               @default("frio")
+  secuenciaStep        Int                  @default(0)
+  secuenciaCompleta    Boolean              @default(false)
+  origenCarga          String?
+  aftercareEvents      AftercareEvent[]
+  assignedToEmployee   Employee?            @relation("AssignedColdContacts", fields: [assignedToEmployeeId], references: [id])
+  attempts             SalesAgentAttempt[]
+  feedbacks            SalesAgentFeedback[]
+
+  @@index([phone])
+  @@index([plantillaEnviada])
+  @@index([status])
+  @@index([reactivationPriority(sort: Desc)])
+  @@index([assignedToEmployeeId])
+  @@index([nextFollowUpAt])
+  @@index([origenCarga])
+  @@index([secuenciaStep])
+  @@index([temperatura])
+}
+
+model BotEscalation {
+  id          String    @id @default(cuid())
+  phone       String
+  nombre      String?
+  razon       String
+  contexto    String
+  ultimoMsg   String
+  estado      String    @default("pendiente")
+  atendidaPor String?
+  atendidaAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([phone])
+  @@index([estado])
+  @@index([createdAt])
+  @@index([razon])
+}
+
+model SalesAgentAttempt {
+  id               String           @id @default(cuid())
+  contactId        String
+  channel          String
+  messageSent      String
+  strategy         String?
+  agentVersion     String?
+  sentAt           DateTime         @default(now())
+  sentByEmployeeId String?
+  outcome          String?
+  respondedAt      DateTime?
+  responseText     String?
+  contact          ContactoOutbound @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  sentByEmployee   Employee?        @relation("SalesAgentSentBy", fields: [sentByEmployeeId], references: [id])
+
+  @@index([contactId])
+  @@index([sentAt(sort: Desc)])
+  @@index([outcome])
+}
+
+model SalesAgentFeedback {
+  id         String           @id @default(cuid())
+  contactId  String
+  employeeId String
+  feedback   String
+  category   String?
+  createdAt  DateTime         @default(now())
+  contact    ContactoOutbound @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  employee   Employee         @relation("SalesAgentFeedbacks", fields: [employeeId], references: [id])
+
+  @@index([contactId])
+  @@index([employeeId])
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model bot_catalog_embeddings {
+  product_id String                @id
+  content    String
+  embedding  Unsupported("vector")
+  metadata   Json?                 @default("{}")
+  updated_at DateTime?             @default(now()) @db.Timestamptz(6)
+
+  @@index([embedding], map: "bot_catalog_embeddings_vector_idx")
+  @@ignore
+}
+
+model AftercareEvent {
+  id           String            @id @default(cuid())
+  userId       String?
+  contactId    String?
+  orderId      String?
+  type         String
+  channel      String?
+  messageSent  String?
+  outcome      String?
+  responseText String?
+  trustDelta   Int               @default(0)
+  triggeredAt  DateTime          @default(now())
+  respondedAt  DateTime?
+  notas        String?
+  contact      ContactoOutbound? @relation(fields: [contactId], references: [id])
+  order        Order?            @relation(fields: [orderId], references: [id])
+  user         User?             @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([contactId])
+  @@index([orderId])
+  @@index([type])
+  @@index([triggeredAt])
+}
+
+model Referral {
+  id           String    @id @default(cuid())
+  referrerId   String
+  refereeId    String?
+  refereePhone String?
+  refereeName  String?
+  codeUsed     String
+  status       String    @default("pending")
+  orderId      String?
+  orderTotal   Float?
+  creditEarned Float     @default(0)
+  createdAt    DateTime  @default(now())
+  convertedAt  DateTime?
+  notifiedAt   DateTime?
+  referee      User?     @relation("ReferralReceived", fields: [refereeId], references: [id])
+  referrer     User      @relation("ReferralsMade", fields: [referrerId], references: [id], onDelete: Cascade)
+
+  @@index([referrerId])
+  @@index([refereeId])
+  @@index([refereePhone])
+  @@index([codeUsed])
+  @@index([status])
+}
+
+model Transportista {
+  id        String   @id @default(cuid())
+  nombre    String
+  zona      String
+  direccion String?
+  telefono  String?
+  destinos  String[] @default([])
+  notas     String?
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([zona])
+  @@index([activo])
+}
 
 enum EmployeeRole {
   ADMIN
@@ -148,877 +905,4 @@ enum TelaSolicitadaStatus {
   APROBADA
   RECHAZADA
   AGREGADA_AL_CATALOGO
-}
-
-// ==========================================================
-// 1. USUARIO / CLIENTE (B2B & B2C)
-// ==========================================================
-model User {
-  id                           String         @id @default(cuid())
-  hashId                       String         @unique @default(dbgenerated("concat('CL-', substr(gen_random_uuid()::text, 1, 6))"))
-  name                         String?
-  email                        String         @unique
-  password                     String
-  image                        String?
-  phone                        String?
-  role                         String         @default("USER")
-  membershipTier               MembershipTier @default(NONE)
-  membershipExpiry             DateTime?
-  membershipColocacionesUsadas Int            @default(0)
-  points                       Int            @default(0)
-  stripeCustomerId             String?
-  stripeSubscriptionId         String?
-  stripeSubscriptionStatus     String?
-  ltv                          Float          @default(0)
-  // Trust Score (Fase Aftercare)
-  trustScore                   Int            @default(70)
-  trustEvents                  Int            @default(0)
-  lastAftercareAt              DateTime?
-  // Programa de Referidos
-  referralCode                 String?        @unique
-  referralCredit               Float          @default(0)
-  referredById                 String?
-  rfc                          String?
-  taxRegime                    String?
-  cfdiUse                      String?
-  street                       String?
-  neighborhood                 String?
-  zipCode                      String?
-  city                         String?
-  state                        String?
-  company                      String?
-  notes                        String?
-  optedIn                      Boolean        @default(false)
-  suppressed                   Boolean        @default(false)
-  consentDate                  DateTime?
-  optOutDate                   DateTime?
-  createdAt                    DateTime       @default(now())
-  updatedAt                    DateTime       @updatedAt
-
-  orders             Order[]
-  interactions       Interaction[]
-  tickets            Ticket[]
-  deals              Deal[]
-  waConversations    WaConversation[]
-  passwordResetToken PasswordResetToken?
-  ticketMessages     TicketMessage[]
-  aftercareEvents    AftercareEvent[]
-  // Referidos
-  referralsMade      Referral[]          @relation("ReferralsMade")
-  referralsReceived  Referral[]          @relation("ReferralReceived")
-
-  // Índices de rendimiento
-  @@index([email])
-  @@index([phone])
-}
-
-// ==========================================================
-// 1b. RECUPERACIÓN DE CONTRASEÑA
-// ==========================================================
-model PasswordResetToken {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique
-  expires   DateTime
-  createdAt DateTime @default(now())
-}
-
-// ==========================================================
-// 2. LA JAURIA (EQUIPO INTERNO)
-// ==========================================================
-model Employee {
-  id       String       @id @default(cuid())
-  name     String
-  email    String       @unique
-  password String
-  role     EmployeeRole @default(VENDEDORA)
-  isActive Boolean      @default(true)
-
-  isBlocked          Boolean  @default(false)
-  suspendedFunctions String[]
-
-  commissionRate Float     @default(0.03)
-  status         String    @default("offline")
-  lastActiveAt   DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  logs            AuditLog[]
-  attendances     Attendance[]
-  interactions    Interaction[]
-  assignedTickets Ticket[]
-  ticketMessages  TicketMessage[]
-  telemetry       Telemetry[]
-  routeOrders     RouteOrder[]
-  deals           Deal[]
-  commissions     Commission[]
-  waConversations WaConversation[]
-
-  // Sales Agent (Fase 1 — reactivacion contactos frios)
-  assignedColdContacts ContactoOutbound[]   @relation("AssignedColdContacts")
-  salesAgentAttempts   SalesAgentAttempt[]  @relation("SalesAgentSentBy")
-  salesAgentFeedbacks  SalesAgentFeedback[] @relation("SalesAgentFeedbacks")
-}
-
-model AuditLog {
-  id         String    @id @default(cuid())
-  timestamp  DateTime  @default(now())
-  employeeId String?
-  employee   Employee? @relation(fields: [employeeId], references: [id])
-  action     String
-  resourceId String?
-  ipAddress  String?
-  userAgent  String?
-  metadata   Json?
-
-  // Índices de rendimiento para auditorías rápidas
-  @@index([employeeId])
-  @@index([timestamp(sort: Desc)])
-}
-
-// ==========================================================
-// 3. CATALOGO CENTRAL & INVENTARIO FISICO
-// ==========================================================
-model Product {
-  id                  String   @id @default(cuid())
-  sku                 String   @unique
-  title               String
-  unit                UnitType @default(KILO)
-  thumbnail           String?
-  description         String?
-  composicion         String?
-  gramaje             String?
-  ancho               String?
-  rendimiento         Float?
-  priceMenudeo        Float
-  priceMayoreo        Float
-  hasRollo            Boolean  @default(true)
-  unidadesPorRollo    Float?
-  singleColor         Boolean  @default(true)
-  origin              String?
-  category            String
-  // Sourcing operativo
-  cantidadInmediataKg Float?
-  isActive            Boolean  @default(true)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  colors     ProductColor[]
-  inventory  Inventory[]
-  orderItems OrderItem[]
-  deals      Deal[]
-  movements  InventoryMovement[]
-
-  // Índices de rendimiento
-  @@index([category])
-  @@index([isActive])
-}
-
-model ProductColor {
-  id        String  @id @default(cuid())
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name      String
-  hex       String
-  imageUrl  String?
-
-  inventory Inventory[]
-  movements InventoryMovement[]
-
-  @@index([productId])
-}
-
-model Inventory {
-  id        String         @id @default(cuid())
-  productId String
-  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  colorId   String?
-  color     ProductColor?  @relation(fields: [colorId], references: [id])
-  location  PickupLocation
-  quantity  Float
-  rollCount Int            @default(0)
-  updatedAt DateTime       @updatedAt
-
-  @@unique([productId, colorId, location])
-  @@index([location])
-}
-
-model InventoryMovement {
-  id           String         @id @default(cuid())
-  productId    String
-  product      Product        @relation(fields: [productId], references: [id])
-  colorId      String?
-  color        ProductColor?  @relation(fields: [colorId], references: [id])
-  location     PickupLocation
-  type         MovementType
-  quantity     Float
-  rollCount    Int            @default(0)
-  provider     String?
-  authorizedBy String
-  notes        String?
-  orderId      String?
-  order        Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  createdAt    DateTime       @default(now())
-
-  @@index([productId])
-  @@index([createdAt(sort: Desc)])
-}
-
-// ==========================================================
-// 4. CRM: PIPELINE & VENTAS MAYORISTAS
-// ==========================================================
-model Deal {
-  id         String         @id @default(cuid())
-  title      String
-  company    String
-  userId     String?
-  user       User?          @relation(fields: [userId], references: [id])
-  employeeId String
-  employee   Employee       @relation(fields: [employeeId], references: [id])
-  productId  String?
-  product    Product?       @relation(fields: [productId], references: [id])
-  color      String?
-  quantity   Float?
-  value      Float          @default(0)
-  status     PipelineStatus @default(PROSPECTO)
-  notes      String?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-
-  commission Commission?
-
-  @@index([employeeId])
-  @@index([status])
-}
-
-// ==========================================================
-// 4b. COMISIONES
-// ==========================================================
-model Commission {
-  id         String           @id @default(cuid())
-  employeeId String
-  employee   Employee         @relation(fields: [employeeId], references: [id])
-  dealId     String           @unique
-  deal       Deal             @relation(fields: [dealId], references: [id])
-  amount     Float
-  rate       Float
-  status     CommissionStatus @default(PENDIENTE)
-  approvedBy String?
-  approvedAt DateTime?
-  paidAt     DateTime?
-  notes      String?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-
-  @@index([employeeId])
-  @@index([status])
-}
-
-// ==========================================================
-// 5. E-COMMERCE & LOGISTICA DE COMPRA
-// ==========================================================
-model Order {
-  id             String         @id @default(cuid())
-  orderNumber    String         @unique @default(cuid())
-  userId         String?
-  user           User?          @relation(fields: [userId], references: [id])
-  subtotal       Float          @default(0)
-  freightCost    Float          @default(0)
-  shippingCost   Float          @default(0)
-  serviceFee     Float          @default(0)
-  taxIVA         Float          @default(0)
-  total          Float
-  status         OrderStatus    @default(PENDING)
-  evidenceUrl    String?
-  deliveryLat    Float?
-  deliveryLng    Float?
-  paymentMethod  String         @default("card")
-  paymentId      String?
-  logisticsType  LogisticsType  @default(SKYDROPX_NACIONAL)
-  pickupLocation PickupLocation @default(GUATEMALA_97)
-
-  pickupIdPhotoUrl  String?
-  pickupPlateNumber String?
-  pickupConfirmedBy String?
-  pickupConfirmedAt DateTime?
-
-  vehiclesNeeded Int     @default(1)
-  trackingNumber String?
-  trackingUrl    String?
-  customerName   String
-  customerEmail  String
-  customerPhone  String?
-  address        String?
-  wantsInvoice   Boolean @default(false)
-  invoiceStatus  String?
-
-  // ── Bot v2 metadata (Fase 12) ──
-  source            String? // "bot_v2" | "crm" | "web" | null
-  botPhone          String? // teléfono E.164 del cliente en el bot
-  botConversationId String? // ID interno de la conversación
-
-  // ── Despacho (Fase 12) ──
-  preparedAt  DateTime?
-  preparedBy  String?
-  shippedAt   DateTime?
-  shippedBy   String?
-  deliveredAt DateTime?
-
-  // Sourcing operativo (interno, oculto al cliente)
-  requiresSourcing      Boolean   @default(false)
-  sourcingStatus        String?
-  sourcingDays          Int?
-  sourcingPromisedAt    DateTime?
-  sourcingResolvedAt    DateTime?
-  sourcingInternalNotes String?   @db.Text
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  // Programa de Referidos
-  referralId    String?
-  creditApplied Float   @default(0)
-
-  items           OrderItem[]
-  tickets         Ticket[]
-  movements       InventoryMovement[]
-  vehicleId       String?
-  vehicle         Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  aftercareEvents AftercareEvent[]
-
-  // Índices de rendimiento
-  @@index([userId])
-  @@index([status])
-  @@index([createdAt(sort: Desc)])
-}
-
-model OrderItem {
-  id        String   @id @default(cuid())
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String?
-  product   Product? @relation(fields: [productId], references: [id])
-  title     String
-  sku       String?
-  price     Float
-  quantity  Float
-  unit      String?
-  color     String?
-
-  @@index([orderId])
-}
-
-// ==========================================================
-// 6. ERP & OPERACION INTERNA
-// ==========================================================
-model Attendance {
-  id              String    @id @default(cuid())
-  employeeId      String
-  employee        Employee  @relation(fields: [employeeId], references: [id])
-  checkIn         DateTime  @default(now())
-  checkOut        DateTime?
-  horasTrabajadas Float?
-  ipAddress       String?
-  location        String?
-  lat             Float?
-  lng             Float?
-  checkOutLat     Float?
-  checkOutLng     Float?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  breaks AttendanceBreak[]
-
-  @@index([employeeId])
-  @@index([createdAt(sort: Desc)])
-}
-
-model AttendanceBreak {
-  id           String     @id @default(cuid())
-  attendanceId String
-  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
-  type         BreakType
-  startAt      DateTime   @default(now())
-  endAt        DateTime?
-  duration     Float?
-  createdAt    DateTime   @default(now())
-
-  @@index([attendanceId])
-}
-
-model Interaction {
-  id             String          @id @default(cuid())
-  employeeId     String?
-  employee       Employee?       @relation(fields: [employeeId], references: [id])
-  userId         String
-  user           User            @relation(fields: [userId], references: [id])
-  type           InteractionType
-  summary        String
-  content        Json?
-  status         String          @default("open")
-  pipelineStatus PipelineStatus?
-  date           DateTime        @default(now())
-  nextFollowUp   DateTime?
-
-  @@index([userId])
-  @@index([employeeId])
-}
-
-model ShippingZone {
-  id            String   @id @default(cuid())
-  name          String
-  zipCodes      String[]
-  baseRate      Float    @default(0)
-  estimatedDays Int      @default(1)
-  isActive      Boolean  @default(true)
-}
-
-model Ticket {
-  id           String         @id @default(cuid())
-  ticketNumber String         @unique @default(dbgenerated("concat('TK-', substr(gen_random_uuid()::text, 1, 6))"))
-  userId       String
-  user         User           @relation(fields: [userId], references: [id])
-  employeeId   String?
-  employee     Employee?      @relation(fields: [employeeId], references: [id])
-  orderId      String?
-  order        Order?         @relation(fields: [orderId], references: [id])
-  subject      String
-  description  String
-  status       TicketStatus   @default(ABIERTO)
-  priority     TicketPriority @default(MEDIA)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-
-  messages TicketMessage[]
-
-  @@index([userId])
-  @@index([status])
-}
-
-model TicketMessage {
-  id         String    @id @default(cuid())
-  ticketId   String
-  ticket     Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  employeeId String?
-  employee   Employee? @relation(fields: [employeeId], references: [id])
-  userId     String?
-  user       User?     @relation(fields: [userId], references: [id])
-  body       String
-  isInternal Boolean   @default(false)
-  createdAt  DateTime  @default(now())
-
-  @@index([ticketId])
-  @@index([createdAt(sort: Asc)])
-}
-
-// ==========================================================
-// 7. FLOTILLA AVANZADA Y RUTAS
-// ==========================================================
-model Vehicle {
-  id              String        @id @default(cuid())
-  plate           String        @unique
-  model           String
-  lastMaintenance DateTime      @default(now())
-  nextMaintenance DateTime
-  mileage         Float         @default(0)
-  status          VehicleStatus @default(ACTIVE)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  orders Order[]
-  logs   VehicleLog[]
-}
-
-model Telemetry {
-  id         String   @id @default(cuid())
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id])
-  lat        Float
-  lng        Float
-  speed      Float?
-  isSpeeding Boolean  @default(false)
-  timestamp  DateTime @default(now())
-
-  @@index([employeeId])
-  @@index([timestamp(sort: Desc)])
-}
-
-model VehicleLog {
-  id        String         @id @default(cuid())
-  vehicleId String
-  vehicle   Vehicle        @relation(fields: [vehicleId], references: [id])
-  type      VehicleLogType
-  cost      Float
-  date      DateTime       @default(now())
-  notes     String?
-
-  @@index([vehicleId])
-}
-
-model RouteOrder {
-  id                   String           @id @default(cuid())
-  type                 RouteOrderType
-  status               RouteOrderStatus @default(PENDIENTE)
-  contactName          String
-  contactPhone         String?
-  contactEmail         String?
-  address              String
-  addressLat           Float?
-  addressLng           Float?
-  scheduledAt          DateTime
-  notes                String?
-  employeeId           String?
-  employee             Employee?        @relation(fields: [employeeId], references: [id])
-  originLocation       String?
-  destLocation         String?
-  carrier              String?
-  sucursalNombre       String?
-  signatureOrigin      String?
-  signatureDestination String?
-  photoDropoff         String[]
-  completedAt          DateTime?
-  deliveryLat          Float?
-  deliveryLng          Float?
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-
-  items     RouteOrderItem[]
-  issueLogs IssueLog[]
-
-  @@index([employeeId])
-  @@index([status])
-  @@index([scheduledAt])
-}
-
-model RouteOrderItem {
-  id            String     @id @default(cuid())
-  routeOrderId  String
-  routeOrder    RouteOrder @relation(fields: [routeOrderId], references: [id], onDelete: Cascade)
-  tag           String
-  description   String?
-  qtyDispatched Int
-  qtyDelivered  Int?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-
-  @@index([routeOrderId])
-}
-
-model IssueLog {
-  id           String     @id @default(cuid())
-  routeOrderId String
-  routeOrder   RouteOrder @relation(fields: [routeOrderId], references: [id])
-  note         String
-  hasDelta     Boolean    @default(false)
-  createdAt    DateTime   @default(now())
-
-  @@index([routeOrderId])
-}
-
-// ==========================================================
-// 8. WHATSAPP CHAT (META API READY)
-// ==========================================================
-model WaConversation {
-  id           String    @id @default(cuid())
-  employeeId   String?
-  employee     Employee? @relation(fields: [employeeId], references: [id])
-  userId       String?
-  user         User?     @relation(fields: [userId], references: [id])
-  contactName  String?
-  contactPhone String    @unique
-  isOpen       Boolean   @default(true)
-
-  handledBy           ChatHandler @default(BOT)
-  lastAdminMessageAt  DateTime?
-  aiResumePausedUntil DateTime?
-
-  lastMessage   String?
-  lastMessageAt DateTime?
-  unreadCount   Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  messages WaMessage[]
-
-  // Índices de rendimiento para CRM fluido
-  @@index([employeeId])
-  @@index([handledBy])
-  @@index([updatedAt(sort: Desc)])
-}
-
-model WaMessage {
-  id             String         @id @default(cuid())
-  waId           String?        @unique
-  conversationId String
-  conversation   WaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role           WaMessageRole
-  body           String
-  mediaUrl       String?
-  mediaType      String?
-  isRead         Boolean        @default(false)
-  sentAt         DateTime       @default(now())
-
-  // Índices vitales para cargar rápido el historial de los chats
-  @@index([conversationId])
-  @@index([sentAt(sort: Desc)])
-}
-
-// ==========================================================
-// 9. OUTBOUND & MARKETING (CONTACTOS MANUALES)
-// ==========================================================
-
-// ==========================================================
-// FASE 12 — MODELOS NUEVOS (BOT V2)
-// ==========================================================
-model TelaNoManejada {
-  id            String  @id @default(cuid())
-  // Datos del cliente que la pidió
-  clientePhone  String
-  clienteNombre String?
-  clienteUserId String?
-
-  // La tela
-  telaIdentificada String // ej. "popelina", "lino", "casimir"
-  descripcionExtra String? // descripción adicional del bot/vision
-  imagenUrl        String? // si vino con foto
-  cantidadKg       Float? // cuánto necesita
-  frecuencia       String? // "mensual", "única", "estacional"
-  usoFinal         String? // "uniformes", "camisas", etc.
-
-  status        TelaSolicitadaStatus @default(NUEVA)
-  notasInternas String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([telaIdentificada])
-  @@index([status])
-  @@index([createdAt(sort: Desc)])
-}
-
-model ProgramacionVolumen {
-  id            String  @id @default(cuid())
-  // Datos del cliente
-  clientePhone  String
-  clienteNombre String?
-  clienteUserId String?
-
-  // Programación
-  telaSku       String? // SKU si está en catálogo
-  telaTitulo    String // nombre legible
-  kgPorPeriodo  Float // cuántos kg cada periodo
-  periodo       String // "mensual" | "quincenal" | "semanal" | "unico"
-  fechaInicio   DateTime
-  duracionMeses Int      @default(1)
-
-  estado String @default("propuesta")
-  // estados: propuesta | confirmada | en_curso | completada | cancelada
-
-  notas String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([clientePhone])
-  @@index([estado])
-  @@index([fechaInicio])
-}
-
-model ContactoOutbound {
-  id          String  @id @default(cuid())
-  phone       String  @unique
-  nombre      String?
-  empresa     String?
-  notas       String?
-  agregadoPor String?
-
-  plantillaEnviada   Boolean   @default(false)
-  plantillaEnviadaAt DateTime?
-  plantillaResponse  String?
-
-  clienteRespondio   Boolean   @default(false)
-  primeraRespuestaAt DateTime?
-
-  // Sales Agent Intelligence (Fase 1)
-  coldReason           String?
-  engagementScore      Int      @default(0)
-  reactivationPriority Int      @default(0)
-  status               String   @default("PENDING")
-  tags                 String[] @default([])
-
-  assignedToEmployeeId String?
-  assignedToEmployee   Employee? @relation("AssignedColdContacts", fields: [assignedToEmployeeId], references: [id])
-  assignedAt           DateTime?
-
-  lastAttemptAt  DateTime?
-  totalAttempts  Int       @default(0)
-  nextFollowUpAt DateTime?
-
-  attempts  SalesAgentAttempt[]
-  feedbacks SalesAgentFeedback[]
-
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  aftercareEvents AftercareEvent[]
-
-  @@index([phone])
-  @@index([plantillaEnviada])
-  @@index([status])
-  @@index([reactivationPriority(sort: Desc)])
-  @@index([assignedToEmployeeId])
-  @@index([nextFollowUpAt])
-}
-
-model BotEscalation {
-  id          String    @id @default(cuid())
-  phone       String
-  nombre      String?
-  razon       String // queja | humano | alto_valor | retries | frustracion | facturacion
-  contexto    String    @db.Text
-  ultimoMsg   String    @db.Text
-  estado      String    @default("pendiente") // pendiente | atendida | descartada
-  atendidaPor String?
-  atendidaAt  DateTime?
-  createdAt   DateTime  @default(now())
-
-  @@index([phone])
-  @@index([estado])
-  @@index([createdAt])
-  @@index([razon])
-}
-
-// ==========================================================
-// SALES AGENT - Fase 1 (reactivacion contactos frios)
-// ==========================================================
-model SalesAgentAttempt {
-  id        String           @id @default(cuid())
-  contactId String
-  contact   ContactoOutbound @relation(fields: [contactId], references: [id], onDelete: Cascade)
-
-  channel      String
-  messageSent  String  @db.Text
-  strategy     String?
-  agentVersion String?
-
-  sentAt           DateTime  @default(now())
-  sentByEmployeeId String?
-  sentByEmployee   Employee? @relation("SalesAgentSentBy", fields: [sentByEmployeeId], references: [id])
-
-  outcome      String?
-  respondedAt  DateTime?
-  responseText String?   @db.Text
-
-  @@index([contactId])
-  @@index([sentAt(sort: Desc)])
-  @@index([outcome])
-}
-
-model SalesAgentFeedback {
-  id         String           @id @default(cuid())
-  contactId  String
-  contact    ContactoOutbound @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  employeeId String
-  employee   Employee         @relation("SalesAgentFeedbacks", fields: [employeeId], references: [id])
-
-  feedback String  @db.Text
-  category String?
-
-  createdAt DateTime @default(now())
-
-  @@index([contactId])
-  @@index([employeeId])
-}
-
-// ==========================================================
-// PGVECTOR — Embeddings catalogo bot V2 (managed fuera de Prisma)
-// ==========================================================
-// La tabla la maneja MIGRATION.sql porque pgvector usa vector(1536)
-// que Prisma no soporta. La declaramos con @@ignore para que
-// Prisma sepa que existe y NO proponga reset por drift.
-model bot_catalog_embeddings {
-  product_id String   @id
-  content    String
-  metadata   Json?    @default("{}")
-  updated_at DateTime @default(now()) @db.Timestamptz
-
-  @@ignore
-}
-
-// ==========================================================
-// AFTERCARE — Tracking de touchpoints post-venta (Trust Score)
-// ==========================================================
-model AftercareEvent {
-  id        String            @id @default(cuid())
-  userId    String?
-  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
-  contactId String?
-  contact   ContactoOutbound? @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  orderId   String?
-  order     Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
-
-  type         String // "post_delivery_7d" | "re_engagement_30d" | "complaint" | "compliment" | "trust_boost" | "trust_penalty"
-  channel      String? // "whatsapp" | "manual" | "auto"
-  messageSent  String? @db.Text
-  outcome      String? // "pending" | "positive_response" | "negative_response" | "no_response" | "complaint"
-  responseText String? @db.Text
-  trustDelta   Int     @default(0) // cuanto sumo/resto al trustScore
-
-  triggeredAt DateTime  @default(now())
-  respondedAt DateTime?
-
-  notas String? @db.Text
-
-  @@index([userId])
-  @@index([contactId])
-  @@index([orderId])
-  @@index([type])
-  @@index([triggeredAt])
-}
-
-// ============================================================
-// REFERIDOS (Fase Programa de Referidos)
-// ============================================================
-model Referral {
-  id           String  @id @default(cuid())
-  referrerId   String // User que recomendó
-  referrer     User    @relation("ReferralsMade", fields: [referrerId], references: [id], onDelete: Cascade)
-  refereeId    String? // User que fue recomendado (puede ser null si aún no es User)
-  referee      User?   @relation("ReferralReceived", fields: [refereeId], references: [id], onDelete: SetNull)
-  refereePhone String? // backup si no hay User aún
-  refereeName  String?
-
-  codeUsed     String // "COYOTE-JACK01"
-  status       String  @default("pending") // pending | converted | rejected
-  orderId      String? // FK a Order cuando convierte
-  orderTotal   Float? // snapshot del total al convertir
-  creditEarned Float   @default(0) // monto MXN ganado por referrer
-
-  createdAt   DateTime  @default(now())
-  convertedAt DateTime?
-  notifiedAt  DateTime?
-
-  @@index([referrerId])
-  @@index([refereeId])
-  @@index([refereePhone])
-  @@index([codeUsed])
-  @@index([status])
-}
-
-// ============================================================
-// TRANSPORTISTAS / PAQUETERIAS por zona de CDMX
-// ============================================================
-model Transportista {
-  id        String   @id @default(cuid())
-  nombre    String
-  zona      String // "cabeza_juarez" | "centro" | "vallejo" | "tapo" | "otro"
-  direccion String? // opcional, calle exacta
-  telefono  String?
-  destinos  String[] // ej. ["Chiapas - Comitán", "Oaxaca", "Nacional"]
-  notas     String?  @db.Text
-  activo    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([zona])
-  @@index([activo])
 }

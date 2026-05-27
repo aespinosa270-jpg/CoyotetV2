@@ -8,6 +8,7 @@ export default function ContactosForm() {
   const [nombre, setNombre] = useState("");
   const [empresa, setEmpresa] = useState("");
   const [notas, setNotas] = useState("");
+  const [origen, setOrigen] = useState("manual");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,6 +32,7 @@ export default function ContactosForm() {
           nombre: nombre || undefined,
           empresa: empresa || undefined,
           notas: notas || undefined,
+          origenCarga: origen,
         }),
       });
       const data = await res.json();
@@ -42,6 +44,7 @@ export default function ContactosForm() {
       setNombre("");
       setEmpresa("");
       setNotas("");
+      setOrigen("manual");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
@@ -81,6 +84,20 @@ export default function ContactosForm() {
         onChange={(e) => setNotas(e.target.value)}
         className="px-3 py-2 border border-slate-300 rounded text-sm"
       />
+      <select
+        value={origen}
+        onChange={(e) => setOrigen(e.target.value)}
+        className="col-span-2 px-3 py-2 border border-slate-300 rounded text-sm bg-white"
+      >
+        <option value="manual">Manual (yo lo agregue)</option>
+        <option value="lista_antigua">Lista antigua (clientes pasados)</option>
+        <option value="ads_meta">Facebook / Instagram Ads</option>
+        <option value="ads_google">Google Ads</option>
+        <option value="ads_tiktok">TikTok Ads</option>
+        <option value="referido">Referido por cliente</option>
+        <option value="evento">Evento / Feria</option>
+        <option value="otro">Otro</option>
+      </select>
       <div className="col-span-2 flex items-center gap-3">
         <button
           type="submit"

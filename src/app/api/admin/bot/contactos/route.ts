@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
           nombre: body.nombre ?? existing.nombre,
           empresa: body.empresa ?? existing.empresa,
           notas: body.notas ?? existing.notas,
+          origenCarga: body.origenCarga ?? existing.origenCarga,
         },
       });
       return NextResponse.json({ ok: true, contacto: updated, updated: true });
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
         empresa: body.empresa,
         notas: body.notas,
         agregadoPor,
+        origenCarga: body.origenCarga ?? "manual",
       },
     });
     return NextResponse.json({ ok: true, contacto });
