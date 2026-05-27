@@ -38,10 +38,18 @@ export async function saveHistorial(
   mensajes: MensajeHistorial[],
   redis: Redis = getRedis()
 ): Promise<MensajeHistorial[]> {
+  // FIX 2026-05: failsafe — si algun mensaje viene sin timestamp,
+  // ponemos el ahora. Esto cierra el gap historico del bug que dejaba
+  // mensajes sin timestamp y rompia el matcheo con media-repo.
+  const nowIso = new Date().toISOString();
+  const conTimestamp = mensajes.map((m) =>
+    m.timestamp ? m : { ...m, timestamp: nowIso }
+  );
+
   const trimmed =
-    mensajes.length > MEMORY.MAX_HISTORY_LENGTH
-      ? mensajes.slice(-MEMORY.MAX_HISTORY_LENGTH)
-      : mensajes;
+    conTimestamp.length > MEMORY.MAX_HISTORY_LENGTH
+      ? conTimestamp.slice(-MEMORY.MAX_HISTORY_LENGTH)
+      : conTimestamp;
   await redis.set(keys.historial(phone), trimmed, {
     ex: MEMORY.HISTORY_TTL_SECONDS,
   });

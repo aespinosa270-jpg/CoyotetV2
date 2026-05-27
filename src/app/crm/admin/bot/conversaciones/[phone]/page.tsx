@@ -1,9 +1,9 @@
 /**
- * Detalle de una conversación específica.
+ * Detalle de una conversaciÃ³n especÃ­fica.
  *
  * Layout de 2 columnas:
- *   IZQUIERDA: perfil + memoria episódica + objeciones + tácticas
- *   DERECHA:   resumen semántico + timeline de mensajes
+ *   IZQUIERDA: perfil + memoria episÃ³dica + objeciones + tÃ¡cticas
+ *   DERECHA:   resumen semÃ¡ntico + timeline de mensajes
  */
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -49,13 +49,13 @@ export default async function ConversacionDetallePage({ params }: Props) {
             href="/crm/admin/bot/conversaciones"
             className="text-xs text-blue-600 hover:underline"
           >
-            ← Volver a conversaciones
+            â† Volver a conversaciones
           </Link>
           <h1 className="text-2xl font-bold text-slate-900 mt-1">
             {perfil.nombre || "(sin nombre)"}
           </h1>
           <p className="text-sm text-slate-500">
-            <code>{perfil.telefono}</code> · {perfil.segmento || "prospecto"} ·{" "}
+            <code>{perfil.telefono}</code> Â· {perfil.segmento || "prospecto"} Â·{" "}
             {perfil.totalCompras} compra{perfil.totalCompras !== 1 ? "s" : ""}
           </p>
         </div>
@@ -73,7 +73,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* ── Columna izquierda: perfil + memoria + objeciones ── */}
+        {/* â”€â”€ Columna izquierda: perfil + memoria + objeciones â”€â”€ */}
         <aside className="space-y-4 lg:col-span-1">
           <Section title="Perfil">
             <DL label="Nombre" value={perfil.nombre} />
@@ -87,13 +87,13 @@ export default async function ConversacionDetallePage({ params }: Props) {
               label="Primer contacto"
               value={fmt(perfil.primerContacto)}
             />
-            <DL label="Último contacto" value={fmt(perfil.ultimoContacto)} />
+            <DL label="Ãšltimo contacto" value={fmt(perfil.ultimoContacto)} />
             {perfil.direccionEnvio && (
-              <DL label="Dirección envío" value={perfil.direccionEnvio} />
+              <DL label="DirecciÃ³n envÃ­o" value={perfil.direccionEnvio} />
             )}
             {(perfil as any).codigoPostalEnvio && (
               <DL
-                label="CP envío"
+                label="CP envÃ­o"
                 value={(perfil as any).codigoPostalEnvio}
               />
             )}
@@ -115,7 +115,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
               max={100}
               color={(perfil.nivelConfianza ?? 0) >= 60 ? "green" : "slate"}
             />
-            <DL label="Táctica activa" value={perfil.tacticaActual ?? "—"} />
+            <DL label="TÃ¡ctica activa" value={perfil.tacticaActual ?? "â€”"} />
           </Section>
 
           {topObjeciones.length > 0 && (
@@ -135,7 +135,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
           )}
 
           {memoria && memoria.hechos && memoria.hechos.length > 0 && (
-            <Section title="Memoria episódica">
+            <Section title="Memoria episÃ³dica">
               <p className="text-xs text-slate-400 mb-2">
                 Hechos que el bot recuerda entre conversaciones
               </p>
@@ -180,10 +180,10 @@ export default async function ConversacionDetallePage({ params }: Props) {
           )}
         </aside>
 
-        {/* ── Columna derecha: resumen + timeline ── */}
+        {/* â”€â”€ Columna derecha: resumen + timeline â”€â”€ */}
         <main className="space-y-4 lg:col-span-2">
           {resumen && (
-            <Section title="Resumen semántico de la conversación">
+            <Section title="Resumen semÃ¡ntico de la conversaciÃ³n">
               <p className="text-sm text-slate-700 whitespace-pre-line">
                 {resumen}
               </p>
@@ -198,6 +198,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
                 {historial.map((m, i) => (
                   <MessageBubble key={i} mensaje={m} mediaList={mediaList} />
                 ))}
+                <OrphanMediaBlock historial={historial} mediaList={mediaList} />
               </div>
             )}
           </Section>
@@ -207,7 +208,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
   );
 }
 
-// ── Helpers ────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Section({
   title,
@@ -231,7 +232,7 @@ function DL({ label, value }: { label: string; value?: string }) {
     <div className="flex justify-between py-1 border-b border-slate-100 last:border-0">
       <span className="text-xs text-slate-500">{label}</span>
       <span className="text-xs text-slate-900 text-right max-w-[60%] truncate">
-        {value || "—"}
+        {value || "â€”"}
       </span>
     </div>
   );
@@ -288,12 +289,12 @@ function MessageBubble({
   if (isTool) {
     return (
       <div className="text-xs text-slate-400 bg-slate-50 rounded p-2 font-mono">
-        🔧 tool: {mensaje.content?.slice(0, 200)}
+        ðŸ”§ tool: {mensaje.content?.slice(0, 200)}
       </div>
     );
   }
 
-  // FASE 12-fix #2: buscar media asociada por timestamp (±5 seg)
+  // FASE 12-fix #2: buscar media asociada por timestamp (Â±5 seg)
   const media =
     isUser && mensaje.timestamp
       ? mediaList.find((m) => {
@@ -313,7 +314,7 @@ function MessageBubble({
         }`}
       >
         {isAssistant && (
-          <div className="text-xs text-slate-500 mb-0.5">🐺 El Coyote</div>
+          <div className="text-xs text-slate-500 mb-0.5">ðŸº El Coyote</div>
         )}
         <div className="text-sm whitespace-pre-line">{mensaje.content}</div>
         {media && (
@@ -341,7 +342,7 @@ function MessageBubble({
 }
 
 function fmt(iso?: string): string {
-  if (!iso || iso === "1970-01-01T00:00:00.000Z") return "—";
+  if (!iso || iso === "1970-01-01T00:00:00.000Z") return "â€”";
   try {
     const d = new Date(iso);
     return d.toLocaleString("es-MX", {
@@ -351,6 +352,60 @@ function fmt(iso?: string): string {
       minute: "2-digit",
     });
   } catch {
-    return "—";
+    return "â€”";
   }
+}
+
+// ─── Bloque para media "huerfana" (sin matcheo con historial) ───
+function OrphanMediaBlock({
+  historial,
+  mediaList,
+}: {
+  historial: any[];
+  mediaList: MediaMensaje[];
+}) {
+  if (!mediaList || mediaList.length === 0) return null;
+
+  // Una media es "huerfana" si NO matcheo con ningun mensaje (±5s)
+  const matched = new Set<string>();
+  historial.forEach((m) => {
+    if (m.role !== "user" || !m.timestamp) return;
+    const msgTs = new Date(m.timestamp).getTime();
+    mediaList.forEach((media) => {
+      const mediaTs = new Date(media.timestamp).getTime();
+      if (Math.abs(msgTs - mediaTs) < 5000) {
+        matched.add(media.messageId);
+      }
+    });
+  });
+
+  const orphans = mediaList.filter((m) => !matched.has(m.messageId));
+  if (orphans.length === 0) return null;
+
+  return (
+    <div className="mt-4 pt-4 border-t-2 border-amber-200">
+      <p className="text-xs uppercase font-bold text-amber-700 mb-2">
+        📎 Media del cliente (sin contexto de mensaje)
+      </p>
+      <div className="space-y-3">
+        {orphans.map((media) => (
+          <div key={media.messageId} className="flex justify-end">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 max-w-[85%]">
+              <p className="text-xs text-slate-500 mb-1">
+                {new Date(media.timestamp).toLocaleString("es-MX")}
+              </p>
+              <MediaMessage
+                mediaId={media.nativeId}
+                tipo={media.tipo}
+                caption={media.caption}
+                mimeType={media.mimeType}
+                vision={media.vision}
+                transcripcion={media.transcripcion}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
