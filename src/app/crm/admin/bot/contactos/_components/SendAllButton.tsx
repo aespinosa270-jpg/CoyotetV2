@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -11,6 +11,7 @@ export default function SendAllButton({ pendingCount }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [plantilla, setPlantilla] = useState<"BIENVENIDA" | "OFERTA_REACTIVACION">("BIENVENIDA");
   const [result, setResult] = useState<{
     enviados: number;
     fallidos: number;
@@ -33,6 +34,8 @@ export default function SendAllButton({ pendingCount }: Props) {
     try {
       const res = await fetch("/api/admin/bot/contactos/send-all", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateKey: plantilla }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error en envío masivo");
@@ -68,9 +71,24 @@ export default function SendAllButton({ pendingCount }: Props) {
 
             {!result && !error && (
               <>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Plantilla a enviar:
+                </label>
+                <select
+                  value={plantilla}
+                  onChange={(e) => setPlantilla(e.target.value as "BIENVENIDA" | "OFERTA_REACTIVACION")}
+                  disabled={busy}
+                  className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white mb-3"
+                >
+                  <option value="BIENVENIDA">Bienvenida (saludo inicial)</option>
+                  <option value="OFERTA_REACTIVACION">Oferta de reactivación (clientes fríos)</option>
+                </select>
                 <p className="text-sm text-slate-700">
-                  Se enviará la plantilla <strong>bienvenida</strong> a{" "}
-                  <strong>{pendingCount}</strong> contactos que cumplen una de:
+                  Se enviará la plantilla{" "}
+                  <strong>
+                    {plantilla === "BIENVENIDA" ? "bienvenida" : "oferta_de_reactivacion"}
+                  </strong>{" "}
+                  a <strong>{pendingCount}</strong> contactos que cumplen una de:
                 </p>
                 <ul className="text-xs text-slate-600 list-disc ml-5 space-y-1">
                   <li>Nunca han recibido plantilla</li>

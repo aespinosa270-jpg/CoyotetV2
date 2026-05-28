@@ -178,4 +178,10 @@ export const TEMPLATES = {
     /** Esta plantilla no tiene variables — no requiere bodyParameters. */
     requiresParams: false,
   },
+  /** "oferta_de_reactivacion" — Spanish. Marketing. Re-engagement clientes frios. Sin variables. */
+  OFERTA_REACTIVACION: {
+    name: "oferta_de_reactivacion",
+    language: "es",
+    requiresParams: false,
+  },
 } as const;

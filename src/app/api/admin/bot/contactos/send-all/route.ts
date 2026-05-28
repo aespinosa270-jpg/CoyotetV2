@@ -1,4 +1,4 @@
-﻿/**
+/**
  * POST /api/admin/bot/contactos/send-all
  *
  * Envía la plantilla `bienvenida` a todos los contactos que cumplen UNA de:
@@ -23,9 +23,21 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function POST(): Promise<NextResponse> {
+export async function POST(req: Request): Promise<NextResponse> {
   const guard = await requireAdmin();
   if (guard) return guard;
+
+  // Leer plantilla a usar (default: BIENVENIDA para no romper comportamiento previo)
+  let templateKey: "BIENVENIDA" | "OFERTA_REACTIVACION" = "BIENVENIDA";
+  try {
+    const body = await req.json();
+    if (body?.templateKey === "OFERTA_REACTIVACION") {
+      templateKey = "OFERTA_REACTIVACION";
+    }
+  } catch {
+    // sin body = usar default
+  }
+  const plantilla = TEMPLATES[templateKey];
 
   // Filtro: nunca enviado O (enviado AND no respondió)
   const candidatos = await prisma.contactoOutbound.findMany({
@@ -50,8 +62,8 @@ export async function POST(): Promise<NextResponse> {
   }
 
   log.info(
-    { total: candidatos.length },
-    "Iniciando envío masivo de plantilla bienvenida"
+    { total: candidatos.length, plantilla: plantilla.name },
+    "Iniciando envío masivo de plantilla"
   );
 
   let enviados = 0;
@@ -62,8 +74,8 @@ export async function POST(): Promise<NextResponse> {
     try {
       const result = await sendTemplate({
         to: contacto.phone,
-        templateName: TEMPLATES.BIENVENIDA.name,
-        language: TEMPLATES.BIENVENIDA.language,
+        templateName: plantilla.name,
+        language: plantilla.language,
       });
 
       await prisma.contactoOutbound.update({
