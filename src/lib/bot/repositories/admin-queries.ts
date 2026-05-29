@@ -2,16 +2,16 @@
  * Queries agregadas para el dashboard admin del bot v2.
  *
  * Todas las funciones leen de Redis (Upstash) directamente. No hay cache
- * intermedio â€” el dashboard es para uso interno, no se renderiza con
- * mucho trÃ¡fico.
+ * intermedio Ã¢â‚¬â€ el dashboard es para uso interno, no se renderiza con
+ * mucho trÃƒÂ¡fico.
  *
- * ConvenciÃ³n de keys de Redis para v2:
+ * ConvenciÃƒÂ³n de keys de Redis para v2:
  *   v2:cliente:{phone}          - perfil del cliente
  *   v2:historial:{phone}        - lista de mensajes
- *   v2:resumen:{phone}          - resumen semÃ¡ntico
- *   v2:memoria:{phone}          - hechos episÃ³dicos
+ *   v2:resumen:{phone}          - resumen semÃƒÂ¡ntico
+ *   v2:memoria:{phone}          - hechos episÃƒÂ³dicos
  *   v2:pedidos:{phone}          - pedidos del cliente
- *   v2:metrics:day:{YYYY-MM-DD} - contadores agregados del dÃ­a (futuro)
+ *   v2:metrics:day:{YYYY-MM-DD} - contadores agregados del dÃƒÂ­a (futuro)
  *
  * Para listar TODOS los clientes en Redis usamos SCAN con pattern v2:cliente:*.
  */
@@ -25,7 +25,7 @@ import { getLogger } from "../observability/logger";
 
 const log = getLogger({ module: "admin-queries" });
 
-// â”€â”€ Tipos pÃºblicos del dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Tipos pÃƒÂºblicos del dashboard Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 export interface ConversacionResumen {
   phone: string;
@@ -71,14 +71,14 @@ export interface DashboardMetrics {
   totalPedidos: number;
 }
 
-// â”€â”€ Listado de conversaciones â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Listado de conversaciones Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 const SCAN_BATCH = 100;
 const PHONE_KEY_PREFIX = "v2:cliente:";
 
 /**
- * Lista todos los telÃ©fonos con perfil registrado en v2.
- * Usa SCAN, no KEYS â€” es safe en producciÃ³n incluso con muchos clientes.
+ * Lista todos los telÃƒÂ©fonos con perfil registrado en v2.
+ * Usa SCAN, no KEYS Ã¢â‚¬â€ es safe en producciÃƒÂ³n incluso con muchos clientes.
  */
 async function scanAllPhones(redis: Redis): Promise<string[]> {
   const phones: string[] = [];
@@ -161,10 +161,19 @@ export async function listConversaciones(
             : (hist as any)?.mensajes ?? [];
           if (!arr || arr.length === 0) return null;
           const ult = arr[arr.length - 1];
+          // Buscar el timestamp mas reciente disponible recorriendo
+          // hacia atras (algunos mensajes viejos no tienen timestamp).
+          let ultimoTs: string | undefined;
+          for (let k = arr.length - 1; k >= 0; k--) {
+            if (arr[k]?.timestamp) {
+              ultimoTs = arr[k].timestamp as string;
+              break;
+            }
+          }
           return {
             role: ult?.role as string | undefined,
             texto: typeof ult?.content === "string" ? ult.content : "",
-            ts: ult?.timestamp as string | undefined,
+            ts: ultimoTs,
           };
         } catch {
           return null;
@@ -197,8 +206,8 @@ export async function listConversaciones(
         };
       })
       .sort((a, b) => {
-        if (a.sinResponder && !b.sinResponder) return -1;
-        if (!a.sinResponder && b.sinResponder) return 1;
+        // Orden estilo WhatsApp/Telegram: la conversacion con
+        // actividad MAS RECIENTE arriba, sin importar quien hablo.
         const ta = new Date(a.ultimoMensajeAt || a.ultimoContacto).getTime();
         const tb = new Date(b.ultimoMensajeAt || b.ultimoContacto).getTime();
         return tb - ta;
@@ -218,7 +227,7 @@ export async function listConversaciones(
   }
 }
 
-// â”€â”€ Detalle de una conversaciÃ³n â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Detalle de una conversaciÃƒÂ³n Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 export async function getConversacionDetallada(
   phone: string,
@@ -235,7 +244,7 @@ export async function getConversacionDetallada(
 
     if (!perfil) return null;
 
-    // El historial puede venir como array directo o como { mensajes: [...] } segÃºn se haya guardado
+    // El historial puede venir como array directo o como { mensajes: [...] } segÃƒÂºn se haya guardado
     let mensajesArr: MensajeHistorial[] = [];
     if (Array.isArray(historial)) mensajesArr = historial;
     else if (historial && Array.isArray((historial as any).mensajes))
@@ -250,12 +259,12 @@ export async function getConversacionDetallada(
       topObjeciones: topObjsFromVector(perfil.vectorObjeciones as VectorObjeciones),
     };
   } catch (err) {
-    log.error({ err, phone }, "Error obteniendo conversaciÃ³n detallada");
+    log.error({ err, phone }, "Error obteniendo conversaciÃƒÂ³n detallada");
     return null;
   }
 }
 
-// â”€â”€ MÃ©tricas agregadas para el dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ MÃƒÂ©tricas agregadas para el dashboard Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 export async function getDashboardMetrics(
   redis: Redis = getRedis()
@@ -334,7 +343,7 @@ export async function getDashboardMetrics(
       totalPedidos,
     };
   } catch (err) {
-    log.error({ err }, "Error calculando mÃ©tricas");
+    log.error({ err }, "Error calculando mÃƒÂ©tricas");
     return {
       totalClientes: 0,
       clientesNuevosUltimos7Dias: 0,
@@ -347,7 +356,7 @@ export async function getDashboardMetrics(
   }
 }
 
-// â”€â”€ Top objeciones globales (drill-down) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Top objeciones globales (drill-down) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 export interface ObjecionDrillDown {
   tipo: string;
@@ -389,7 +398,7 @@ export async function getObjeccionDrilldown(
       clientes,
     };
   } catch (err) {
-    log.error({ err, tipo }, "Error en drilldown objeciÃ³n");
+    log.error({ err, tipo }, "Error en drilldown objeciÃƒÂ³n");
     return { tipo, label: tipo, clientes: [] };
   }
 }
