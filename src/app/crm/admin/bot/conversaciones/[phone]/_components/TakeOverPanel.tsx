@@ -1,13 +1,13 @@
 /**
- * TakeOverPanel — UI para control humano de la conversación.
+ * TakeOverPanel â€” UI para control humano de la conversaciÃ³n.
  *
- * G3 MEDIA: soporta envío de imágenes, documentos, videos y audios.
+ * G3 MEDIA: soporta envÃ­o de imÃ¡genes, documentos, videos y audios.
  *
  * Flujo:
- *  1. Click 📎 → file picker
- *  2. Upload a /api/admin/bot/upload-media → URL Supabase
+ *  1. Click ðŸ“Ž â†’ file picker
+ *  2. Upload a /api/admin/bot/upload-media â†’ URL Supabase
  *  3. Preview + caption opcional
- *  4. Click Enviar → POST /conversaciones/[phone]/send con mediaUrl
+ *  4. Click Enviar â†’ POST /conversaciones/[phone]/send con mediaUrl
  *  5. Cliente recibe en WhatsApp
  */
 "use client";
@@ -100,7 +100,7 @@ export default function TakeOverPanel({
 
   async function handleRelease() {
     if (busy) return;
-    if (!confirm("¿Liberar control y reanudar el bot? Se le avisará al cliente.")) return;
+    if (!confirm("Â¿Liberar control y reanudar el bot? Se le avisarÃ¡ al cliente.")) return;
     setBusy(true);
     setError(null);
     setSuccess(null);
@@ -136,14 +136,14 @@ export default function TakeOverPanel({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validar tamaño en cliente antes de subir
+    // Validar tamaÃ±o en cliente antes de subir
     const mediaType = detectMediaType(file.type);
     const limitMB = SIZE_LIMITS_MB[mediaType];
     const sizeMB = file.size / 1024 / 1024;
 
     if (sizeMB > limitMB) {
       setError(
-        `Archivo muy grande (${sizeMB.toFixed(2)} MB). Límite para ${mediaType}: ${limitMB} MB`
+        `Archivo muy grande (${sizeMB.toFixed(2)} MB). LÃ­mite para ${mediaType}: ${limitMB} MB`
       );
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
@@ -154,25 +154,31 @@ export default function TakeOverPanel({
     setUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+        // SUBIDA DIRECTA A SUPABASE desde el navegador.
+        // Evita el limite de 4.5 MB del body de serverless de Vercel.
+        const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+        const uploadName = `crm-${Date.now()}-${Math.random().toString(36).substring(2, 10)}.${ext}`;
+        const mimeType = file.type || "application/octet-stream";
 
-      const res = await fetch("/api/admin/bot/upload-media", {
-        method: "POST",
-        body: formData,
-      });
+        const { error: uploadError } = await supabase.storage
+          .from("whatsapp_media")
+          .upload(uploadName, file, { contentType: mimeType, upsert: false });
+        if (uploadError) {
+          throw new Error(`Error subiendo a storage: ${uploadError.message}`);
+        }
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error subiendo archivo");
+        const { data: publicUrlData } = supabase.storage
+          .from("whatsapp_media")
+          .getPublicUrl(uploadName);
 
-      setMedia({
-        mediaUrl: data.mediaUrl,
-        mediaType: data.mediaType,
-        filename: data.filename,
-        mimeType: data.mimeType,
-        size: data.size,
-      });
-      setSuccess(`✅ Archivo subido (${(data.size / 1024).toFixed(0)} KB). Agregue caption o envíe.`);
+        setMedia({
+          mediaUrl: publicUrlData.publicUrl,
+          mediaType,
+          filename: file.name,
+          mimeType,
+          size: file.size,
+        });
+      setSuccess(`âœ… Archivo subido (${(file.size / 1024 / 1024).toFixed(2)} MB). Agregue caption o envÃ­e.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -219,7 +225,7 @@ export default function TakeOverPanel({
       setText("");
       setMedia(null);
       setTtlSeconds(60 * 60 * 23);
-      setSuccess(media ? "📎 Archivo enviado al cliente." : "Mensaje enviado al cliente.");
+      setSuccess(media ? "ðŸ“Ž Archivo enviado al cliente." : "Mensaje enviado al cliente.");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -229,31 +235,31 @@ export default function TakeOverPanel({
   }
 
   function getMediaIcon(t: MediaType): string {
-    if (t === "image") return "📸";
-    if (t === "video") return "🎥";
-    if (t === "audio") return "🎙️";
-    return "📎";
+    if (t === "image") return "ðŸ“¸";
+    if (t === "video") return "ðŸŽ¥";
+    if (t === "audio") return "ðŸŽ™ï¸";
+    return "ðŸ“Ž";
   }
 
-  // ═══════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // RENDER: Bot activo (no pausado)
-  // ═══════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   if (!paused) {
     return (
       <div className="bg-white border border-slate-200 rounded-md p-4 space-y-2">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase text-slate-500 tracking-wide font-semibold">
-              Control de la conversación
+              Control de la conversaciÃ³n
             </p>
-            <p className="text-sm text-slate-700">🟢 Bot atendiendo automáticamente</p>
+            <p className="text-sm text-slate-700">ðŸŸ¢ Bot atendiendo automÃ¡ticamente</p>
           </div>
           <button
             onClick={handleTakeOver}
             disabled={busy}
             className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 text-white text-sm font-bold rounded shadow"
           >
-            {busy ? "..." : "✋ Tomar control"}
+            {busy ? "..." : "âœ‹ Tomar control"}
           </button>
         </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
@@ -262,15 +268,15 @@ export default function TakeOverPanel({
     );
   }
 
-  // ═══════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // RENDER: Bot pausado (control humano)
-  // ═══════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   return (
     <div className="bg-amber-50 border-2 border-amber-400 rounded-md p-4 space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <p className="text-xs uppercase text-amber-700 tracking-wide font-bold">
-            🟡 BOT PAUSADO — Control humano activo
+            ðŸŸ¡ BOT PAUSADO â€” Control humano activo
           </p>
           {state && (
             <p className="text-xs text-amber-900 mt-1">
@@ -284,7 +290,7 @@ export default function TakeOverPanel({
             </p>
           )}
           <p className="text-xs text-amber-700 mt-0.5">
-            Bot regresa automáticamente en <strong>{formatTTL(ttlSeconds)}</strong>
+            Bot regresa automÃ¡ticamente en <strong>{formatTTL(ttlSeconds)}</strong>
           </p>
         </div>
         <button
@@ -292,14 +298,14 @@ export default function TakeOverPanel({
           disabled={busy}
           className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 disabled:bg-slate-300 text-white text-xs font-bold rounded shadow"
         >
-          🔓 Liberar control
+          ðŸ”“ Liberar control
         </button>
       </div>
 
-      {/* Form de envío */}
+      {/* Form de envÃ­o */}
       <div className="bg-white border border-amber-300 rounded p-3 space-y-2">
         <p className="text-xs text-slate-600 font-medium">
-          Responder como asesor (se envía con el número del bot):
+          Responder como asesor (se envÃ­a con el nÃºmero del bot):
         </p>
 
         {/* Media preview */}
@@ -320,7 +326,7 @@ export default function TakeOverPanel({
                   {media.filename}
                 </span>
                 <span className="text-xs text-slate-500">
-                  {media.mediaType.toUpperCase()} · {(media.size / 1024).toFixed(0)} KB
+                  {media.mediaType.toUpperCase()} Â· {(media.size / 1024).toFixed(0)} KB
                 </span>
               </div>
             </div>
@@ -330,7 +336,7 @@ export default function TakeOverPanel({
               className="text-red-500 hover:text-red-700 text-lg font-bold w-6 h-6 flex items-center justify-center"
               title="Quitar archivo"
             >
-              ×
+              Ã—
             </button>
           </div>
         )}
@@ -368,25 +374,25 @@ export default function TakeOverPanel({
               title="Adjuntar imagen, PDF, video o audio"
             >
               {uploading ? (
-                <>⏳ Subiendo...</>
+                <>â³ Subiendo...</>
               ) : (
-                <>📎 Adjuntar</>
+                <>ðŸ“Ž Adjuntar</>
               )}
             </button>
             <span className="text-xs text-slate-400 hidden sm:inline">
-              IMG 5MB · DOC 100MB · Video/Audio 16MB
+              IMG 5MB Â· DOC 100MB Â· Video/Audio 16MB
             </span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-400">
-              {text.length}/4000 · Ctrl+Enter
+              {text.length}/4000 Â· Ctrl+Enter
             </span>
             <button
               onClick={handleSend}
               disabled={busy || uploading || (!text.trim() && !media)}
               className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-sm font-bold rounded shadow"
             >
-              {busy ? "Enviando..." : media ? "📤 Enviar archivo" : "📤 Enviar"}
+              {busy ? "Enviando..." : media ? "ðŸ“¤ Enviar archivo" : "ðŸ“¤ Enviar"}
             </button>
           </div>
         </div>
