@@ -1,13 +1,13 @@
 /**
- * TakeOverPanel Ã¢â‚¬â€ UI para control humano de la conversaciÃƒÂ³n.
+ * TakeOverPanel — UI para control humano de la conversación.
  *
- * G3 MEDIA: soporta envÃƒÂ­o de imÃƒÂ¡genes, documentos, videos y audios.
+ * Soporta envío de imágenes, documentos, videos y audios.
  *
  * Flujo:
- *  1. Click Ã°Å¸â€œÅ½ Ã¢â€ â€™ file picker
- *  2. Upload a /api/admin/bot/upload-media Ã¢â€ â€™ URL Supabase
+ *  1. Click Adjuntar → file picker
+ *  2. Upload directo a Supabase (signed URL) → URL pública
  *  3. Preview + caption opcional
- *  4. Click Enviar Ã¢â€ â€™ POST /conversaciones/[phone]/send con mediaUrl
+ *  4. Click Enviar → POST /conversaciones/[phone]/send con mediaUrl
  *  5. Cliente recibe en WhatsApp
  */
 "use client";
@@ -65,7 +65,6 @@ export default function TakeOverPanel({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Countdown del TTL en tiempo real
   useEffect(() => {
     if (!paused || ttlSeconds <= 0) return;
     const interval = setInterval(() => {
@@ -100,7 +99,7 @@ export default function TakeOverPanel({
 
   async function handleRelease() {
     if (busy) return;
-    if (!confirm("Ã‚Â¿Liberar control y reanudar el bot? Se le avisarÃƒÂ¡ al cliente.")) return;
+    if (!confirm("¿Liberar control y reanudar el bot? Se le avisará al cliente.")) return;
     setBusy(true);
     setError(null);
     setSuccess(null);
@@ -136,14 +135,13 @@ export default function TakeOverPanel({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validar tamaÃƒÂ±o en cliente antes de subir
     const mediaType = detectMediaType(file.type);
     const limitMB = SIZE_LIMITS_MB[mediaType];
     const sizeMB = file.size / 1024 / 1024;
 
     if (sizeMB > limitMB) {
       setError(
-        `Archivo muy grande (${sizeMB.toFixed(2)} MB). LÃƒÂ­mite para ${mediaType}: ${limitMB} MB`
+        `Archivo muy grande (${sizeMB.toFixed(2)} MB). Límite para ${mediaType}: ${limitMB} MB`
       );
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
@@ -154,32 +152,32 @@ export default function TakeOverPanel({
     setUploading(true);
 
     try {
-        // 1) Pedir URL firmada al backend (request chiquito, sin el archivo)
-        const signRes = await fetch("/api/admin/bot/upload-media/sign", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename: file.name }),
-        });
-        const signData = await signRes.json();
-        if (!signRes.ok) throw new Error(signData.error || "No se pudo firmar la subida");
+      // 1) Pedir URL firmada al backend (request chiquito, sin el archivo)
+      const signRes = await fetch("/api/admin/bot/upload-media/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name }),
+      });
+      const signData = await signRes.json();
+      if (!signRes.ok) throw new Error(signData.error || "No se pudo firmar la subida");
 
-        // 2) Subir el archivo DIRECTO a Supabase con la URL firmada
-        const mimeType = file.type || "application/octet-stream";
-        const { error: upErr } = await supabase.storage
-          .from("whatsapp_media")
-          .uploadToSignedUrl(signData.path, signData.token, file, {
-            contentType: mimeType,
-          });
-        if (upErr) throw new Error(`Error subiendo: ${upErr.message}`);
-
-        setMedia({
-          mediaUrl: signData.publicUrl,
-          mediaType,
-          filename: file.name,
-          mimeType,
-          size: file.size,
+      // 2) Subir el archivo DIRECTO a Supabase con la URL firmada
+      const mimeType = file.type || "application/octet-stream";
+      const { error: upErr } = await supabase.storage
+        .from("whatsapp_media")
+        .uploadToSignedUrl(signData.path, signData.token, file, {
+          contentType: mimeType,
         });
-      setSuccess(`Ã¢Å“â€¦ Archivo subido (${(file.size / 1024 / 1024).toFixed(2)} MB). Agregue caption o envÃƒÂ­e.`);
+      if (upErr) throw new Error(`Error subiendo: ${upErr.message}`);
+
+      setMedia({
+        mediaUrl: signData.publicUrl,
+        mediaType,
+        filename: file.name,
+        mimeType,
+        size: file.size,
+      });
+      setSuccess(`✅ Archivo subido (${(file.size / 1024 / 1024).toFixed(2)} MB). Agregue caption o envíe.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -226,7 +224,7 @@ export default function TakeOverPanel({
       setText("");
       setMedia(null);
       setTtlSeconds(60 * 60 * 23);
-      setSuccess(media ? "Ã°Å¸â€œÅ½ Archivo enviado al cliente." : "Mensaje enviado al cliente.");
+      setSuccess(media ? "📎 Archivo enviado al cliente." : "Mensaje enviado al cliente.");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -236,48 +234,50 @@ export default function TakeOverPanel({
   }
 
   function getMediaIcon(t: MediaType): string {
-    if (t === "image") return "Ã°Å¸â€œÂ¸";
-    if (t === "video") return "Ã°Å¸Å½Â¥";
-    if (t === "audio") return "Ã°Å¸Å½â„¢Ã¯Â¸Â";
-    return "Ã°Å¸â€œÅ½";
+    if (t === "image") return "🖼️";
+    if (t === "video") return "🎥";
+    if (t === "audio") return "🎙️";
+    return "📄";
   }
 
-  // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-  // RENDER: Bot activo (no pausado)
-  // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+  // ── RENDER: Bot activo (no pausado) ──
   if (!paused) {
     return (
-      <div className="bg-white border border-slate-200 rounded-md p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase text-slate-500 tracking-wide font-semibold">
-              Control de la conversaciÃƒÂ³n
-            </p>
-            <p className="text-sm text-slate-700">Ã°Å¸Å¸Â¢ Bot atendiendo automÃƒÂ¡ticamente</p>
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
+            <div>
+              <p className="text-xs uppercase text-slate-500 tracking-wide font-semibold">
+                Control de la conversación
+              </p>
+              <p className="text-sm text-slate-700 font-medium">
+                🤖 Bot atendiendo automáticamente
+              </p>
+            </div>
           </div>
           <button
             onClick={handleTakeOver}
             disabled={busy}
-            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 text-white text-sm font-bold rounded shadow"
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 text-white text-sm font-bold rounded-lg shadow transition"
           >
-            {busy ? "..." : "Ã¢Å“â€¹ Tomar control"}
+            {busy ? "..." : "✋ Tomar control"}
           </button>
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
-        {success && <p className="text-xs text-emerald-600">{success}</p>}
+        {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+        {success && <p className="text-xs text-emerald-600 mt-2">{success}</p>}
       </div>
     );
   }
 
-  // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-  // RENDER: Bot pausado (control humano)
-  // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+  // ── RENDER: Bot pausado (control humano) ──
   return (
-    <div className="bg-amber-50 border-2 border-amber-400 rounded-md p-4 space-y-3">
+    <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 space-y-3 shadow-sm">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <p className="text-xs uppercase text-amber-700 tracking-wide font-bold">
-            Ã°Å¸Å¸Â¡ BOT PAUSADO Ã¢â‚¬â€ Control humano activo
+          <p className="text-xs uppercase text-amber-700 tracking-wide font-bold flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse inline-block" />
+            🟡 Tú tienes el control · Bot en pausa
           </p>
           {state && (
             <p className="text-xs text-amber-900 mt-1">
@@ -291,27 +291,27 @@ export default function TakeOverPanel({
             </p>
           )}
           <p className="text-xs text-amber-700 mt-0.5">
-            Bot regresa automÃƒÂ¡ticamente en <strong>{formatTTL(ttlSeconds)}</strong>
+            El bot regresa automáticamente en <strong>{formatTTL(ttlSeconds)}</strong>
           </p>
         </div>
         <button
           onClick={handleRelease}
           disabled={busy}
-          className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 disabled:bg-slate-300 text-white text-xs font-bold rounded shadow"
+          className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 disabled:bg-slate-300 text-white text-xs font-bold rounded-lg shadow transition"
         >
-          Ã°Å¸â€â€œ Liberar control
+          🔓 Liberar control
         </button>
       </div>
 
-      {/* Form de envÃƒÂ­o */}
-      <div className="bg-white border border-amber-300 rounded p-3 space-y-2">
+      {/* Form de envío */}
+      <div className="bg-white border border-amber-300 rounded-lg p-3 space-y-2">
         <p className="text-xs text-slate-600 font-medium">
-          Responder como asesor (se envÃƒÂ­a con el nÃƒÂºmero del bot):
+          Responder como asesor (se envía con el número del bot):
         </p>
 
         {/* Media preview */}
         {media && (
-          <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded p-2">
+          <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               {media.mediaType === "image" ? (
                 <img
@@ -327,7 +327,7 @@ export default function TakeOverPanel({
                   {media.filename}
                 </span>
                 <span className="text-xs text-slate-500">
-                  {media.mediaType.toUpperCase()} Ã‚Â· {(media.size / 1024).toFixed(0)} KB
+                  {media.mediaType.toUpperCase()} · {(media.size / 1024).toFixed(0)} KB
                 </span>
               </div>
             </div>
@@ -337,7 +337,7 @@ export default function TakeOverPanel({
               className="text-red-500 hover:text-red-700 text-lg font-bold w-6 h-6 flex items-center justify-center"
               title="Quitar archivo"
             >
-              Ãƒâ€”
+              ✕
             </button>
           </div>
         )}
@@ -348,7 +348,7 @@ export default function TakeOverPanel({
           placeholder={media ? "Caption opcional para el archivo..." : "Escribe tu mensaje al cliente..."}
           rows={3}
           disabled={busy}
-          className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+          className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
               e.preventDefault();
@@ -371,29 +371,25 @@ export default function TakeOverPanel({
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={busy || uploading}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 disabled:bg-slate-50 disabled:text-slate-300 border border-slate-300 text-slate-700 text-xs font-medium rounded flex items-center gap-1"
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 disabled:bg-slate-50 disabled:text-slate-300 border border-slate-300 text-slate-700 text-xs font-medium rounded-lg flex items-center gap-1 transition"
               title="Adjuntar imagen, PDF, video o audio"
             >
-              {uploading ? (
-                <>Ã¢ÂÂ³ Subiendo...</>
-              ) : (
-                <>Ã°Å¸â€œÅ½ Adjuntar</>
-              )}
+              {uploading ? <>⏳ Subiendo...</> : <>📎 Adjuntar</>}
             </button>
             <span className="text-xs text-slate-400 hidden sm:inline">
-              IMG 5MB Ã‚Â· DOC 100MB Ã‚Â· Video/Audio 16MB
+              IMG 5MB · DOC 100MB · Video/Audio 16MB
             </span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-400">
-              {text.length}/4000 Ã‚Â· Ctrl+Enter
+              {text.length}/4000 · Ctrl+Enter
             </span>
             <button
               onClick={handleSend}
               disabled={busy || uploading || (!text.trim() && !media)}
-              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-sm font-bold rounded shadow"
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-sm font-bold rounded-lg shadow transition"
             >
-              {busy ? "Enviando..." : media ? "Ã°Å¸â€œÂ¤ Enviar archivo" : "Ã°Å¸â€œÂ¤ Enviar"}
+              {busy ? "Enviando..." : media ? "📤 Enviar archivo" : "📤 Enviar"}
             </button>
           </div>
         </div>

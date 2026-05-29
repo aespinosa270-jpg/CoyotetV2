@@ -1,9 +1,7 @@
 /**
- * Detalle de una conversaciÃ³n especÃ­fica.
+ * Detalle de una conversación específica (rediseño CRM pro).
  *
- * Layout de 2 columnas:
- *   IZQUIERDA: perfil + memoria episÃ³dica + objeciones + tÃ¡cticas
- *   DERECHA:   resumen semÃ¡ntico + timeline de mensajes
+ * Layout: header con estado + sidebar de perfil + chat estilo inbox.
  */
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -41,30 +39,41 @@ export default async function ConversacionDetallePage({ params }: Props) {
   const { perfil, historial, resumen, memoria, pedidos, topObjeciones } =
     detalle;
 
+  const inicial = (perfil.nombre || "?").charAt(0).toUpperCase();
+
   return (
-    <div className="space-y-4">
-      <header className="flex justify-between items-start gap-4">
-        <div>
-          <Link
-            href="/crm/admin/bot/conversaciones"
-            className="text-xs text-blue-600 hover:underline"
-          >
-            â† Volver a conversaciones
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-900 mt-1">
-            {perfil.nombre || "(sin nombre)"}
-          </h1>
-          <p className="text-sm text-slate-500">
-            <code>{perfil.telefono}</code> Â· {perfil.segmento || "prospecto"} Â·{" "}
-            {perfil.totalCompras} compra{perfil.totalCompras !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="pt-1">
+    <div className="max-w-[1400px] mx-auto space-y-4">
+      {/* ── Header ── */}
+      <div className="bg-white border border-slate-200 rounded-xl px-5 py-4 shadow-sm">
+        <Link
+          href="/crm/admin/bot/conversaciones"
+          className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
+        >
+          ← Volver a conversaciones
+        </Link>
+        <div className="flex items-center justify-between gap-4 mt-2">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow">
+              {inicial}
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900">
+                {perfil.nombre || "(sin nombre)"}
+              </h1>
+              <p className="text-sm text-slate-500">
+                <code className="text-slate-600">{perfil.telefono}</code>
+                <span className="mx-1.5 text-slate-300">·</span>
+                <span className="capitalize">{perfil.segmento || "prospecto"}</span>
+                <span className="mx-1.5 text-slate-300">·</span>
+                {perfil.totalCompras} compra{perfil.totalCompras !== 1 ? "s" : ""}
+              </p>
+            </div>
+          </div>
           <LlamarButton phone={phone} variant="primary" size="md" label="Llamar ahora" />
         </div>
-      </header>
+      </div>
 
-      {/* FEATURE 3: Panel de control humano */}
+      {/* ── Panel de control humano ── */}
       <TakeOverPanel
         phone={phone}
         initialPaused={paused}
@@ -73,7 +82,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* â”€â”€ Columna izquierda: perfil + memoria + objeciones â”€â”€ */}
+        {/* ── Sidebar: perfil ── */}
         <aside className="space-y-4 lg:col-span-1">
           <Section title="Perfil">
             <DL label="Nombre" value={perfil.nombre} />
@@ -83,19 +92,13 @@ export default async function ConversacionDetallePage({ params }: Props) {
               label="Monto acumulado"
               value={`$${(perfil.montoAcumulado ?? 0).toLocaleString("es-MX")}`}
             />
-            <DL
-              label="Primer contacto"
-              value={fmt(perfil.primerContacto)}
-            />
-            <DL label="Ãšltimo contacto" value={fmt(perfil.ultimoContacto)} />
+            <DL label="Primer contacto" value={fmt(perfil.primerContacto)} />
+            <DL label="Último contacto" value={fmt(perfil.ultimoContacto)} />
             {perfil.direccionEnvio && (
-              <DL label="DirecciÃ³n envÃ­o" value={perfil.direccionEnvio} />
+              <DL label="Dirección envío" value={perfil.direccionEnvio} />
             )}
             {(perfil as any).codigoPostalEnvio && (
-              <DL
-                label="CP envÃ­o"
-                value={(perfil as any).codigoPostalEnvio}
-              />
+              <DL label="CP envío" value={(perfil as any).codigoPostalEnvio} />
             )}
             {perfil.cpFiscal && <DL label="CP fiscal" value={perfil.cpFiscal} />}
           </Section>
@@ -105,9 +108,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
               label="Temperatura compra"
               value={perfil.temperaturaCompra ?? 30}
               max={100}
-              color={
-                (perfil.temperaturaCompra ?? 0) >= 70 ? "red" : "orange"
-              }
+              color={(perfil.temperaturaCompra ?? 0) >= 70 ? "red" : "orange"}
             />
             <DLBar
               label="Nivel confianza"
@@ -115,7 +116,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
               max={100}
               color={(perfil.nivelConfianza ?? 0) >= 60 ? "green" : "slate"}
             />
-            <DL label="TÃ¡ctica activa" value={perfil.tacticaActual ?? "â€”"} />
+            <DL label="Táctica activa" value={perfil.tacticaActual ?? "—"} />
           </Section>
 
           {topObjeciones.length > 0 && (
@@ -135,7 +136,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
           )}
 
           {memoria && memoria.hechos && memoria.hechos.length > 0 && (
-            <Section title="Memoria episÃ³dica">
+            <Section title="Memoria episódica">
               <p className="text-xs text-slate-400 mb-2">
                 Hechos que el bot recuerda entre conversaciones
               </p>
@@ -159,7 +160,7 @@ export default async function ConversacionDetallePage({ params }: Props) {
           {pedidos.length > 0 && (
             <Section title={`Pedidos (${pedidos.length})`}>
               <ul className="space-y-2 text-xs">
-                {pedidos.slice(0, 5).map((p: any, i) => (
+                {pedidos.slice(0, 5).map((p: any, i: number) => (
                   <li
                     key={i}
                     className="border border-slate-100 rounded p-2 text-slate-700"
@@ -180,35 +181,45 @@ export default async function ConversacionDetallePage({ params }: Props) {
           )}
         </aside>
 
-        {/* â”€â”€ Columna derecha: resumen + timeline â”€â”€ */}
+        {/* ── Chat principal ── */}
         <main className="space-y-4 lg:col-span-2">
           {resumen && (
-            <Section title="Resumen semÃ¡ntico de la conversaciÃ³n">
+            <Section title="Resumen de la conversación">
               <p className="text-sm text-slate-700 whitespace-pre-line">
                 {resumen}
               </p>
             </Section>
           )}
 
-          <Section title={`Historial (${historial.length} mensajes)`}>
+          <section className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-700">
+                💬 Conversación
+              </h2>
+              <span className="text-xs text-slate-400">
+                {historial.length} mensaje{historial.length !== 1 ? "s" : ""}
+              </span>
+            </div>
             {historial.length === 0 ? (
-              <p className="text-sm text-slate-500">Sin mensajes guardados.</p>
+              <p className="text-sm text-slate-500 p-6 text-center">
+                Sin mensajes guardados.
+              </p>
             ) : (
-              <div className="space-y-2 max-h-[700px] overflow-y-auto">
+              <div className="space-y-3 max-h-[640px] overflow-y-auto p-4 bg-slate-50/50">
                 {historial.map((m, i) => (
                   <MessageBubble key={i} mensaje={m} mediaList={mediaList} />
                 ))}
                 <OrphanMediaBlock historial={historial} mediaList={mediaList} />
               </div>
             )}
-          </Section>
+          </section>
         </main>
       </div>
     </div>
   );
 }
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Componentes ───
 
 function Section({
   title,
@@ -218,7 +229,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-white border border-slate-200 rounded-md p-4">
+    <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
       <h2 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
         {title}
       </h2>
@@ -229,10 +240,10 @@ function Section({
 
 function DL({ label, value }: { label: string; value?: string }) {
   return (
-    <div className="flex justify-between py-1 border-b border-slate-100 last:border-0">
+    <div className="flex justify-between py-1.5 border-b border-slate-100 last:border-0">
       <span className="text-xs text-slate-500">{label}</span>
-      <span className="text-xs text-slate-900 text-right max-w-[60%] truncate">
-        {value || "â€”"}
+      <span className="text-xs text-slate-900 text-right max-w-[60%] truncate font-medium">
+        {value || "—"}
       </span>
     </div>
   );
@@ -258,16 +269,16 @@ function DLBar({
   }[color];
 
   return (
-    <div className="py-1">
+    <div className="py-1.5">
       <div className="flex justify-between text-xs mb-1">
         <span className="text-slate-500">{label}</span>
         <span className="text-slate-700 font-medium">
           {value}/{max}
         </span>
       </div>
-      <div className="h-1.5 bg-slate-100 rounded overflow-hidden">
+      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
         <div
-          className={`h-full ${bgClass} rounded`}
+          className={`h-full ${bgClass} rounded-full transition-all`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -288,13 +299,12 @@ function MessageBubble({
 
   if (isTool) {
     return (
-      <div className="text-xs text-slate-400 bg-slate-50 rounded p-2 font-mono">
-        ðŸ”§ tool: {mensaje.content?.slice(0, 200)}
+      <div className="text-xs text-slate-400 bg-slate-100 rounded p-2 font-mono max-w-[70%] mx-auto">
+        🔧 {mensaje.content?.slice(0, 200)}
       </div>
     );
   }
 
-  // FASE 12-fix #2: buscar media asociada por timestamp (Â±5 seg)
   const media =
     isUser && mensaje.timestamp
       ? mediaList.find((m) => {
@@ -306,33 +316,37 @@ function MessageBubble({
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[85%] rounded-lg px-3 py-2 ${
-          isUser
-            ? "bg-blue-500 text-white"
-            : "bg-slate-100 text-slate-900 border border-slate-200"
-        }`}
-      >
+      <div className={`max-w-[80%] ${isUser ? "items-end" : "items-start"} flex flex-col`}>
         {isAssistant && (
-          <div className="text-xs text-slate-500 mb-0.5">ðŸº El Coyote</div>
-        )}
-        <div className="text-sm whitespace-pre-line">{mensaje.content}</div>
-        {media && (
-          <div className="mt-2">
-            <MediaMessage
-              mediaId={media.nativeId}
-              tipo={media.tipo}
-              caption={media.caption}
-              mimeType={media.mimeType}
-              vision={media.vision}
-              transcripcion={media.transcripcion}
-            />
+          <div className="text-[11px] text-slate-400 mb-1 ml-1 font-medium">
+            🐺 El Coyote
           </div>
         )}
+        <div
+          className={`rounded-2xl px-4 py-2.5 shadow-sm ${
+            isUser
+              ? "bg-blue-600 text-white rounded-br-md"
+              : "bg-white text-slate-900 border border-slate-200 rounded-bl-md"
+          }`}
+        >
+          <div className="text-sm whitespace-pre-line leading-relaxed">
+            {mensaje.content}
+          </div>
+          {media && (
+            <div className="mt-2">
+              <MediaMessage
+                mediaId={media.nativeId}
+                tipo={media.tipo}
+                caption={media.caption}
+                mimeType={media.mimeType}
+                vision={media.vision}
+                transcripcion={media.transcripcion}
+              />
+            </div>
+          )}
+        </div>
         {mensaje.timestamp && (
-          <div
-            className={`text-xs mt-1 ${isUser ? "text-blue-100" : "text-slate-400"}`}
-          >
+          <div className="text-[10px] mt-1 mx-1 text-slate-400">
             {fmt(mensaje.timestamp)}
           </div>
         )}
@@ -342,7 +356,7 @@ function MessageBubble({
 }
 
 function fmt(iso?: string): string {
-  if (!iso || iso === "1970-01-01T00:00:00.000Z") return "â€”";
+  if (!iso || iso === "1970-01-01T00:00:00.000Z") return "—";
   try {
     const d = new Date(iso);
     return d.toLocaleString("es-MX", {
@@ -352,11 +366,11 @@ function fmt(iso?: string): string {
       minute: "2-digit",
     });
   } catch {
-    return "â€”";
+    return "—";
   }
 }
 
-// ─── Bloque para media "huerfana" (sin matcheo con historial) ───
+// ─── Media huérfana (sin matcheo con historial) ───
 function OrphanMediaBlock({
   historial,
   mediaList,
@@ -366,7 +380,6 @@ function OrphanMediaBlock({
 }) {
   if (!mediaList || mediaList.length === 0) return null;
 
-  // Una media es "huerfana" si NO matcheo con ningun mensaje (±5s)
   const matched = new Set<string>();
   historial.forEach((m) => {
     if (m.role !== "user" || !m.timestamp) return;
@@ -383,15 +396,15 @@ function OrphanMediaBlock({
   if (orphans.length === 0) return null;
 
   return (
-    <div className="mt-4 pt-4 border-t-2 border-amber-200">
-      <p className="text-xs uppercase font-bold text-amber-700 mb-2">
-        📎 Media del cliente (sin contexto de mensaje)
+    <div className="mt-4 pt-4 border-t-2 border-dashed border-amber-200">
+      <p className="text-xs uppercase font-bold text-amber-700 mb-2 flex items-center gap-1">
+        📎 Archivos del cliente
       </p>
       <div className="space-y-3">
         {orphans.map((media) => (
           <div key={media.messageId} className="flex justify-end">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 max-w-[85%]">
-              <p className="text-xs text-slate-500 mb-1">
+            <div className="bg-white border border-slate-200 rounded-2xl rounded-br-md px-4 py-2.5 max-w-[80%] shadow-sm">
+              <p className="text-[10px] text-slate-400 mb-1">
                 {new Date(media.timestamp).toLocaleString("es-MX")}
               </p>
               <MediaMessage
