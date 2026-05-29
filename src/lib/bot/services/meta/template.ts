@@ -43,6 +43,8 @@ export interface SendTemplateInput {
   language?: string;
   /** Parámetros del body, en orden. Si la plantilla no tiene variables, vacío. */
   bodyParameters?: TemplateParameter[];
+  /** URL pública de imagen para el HEADER (si la plantilla tiene header tipo IMAGE). */
+  headerImageUrl?: string;
 }
 
 export interface SendTemplateResult {
@@ -91,14 +93,24 @@ export async function sendTemplate(
     },
   };
 
-  // Si hay parámetros para el body, agregar components
+  // Construir components dinámicamente (header image y/o body params)
+  const components: any[] = [];
+  if (input.headerImageUrl) {
+    components.push({
+      type: "header",
+      parameters: [
+        { type: "image", image: { link: input.headerImageUrl } },
+      ],
+    });
+  }
   if (input.bodyParameters && input.bodyParameters.length > 0) {
-    body.template.components = [
-      {
-        type: "body",
-        parameters: input.bodyParameters,
-      },
-    ];
+    components.push({
+      type: "body",
+      parameters: input.bodyParameters,
+    });
+  }
+  if (components.length > 0) {
+    body.template.components = components;
   }
 
   const url = `https://graph.facebook.com/${version}/${phoneId}/messages`;
@@ -182,6 +194,8 @@ export const TEMPLATES = {
   OFERTA_REACTIVACION: {
     name: "oferta_de_reactivacion",
     language: "es",
-    requiresParams: false,
+    requiresParams: true,
+    /** Header tipo IMAGE — requiere URL pública accesible por Meta. */
+    headerImageUrl: "https://www.coyotetextil.com/assets/oferta-reactivacion.jpg",
   },
 } as const;

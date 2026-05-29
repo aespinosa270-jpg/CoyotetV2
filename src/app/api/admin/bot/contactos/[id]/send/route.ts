@@ -45,6 +45,7 @@ export async function POST(
     to: contacto.phone,
     templateName: plantilla.name,
     language: plantilla.language,
+    headerImageUrl: "headerImageUrl" in plantilla ? plantilla.headerImageUrl : undefined,
   });
 
   // Actualizar estado del contacto

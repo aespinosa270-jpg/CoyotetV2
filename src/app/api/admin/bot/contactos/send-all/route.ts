@@ -76,6 +76,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         to: contacto.phone,
         templateName: plantilla.name,
         language: plantilla.language,
+        headerImageUrl: "headerImageUrl" in plantilla ? plantilla.headerImageUrl : undefined,
       });
 
       await prisma.contactoOutbound.update({
