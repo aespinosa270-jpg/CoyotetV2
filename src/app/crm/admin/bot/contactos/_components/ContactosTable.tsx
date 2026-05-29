@@ -27,7 +27,7 @@ export default function ContactosTable({
 }) {
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [plantillaSel, setPlantillaSel] = useState<"BIENVENIDA" | "OFERTA_REACTIVACION">("BIENVENIDA");
+  const [menuAbiertoId, setMenuAbiertoId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"todos" | "pendientes" | "enviados" | "respondieron">("todos");
   const [page, setPage] = useState(0);
@@ -67,14 +67,18 @@ export default function ContactosTable({
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  async function handleEnviar(contactoId: string) {
+  async function handleEnviar(
+    contactoId: string,
+    templateKey: "BIENVENIDA" | "OFERTA_REACTIVACION"
+  ) {
     if (loadingId) return;
+    setMenuAbiertoId(null);
     setLoadingId(contactoId);
     try {
       const res = await fetch(`/api/admin/bot/contactos/${contactoId}/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateKey: plantillaSel }),
+        body: JSON.stringify({ templateKey }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -138,15 +142,7 @@ export default function ContactosTable({
           <option value="enviados">Plantilla enviada</option>
           <option value="respondieron">Respondieron</option>
         </select>
-        <select
-          value={plantillaSel}
-          onChange={(e) => setPlantillaSel(e.target.value as "BIENVENIDA" | "OFERTA_REACTIVACION")}
-          className="px-3 py-2 border border-amber-300 bg-amber-50 rounded text-sm font-medium"
-          title="Plantilla que se enviara al hacer click en Enviar"
-        >
-          <option value="BIENVENIDA">📋 Bienvenida</option>
-          <option value="OFERTA_REACTIVACION">🔥 Oferta reactivación</option>
-        </select>
+
       </div>
 
       {/* Info de resultados */}
@@ -228,13 +224,42 @@ export default function ContactosTable({
                   <td className="px-3 py-2 text-right space-x-1">
                     <LlamarButton phone={c.phone} variant="secondary" size="sm" label="" />
                     {!c.plantillaEnviada && (
-                      <button
-                        onClick={() => handleEnviar(c.id)}
-                        disabled={loadingId === c.id}
-                        className="px-2 py-1 text-xs bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 text-white rounded"
-                      >
-                        {loadingId === c.id ? "..." : "📤 Enviar"}
-                      </button>
+                      <span className="relative inline-block">
+                        <button
+                          onClick={() =>
+                            setMenuAbiertoId(menuAbiertoId === c.id ? null : c.id)
+                          }
+                          disabled={loadingId === c.id}
+                          className="px-2 py-1 text-xs bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 text-white rounded"
+                        >
+                          {loadingId === c.id ? "..." : "📤 Enviar ▾"}
+                        </button>
+                        {menuAbiertoId === c.id && (
+                          <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg w-52 py-1 text-left">
+                            <p className="px-3 py-1.5 text-[11px] uppercase tracking-wide text-slate-400 font-semibold border-b border-slate-100">
+                              ¿Qué plantilla enviar?
+                            </p>
+                            <button
+                              onClick={() => handleEnviar(c.id, "BIENVENIDA")}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                            >
+                              📋 Bienvenida
+                            </button>
+                            <button
+                              onClick={() => handleEnviar(c.id, "OFERTA_REACTIVACION")}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50"
+                            >
+                              🔥 Oferta reactivación
+                            </button>
+                            <button
+                              onClick={() => setMenuAbiertoId(null)}
+                              className="w-full text-left px-3 py-2 text-xs text-slate-400 hover:bg-slate-50 border-t border-slate-100"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        )}
+                      </span>
                     )}
                     <button
                       onClick={() => handleEliminar(c.id)}
