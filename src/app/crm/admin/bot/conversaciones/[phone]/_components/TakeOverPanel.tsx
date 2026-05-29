@@ -1,4 +1,4 @@
-﻿/**
+/**
  * TakeOverPanel — UI para control humano de la conversación.
  *
  * G3 MEDIA: soporta envío de imágenes, documentos, videos y audios.
@@ -11,6 +11,7 @@
  *  5. Cliente recibe en WhatsApp
  */
 "use client";
+import { supabase } from "@/lib/supabase";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
