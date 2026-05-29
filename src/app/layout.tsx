@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/navbar";
@@ -8,21 +8,25 @@ import CookieBanner from "@/components/cookie-banner";
 import { Providers } from "@/components/providers";
 import HideInCRM from "../components/hide-in-crm";
 import { CoyoteWidget } from "@/components/CoyoteWidget";
-
 // Contacto Coyote Textil
 // Llamadas:  55 9602 3567
 // WhatsApp:  55 3131 4617
-
 const inter = Inter({ subsets: ["latin"] });
-
 export const metadata: Metadata = {
   title: "Coyote Textil | Infraestructura Nacional",
   description: "Proveeduría estratégica de tejidos de alto rendimiento.",
 };
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        {/* Aplica el tema guardado ANTES del render para evitar flash */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('coyote-theme');if(t==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <Providers>
           <HideInCRM>
@@ -30,11 +34,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Navbar />
             </header>
           </HideInCRM>
-
           <main className="w-full">
             {children}
           </main>
-
           <HideInCRM>
             <Footer />
             <CookieBanner />
@@ -46,4 +48,3 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
-
