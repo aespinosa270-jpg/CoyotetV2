@@ -27,6 +27,7 @@ export default function ContactosTable({
 }) {
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [plantillaSel, setPlantillaSel] = useState<"BIENVENIDA" | "OFERTA_REACTIVACION">("BIENVENIDA");
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"todos" | "pendientes" | "enviados" | "respondieron">("todos");
   const [page, setPage] = useState(0);
@@ -72,6 +73,8 @@ export default function ContactosTable({
     try {
       const res = await fetch(`/api/admin/bot/contactos/${contactoId}/send`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateKey: plantillaSel }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -134,6 +137,15 @@ export default function ContactosTable({
           <option value="pendientes">Pendientes</option>
           <option value="enviados">Plantilla enviada</option>
           <option value="respondieron">Respondieron</option>
+        </select>
+        <select
+          value={plantillaSel}
+          onChange={(e) => setPlantillaSel(e.target.value as "BIENVENIDA" | "OFERTA_REACTIVACION")}
+          className="px-3 py-2 border border-amber-300 bg-amber-50 rounded text-sm font-medium"
+          title="Plantilla que se enviara al hacer click en Enviar"
+        >
+          <option value="BIENVENIDA">📋 Bienvenida</option>
+          <option value="OFERTA_REACTIVACION">🔥 Oferta reactivación</option>
         </select>
       </div>
 
