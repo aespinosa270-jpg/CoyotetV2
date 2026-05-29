@@ -277,6 +277,8 @@ export interface MensajeHistorial {
     result?: unknown;
   };
   timestamp: string; // ISO
+  waId?: string;
+  status?: "sent" | "delivered" | "read" | "failed";
 }
 
 // ── Overlay de catálogo (overrides en Redis) ───────────────────────

@@ -1,4 +1,4 @@
-﻿import { getEnv } from "../../config/env";
+import { getEnv } from "../../config/env";
 import { getLogger } from "../../observability/logger";
 
 const log = getLogger({ module: "meta-send" });
@@ -144,4 +144,126 @@ export async function sendMedia(input: SendMediaInput, retries = 2): Promise<boo
   }
 
   return false;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// VARIANTES "WithId": devuelven el wamid (ID de Meta) para tracking de
+// estado (enviado/entregado/leido). Usadas por el CRM para palomitas.
+// Las funciones sendText/sendMedia originales quedan intactas.
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Igual que sendText pero devuelve el wamid (data.messages[0].id) o null.
+ */
+export async function sendTextWithId(
+  to: string,
+  text: string,
+  retries = 2
+): Promise<string | null> {
+  const env = getEnv();
+  const token = env.WHATSAPP_TOKEN;
+  const phoneId = env.WHATSAPP_PHONE_NUMBER_ID;
+
+  let cleanTo = to.replace(/\D/g, "");
+  if (cleanTo.startsWith("521") && cleanTo.length === 13) {
+    cleanTo = cleanTo.replace(/^521/, "52");
+  }
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const url = `https://graph.facebook.com/v19.0/${phoneId}/messages`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: cleanTo,
+          type: "text",
+          text: { body: text },
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        const wamid = data?.messages?.[0]?.id ?? null;
+        log.info({ to: cleanTo, wamid }, "✅ Texto enviado (WithId)");
+        return wamid;
+      }
+      log.error({ data, attempt: attempt + 1 }, "❌ Error Meta API (WithId texto)");
+    } catch (error) {
+      log.error({ err: error, attempt: attempt + 1 }, "⚠️ Excepción red (WithId texto)");
+    }
+    if (attempt < retries) {
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+  return null;
+}
+
+/**
+ * Igual que sendMedia pero devuelve el wamid o null.
+ */
+export async function sendMediaWithId(
+  input: SendMediaInput,
+  retries = 2
+): Promise<string | null> {
+  const env = getEnv();
+  const token = env.WHATSAPP_TOKEN;
+  const phoneId = env.WHATSAPP_PHONE_NUMBER_ID;
+
+  let cleanTo = input.to.replace(/\D/g, "");
+  if (cleanTo.startsWith("521") && cleanTo.length === 13) {
+    cleanTo = cleanTo.replace(/^521/, "52");
+  }
+
+  const mediaPayload: any = { link: input.mediaUrl };
+  if (
+    input.caption &&
+    (input.mediaType === "image" ||
+      input.mediaType === "video" ||
+      input.mediaType === "document")
+  ) {
+    mediaPayload.caption = input.caption;
+  }
+  if (input.filename && input.mediaType === "document") {
+    mediaPayload.filename = input.filename;
+  }
+
+  const payload = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: cleanTo,
+    type: input.mediaType,
+    [input.mediaType]: mediaPayload,
+  };
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const url = `https://graph.facebook.com/v19.0/${phoneId}/messages`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        const wamid = data?.messages?.[0]?.id ?? null;
+        log.info({ to: cleanTo, wamid, mediaType: input.mediaType }, "✅ Media enviado (WithId)");
+        return wamid;
+      }
+      log.error({ data, attempt: attempt + 1 }, "❌ Error Meta API (WithId media)");
+    } catch (error) {
+      log.error({ err: error, attempt: attempt + 1 }, "⚠️ Excepción red (WithId media)");
+    }
+    if (attempt < retries) {
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+  return null;
 }

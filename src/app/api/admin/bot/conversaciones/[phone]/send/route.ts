@@ -1,4 +1,4 @@
-﻿/**
+/**
  * POST /api/admin/bot/conversaciones/[phone]/send
  *
  * El admin envía mensaje (texto O media) al cliente desde el CRM.
@@ -17,7 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "../../../_lib/guard";
 import { isBotPaused, renewPause } from "@/lib/bot/repositories/pause-repo";
-import { sendText, sendMedia, type MediaType } from "@/lib/bot/services/meta/send";
+import { sendText, sendMedia, sendTextWithId, sendMediaWithId, type MediaType } from "@/lib/bot/services/meta/send";
 import { appendMensaje } from "@/lib/bot/repositories/conversation-repo";
 import { getLogger } from "@/lib/bot/observability/logger";
 
@@ -107,16 +107,18 @@ export async function POST(
     // ── CANAL WHATSAPP ──
     let sent = false;
     let historyContent = "";
+    let waId: string | null = null;
 
     if (mediaUrl && mediaType) {
       // Envío de media
-      sent = await sendMedia({
+      waId = await sendMediaWithId({
         to: phone,
         mediaUrl,
         mediaType,
         caption: caption || text || undefined,
         filename: filename || undefined,
       });
+      sent = !!waId;
       const icon =
         mediaType === "image" ? "📸" :
         mediaType === "video" ? "🎥" :
@@ -124,7 +126,8 @@ export async function POST(
       historyContent = `${icon} ${mediaType.toUpperCase()}: ${filename || "archivo"}${caption ? `\n${caption}` : text ? `\n${text}` : ""}`;
     } else {
       // Envío de texto plano
-      sent = await sendText(phone, text);
+      waId = await sendTextWithId(phone, text);
+      sent = !!waId;
       historyContent = text;
     }
 
@@ -144,6 +147,7 @@ export async function POST(
         role: "assistant",
         content: historyContent,
         timestamp: new Date().toISOString(),
+        ...(waId && { waId, status: "sent" }),
         ...(mediaUrl && { mediaUrl, mediaType }),
       } as any);
     } catch (err) {
