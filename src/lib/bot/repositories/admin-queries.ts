@@ -200,7 +200,7 @@ export async function listConversaciones(
           tipoNegocio: (p as any).tipoNegocio,
           volumenTipicoKg: (p as any).volumenTipicoKg,
           sinResponder: u?.role === "user",
-          ultimoMensajeTexto: u?.texto ? u.texto.substring(0, 60) : undefined,
+          ultimoMensajeTexto: u?.texto ? Array.from(u.texto).slice(0, 60).join("") : undefined,
           ultimoMensajeRole: u?.role,
           ultimoMensajeAt: u?.ts || p.ultimoContacto,
         };
