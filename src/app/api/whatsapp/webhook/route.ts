@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { Redis } from '@upstash/redis';
 import Stripe from 'stripe';
@@ -6,6 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { determineRouting } from "@/lib/crm-router";
 import { createTrace } from "@/lib/tracer";
 import { shouldUseBotV2 } from "@/lib/bot/config/feature-flags";
+import { isModoManual } from "@/lib/bot/config/feature-flags";
+import { appendMensaje } from "@/lib/bot/repositories/conversation-repo";
+import { appendMedia, type MediaTipo } from "@/lib/bot/repositories/media-repo";
 import { handleWhatsAppWebhook as handleWhatsAppWebhookV2 } from "@/lib/bot/transports/whatsapp/inbound";
 
 // ==========================================
@@ -2535,6 +2538,46 @@ export async function POST(req: Request) {
         }
 
         // EL CADENERO MÃGICO ðŸº
+        // MODO MANUAL: si esta activo, guardar el mensaje entrante y NO
+        // disparar respuesta automatica (ni V2 ni V1). El asesor responde
+        // desde el inbox. try/catch para que el webhook nunca truene.
+        try {
+          if (await isModoManual()) {
+            const m0 = mensajes[0];
+            const tipo = m0?.type;
+            if (tipo === "text" && m0?.text?.body) {
+              await appendMensaje(phone, {
+                role: "user",
+                content: m0.text.body,
+                timestamp: new Date().toISOString(),
+              } as any);
+            } else if (["image", "audio", "video", "document"].includes(tipo)) {
+              const media = m0[tipo];
+              if (media?.id) {
+                await appendMedia(phone, {
+                  messageId: m0.id,
+                  nativeId: media.id,
+                  tipo: tipo as MediaTipo,
+                  mimeType: media.mime_type,
+                  caption: media.caption ?? "",
+                  timestamp: new Date().toISOString(),
+                });
+              }
+              if (media?.caption) {
+                await appendMensaje(phone, {
+                  role: "user",
+                  content: media.caption,
+                  timestamp: new Date().toISOString(),
+                } as any);
+              }
+            }
+            console.log(`[MODO MANUAL] Mensaje de ${phone} guardado SIN responder.`);
+            return NextResponse.json({ ok: true }, { status: 200 });
+          }
+        } catch (manualErr) {
+          console.error("[MODO MANUAL] Error en guard (continuo flujo normal):", manualErr);
+        }
+
         if (shouldUseBotV2(phone)) {
           console.log(`ðŸš€ [ROUTER] Redirigiendo ${phone} al Bot V2 (Nueva Arquitectura)`);
           await handleWhatsAppWebhookV2(body);
