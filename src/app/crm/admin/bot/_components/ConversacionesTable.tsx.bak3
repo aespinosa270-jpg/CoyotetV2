@@ -6,26 +6,9 @@ import {
   Search, Send, Paperclip, Phone, MoreVertical, Hand,
   Unlock, Bot, Flame, Snowflake, Gem, DollarSign, Eye,
   Check, CheckCheck, ArrowLeft, MessageSquare, Sparkles,
-  TrendingUp, ShieldCheck, Package, X, FileText, Loader2,
+  TrendingUp, ShieldCheck, Package, X,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import type { ConversacionResumen } from "@/lib/bot/repositories/admin-queries";
-
-type MediaType = "image" | "document" | "video" | "audio";
-interface UploadedMedia {
-  mediaUrl: string;
-  mediaType: MediaType;
-  filename: string;
-  mimeType: string;
-  size: number;
-}
-const SIZE_LIMITS_MB: Record<MediaType, number> = { image: 5, document: 100, video: 16, audio: 16 };
-function detectMediaType(mime: string): MediaType {
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  if (mime.startsWith("audio/")) return "audio";
-  return "document";
-}
 
 /* ============================================================
    Tipos del payload del endpoint /detail (espejo del repo)
@@ -305,9 +288,6 @@ function ChatPane({ phone, resumen, onBack }: {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [taking, setTaking] = useState(false);
-  const [media, setMedia] = useState<UploadedMedia | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -357,46 +337,9 @@ function ChatPane({ phone, resumen, onBack }: {
     }
   }
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const mediaType = detectMediaType(file.type);
-    const limitMB = SIZE_LIMITS_MB[mediaType];
-    const sizeMB = file.size / 1024 / 1024;
-    if (sizeMB > limitMB) {
-      setErr(`Archivo muy grande (${sizeMB.toFixed(1)} MB). Limite ${mediaType}: ${limitMB} MB`);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-    setErr(null);
-    setUploading(true);
-    try {
-      const signRes = await fetch("/api/admin/bot/upload-media/sign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name }),
-      });
-      const signData = await signRes.json();
-      if (!signRes.ok) throw new Error(signData.error || "No se pudo firmar la subida");
-      const mimeType = file.type || "application/octet-stream";
-      const { error: upErr } = await supabase.storage
-        .from("whatsapp_media")
-        .uploadToSignedUrl(signData.path, signData.token, file, { contentType: mimeType });
-      if (upErr) throw new Error(`Error subiendo: ${upErr.message}`);
-      setMedia({ mediaUrl: signData.publicUrl, mediaType, filename: file.name, mimeType, size: file.size });
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }
-
-  function removeMedia() { setMedia(null); }
-
   async function send() {
     const t = text.trim();
-    if ((!t && !media) || sending || uploading) return;
+    if (!t || sending) return;
     setSending(true);
     setErr(null);
 
@@ -407,32 +350,17 @@ function ChatPane({ phone, resumen, onBack }: {
     }
 
     // Optimistic UI
-    const optimisticContent = media
-      ? `${media.mediaType === "image" ? "📸" : media.mediaType === "video" ? "🎥" : media.mediaType === "audio" ? "🎙️" : "📎"} ${media.filename}${t ? `\n${t}` : ""}`
-      : t;
     const optimistic: MensajeHistorial = {
-      role: "assistant", content: optimisticContent, timestamp: new Date().toISOString(), status: "sent",
+      role: "assistant", content: t, timestamp: new Date().toISOString(), status: "sent",
     };
     setData((d) => d ? { ...d, historial: [...d.historial, optimistic] } : d);
-
-    // Construir body: media usa {mediaUrl,...}, texto usa {text}
-    const body: any = {};
-    if (media) {
-      body.mediaUrl = media.mediaUrl;
-      body.mediaType = media.mediaType;
-      body.filename = media.filename;
-      if (t) body.caption = t;
-    } else {
-      body.text = t;
-    }
     setText("");
-    setMedia(null);
 
     try {
       const res = await fetch(`/api/admin/bot/conversaciones/${encodeURIComponent(phone)}/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ text: t }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Error al enviar");
       await load();
@@ -511,55 +439,20 @@ function ChatPane({ phone, resumen, onBack }: {
               Control tomado por <b className="text-zinc-400">{data.pauseState.pausedBy}</b> · el bot regresa en <b className="text-zinc-400">{fmtTTL(data.ttlSeconds)}</b>
             </div>
           )}
-          {/* preview de media adjunta */}
-          {media && (
-            <div className="flex items-center gap-3 mb-2.5 p-2 rounded-xl bg-zinc-900 border border-zinc-800">
-              {media.mediaType === "image" ? (
-                <img src={media.mediaUrl} alt={media.filename} className="w-12 h-12 rounded-lg object-cover border border-zinc-700" />
-              ) : (
-                <div className="w-12 h-12 rounded-lg bg-zinc-800 grid place-items-center text-zinc-400">
-                  <FileText className="w-5 h-5" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-zinc-200 truncate">{media.filename}</p>
-                <p className="text-[10px] text-zinc-500 uppercase">{media.mediaType} · {(media.size / 1024).toFixed(0)} KB</p>
-              </div>
-              <button onClick={removeMedia} disabled={sending} className="w-7 h-7 rounded-lg grid place-items-center text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition" title="Quitar">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain"
-            onChange={handleFileSelect}
-            disabled={sending || uploading}
-            className="hidden"
-          />
           <div className="flex items-end gap-2 bg-zinc-900 border border-zinc-800 rounded-2xl pl-3 pr-2 py-2 focus-within:border-amber-400/50 focus-within:ring-2 focus-within:ring-amber-400/10 transition">
             <textarea
               value={text}
               onChange={(e) => { setText(e.target.value); e.currentTarget.style.height = "auto"; e.currentTarget.style.height = Math.min(e.currentTarget.scrollHeight, 120) + "px"; }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               rows={1}
-              placeholder={media ? "Caption opcional para el archivo..." : "Escribe un mensaje..."}
+              placeholder="Escribe un mensaje..."
               className="flex-1 bg-transparent resize-none text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none py-1.5 max-h-[120px]"
             />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={sending || uploading}
-              title="Adjuntar imagen, PDF, video o audio"
-              className="w-9 h-9 rounded-lg grid place-items-center text-zinc-500 hover:text-amber-400 hover:bg-zinc-800 transition disabled:opacity-40"
-            >
-              {uploading ? <Loader2 className="w-[18px] h-[18px] animate-spin" /> : <Paperclip className="w-[18px] h-[18px]" />}
-            </button>
-            <button onClick={send} disabled={sending || uploading || (!text.trim() && !media)} className="w-10 h-10 rounded-xl bg-amber-400 hover:bg-amber-300 disabled:bg-zinc-700 disabled:text-zinc-500 text-black grid place-items-center transition shadow-[0_0_18px_rgba(251,191,36,0.25)] disabled:shadow-none active:scale-95">
+            <button title="Adjuntar (usa el panel inferior)" className="w-9 h-9 rounded-lg grid place-items-center text-zinc-500 hover:text-zinc-300 transition"><Paperclip className="w-[18px] h-[18px]" /></button>
+            <button onClick={send} disabled={sending || !text.trim()} className="w-10 h-10 rounded-xl bg-amber-400 hover:bg-amber-300 disabled:bg-zinc-700 disabled:text-zinc-500 text-black grid place-items-center transition shadow-[0_0_18px_rgba(251,191,36,0.25)] disabled:shadow-none active:scale-95">
               <Send className="w-[18px] h-[18px]" />
             </button>
           </div>
-          {uploading && <p className="text-[11px] text-amber-400/80 mt-2 px-1 flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" />Subiendo archivo...</p>}
           {err && <p className="text-[11px] text-red-400 mt-2 px-1 flex items-center gap-1"><X className="w-3 h-3" />{err}</p>}
         </div>
       </main>
