@@ -9,7 +9,6 @@ import { shouldUseBotV2 } from "@/lib/bot/config/feature-flags";
 import { isModoManual } from "@/lib/bot/config/feature-flags";
 import { appendMensaje } from "@/lib/bot/repositories/conversation-repo";
 import { appendMedia, type MediaTipo } from "@/lib/bot/repositories/media-repo";
-import { findOrCreate as findOrCreateCliente, update as updateCliente } from "@/lib/bot/repositories/client-repo";
 import { handleWhatsAppWebhook as handleWhatsAppWebhookV2 } from "@/lib/bot/transports/whatsapp/inbound";
 
 // ==========================================
@@ -2539,21 +2538,6 @@ export async function POST(req: Request) {
         }
 
         // EL CADENERO MÃGICO ðŸº
-        // PERFIL SIEMPRE: crear (idempotente) el perfil del cliente para que
-        // TODA conversacion entre a la bandeja, con o sin bot. No destructivo:
-        // findOrCreate solo crea si no existe. Capturamos el nombre del perfil
-        // de WhatsApp si el cliente es nuevo. try/catch: nunca tumba el webhook.
-        try {
-          const contacto = body?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0];
-          const nombreWa = contacto?.profile?.name as string | undefined;
-          const perfilCli = await findOrCreateCliente(phone);
-          if (nombreWa && (!perfilCli.nombre || perfilCli.nombre.trim() === "")) {
-            await updateCliente(phone, { nombre: nombreWa });
-          }
-        } catch (perfilErr) {
-          console.error("[PERFIL SIEMPRE] Error creando perfil (continuo):", perfilErr);
-        }
-
         // MODO MANUAL: si esta activo, guardar el mensaje entrante y NO
         // disparar respuesta automatica (ni V2 ni V1). El asesor responde
         // desde el inbox. try/catch para que el webhook nunca truene.
