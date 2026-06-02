@@ -123,6 +123,14 @@ function topObjsFromVector(vec: VectorObjeciones | undefined): Array<{ label: st
  * Lista resumida de conversaciones, ordenada por ultimoContacto desc.
  * Paginada con offset/limit.
  */
+/** Convierte fecha a ms de forma segura: invalida -> 0 (evita NaN que
+ *  desordena el sort y revuelve el inbox). */
+function safeTime(d: string | undefined | null): number {
+  if (!d) return 0;
+  const t = new Date(d).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
 export async function listConversaciones(
   options: {
     offset?: number;
@@ -214,8 +222,8 @@ export async function listConversaciones(
       .sort((a, b) => {
         // Orden estilo WhatsApp/Telegram: la conversacion con
         // actividad MAS RECIENTE arriba, sin importar quien hablo.
-        const ta = new Date(a.ultimoMensajeAt || a.ultimoContacto).getTime();
-        const tb = new Date(b.ultimoMensajeAt || b.ultimoContacto).getTime();
+        const ta = safeTime(a.ultimoMensajeAt || a.ultimoContacto);
+        const tb = safeTime(b.ultimoMensajeAt || b.ultimoContacto);
         return tb - ta;
       });
 
@@ -251,8 +259,8 @@ export async function listConversaciones(
             } as ConversacionResumen;
           });
         resumenes = [...resumenes, ...fantasmas].sort((a, b) => {
-          const ta = new Date(a.ultimoMensajeAt || a.ultimoContacto).getTime();
-          const tb = new Date(b.ultimoMensajeAt || b.ultimoContacto).getTime();
+          const ta = safeTime(a.ultimoMensajeAt || a.ultimoContacto);
+          const tb = safeTime(b.ultimoMensajeAt || b.ultimoContacto);
           return tb - ta;
         });
       } catch (errPlantilla) {
