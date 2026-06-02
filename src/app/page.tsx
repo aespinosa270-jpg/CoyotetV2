@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useState, useMemo } from "react"
 import Link from "next/link"
@@ -765,12 +765,20 @@ export default function CoyoteMarketplace() {
     filters.gsmRange !== null ||
     filters.sort !== "relevance"
 
-  const categorySections = [
-    { id: "licras",          title: "Licras",          items: byCategory("Deportivo / Licra"),    icon: Package },
-    { id: "telas-escolares", title: "Telas Escolares", items: byCategory("Escolar / Deportivo"),  icon: Package },
-    { id: "telas-invierno",  title: "Línea Invernal",  items: byCategory("Línea Invernal"),       icon: Package },
-    { id: "telas-tecnicas",  title: "Telas Técnicas",  items: byCategory("Telas Técnicas"),       icon: Package },
-  ]
+  // RAILS DINAMICOS: una seccion por cada categoria que exista en products.ts.
+  // El rail principal ya muestra la categoria sublimacion; aqui van TODAS las demas
+  // (Linea Casual, Linea Especial, o cualquier categoria futura). Asi NINGUN
+  // producto de products.ts queda fuera del home.
+  const RAIL_PRINCIPAL = "Deportivas / Sublimación"
+  const todasCategorias = Array.from(new Set(telasPrincipales.map((p: any) => p.category)))
+  const categorySections = todasCategorias
+    .filter((cat) => cat !== RAIL_PRINCIPAL)
+    .map((cat) => ({
+      id: String(cat).toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/(^-|-$)/g, ""),
+      title: String(cat),
+      items: byCategory(String(cat)),
+      icon: Package,
+    }))
 
   function clearFilters() {
     setFilters({ query: "", categories: new Set(), gsmRange: null, sort: "relevance" })
