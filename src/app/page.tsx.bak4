@@ -765,21 +765,17 @@ export default function CoyoteMarketplace() {
     filters.gsmRange !== null ||
     filters.sort !== "relevance"
 
-  // RAILS DINAMICOS: una seccion por categoria de products.ts. NINGUN producto fuera.
-  // Los titulos se muestran limpios: la funcion repara() corrige el mojibake
-  // (TA©cnicas -> Tecnicas) sin tocar products.ts. El filtrado usa la categoria real.
+  // RAILS DINAMICOS: una seccion por cada categoria que exista en products.ts.
+  // El rail principal ya muestra la categoria sublimacion; aqui van TODAS las demas
+  // (Linea Casual, Linea Especial, o cualquier categoria futura). Asi NINGUN
+  // producto de products.ts queda fuera del home.
   const RAIL_PRINCIPAL = "Deportivas / Sublimación"
-  const repara = (s: string) =>
-    String(s)
-      .replace(/Ã©/g, "é").replace(/Ã­/g, "í").replace(/Ã³/g, "ó")
-      .replace(/Ã¡/g, "á").replace(/Ãº/g, "ú").replace(/Ã±/g, "ñ")
-      .replace(/Ã“/g, "Ó").replace(/Ã/g, "Á").replace(/Â/g, "")
   const todasCategorias = Array.from(new Set(telasPrincipales.map((p: any) => p.category)))
   const categorySections = todasCategorias
     .filter((cat) => cat !== RAIL_PRINCIPAL)
     .map((cat) => ({
       id: String(cat).toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/(^-|-$)/g, ""),
-      title: repara(String(cat)),
+      title: String(cat),
       items: byCategory(String(cat)),
       icon: Package,
     }))
