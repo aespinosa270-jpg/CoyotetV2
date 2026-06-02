@@ -19,6 +19,7 @@ import type { Redis } from "@upstash/redis";
 import { getRedis } from "./redis";
 import { prisma } from "@/lib/prisma";
 import { keys } from "./keys";
+import { getMediaList, type MediaMensaje } from "./media-repo";
 import type { ClientePerfil, MensajeHistorial } from "../types/domain";
 import type { MemoriaEpisodica } from "../intelligence/memory/types";
 import { OBJECION_LABELS, type VectorObjeciones } from "../intelligence/objections/types";
@@ -61,6 +62,8 @@ export interface ConversacionDetallada {
   resumen: string | null;
   memoria: MemoriaEpisodica | null;
   pedidos: any[];
+  /** FIX MEDIA: fotos/audio/video/docs que el cliente envio (v2:media). */
+  media: MediaMensaje[];
   topObjeciones: Array<{ label: string; score: number }>;
 }
 
@@ -277,12 +280,13 @@ export async function getConversacionDetallada(
   redis: Redis = getRedis()
 ): Promise<ConversacionDetallada | null> {
   try {
-    const [perfil, historial, resumen, memoria, pedidos] = await Promise.all([
+    const [perfil, historial, resumen, memoria, pedidos, media] = await Promise.all([
       redis.get<ClientePerfil>(keys.cliente(phone)).catch(() => null),
       redis.get<{ mensajes: MensajeHistorial[] } | MensajeHistorial[]>(keys.historial(phone)).catch(() => null),
       redis.get<string>(keys.resumenSemantico(phone)).catch(() => null),
       redis.get<MemoriaEpisodica>(keys.memoria(phone)).catch(() => null),
       redis.get<any[]>(keys.pedidos(phone)).catch(() => null),
+        getMediaList(phone, redis).catch(() => []),
     ]);
 
     if (!perfil) return null;
@@ -300,6 +304,7 @@ export async function getConversacionDetallada(
       memoria: memoria ?? null,
       pedidos: pedidos ?? [],
       topObjeciones: topObjsFromVector(perfil.vectorObjeciones as VectorObjeciones),
+        media: media ?? [],
     };
   } catch (err) {
     log.error({ err, phone }, "Error obteniendo conversaciÃƒÂ³n detallada");
