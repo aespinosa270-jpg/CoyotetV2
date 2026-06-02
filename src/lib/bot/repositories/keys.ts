@@ -36,6 +36,11 @@ export const keys = {
   botPaused: (phone: string) => `${PREFIX}:paused:${safe(phone)}`,
 
   // ── Pedidos ─────────────────────────────────────────────────────────────
+  /** ACCION RAPIDA: conversacion marcada como atendida por un humano. */
+  atendido: (phone: string) => `${PREFIX}:atendido:${safe(phone)}`,
+  /** ACCION RAPIDA: etiquetas manuales del cliente (hot, mayoreo, etc.). */
+  tags: (phone: string) => `${PREFIX}:tags:${safe(phone)}`,
+
   pedidos: (phone: string) => `${PREFIX}:pedidos:${safe(phone)}`,
 
   // ── Configuración del bot (lo que Jack edita) ───────────────────────────
