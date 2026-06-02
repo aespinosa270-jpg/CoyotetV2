@@ -17,6 +17,7 @@
  */
 import type { Redis } from "@upstash/redis";
 import { getRedis } from "./redis";
+import { prisma } from "@/lib/prisma";
 import { keys } from "./keys";
 import type { ClientePerfil, MensajeHistorial } from "../types/domain";
 import type { MemoriaEpisodica } from "../intelligence/memory/types";
@@ -50,6 +51,8 @@ export interface ConversacionResumen {
   ultimoMensajeRole?: string;
   /** Timestamp del ultimo mensaje (para ordenar). */
   ultimoMensajeAt?: string;
+  /** contacto con plantilla enviada sin responder */
+  plantillaSinRespuesta?: boolean;
 }
 
 export interface ConversacionDetallada {
@@ -212,6 +215,46 @@ export async function listConversaciones(
         const tb = new Date(b.ultimoMensajeAt || b.ultimoContacto).getTime();
         return tb - ta;
       });
+
+      // CONTACTOS CON PLANTILLA ENVIADA SIN RESPUESTA
+      // ContactoOutbound con plantilla enviada que NO tienen perfil en Redis.
+      try {
+        const yaEnLista = new Set(resumenes.map((r) => r.phone));
+        const conPlantilla = await prisma.contactoOutbound.findMany({
+          where: { plantillaEnviada: true },
+          select: { phone: true, nombre: true, empresa: true, plantillaEnviadaAt: true },
+        });
+        const norm = (ph: string) =>
+          ph.startsWith("521") && ph.length === 13 ? ph.replace(/^521/, "52") : ph;
+        const fantasmas: ConversacionResumen[] = conPlantilla
+          .filter((c) => !yaEnLista.has(norm(c.phone)) && !yaEnLista.has(c.phone))
+          .map((c) => {
+            const at = c.plantillaEnviadaAt ? c.plantillaEnviadaAt.toISOString() : new Date(0).toISOString();
+            return {
+              phone: norm(c.phone),
+              nombre: c.nombre || c.empresa || "(sin nombre)",
+              segmento: "prospecto",
+              totalCompras: 0,
+              temperaturaCompra: 20,
+              nivelConfianza: 30,
+              tacticaActual: "valor_rendimiento",
+              ultimoContacto: at,
+              topObjeciones: [],
+              sinResponder: true,
+              ultimoMensajeTexto: "📤 Plantilla enviada",
+              ultimoMensajeRole: "assistant",
+              ultimoMensajeAt: at,
+              plantillaSinRespuesta: true,
+            } as ConversacionResumen;
+          });
+        resumenes = [...resumenes, ...fantasmas].sort((a, b) => {
+          const ta = new Date(a.ultimoMensajeAt || a.ultimoContacto).getTime();
+          const tb = new Date(b.ultimoMensajeAt || b.ultimoContacto).getTime();
+          return tb - ta;
+        });
+      } catch (errPlantilla) {
+        log.error({ err: errPlantilla }, "Error agregando contactos con plantilla");
+      }
 
     // Filtros opcionales
     if (options.segmentoFilter) {
