@@ -38,6 +38,9 @@ interface MensajeHistorial {
   status?: string;
   mediaUrl?: string;
   mediaType?: string;
+  // FIX MEDIA: para imagenes que el cliente envio (se sirven via proxy)
+  mediaNativeId?: string;
+  mediaTipo?: "image" | "audio" | "video" | "document";
 }
 interface PauseStateDTO {
   pausedAt: string;
@@ -54,6 +57,15 @@ interface DetalleDTO {
   paused: boolean;
   pauseState: PauseStateDTO | null;
   ttlSeconds: number;
+  media?: MediaItemDTO[];
+}
+interface MediaItemDTO {
+  messageId: string;
+  nativeId: string;
+  tipo: "image" | "audio" | "video" | "document";
+  mimeType?: string;
+  caption?: string;
+  timestamp: string;
 }
 
 interface Props {
@@ -133,6 +145,35 @@ function cleanPreview(s?: string): string {
 }
 
 type Filtro = "todas" | "sin_responder" | "calientes" | "bot";
+
+/**
+ * Fusiona el historial de texto con la media que el cliente envio (v2:media),
+ * ordenando todo por timestamp. Cada media del cliente se convierte en un
+ * "mensaje" role=user con su nativeId, para que la Bubble pinte la imagen
+ * via el proxy /api/admin/bot/media/{nativeId}.
+ */
+function mergeHistorialMedia(
+  historial: MensajeHistorial[],
+  media: MediaItemDTO[]
+): MensajeHistorial[] {
+  if (!media || media.length === 0) return historial;
+  const mediaMsgs: MensajeHistorial[] = media.map((md) => ({
+    role: "user" as const,
+    content: md.caption || "",
+    timestamp: md.timestamp,
+    mediaNativeId: md.nativeId,
+    mediaTipo: md.tipo,
+  }));
+  const merged = [...historial, ...mediaMsgs];
+  merged.sort((a, b) => {
+    const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    const sa = Number.isNaN(ta) ? 0 : ta;
+    const sb = Number.isNaN(tb) ? 0 : tb;
+    return sa - sb;
+  });
+  return merged;
+}
 
 /* ============================================================
    COMPONENTE PRINCIPAL
@@ -496,7 +537,7 @@ function ChatPane({ phone, resumen, onBack }: {
                 </div>
               )}
               <AnimatePresence initial={false}>
-                {(data?.historial ?? []).map((m, i) => <Bubble key={i} m={m} idx={i} />)}
+                {mergeHistorialMedia(data?.historial ?? [], data?.media ?? []).map((m, i) => <Bubble key={i} m={m} idx={i} />)}
               </AnimatePresence>
             </>
           )}
@@ -630,6 +671,9 @@ function Bubble({ m, idx }: { m: MensajeHistorial; idx: number }) {
     );
   }
   const isUser = m.role === "user";
+  // FIX MEDIA: imagen que el cliente envio (via proxy de Meta)
+  const proxySrc = m.mediaNativeId ? `/api/admin/bot/media/${m.mediaNativeId}` : null;
+  const isImg = m.mediaTipo === "image" || (m.mediaType === "image" && m.mediaUrl);
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -637,6 +681,26 @@ function Bubble({ m, idx }: { m: MensajeHistorial; idx: number }) {
       transition={{ duration: 0.25, delay: Math.min(idx * 0.01, 0.2) }}
       className={`flex flex-col max-w-[76%] ${isUser ? "self-start items-start" : "self-end items-end"}`}
     >
+      {/* Imagen del cliente (proxy) o imagen saliente (mediaUrl) */}
+      {(proxySrc || m.mediaUrl) && isImg && (
+        <a href={proxySrc || m.mediaUrl} target="_blank" rel="noopener noreferrer" className="block mb-1">
+          <img
+            src={proxySrc || m.mediaUrl}
+            alt={m.content || "imagen"}
+            className="rounded-2xl max-w-[240px] max-h-[320px] object-cover border border-zinc-700/50"
+            loading="lazy"
+          />
+        </a>
+      )}
+      {/* Media no-imagen del cliente: enlace de descarga */}
+      {proxySrc && !isImg && (
+        <a href={proxySrc} target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-2 mb-1 px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700/50 text-zinc-200 text-sm hover:bg-zinc-700 transition">
+          <FileText className="w-4 h-4" />
+          {m.mediaTipo === "audio" ? "Audio" : m.mediaTipo === "video" ? "Video" : "Documento"} del cliente
+        </a>
+      )}
+      {(m.content || (!proxySrc && !m.mediaUrl)) && (
       <div className={`px-3.5 py-2 text-sm leading-relaxed rounded-2xl whitespace-pre-line break-words ${
         isUser
           ? "bg-zinc-800 text-zinc-100 rounded-bl-md border border-zinc-700/50"
@@ -644,6 +708,7 @@ function Bubble({ m, idx }: { m: MensajeHistorial; idx: number }) {
       }`}>
         {m.content}
       </div>
+      )}
       <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-zinc-500">
         {!isUser && <span className="text-amber-400/80 font-medium">El Coyote</span>}
         {!isUser && <span>·</span>}
