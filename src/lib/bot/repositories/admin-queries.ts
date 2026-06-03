@@ -52,6 +52,8 @@ export interface ConversacionResumen {
   ultimoMensajeRole?: string;
   /** Timestamp del ultimo mensaje (para ordenar). */
   ultimoMensajeAt?: string;
+  /** FILTRO: etiquetas manuales del cliente (hot, mayoreo, etc.). */
+  tags?: string[];
   /** contacto con plantilla enviada sin responder */
   plantillaSinRespuesta?: boolean;
 }
@@ -131,6 +133,13 @@ function safeTime(d: string | undefined | null): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
+/** Parsea tags de Redis (array o string JSON) para el resumen de la lista. */
+function parsearTagsResumen(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw as string[];
+  if (typeof raw === "string") { try { const a = JSON.parse(raw); return Array.isArray(a) ? a : []; } catch { return []; } }
+  return [];
+}
+
 export async function listConversaciones(
   options: {
     offset?: number;
@@ -195,12 +204,16 @@ export async function listConversaciones(
       })
     );
 
+    const tagsRaw = await Promise.all(
+      perfilesValidos.map((p) => redis.get(keys.tags(p.telefono)).catch(() => null))
+    );
     let resumenes: ConversacionResumen[] = perfilesValidos
       .map((p, i) => {
         const u = ultimos[i];
         return {
           phone: p.telefono,
           nombre: p.nombre || "(sin nombre)",
+          tags: parsearTagsResumen(tagsRaw[i]),
           segmento: p.segmento || "prospecto",
           totalCompras: p.totalCompras || 0,
           temperaturaCompra: p.temperaturaCompra ?? 30,

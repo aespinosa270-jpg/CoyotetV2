@@ -210,6 +210,7 @@ type Filtro = "todas" | "sin_responder" | "calientes" | "bot";
 export function ConversacionesTable({ items }: Props) {
   const [search, setSearch] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todas");
+  const [tagFiltro, setTagFiltro] = useState<string | null>(null);
   const [activePhone, setActivePhone] = useState<string | null>(null);
   const [hoverPhone, setHoverPhone] = useState<string | null>(null);
   const [liveItems, setLiveItems] = useState<ConversacionResumen[]>(items);
@@ -246,11 +247,12 @@ export function ConversacionesTable({ items }: Props) {
       if (filtro === "sin_responder" && !c.sinResponder) return false;
       if (filtro === "calientes" && c.leadScore !== "hot" && c.leadScore !== "vip") return false;
       if (filtro === "bot" && c.ultimoMensajeRole !== "assistant") return false;
+      if (tagFiltro && !((c as any).tags ?? []).includes(tagFiltro)) return false;
       if (!q) return true;
       return [c.phone, c.nombre, c.ultimoMensajeTexto ?? ""]
         .join(" ").toLowerCase().includes(q);
     });
-  }, [liveItems, search, filtro]);
+  }, [liveItems, search, filtro, tagFiltro]);
 
   const activeResumen = useMemo(
     () => liveItems.find((c) => c.phone === activePhone) ?? null,
@@ -324,6 +326,17 @@ export function ConversacionesTable({ items }: Props) {
               <Chip on={filtro === "calientes"} onClick={() => setFiltro("calientes")} tone="amber">Calientes <b>{counts.calientes}</b></Chip>
               <Chip on={filtro === "bot"} onClick={() => setFiltro("bot")}>Bot</Chip>
             </div>
+            {/* FILTRO POR ETIQUETA */}
+            {Array.from(new Set(items.flatMap((c) => ((c as any).tags ?? []) as string[]))).length > 0 && (
+              <div className="flex gap-1.5 overflow-x-auto pb-1 mt-1.5 scrollbar-none">
+                {Array.from(new Set(items.flatMap((c) => ((c as any).tags ?? []) as string[]))).map((tg) => (
+                  <button key={tg} onClick={() => setTagFiltro(tagFiltro === tg ? null : tg)}
+                    className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap transition ${tagFiltro === tg ? "bg-amber-400/20 border-amber-400/50 text-amber-300" : "bg-transparent border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"}`}>
+                    <Tag className="w-2.5 h-2.5" />{tg}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto px-2 py-2 scrollbar-thin">
