@@ -625,6 +625,12 @@ function ChatPane({ phone, resumen, onBack }: {
   const lead = resumen.leadScore ? LEAD[resumen.leadScore] : null;
   const paused = data?.paused ?? false;
   const mensajes = mergeHistorialMedia(data?.historial ?? [], data?.media ?? []);
+  // BUSQUEDA dentro del chat
+  const [chatSearch, setChatSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const mensajesFiltrados = chatSearch.trim()
+    ? mensajes.filter((m) => (m.content || "").toLowerCase().includes(chatSearch.trim().toLowerCase()))
+    : mensajes;
 
   return (
     <>
@@ -678,9 +684,26 @@ function ChatPane({ phone, resumen, onBack }: {
             {paused
               ? <button onClick={release} disabled={taking} title="Devolver al bot" className="px-3 h-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 flex items-center gap-1.5 transition disabled:opacity-50"><Bot className="w-3.5 h-3.5" />Al bot</button>
               : <button onClick={takeOver} disabled={taking} title="Tomar control" className="px-3 h-9 rounded-lg bg-amber-400 hover:bg-amber-300 text-xs font-bold text-black flex items-center gap-1.5 transition disabled:opacity-50 shadow-[0_0_18px_rgba(251,191,36,0.25)]"><Hand className="w-3.5 h-3.5" />{taking ? "..." : "Control"}</button>}
+            <button onClick={() => setSearchOpen((v) => !v)} title="Buscar en la conversacion" className={`w-9 h-9 rounded-lg grid place-items-center transition ${searchOpen ? "bg-amber-400/20 text-amber-300 border border-amber-400/40" : "border border-zinc-800 text-zinc-400 hover:text-amber-300 hover:bg-zinc-900"}`}><Search className="w-4 h-4" /></button>
             <a href={`tel:${phone}`} className="w-9 h-9 rounded-lg border border-zinc-800 grid place-items-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition"><Phone className="w-4 h-4" /></a>
           </div>
         </header>
+
+        {/* BARRA DE BUSQUEDA EN EL CHAT */}
+        {searchOpen && (
+          <div className="relative z-10 px-4 py-2 border-b border-zinc-800/70 bg-[#0d0d0f]/90 backdrop-blur-md flex items-center gap-2">
+            <Search className="w-4 h-4 text-zinc-500 shrink-0" />
+            <input
+              autoFocus
+              value={chatSearch}
+              onChange={(e) => setChatSearch(e.target.value)}
+              placeholder="Buscar en esta conversacion..."
+              className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
+            />
+            {chatSearch && <span className="text-[11px] text-zinc-500 shrink-0">{mensajesFiltrados.length} result.</span>}
+            <button onClick={() => { setChatSearch(""); setSearchOpen(false); }} className="w-7 h-7 rounded-lg grid place-items-center text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition"><X className="w-4 h-4" /></button>
+          </div>
+        )}
 
         {/* STREAM */}
         <div ref={streamRef} className="relative z-[1] flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-1 scrollbar-thin">
@@ -694,7 +717,11 @@ function ChatPane({ phone, resumen, onBack }: {
                 </div>
               )}
               <AnimatePresence initial={false}>
-                {mensajes.map((m, i) => <Bubble key={i} m={m} idx={i} />)}
+                {mensajesFiltrados.length === 0 && chatSearch.trim() ? (
+                  <div className="self-center text-zinc-600 text-xs py-4">Sin mensajes que coincidan con &quot;{chatSearch}&quot;</div>
+                ) : (
+                  mensajesFiltrados.map((m, i) => <Bubble key={i} m={m} idx={i} />)
+                )}
               </AnimatePresence>
             </>
           )}
