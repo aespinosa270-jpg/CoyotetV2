@@ -558,6 +558,20 @@ function ChatPane({ phone, resumen, onBack }: {
     textRef.current?.focus();
   }
 
+  function generarCotizacion() {
+    const tela = cotizTela.trim();
+    const kilos = parseFloat(cotizKilos);
+    const precio = parseFloat(cotizPrecio);
+    if (!tela || !kilos || !precio || kilos <= 0 || precio <= 0) return;
+    const total = kilos * precio;
+    const fmt = (n: number) => n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const texto = `Cotizacion: ${tela}\n${kilos} kg x $${fmt(precio)}/kg = $${fmt(total)} total\nPrecios sujetos a disponibilidad. Le interesa?`;
+    setText((prev) => (prev ? prev + "\n" + texto : texto));
+    setCotizOpen(false);
+    setCotizTela(""); setCotizKilos(""); setCotizPrecio("");
+    textRef.current?.focus();
+  }
+
   async function guardarNota() {
     setNotaSaving(true);
     setNotaSaved(false);
@@ -667,6 +681,10 @@ function ChatPane({ phone, resumen, onBack }: {
   const mensajes = mergeHistorialMedia(data?.historial ?? [], data?.media ?? []);
   // BUSQUEDA dentro del chat
   const [chatSearch, setChatSearch] = useState("");
+  const [cotizOpen, setCotizOpen] = useState(false);
+  const [cotizTela, setCotizTela] = useState("");
+  const [cotizKilos, setCotizKilos] = useState("");
+  const [cotizPrecio, setCotizPrecio] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const mensajesFiltrados = chatSearch.trim()
     ? mensajes.filter((m) => (m.content || "").toLowerCase().includes(chatSearch.trim().toLowerCase()))
@@ -782,8 +800,36 @@ function ChatPane({ phone, resumen, onBack }: {
             </div>
           )}
 
+          {/* PANEL COTIZADOR */}
+          {cotizOpen && (
+            <div className="mb-2 p-3 rounded-xl bg-zinc-900 border border-amber-400/30 space-y-2">
+              <div className="flex items-center gap-2 text-[11px] text-amber-300 font-semibold">
+                <DollarSign className="w-3.5 h-3.5" />Cotizacion rapida
+              </div>
+              <input value={cotizTela} onChange={(e) => setCotizTela(e.target.value)} placeholder="Tela (ej. Micro pique)"
+                className="w-full h-8 px-2 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-400/40" />
+              <div className="flex gap-2">
+                <input value={cotizKilos} onChange={(e) => setCotizKilos(e.target.value)} type="number" min="0" placeholder="Kilos"
+                  className="flex-1 h-8 px-2 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-400/40" />
+                <input value={cotizPrecio} onChange={(e) => setCotizPrecio(e.target.value)} type="number" min="0" placeholder="$ por kg"
+                  className="flex-1 h-8 px-2 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-400/40" />
+              </div>
+              {cotizKilos && cotizPrecio && parseFloat(cotizKilos) > 0 && parseFloat(cotizPrecio) > 0 && (
+                <p className="text-[11px] text-zinc-400">Total: <b className="text-amber-300">${(parseFloat(cotizKilos) * parseFloat(cotizPrecio)).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></p>
+              )}
+              <button onClick={generarCotizacion} disabled={!cotizTela.trim() || !cotizKilos || !cotizPrecio}
+                className="w-full h-8 rounded-lg bg-amber-400 hover:bg-amber-300 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-xs font-bold transition">
+                Generar y poner en el mensaje
+              </button>
+            </div>
+          )}
+
           {/* CHIPS de respuesta rapida */}
           <div className="flex gap-1.5 overflow-x-auto pb-2 mb-1 scrollbar-none">
+              <button onClick={() => setCotizOpen((v) => !v)} title="Cotizacion rapida"
+                className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap transition ${cotizOpen ? "bg-amber-400/20 border-amber-400/50 text-amber-300" : "border-amber-400/30 bg-amber-400/5 text-amber-300/90 hover:bg-amber-400/15"}`}>
+                <DollarSign className="w-3 h-3" />Cotizacion
+              </button>
             {QUICK_REPLIES.map((qr) => (
               <button key={qr.label} onClick={() => insertQuickReply(qr.text)}
                 title={qr.text}
