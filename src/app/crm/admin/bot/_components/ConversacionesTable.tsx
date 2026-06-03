@@ -417,6 +417,9 @@ function ChatPane({ phone, resumen, onBack }: {
   const [tags, setTags] = useState<string[]>(((resumen as any).tags as string[]) || []);
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const [atendido, setAtendido] = useState<boolean>(!!(resumen as any).atendido);
+  const [nota, setNota] = useState("");
+  const [notaSaving, setNotaSaving] = useState(false);
+  const [notaSaved, setNotaSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -427,6 +430,11 @@ function ChatPane({ phone, resumen, onBack }: {
       if (!res.ok) throw new Error((await res.json()).error || "Error al cargar");
       const d = await res.json();
       setData(d);
+      // cargar nota interna
+      fetch(`/api/admin/bot/conversaciones/${encodeURIComponent(phone)}/notas`, { cache: "no-store" })
+        .then((r) => r.ok ? r.json() : null)
+        .then((j) => { if (j && typeof j.nota === "string") setNota(j.nota); })
+        .catch(() => {});
       if (Array.isArray(d?.perfil?.tags)) setTags(d.perfil.tags);
       if (typeof d?.perfil?.atendido === "boolean") setAtendido(d.perfil.atendido);
     } catch (e) {
@@ -535,6 +543,25 @@ function ChatPane({ phone, resumen, onBack }: {
   function insertQuickReply(t: string) {
     setText((prev) => (prev ? prev + " " + t : t));
     textRef.current?.focus();
+  }
+
+  async function guardarNota() {
+    setNotaSaving(true);
+    setNotaSaved(false);
+    try {
+      const res = await fetch(`/api/admin/bot/conversaciones/${encodeURIComponent(phone)}/notas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nota }),
+      });
+      if (!res.ok) throw new Error("No se pudo guardar la nota");
+      setNotaSaved(true);
+      setTimeout(() => setNotaSaved(false), 2000);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setNotaSaving(false);
+    }
   }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -811,6 +838,25 @@ function ChatPane({ phone, resumen, onBack }: {
               ))}
             </div>
           )}
+
+          {/* NOTAS INTERNAS (privadas, no se envian al cliente) */}
+          <div className="mt-4">
+            <SecTitle>Notas internas</SecTitle>
+            <textarea
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              onBlur={guardarNota}
+              placeholder="Apuntes privados sobre este cliente..."
+              rows={3}
+              className="w-full rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 placeholder:text-zinc-600 p-2 resize-none focus:outline-none focus:border-amber-400/40 transition"
+            />
+            <div className="flex items-center justify-between mt-1 h-4">
+              <span className="text-[10px] text-zinc-600">Solo tu las ves</span>
+              {notaSaving ? <span className="text-[10px] text-zinc-500 flex items-center gap-1"><Loader2 className="w-2.5 h-2.5 animate-spin" />Guardando</span>
+                : notaSaved ? <span className="text-[10px] text-emerald-400 flex items-center gap-1"><Check className="w-2.5 h-2.5" />Guardada</span>
+                : null}
+            </div>
+          </div>
 
           <Scoring label="Temperatura de compra" value={data?.perfil?.temperaturaCompra ?? resumen.temperaturaCompra ?? 0} Icon={TrendingUp} />
           <Scoring label="Nivel de confianza" value={data?.perfil?.nivelConfianza ?? resumen.nivelConfianza ?? 0} Icon={ShieldCheck} />

@@ -40,6 +40,8 @@ export const keys = {
   atendido: (phone: string) => `${PREFIX}:atendido:${safe(phone)}`,
   /** ACCION RAPIDA: etiquetas manuales del cliente (hot, mayoreo, etc.). */
   tags: (phone: string) => `${PREFIX}:tags:${safe(phone)}`,
+  /** NOTAS INTERNAS: texto privado del agente sobre el cliente (no se envia). */
+  notas: (phone: string) => `${PREFIX}:notas:${safe(phone)}`,
 
   pedidos: (phone: string) => `${PREFIX}:pedidos:${safe(phone)}`,
 
