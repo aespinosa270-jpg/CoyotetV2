@@ -171,6 +171,37 @@ function mergeHistorialMedia(
   return merged;
 }
 
+/** Reproduce un tono de notificacion estilo WhatsApp (du-dun) usando
+ *  Web Audio. No requiere archivo .mp3. Los navegadores bloquean audio
+ *  hasta el primer clic del usuario; despues suena sin problema. */
+let _audioCtx: AudioContext | null = null;
+function playDing() {
+  try {
+    if (typeof window === "undefined") return;
+    const AC = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AC) return;
+    if (!_audioCtx) _audioCtx = new AC();
+    const ctx = _audioCtx;
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    const now = ctx.currentTime;
+    // dos notas cortas: la primera mas grave, la segunda mas aguda
+    [[880, 0], [1175, 0.13]].forEach(([freq, delay]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const t0 = now + delay;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.35, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.2);
+    });
+  } catch { /* silencio si falla */ }
+}
+
 type Filtro = "todas" | "sin_responder" | "calientes" | "bot";
 
 /* ============================================================
@@ -181,16 +212,37 @@ export function ConversacionesTable({ items }: Props) {
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [activePhone, setActivePhone] = useState<string | null>(null);
   const [hoverPhone, setHoverPhone] = useState<string | null>(null);
+  const [liveItems, setLiveItems] = useState<ConversacionResumen[]>(items);
+  const prevSinRespRef = useRef<number>(items.filter((c) => c.sinResponder).length);
+
+  // POLLING GLOBAL: cada 15s revisa si hay mensajes nuevos -> ding global
+  useEffect(() => {
+    let cancel = false;
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch("/api/admin/bot/conversaciones/lista", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = await res.json();
+        const nuevos: ConversacionResumen[] = json.items ?? [];
+        if (cancel || nuevos.length === 0) return;
+        const sinResp = nuevos.filter((c) => c.sinResponder).length;
+        if (sinResp > prevSinRespRef.current) playDing();
+        prevSinRespRef.current = sinResp;
+        setLiveItems(nuevos);
+      } catch { /* ignore */ }
+    }, 15000);
+    return () => { cancel = true; clearInterval(id); };
+  }, []);
 
   const counts = useMemo(() => ({
-    total: items.length,
-    sinResp: items.filter((c) => c.sinResponder).length,
-    calientes: items.filter((c) => c.leadScore === "hot" || c.leadScore === "vip").length,
-  }), [items]);
+    total: liveItems.length,
+    sinResp: liveItems.filter((c) => c.sinResponder).length,
+    calientes: liveItems.filter((c) => c.leadScore === "hot" || c.leadScore === "vip").length,
+  }), [liveItems]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return items.filter((c) => {
+    return liveItems.filter((c) => {
       if (filtro === "sin_responder" && !c.sinResponder) return false;
       if (filtro === "calientes" && c.leadScore !== "hot" && c.leadScore !== "vip") return false;
       if (filtro === "bot" && c.ultimoMensajeRole !== "assistant") return false;
@@ -198,11 +250,11 @@ export function ConversacionesTable({ items }: Props) {
       return [c.phone, c.nombre, c.ultimoMensajeTexto ?? ""]
         .join(" ").toLowerCase().includes(q);
     });
-  }, [items, search, filtro]);
+  }, [liveItems, search, filtro]);
 
   const activeResumen = useMemo(
-    () => items.find((c) => c.phone === activePhone) ?? null,
-    [items, activePhone]
+    () => liveItems.find((c) => c.phone === activePhone) ?? null,
+    [liveItems, activePhone]
   );
 
   // ATAJOS DE TECLADO: J/K navegar, Enter abrir, Esc cerrar
@@ -385,6 +437,18 @@ function ChatPane({ phone, resumen, onBack }: {
   }, [phone]);
 
   useEffect(() => { load(); }, [load]);
+
+  // POLLING DEL CHAT: cada 10s recarga; si hay mas mensajes del cliente -> ding
+  const prevUserMsgsRef = useRef<number>(0);
+  useEffect(() => {
+    const id = setInterval(() => { load(); }, 10000);
+    return () => clearInterval(id);
+  }, [load]);
+  useEffect(() => {
+    const userMsgs = (data?.historial ?? []).filter((m) => m.role === "user").length;
+    if (prevUserMsgsRef.current > 0 && userMsgs > prevUserMsgsRef.current) playDing();
+    prevUserMsgsRef.current = userMsgs;
+  }, [data?.historial]);
 
   useEffect(() => {
     if (streamRef.current) streamRef.current.scrollTop = streamRef.current.scrollHeight;
