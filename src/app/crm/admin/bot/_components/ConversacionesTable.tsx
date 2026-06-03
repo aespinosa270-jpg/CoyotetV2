@@ -3,10 +3,11 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, Send, Paperclip, Phone, MoreVertical, Hand,
-  Unlock, Bot, Flame, Snowflake, Gem, DollarSign, Eye,
+  Search, Send, Paperclip, Phone, Hand,
+  Bot, Flame, Snowflake, Gem, DollarSign, Eye,
   Check, CheckCheck, ArrowLeft, MessageSquare, Sparkles,
   TrendingUp, ShieldCheck, Package, X, FileText, Loader2,
+  Tag, CheckCircle2, Zap,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { ConversacionResumen } from "@/lib/bot/repositories/admin-queries";
@@ -28,7 +29,21 @@ function detectMediaType(mime: string): MediaType {
 }
 
 /* ============================================================
-   Tipos del payload del endpoint /detail (espejo del repo)
+   CHIPS de respuesta rapida (editables) y ETIQUETAS
+   ============================================================ */
+const QUICK_REPLIES: { label: string; text: string }[] = [
+  { label: "Cotizacion", text: "Con gusto le preparo la cotizacion. Que tela y cuantos kilos necesita?" },
+  { label: "Datos de envio", text: "Para calcular el envio, me comparte su codigo postal y ciudad?" },
+  { label: "Horario", text: "Nuestro horario es de lunes a viernes de 9 a 6 y sabados de 9 a 2." },
+  { label: "Disponibilidad", text: "Dejeme confirmar disponibilidad en almacen y le aviso enseguida." },
+  { label: "Formas de pago", text: "Aceptamos transferencia, deposito y tarjeta. Cual le acomoda?" },
+  { label: "Seguimiento", text: "Hola! Le doy seguimiento a su cotizacion. Sigue interesado?" },
+];
+
+const ETIQUETAS = ["Hot", "Mayoreo", "Menudeo", "Cotizado", "Pagado", "Seguimiento"];
+
+/* ============================================================
+   Tipos del payload del endpoint /detail
    ============================================================ */
 interface MensajeHistorial {
   role: "user" | "assistant" | "tool";
@@ -38,9 +53,16 @@ interface MensajeHistorial {
   status?: string;
   mediaUrl?: string;
   mediaType?: string;
-  // FIX MEDIA: para imagenes que el cliente envio (se sirven via proxy)
   mediaNativeId?: string;
   mediaTipo?: "image" | "audio" | "video" | "document";
+}
+interface MediaItemDTO {
+  messageId: string;
+  nativeId: string;
+  tipo: "image" | "audio" | "video" | "document";
+  mimeType?: string;
+  caption?: string;
+  timestamp: string;
 }
 interface PauseStateDTO {
   pausedAt: string;
@@ -59,21 +81,13 @@ interface DetalleDTO {
   ttlSeconds: number;
   media?: MediaItemDTO[];
 }
-interface MediaItemDTO {
-  messageId: string;
-  nativeId: string;
-  tipo: "image" | "audio" | "video" | "document";
-  mimeType?: string;
-  caption?: string;
-  timestamp: string;
-}
 
 interface Props {
   items: ConversacionResumen[];
 }
 
 /* ============================================================
-   Lead badges (sin mojibake, iconos lucide)
+   Lead badges
    ============================================================ */
 const LEAD: Record<
   string,
@@ -120,9 +134,7 @@ function relTime(iso?: string): string {
 function fmtTime(iso?: string): string {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleString("es-MX", {
-      hour: "2-digit", minute: "2-digit",
-    });
+    return new Date(iso).toLocaleString("es-MX", { hour: "2-digit", minute: "2-digit" });
   } catch { return ""; }
 }
 function fmtTTL(seconds: number): string {
@@ -131,27 +143,13 @@ function fmtTTL(seconds: number): string {
   const m = Math.floor((seconds % 3600) / 60);
   return h > 0 ? `${h}h ${m}min` : `${m}min`;
 }
-/**
- * Quita surrogates huerfanos (mitades de emoji) que pueden venir de un
- * substring mal cortado en el backend. Es una transformacion pura y
- * determinista -> identica en server y cliente, asi el hydration cuadra.
- */
 function cleanPreview(s?: string): string {
   if (!s) return "";
-  // Elimina high-surrogate sin low-surrogate y low-surrogate sin high-surrogate
   return s
     .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, "")
     .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
 }
-
-type Filtro = "todas" | "sin_responder" | "calientes" | "bot";
-
-/**
- * Fusiona el historial de texto con la media que el cliente envio (v2:media),
- * ordenando todo por timestamp. Cada media del cliente se convierte en un
- * "mensaje" role=user con su nativeId, para que la Bubble pinte la imagen
- * via el proxy /api/admin/bot/media/{nativeId}.
- */
+/** Fusiona historial con media del cliente, ordenado por timestamp. */
 function mergeHistorialMedia(
   historial: MensajeHistorial[],
   media: MediaItemDTO[]
@@ -168,12 +166,12 @@ function mergeHistorialMedia(
   merged.sort((a, b) => {
     const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
     const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-    const sa = Number.isNaN(ta) ? 0 : ta;
-    const sb = Number.isNaN(tb) ? 0 : tb;
-    return sa - sb;
+    return (Number.isNaN(ta) ? 0 : ta) - (Number.isNaN(tb) ? 0 : tb);
   });
   return merged;
 }
+
+type Filtro = "todas" | "sin_responder" | "calientes" | "bot";
 
 /* ============================================================
    COMPONENTE PRINCIPAL
@@ -182,6 +180,7 @@ export function ConversacionesTable({ items }: Props) {
   const [search, setSearch] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [activePhone, setActivePhone] = useState<string | null>(null);
+  const [hoverPhone, setHoverPhone] = useState<string | null>(null);
 
   const counts = useMemo(() => ({
     total: items.length,
@@ -206,15 +205,32 @@ export function ConversacionesTable({ items }: Props) {
     [items, activePhone]
   );
 
+  // ATAJOS DE TECLADO: J/K navegar, Enter abrir, Esc cerrar
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return; // no interferir al escribir
+      if (e.key === "Escape") { setActivePhone(null); return; }
+      if (e.key !== "j" && e.key !== "k") return;
+      e.preventDefault();
+      const idx = filtered.findIndex((c) => c.phone === activePhone);
+      if (e.key === "j") {
+        const next = filtered[Math.min(idx + 1, filtered.length - 1)] ?? filtered[0];
+        if (next) setActivePhone(next.phone);
+      } else if (e.key === "k") {
+        const prev = filtered[Math.max(idx - 1, 0)] ?? filtered[0];
+        if (prev) setActivePhone(prev.phone);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filtered, activePhone]);
+
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-[#0a0a0b]">
-      {/* ---------- BARRA SUPERIOR INMERSIVA ---------- */}
+      {/* BARRA SUPERIOR */}
       <header className="shrink-0 flex items-center gap-3 px-4 h-14 border-b border-zinc-800 bg-[#0d0d0f]">
-        <a
-          href="/crm/admin/bot"
-          title="Volver al panel del bot"
-          className="group flex items-center gap-2.5 pr-3 rounded-lg transition hover:opacity-80"
-        >
+        <a href="/crm/admin/bot" title="Volver al panel del bot" className="group flex items-center gap-2.5 pr-3 rounded-lg transition hover:opacity-80">
           <span className="w-8 h-8 rounded-lg bg-amber-400 grid place-items-center font-extrabold text-black text-lg shadow-[0_0_18px_rgba(251,191,36,0.3)] group-hover:scale-105 transition-transform">C</span>
           <span className="hidden sm:block leading-tight">
             <span className="block text-sm font-bold text-zinc-100">El Coyote</span>
@@ -230,108 +246,101 @@ export function ConversacionesTable({ items }: Props) {
             </span>
           )}
         </div>
-        <div className="ml-auto text-[11px] text-zinc-600 hidden md:block">
-          Clic en el logo para volver al panel
+        <div className="ml-auto text-[11px] text-zinc-600 hidden md:flex items-center gap-2">
+          <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[10px] font-mono">J</kbd>
+          <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[10px] font-mono">K</kbd>
+          navegar
         </div>
       </header>
 
-      {/* ---------- CUERPO: 3 COLUMNAS ---------- */}
       <div className="flex-1 flex min-h-0">
-
-      {/* ---------- COLUMNA 1: LISTA ---------- */}
-      <aside className={`w-full sm:w-[340px] shrink-0 flex flex-col border-r border-zinc-800 bg-[#0d0d0f] ${activePhone ? "hidden sm:flex" : "flex"}`}>
-        <div className="p-4 pb-3 border-b border-zinc-800/70">
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar cliente, telefono o mensaje..."
-              className="w-full h-10 pl-9 pr-3 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-amber-400/50 focus:ring-2 focus:ring-amber-400/10 transition"
-            />
-          </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            <Chip on={filtro === "todas"} onClick={() => setFiltro("todas")}>Todas <b>{counts.total}</b></Chip>
-            <Chip on={filtro === "sin_responder"} onClick={() => setFiltro("sin_responder")} tone="red">Sin responder <b>{counts.sinResp}</b></Chip>
-            <Chip on={filtro === "calientes"} onClick={() => setFiltro("calientes")} tone="amber">Calientes <b>{counts.calientes}</b></Chip>
-            <Chip on={filtro === "bot"} onClick={() => setFiltro("bot")}>Bot</Chip>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-2 py-2 scrollbar-thin">
-          {filtered.length === 0 ? (
-            <div className="p-10 text-center text-zinc-500 text-sm">Sin resultados.</div>
-          ) : (
-            filtered.map((c, idx) => {
-              const lead = c.leadScore ? LEAD[c.leadScore] : null;
-              const isActive = c.phone === activePhone;
-              return (
-                <motion.button
-                  key={c.phone}
-                  onClick={() => setActivePhone(c.phone)}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: Math.min(idx * 0.025, 0.3) }}
-                  className={`group relative w-full text-left flex gap-3 px-3 py-3 rounded-xl mb-0.5 transition-colors ${
-                    isActive ? "bg-zinc-800/80" : "hover:bg-zinc-900"
-                  }`}
-                >
-                  {isActive && (
-                    <motion.span layoutId="activebar" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.5)]" />
-                  )}
-                  <div className={`relative w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br ${avatarColor(c.nombre || c.phone)} grid place-items-center font-bold text-base text-black/80`}>
-                    {initial(c.nombre)}
-                    <span className={`absolute -right-0.5 -bottom-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#0d0d0f] ${
-                      c.ultimoMensajeRole === "assistant" ? "bg-amber-400" : c.sinResponder ? "bg-red-500" : "bg-zinc-600"
-                    }`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-zinc-100 truncate">{c.nombre}</span>
-                      <span className={`text-[11px] shrink-0 font-medium ${c.sinResponder ? "text-amber-400" : "text-zinc-500"}`}>{relTime(c.ultimoMensajeAt)}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {c.ultimoMensajeRole === "user" && <span className="text-[11px] font-semibold text-red-400 shrink-0">Cliente:</span>}
-                      {c.ultimoMensajeRole === "assistant" && <CheckCheck className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
-                      <span className={`text-xs truncate ${c.sinResponder ? "text-zinc-200" : "text-zinc-400"}`}>{cleanPreview(c.ultimoMensajeTexto) || "Sin mensajes"}</span>
-                    </div>
-                    {lead && (
-                      <span className={`inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${lead.cls}`}>
-                        <lead.Icon className="w-3 h-3" />{lead.label}
-                      </span>
-                    )}
-                    {(c as any).plantillaSinRespuesta && (
-                      <span className="inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border border-orange-400/30 bg-orange-400/10 text-orange-300">
-                        <Send className="w-3 h-3" />Plantilla · sin respuesta
-                      </span>
-                    )}
-                  </div>
-                </motion.button>
-              );
-            })
-          )}
-        </div>
-      </aside>
-
-      {/* ---------- COLUMNA 2+3: CHAT + CONTEXTO ---------- */}
-      {activePhone && activeResumen ? (
-        <ChatPane
-          key={activePhone}
-          phone={activePhone}
-          resumen={activeResumen}
-          onBack={() => setActivePhone(null)}
-        />
-      ) : (
-        <div className="hidden sm:flex flex-1 items-center justify-center bg-[#0a0a0b]">
-          <div className="text-center">
-            <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 grid place-items-center mx-auto mb-4">
-              <MessageSquare className="w-7 h-7 text-zinc-600" />
+        {/* COLUMNA 1: LISTA */}
+        <aside className={`w-full sm:w-[340px] shrink-0 flex flex-col border-r border-zinc-800 bg-[#0d0d0f] ${activePhone ? "hidden sm:flex" : "flex"}`}>
+          <div className="p-4 pb-3 border-b border-zinc-800/70">
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar cliente, telefono o mensaje..."
+                className="w-full h-10 pl-9 pr-3 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-amber-400/50 focus:ring-2 focus:ring-amber-400/10 transition"
+              />
             </div>
-            <p className="text-zinc-400 font-medium">Selecciona una conversacion</p>
-            <p className="text-zinc-600 text-sm mt-1">Elige un cliente de la lista para ver el chat</p>
+            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              <Chip on={filtro === "todas"} onClick={() => setFiltro("todas")}>Todas <b>{counts.total}</b></Chip>
+              <Chip on={filtro === "sin_responder"} onClick={() => setFiltro("sin_responder")} tone="red">Sin responder <b>{counts.sinResp}</b></Chip>
+              <Chip on={filtro === "calientes"} onClick={() => setFiltro("calientes")} tone="amber">Calientes <b>{counts.calientes}</b></Chip>
+              <Chip on={filtro === "bot"} onClick={() => setFiltro("bot")}>Bot</Chip>
+            </div>
           </div>
-        </div>
-      )}
+
+          <div className="flex-1 overflow-y-auto px-2 py-2 scrollbar-thin">
+            {filtered.length === 0 ? (
+              <div className="p-10 text-center text-zinc-500 text-sm">Sin resultados.</div>
+            ) : (
+              filtered.map((c, idx) => {
+                const lead = c.leadScore ? LEAD[c.leadScore] : null;
+                const isActive = c.phone === activePhone;
+                return (
+                  <motion.button
+                    key={c.phone}
+                    onClick={() => setActivePhone(c.phone)}
+                    onMouseEnter={() => setHoverPhone(c.phone)}
+                    onMouseLeave={() => setHoverPhone(null)}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(idx * 0.025, 0.3) }}
+                    className={`group relative w-full text-left flex gap-3 px-3 py-3 rounded-xl mb-0.5 transition-colors ${isActive ? "bg-zinc-800/80" : "hover:bg-zinc-900"}`}
+                  >
+                    {isActive && <motion.span layoutId="activebar" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.5)]" />}
+                    <div className={`relative w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br ${avatarColor(c.nombre || c.phone)} grid place-items-center font-bold text-base text-black/80`}>
+                      {initial(c.nombre)}
+                      <span className={`absolute -right-0.5 -bottom-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#0d0d0f] ${c.ultimoMensajeRole === "assistant" ? "bg-amber-400" : c.sinResponder ? "bg-red-500" : "bg-zinc-600"}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-zinc-100 truncate">{c.nombre}</span>
+                        <span className={`text-[11px] shrink-0 font-medium ${c.sinResponder ? "text-amber-400" : "text-zinc-500"}`}>{relTime(c.ultimoMensajeAt)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {c.ultimoMensajeRole === "user" && <span className="text-[11px] font-semibold text-red-400 shrink-0">Cliente:</span>}
+                        {c.ultimoMensajeRole === "assistant" && <CheckCheck className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
+                        <span className={`text-xs truncate ${c.sinResponder ? "text-zinc-200" : "text-zinc-400"}`}>{cleanPreview(c.ultimoMensajeTexto) || "Sin mensajes"}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {lead && (
+                          <span className={`inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${lead.cls}`}>
+                            <lead.Icon className="w-3 h-3" />{lead.label}
+                          </span>
+                        )}
+                        {(c as any).plantillaSinRespuesta && (
+                          <span className="inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border border-orange-400/30 bg-orange-400/10 text-orange-300">
+                            <Send className="w-3 h-3" />Plantilla
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </motion.button>
+                );
+              })
+            )}
+          </div>
+        </aside>
+
+        {/* COLUMNA 2+3: CHAT + CONTEXTO */}
+        {activePhone && activeResumen ? (
+          <ChatPane key={activePhone} phone={activePhone} resumen={activeResumen} onBack={() => setActivePhone(null)} />
+        ) : (
+          <div className="hidden sm:flex flex-1 items-center justify-center bg-[#0a0a0b]">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 grid place-items-center mx-auto mb-4">
+                <MessageSquare className="w-7 h-7 text-zinc-600" />
+              </div>
+              <p className="text-zinc-400 font-medium">Selecciona una conversacion</p>
+              <p className="text-zinc-600 text-sm mt-1">O usa <kbd className="px-1 rounded bg-zinc-800 text-[10px]">J</kbd> / <kbd className="px-1 rounded bg-zinc-800 text-[10px]">K</kbd> para navegar</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -353,14 +362,21 @@ function ChatPane({ phone, resumen, onBack }: {
   const [taking, setTaking] = useState(false);
   const [media, setMedia] = useState<UploadedMedia | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [tags, setTags] = useState<string[]>(((resumen as any).tags as string[]) || []);
+  const [tagMenuOpen, setTagMenuOpen] = useState(false);
+  const [atendido, setAtendido] = useState<boolean>(!!(resumen as any).atendido);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/bot/conversaciones/${encodeURIComponent(phone)}/detail`, { cache: "no-store" });
       if (!res.ok) throw new Error((await res.json()).error || "Error al cargar");
-      setData(await res.json());
+      const d = await res.json();
+      setData(d);
+      if (Array.isArray(d?.perfil?.tags)) setTags(d.perfil.tags);
+      if (typeof d?.perfil?.atendido === "boolean") setAtendido(d.perfil.atendido);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -373,6 +389,19 @@ function ChatPane({ phone, resumen, onBack }: {
   useEffect(() => {
     if (streamRef.current) streamRef.current.scrollTop = streamRef.current.scrollHeight;
   }, [data?.historial?.length, loading]);
+
+  // ATAJOS dentro del chat: R enfoca respuesta, E marca atendido
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "r") { e.preventDefault(); textRef.current?.focus(); }
+      else if (e.key === "e") { e.preventDefault(); toggleAtendido(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atendido]);
 
   async function takeOver(): Promise<boolean> {
     setTaking(true);
@@ -401,6 +430,47 @@ function ChatPane({ phone, resumen, onBack }: {
     } finally {
       setTaking(false);
     }
+  }
+
+  // ACCION RAPIDA: marcar atendido (toggle)
+  async function toggleAtendido() {
+    const nuevo = !atendido;
+    setAtendido(nuevo); // optimista
+    try {
+      const res = await fetch(`/api/admin/bot/conversaciones/${encodeURIComponent(phone)}/atendido`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ atendido: nuevo }),
+      });
+      if (!res.ok) throw new Error("No se pudo marcar atendido");
+    } catch (e) {
+      setAtendido(!nuevo); // revertir
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  // ACCION RAPIDA: etiquetar (add/remove)
+  async function toggleTag(tag: string) {
+    const has = tags.includes(tag);
+    const action = has ? "remove" : "add";
+    const optimista = has ? tags.filter((t) => t !== tag) : [...tags, tag];
+    setTags(optimista);
+    try {
+      const res = await fetch(`/api/admin/bot/conversaciones/${encodeURIComponent(phone)}/tags`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag, action }),
+      });
+      if (!res.ok) throw new Error("No se pudo actualizar la etiqueta");
+    } catch (e) {
+      setTags(tags); // revertir
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  function insertQuickReply(t: string) {
+    setText((prev) => (prev ? prev + " " + t : t));
+    textRef.current?.focus();
   }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -446,22 +516,20 @@ function ChatPane({ phone, resumen, onBack }: {
     setSending(true);
     setErr(null);
 
-    // Si el bot esta activo, tomamos control primero (composer con aviso)
     if (data && !data.paused) {
       const ok = await takeOver();
       if (!ok) { setSending(false); return; }
     }
 
-    // Optimistic UI
     const optimisticContent = media
-      ? `${media.mediaType === "image" ? "📸" : media.mediaType === "video" ? "🎥" : media.mediaType === "audio" ? "🎙️" : "📎"} ${media.filename}${t ? `\n${t}` : ""}`
+      ? `${media.mediaType === "image" ? "[img]" : media.mediaType === "video" ? "[video]" : media.mediaType === "audio" ? "[audio]" : "[doc]"} ${media.filename}${t ? `\n${t}` : ""}`
       : t;
     const optimistic: MensajeHistorial = {
       role: "assistant", content: optimisticContent, timestamp: new Date().toISOString(), status: "sent",
+      mediaUrl: media?.mediaUrl, mediaType: media?.mediaType,
     };
     setData((d) => d ? { ...d, historial: [...d.historial, optimistic] } : d);
 
-    // Construir body: media usa {mediaUrl,...}, texto usa {text}
     const body: any = {};
     if (media) {
       body.mediaUrl = media.mediaUrl;
@@ -484,7 +552,7 @@ function ChatPane({ phone, resumen, onBack }: {
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
-      await load(); // re-sync, quita el optimista si fallo
+      await load();
     } finally {
       setSending(false);
     }
@@ -492,6 +560,7 @@ function ChatPane({ phone, resumen, onBack }: {
 
   const lead = resumen.leadScore ? LEAD[resumen.leadScore] : null;
   const paused = data?.paused ?? false;
+  const mensajes = mergeHistorialMedia(data?.historial ?? [], data?.media ?? []);
 
   return (
     <>
@@ -500,7 +569,7 @@ function ChatPane({ phone, resumen, onBack }: {
         <div className="absolute inset-0 opacity-[0.4] pointer-events-none"
           style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.025) 1px, transparent 0)", backgroundSize: "22px 22px" }} />
 
-        {/* header */}
+        {/* HEADER con acciones rapidas */}
         <header className="relative z-10 flex items-center gap-3 px-5 py-3 border-b border-zinc-800/70 bg-[#0d0d0f]/70 backdrop-blur-md">
           <button onClick={onBack} className="sm:hidden p-1.5 -ml-1 text-zinc-400 hover:text-zinc-100"><ArrowLeft className="w-5 h-5" /></button>
           <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${avatarColor(resumen.nombre || phone)} grid place-items-center font-bold text-black/80`}>{initial(resumen.nombre)}</div>
@@ -508,24 +577,48 @@ function ChatPane({ phone, resumen, onBack }: {
             <div className="flex items-center gap-2">
               <h2 className="text-[15px] font-semibold text-zinc-100 truncate">{resumen.nombre}</h2>
               {lead && <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${lead.cls}`}><lead.Icon className="w-3 h-3" />{lead.label}</span>}
+              {atendido && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border border-emerald-500/30 bg-emerald-500/15 text-emerald-300"><CheckCircle2 className="w-3 h-3" />Atendido</span>}
             </div>
             <p className="text-xs text-zinc-500 flex items-center gap-1.5">
               <span className="font-mono">{phone}</span>
-              <span className="text-zinc-700">·</span>
+              <span className="text-zinc-700">-</span>
               {paused
-                ? <span className="text-amber-400 font-medium flex items-center gap-1"><Hand className="w-3 h-3" />Control humano</span>
+                ? <span className="text-amber-400 font-medium flex items-center gap-1"><Hand className="w-3 h-3" />Tu al control</span>
                 : <span className="text-emerald-400 font-medium flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />El Coyote atendiendo</span>}
             </p>
           </div>
+          {/* Botones de accion rapida */}
           <div className="flex items-center gap-1.5">
+            <button onClick={toggleAtendido} title="Marcar como atendido (E)"
+              className={`w-9 h-9 rounded-lg grid place-items-center transition ${atendido ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "border border-zinc-800 text-zinc-400 hover:text-emerald-300 hover:bg-zinc-900"}`}>
+              <CheckCircle2 className="w-4 h-4" />
+            </button>
+            <div className="relative">
+              <button onClick={() => setTagMenuOpen((v) => !v)} title="Etiquetar"
+                className={`w-9 h-9 rounded-lg grid place-items-center transition ${tags.length > 0 ? "bg-amber-400/20 text-amber-300 border border-amber-400/40" : "border border-zinc-800 text-zinc-400 hover:text-amber-300 hover:bg-zinc-900"}`}>
+                <Tag className="w-4 h-4" />
+              </button>
+              {tagMenuOpen && (
+                <div className="absolute right-0 top-11 z-30 w-44 rounded-xl bg-zinc-900 border border-zinc-700 shadow-2xl p-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-zinc-500 px-2 py-1">Etiquetas</p>
+                  {ETIQUETAS.map((tg) => (
+                    <button key={tg} onClick={() => toggleTag(tg)}
+                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm text-zinc-200 hover:bg-zinc-800 transition">
+                      <span>{tg}</span>
+                      {tags.includes(tg) && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             {paused
-              ? <button onClick={release} disabled={taking} className="px-3 h-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 flex items-center gap-1.5 transition disabled:opacity-50"><Unlock className="w-3.5 h-3.5" />Liberar</button>
-              : <button onClick={takeOver} disabled={taking} className="px-3 h-9 rounded-lg bg-amber-400 hover:bg-amber-300 text-xs font-bold text-black flex items-center gap-1.5 transition disabled:opacity-50 shadow-[0_0_18px_rgba(251,191,36,0.25)]"><Hand className="w-3.5 h-3.5" />{taking ? "..." : "Tomar control"}</button>}
+              ? <button onClick={release} disabled={taking} title="Devolver al bot" className="px-3 h-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 flex items-center gap-1.5 transition disabled:opacity-50"><Bot className="w-3.5 h-3.5" />Al bot</button>
+              : <button onClick={takeOver} disabled={taking} title="Tomar control" className="px-3 h-9 rounded-lg bg-amber-400 hover:bg-amber-300 text-xs font-bold text-black flex items-center gap-1.5 transition disabled:opacity-50 shadow-[0_0_18px_rgba(251,191,36,0.25)]"><Hand className="w-3.5 h-3.5" />{taking ? "..." : "Control"}</button>}
             <a href={`tel:${phone}`} className="w-9 h-9 rounded-lg border border-zinc-800 grid place-items-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition"><Phone className="w-4 h-4" /></a>
           </div>
         </header>
 
-        {/* stream */}
+        {/* STREAM */}
         <div ref={streamRef} className="relative z-[1] flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-1 scrollbar-thin">
           {loading ? (
             <div className="m-auto text-zinc-600 text-sm flex items-center gap-2"><span className="w-4 h-4 border-2 border-zinc-700 border-t-amber-400 rounded-full animate-spin" />Cargando conversacion...</div>
@@ -537,55 +630,59 @@ function ChatPane({ phone, resumen, onBack }: {
                 </div>
               )}
               <AnimatePresence initial={false}>
-                {mergeHistorialMedia(data?.historial ?? [], data?.media ?? []).map((m, i) => <Bubble key={i} m={m} idx={i} />)}
+                {mensajes.map((m, i) => <Bubble key={i} m={m} idx={i} />)}
               </AnimatePresence>
             </>
           )}
         </div>
 
-        {/* composer */}
+        {/* COMPOSER */}
         <div className="relative z-10 px-4 pt-3 pb-4 border-t border-zinc-800/70 bg-[#0d0d0f]/75 backdrop-blur-md">
           {!paused && (
             <div className="flex items-center gap-2 mb-2.5 px-1 text-[11px] text-amber-400/90">
               <Bot className="w-3.5 h-3.5" />
-              <span>El Coyote esta atendiendo — al enviar tomas el control automaticamente.</span>
+              <span>El Coyote esta atendiendo - al enviar tomas el control automaticamente.</span>
             </div>
           )}
           {paused && data?.pauseState && (
             <div className="flex items-center gap-2 mb-2.5 px-1 text-[11px] text-zinc-500">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-              Control tomado por <b className="text-zinc-400">{data.pauseState.pausedBy}</b> · el bot regresa en <b className="text-zinc-400">{fmtTTL(data.ttlSeconds)}</b>
+              Control tomado por <b className="text-zinc-400">{data.pauseState.pausedBy}</b> - el bot regresa en <b className="text-zinc-400">{fmtTTL(data.ttlSeconds)}</b>
             </div>
           )}
+
+          {/* CHIPS de respuesta rapida */}
+          <div className="flex gap-1.5 overflow-x-auto pb-2 mb-1 scrollbar-none">
+            {QUICK_REPLIES.map((qr) => (
+              <button key={qr.label} onClick={() => insertQuickReply(qr.text)}
+                title={qr.text}
+                className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-amber-400/40 hover:text-amber-300 transition whitespace-nowrap">
+                <Zap className="w-3 h-3" />{qr.label}
+              </button>
+            ))}
+          </div>
+
           {/* preview de media adjunta */}
           {media && (
             <div className="flex items-center gap-3 mb-2.5 p-2 rounded-xl bg-zinc-900 border border-zinc-800">
               {media.mediaType === "image" ? (
                 <img src={media.mediaUrl} alt={media.filename} className="w-12 h-12 rounded-lg object-cover border border-zinc-700" />
               ) : (
-                <div className="w-12 h-12 rounded-lg bg-zinc-800 grid place-items-center text-zinc-400">
-                  <FileText className="w-5 h-5" />
-                </div>
+                <div className="w-12 h-12 rounded-lg bg-zinc-800 grid place-items-center text-zinc-400"><FileText className="w-5 h-5" /></div>
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-zinc-200 truncate">{media.filename}</p>
-                <p className="text-[10px] text-zinc-500 uppercase">{media.mediaType} · {(media.size / 1024).toFixed(0)} KB</p>
+                <p className="text-[10px] text-zinc-500 uppercase">{media.mediaType} - {(media.size / 1024).toFixed(0)} KB</p>
               </div>
-              <button onClick={removeMedia} disabled={sending} className="w-7 h-7 rounded-lg grid place-items-center text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition" title="Quitar">
-                <X className="w-4 h-4" />
-              </button>
+              <button onClick={removeMedia} disabled={sending} className="w-7 h-7 rounded-lg grid place-items-center text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition" title="Quitar"><X className="w-4 h-4" /></button>
             </div>
           )}
-          <input
-            ref={fileInputRef}
-            type="file"
+          <input ref={fileInputRef} type="file"
             accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain"
-            onChange={handleFileSelect}
-            disabled={sending || uploading}
-            className="hidden"
-          />
+            onChange={handleFileSelect} disabled={sending || uploading} className="hidden" />
           <div className="flex items-end gap-2 bg-zinc-900 border border-zinc-800 rounded-2xl pl-3 pr-2 py-2 focus-within:border-amber-400/50 focus-within:ring-2 focus-within:ring-amber-400/10 transition">
             <textarea
+              ref={textRef}
               value={text}
               onChange={(e) => { setText(e.target.value); e.currentTarget.style.height = "auto"; e.currentTarget.style.height = Math.min(e.currentTarget.scrollHeight, 120) + "px"; }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
@@ -593,12 +690,7 @@ function ChatPane({ phone, resumen, onBack }: {
               placeholder={media ? "Caption opcional para el archivo..." : "Escribe un mensaje..."}
               className="flex-1 bg-transparent resize-none text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none py-1.5 max-h-[120px]"
             />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={sending || uploading}
-              title="Adjuntar imagen, PDF, video o audio"
-              className="w-9 h-9 rounded-lg grid place-items-center text-zinc-500 hover:text-amber-400 hover:bg-zinc-800 transition disabled:opacity-40"
-            >
+            <button onClick={() => fileInputRef.current?.click()} disabled={sending || uploading} title="Adjuntar" className="w-9 h-9 rounded-lg grid place-items-center text-zinc-500 hover:text-amber-400 hover:bg-zinc-800 transition disabled:opacity-40">
               {uploading ? <Loader2 className="w-[18px] h-[18px] animate-spin" /> : <Paperclip className="w-[18px] h-[18px]" />}
             </button>
             <button onClick={send} disabled={sending || uploading || (!text.trim() && !media)} className="w-10 h-10 rounded-xl bg-amber-400 hover:bg-amber-300 disabled:bg-zinc-700 disabled:text-zinc-500 text-black grid place-items-center transition shadow-[0_0_18px_rgba(251,191,36,0.25)] disabled:shadow-none active:scale-95">
@@ -615,7 +707,19 @@ function ChatPane({ phone, resumen, onBack }: {
         <div className="p-5">
           <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${avatarColor(resumen.nombre || phone)} grid place-items-center font-bold text-2xl text-black/80 mx-auto`}>{initial(resumen.nombre)}</div>
           <h3 className="text-center text-base font-bold text-zinc-100 mt-3">{resumen.nombre}</h3>
-          <p className="text-center text-xs text-zinc-500 mt-0.5 capitalize">{resumen.segmento} · {resumen.totalCompras} compra{resumen.totalCompras !== 1 ? "s" : ""}</p>
+          <p className="text-center text-xs text-zinc-500 mt-0.5 capitalize">{resumen.segmento} - {resumen.totalCompras} compra{resumen.totalCompras !== 1 ? "s" : ""}</p>
+
+          {/* TAGS del cliente */}
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 justify-center mt-3">
+              {tags.map((tg) => (
+                <span key={tg} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-amber-400/30 bg-amber-400/10 text-amber-300">
+                  <Tag className="w-2.5 h-2.5" />{tg}
+                  <button onClick={() => toggleTag(tg)} className="ml-0.5 hover:text-red-400"><X className="w-2.5 h-2.5" /></button>
+                </span>
+              ))}
+            </div>
+          )}
 
           <Scoring label="Temperatura de compra" value={data?.perfil?.temperaturaCompra ?? resumen.temperaturaCompra ?? 0} Icon={TrendingUp} />
           <Scoring label="Nivel de confianza" value={data?.perfil?.nivelConfianza ?? resumen.nivelConfianza ?? 0} Icon={ShieldCheck} />
@@ -671,9 +775,8 @@ function Bubble({ m, idx }: { m: MensajeHistorial; idx: number }) {
     );
   }
   const isUser = m.role === "user";
-  // FIX MEDIA: imagen que el cliente envio (via proxy de Meta)
   const proxySrc = m.mediaNativeId ? `/api/admin/bot/media/${m.mediaNativeId}` : null;
-  const isImg = m.mediaTipo === "image" || (m.mediaType === "image" && m.mediaUrl);
+  const isImg = m.mediaTipo === "image" || (m.mediaType === "image" && !!m.mediaUrl);
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -681,37 +784,25 @@ function Bubble({ m, idx }: { m: MensajeHistorial; idx: number }) {
       transition={{ duration: 0.25, delay: Math.min(idx * 0.01, 0.2) }}
       className={`flex flex-col max-w-[76%] ${isUser ? "self-start items-start" : "self-end items-end"}`}
     >
-      {/* Imagen del cliente (proxy) o imagen saliente (mediaUrl) */}
       {(proxySrc || m.mediaUrl) && isImg && (
         <a href={proxySrc || m.mediaUrl} target="_blank" rel="noopener noreferrer" className="block mb-1">
-          <img
-            src={proxySrc || m.mediaUrl}
-            alt={m.content || "imagen"}
-            className="rounded-2xl max-w-[240px] max-h-[320px] object-cover border border-zinc-700/50"
-            loading="lazy"
-          />
+          <img src={proxySrc || m.mediaUrl} alt={m.content || "imagen"} className="rounded-2xl max-w-[240px] max-h-[320px] object-cover border border-zinc-700/50" loading="lazy" />
         </a>
       )}
-      {/* Media no-imagen del cliente: enlace de descarga */}
       {proxySrc && !isImg && (
-        <a href={proxySrc} target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-2 mb-1 px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700/50 text-zinc-200 text-sm hover:bg-zinc-700 transition">
+        <a href={proxySrc} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 mb-1 px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700/50 text-zinc-200 text-sm hover:bg-zinc-700 transition">
           <FileText className="w-4 h-4" />
           {m.mediaTipo === "audio" ? "Audio" : m.mediaTipo === "video" ? "Video" : "Documento"} del cliente
         </a>
       )}
       {(m.content || (!proxySrc && !m.mediaUrl)) && (
-      <div className={`px-3.5 py-2 text-sm leading-relaxed rounded-2xl whitespace-pre-line break-words ${
-        isUser
-          ? "bg-zinc-800 text-zinc-100 rounded-bl-md border border-zinc-700/50"
-          : "bg-gradient-to-b from-amber-300 to-amber-400 text-amber-950 rounded-br-md font-medium"
-      }`}>
-        {m.content}
-      </div>
+        <div className={`px-3.5 py-2 text-sm leading-relaxed rounded-2xl whitespace-pre-line break-words ${isUser ? "bg-zinc-800 text-zinc-100 rounded-bl-md border border-zinc-700/50" : "bg-gradient-to-b from-amber-300 to-amber-400 text-amber-950 rounded-br-md font-medium"}`}>
+          {m.content}
+        </div>
       )}
       <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-zinc-500">
         {!isUser && <span className="text-amber-400/80 font-medium">El Coyote</span>}
-        {!isUser && <span>·</span>}
+        {!isUser && <span>-</span>}
         <span>{fmtTime(m.timestamp)}</span>
         {!isUser && (m.status === "sent" ? <CheckCheck className="w-3.5 h-3.5 text-sky-400" /> : <Check className="w-3.5 h-3.5" />)}
       </div>
@@ -725,7 +816,7 @@ function Scoring({ label, value, Icon }: { label: string; value: number; Icon: t
     <div className="mt-4">
       <div className="flex justify-between items-center mb-1.5">
         <span className="text-[11px] uppercase tracking-wide text-zinc-500 font-semibold flex items-center gap-1.5"><Icon className="w-3 h-3" />{label}</span>
-        <span className="text-xs font-bold text-amber-400">{pct}°</span>
+        <span className="text-xs font-bold text-amber-400">{pct}</span>
       </div>
       <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
         <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6, ease: "easeOut" }}
@@ -747,9 +838,7 @@ function Chip({ children, on, onClick, tone = "default" }: {
     : "bg-amber-400 border-amber-400 text-black";
   return (
     <button onClick={onClick}
-      className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition ${
-        on ? active : "bg-transparent border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
-      } [&>b]:opacity-70 [&>b]:font-bold`}>
+      className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition ${on ? active : "bg-transparent border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"} [&>b]:opacity-70 [&>b]:font-bold`}>
       {children}
     </button>
   );
