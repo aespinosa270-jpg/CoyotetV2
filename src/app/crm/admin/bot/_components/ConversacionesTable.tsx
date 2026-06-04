@@ -231,7 +231,7 @@ export function ConversacionesTable({ items }: Props) {
         prevSinRespRef.current = sinResp;
         setLiveItems(nuevos);
       } catch { /* ignore */ }
-    }, 15000);
+    }, 2147483647);
     return () => { cancel = true; clearInterval(id); };
   }, []);
 
@@ -462,7 +462,7 @@ function ChatPane({ phone, resumen, onBack }: {
   // POLLING DEL CHAT: cada 10s recarga; si hay mas mensajes del cliente -> ding
   const prevUserMsgsRef = useRef<number>(0);
   useEffect(() => {
-    const id = setInterval(() => { load(); }, 10000);
+    const id = setInterval(() => { load(); }, 2147483647);
     return () => clearInterval(id);
   }, [load]);
   useEffect(() => {
