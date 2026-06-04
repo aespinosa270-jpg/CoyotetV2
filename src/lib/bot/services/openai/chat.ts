@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Wrapper tipado de OpenAI chat completions con function calling estricto.
  *
  * Reemplaza el approach del v1 de parsear comandos como `GENERAR_COBRO|...`
@@ -125,12 +125,15 @@ export async function chat(
       "OpenAI chat request"
     );
 
+    const esGpt5 = /^(gpt-5|o1|o3|o4)/i.test(model);
+    const tokenParam = esGpt5 ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens };
+    const tempParam = esGpt5 ? {} : { temperature };
     const response = await client.chat.completions.create(
       {
         model,
         messages: apiMessages as any,
-        temperature,
-        max_tokens: maxTokens,
+        ...tempParam,
+        ...tokenParam,
         ...(apiTools ? { tools: apiTools } : {}),
         ...(apiToolChoice ? { tool_choice: apiToolChoice } : {}),
       },
