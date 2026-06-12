@@ -325,6 +325,7 @@ export function ConversacionesTable({ items }: Props) {
               <Chip on={filtro === "sin_responder"} onClick={() => setFiltro("sin_responder")} tone="red">Sin responder <b>{counts.sinResp}</b></Chip>
               <Chip on={filtro === "calientes"} onClick={() => setFiltro("calientes")} tone="amber">Calientes <b>{counts.calientes}</b></Chip>
               <Chip on={filtro === "bot"} onClick={() => setFiltro("bot")}>Bot</Chip>
+              <BulkBienvenidaButton />
             </div>
             {/* FILTRO POR ETIQUETA */}
             {Array.from(new Set(items.flatMap((c) => ((c as any).tags ?? []) as string[]))).length > 0 && (
@@ -1024,6 +1025,76 @@ function Scoring({ label, value, Icon }: { label: string; value: number; Icon: t
 
 function SecTitle({ children }: { children: React.ReactNode }) {
   return <p className="text-[11px] font-bold text-zinc-600 uppercase tracking-wider mb-2">{children}</p>;
+}
+
+function BulkBienvenidaButton() {
+  const [estado, setEstado] = useState<"idle" | "contando" | "enviando" | "done">("idle");
+  const [prog, setProg] = useState({ candidatos: 0, enviados: 0, fallidos: 0 });
+
+  async function loop(mode: "dry" | "send") {
+    let cursor = "0";
+    let candidatos = 0, enviados = 0, fallidos = 0;
+    let language = "en";
+    for (let i = 0; i < 300; i++) {
+      const res = await fetch("/api/admin/bot/send-template-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, cursor, language }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const d = await res.json();
+      candidatos += d.candidates ?? 0;
+      enviados += d.sent ?? 0;
+      fallidos += d.failed ?? 0;
+      language = d.language ?? language;
+      setProg({ candidatos, enviados, fallidos });
+      cursor = String(d.cursor ?? "0");
+      if (d.done) break;
+    }
+    return { candidatos, enviados, fallidos };
+  }
+
+  async function run() {
+    if (estado === "contando" || estado === "enviando") return;
+    try {
+      setEstado("contando");
+      setProg({ candidatos: 0, enviados: 0, fallidos: 0 });
+      const dry = await loop("dry");
+      if (dry.candidatos === 0) {
+        alert("No hay conversaciones sin responder pendientes de bienvenida.");
+        setEstado("idle");
+        return;
+      }
+      const ok = window.confirm(
+        "Se enviara la plantilla de bienvenida (el_coyote) a " + dry.candidatos +
+        " clientes que escribieron y siguen sin respuesta.\n\n" +
+        "- Solo una vez por cliente (no duplica)\n" +
+        "- Tiene costo por mensaje en Meta\n\nContinuar?"
+      );
+      if (!ok) { setEstado("idle"); return; }
+      setEstado("enviando");
+      setProg({ candidatos: dry.candidatos, enviados: 0, fallidos: 0 });
+      const r = await loop("send");
+      setEstado("done");
+      alert("Bienvenida enviada.\nEnviados: " + r.enviados + "\nFallidos: " + r.fallidos);
+    } catch (e) {
+      alert("Error en el envio masivo: " + (e instanceof Error ? e.message : String(e)));
+      setEstado("idle");
+    }
+  }
+
+  const label =
+    estado === "contando" ? "Contando..." :
+    estado === "enviando" ? ("Enviando... " + prog.enviados) :
+    "📨 Bienvenida";
+
+  return (
+    <button onClick={run} disabled={estado === "contando" || estado === "enviando"}
+      title="Enviar plantilla de bienvenida a todos los sin responder (una sola vez por cliente)"
+      className="px-3 h-7 rounded-full text-xs font-semibold border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 transition disabled:opacity-60 whitespace-nowrap">
+      {label}
+    </button>
+  );
 }
 
 function Chip({ children, on, onClick, tone = "default" }: {
