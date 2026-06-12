@@ -32,7 +32,7 @@ const envSchema = z.object({
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
   OPENAI_MODEL_FALLBACK: z.string().default("gpt-4o"),
   OPENAI_EMBEDDING_MODEL: z.string().default("text-embedding-3-small"),
-  OPENAI_VISION_MODEL: z.string().default("gpt-4o"),
+  OPENAI_VISION_MODEL: z.string().default("gpt-5.5"),
 
   // â”€â”€ WhatsApp / Meta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   WHATSAPP_TOKEN: z.string().min(20),

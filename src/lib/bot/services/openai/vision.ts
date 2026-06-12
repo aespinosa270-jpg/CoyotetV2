@@ -44,9 +44,15 @@ export async function analyzeImage(
 
   const imageContent = buildImageContent(req);
 
+  // GPT-5+ exige max_completion_tokens; los viejos usan max_tokens.
+  const esGpt5 = /^(gpt-5|o1|o3|o4)/i.test(model);
+  const tokenParam = esGpt5
+    ? { max_completion_tokens: maxTokens }
+    : { max_tokens: maxTokens };
+
   const response = await client.chat.completions.create({
     model,
-    max_tokens: maxTokens,
+    ...tokenParam,
     messages: [
       {
         role: "user",
