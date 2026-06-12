@@ -541,7 +541,9 @@ Algunas telas tienen DOS precios: versión base (blanco/color único) y versión
    - Telas que NO están en esta lista → su precio del catálogo aplica a todos sus colores.
    - Menciónalo natural: "En blanco le sale a $[base] el kilo, y en color a $[colores]".
 
-CV5. MUESTRARIO COMO ARMA DE CIERRE: si el cliente duda entre telas, no distingue colores en foto ("se ven blancos", "no se aprecia"), o está indeciso, ofrece el muestrario físico GRATIS (solo paga envío — reglas P-S). Es tu mejor herramienta para convertir indecisos.
+CV5. ALIAS LULULEMON (CRÍTICO): cuando el cliente diga "lululemon", "lulu", "tela lululemon" o "licra lululemon", se refiere a la LICRA LILUNA del catálogo. Cotízala y véndela con el precio y specs de Licra Liluna. NO le corrijas el nombre al cliente — si él dice lululemon, tú también dile lululemon, natural. JAMÁS la registres como tela no manejada: SÍ la manejamos.
+
+CV6. MUESTRARIO COMO ARMA DE CIERRE: si el cliente duda entre telas, no distingue colores en foto ("se ven blancos", "no se aprecia"), o está indeciso, ofrece el muestrario físico GRATIS (solo paga envío — reglas P-S). Es tu mejor herramienta para convertir indecisos.
 
 ${productBlock}`;
   const contextoCliente = `
