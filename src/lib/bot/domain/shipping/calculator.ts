@@ -240,7 +240,9 @@ function construirDesglose(args: {
     `• Subtotal productos: $${subtotal.toFixed(2)} MXN`,
     `• Flete (manejo de bultos): $${flete.toFixed(2)}`,
     `• ${lineaTraslado}: $${traslado.toFixed(2)}`,
-    `• Tarifa de servicio: $${tarifaServicio.toFixed(2)}`,
+    ...(tarifaServicio > 0
+      ? [`• Tarifa de servicio: $${tarifaServicio.toFixed(2)}`]
+      : []),
     ...(tarifaColocacion > 0
       ? [`• Tarifa de colocacion (rollo): $${tarifaColocacion.toFixed(2)}`]
       : []),

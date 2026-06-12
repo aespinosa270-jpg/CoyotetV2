@@ -103,7 +103,9 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
           `• Subtotal productos: $${subtotal.toFixed(2)} MXN`,
           `• Flete (manejo de bultos): $${resultado.flete.toFixed(2)}`,
           `• Traslado vía ${skydropxData.carrier} (${skydropxData.days} días hábiles): $${trasladoReal.toFixed(2)}`,
-          `• Tarifa de servicio: $${resultado.tarifaServicio.toFixed(2)}`,
+          ...(resultado.tarifaServicio > 0
+            ? [`• Tarifa de servicio: $${resultado.tarifaServicio.toFixed(2)}`]
+            : []),
           ...(colocacion > 0
             ? [`• Tarifa de colocacion (rollo): $${colocacion.toFixed(2)}`]
             : []),
