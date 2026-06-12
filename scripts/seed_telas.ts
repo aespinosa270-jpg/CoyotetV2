@@ -2,9 +2,6 @@ import { PrismaClient, UnitType, PickupLocation } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// ========================================================
-// CATÁLOGO MAESTRO (Extraído directamente de tu frontend)
-// ========================================================
 const products = [
   {
     id: "prod_alaska", title: "Alaska", unit: "Kilo",
