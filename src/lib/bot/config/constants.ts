@@ -15,6 +15,8 @@ export const SHIPPING = {
   OPERATIONAL_MARKUP: 4,
   /** Tarifa fija de servicio por envío. */
   FIXED_SERVICE_FEE: 175,
+  /** Tarifa de colocacion: fija por pedido cuando incluye al menos un rollo completo. */
+  PLACEMENT_FEE: 200,
   /** Capacidad máxima de rollos por vehículo. */
   MAX_ROLLS_PER_VEHICLE: 80,
   /** Kilos por rollo estándar de tela. */

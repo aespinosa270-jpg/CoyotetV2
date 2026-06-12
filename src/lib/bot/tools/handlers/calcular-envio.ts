@@ -86,8 +86,10 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
     let resultadoFinal = resultado;
     if (skydropxData) {
       const trasladoReal = skydropxData.amount;
-      const baseReal = subtotal + resultado.flete + trasladoReal + resultado.tarifaServicio;
-      const ivaReal = requiere_factura ? baseReal * 0.16 : 0;
+      const colocacion = resultado.tarifaColocacion ?? 0;
+      const baseReal = subtotal + resultado.flete + trasladoReal + resultado.tarifaServicio + colocacion;
+      // IVA: SOLO sobre el subtotal de productos.
+      const ivaReal = requiere_factura ? subtotal * 0.16 : 0;
       const totalReal = baseReal + ivaReal;
 
       resultadoFinal = {
@@ -102,6 +104,9 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
           `• Flete (manejo de bultos): $${resultado.flete.toFixed(2)}`,
           `• Traslado vía ${skydropxData.carrier} (${skydropxData.days} días hábiles): $${trasladoReal.toFixed(2)}`,
           `• Tarifa de servicio: $${resultado.tarifaServicio.toFixed(2)}`,
+          ...(colocacion > 0
+            ? [`• Tarifa de colocacion (rollo): $${colocacion.toFixed(2)}`]
+            : []),
           `• Base: $${baseReal.toFixed(2)}`,
           requiere_factura ? `• IVA 16%: $${ivaReal.toFixed(2)}` : null,
           `• *TOTAL: $${totalReal.toFixed(2)} MXN*`

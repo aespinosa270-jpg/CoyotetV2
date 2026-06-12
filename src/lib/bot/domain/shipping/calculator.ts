@@ -44,6 +44,8 @@ export interface ResultadoEnvio {
   traslado: number;
   /** Vehículos requeridos (siempre ≥ 1). */
   vehiculos: number;
+  /** Tarifa de colocacion: $200 fijos si el pedido incluye rollo completo; 0 si no. */
+  tarifaColocacion: number;
   /** Tarifa fija de servicio. */
   tarifaServicio: number;
   tipoEnvio: TipoEnvio;
@@ -156,12 +158,20 @@ export function calcularEnvio(input: CalcularEnvioInput): ResultadoEnvio {
   }
 
   const tarifaServicio = SHIPPING.FIXED_SERVICE_FEE;
-  const base = subtotal + flete + traslado + tarifaServicio;
-  const iva = requiereFactura ? base * TAX.IVA_RATE : 0;
+  // Colocacion: $200 fijos por pedido si incluye al menos un rollo completo.
+  // Criterio: producto marcado esRollo o con kg >= al rollo completo.
+  const hayRollo = productos.some(
+    (p) => p.esRollo === true || p.kg >= (p.kgPorRollo ?? SHIPPING.KG_PER_ROLL)
+  );
+  const tarifaColocacion = hayRollo ? SHIPPING.PLACEMENT_FEE : 0;
+  const base = subtotal + flete + traslado + tarifaServicio + tarifaColocacion;
+  // IVA: SOLO sobre el subtotal de productos (no flete, no traslado, no tarifas).
+  const iva = requiereFactura ? subtotal * TAX.IVA_RATE : 0;
   const total = base + iva;
 
   // Desglose para el cliente
   const desglose = construirDesglose({
+    tarifaColocacion,
     subtotal,
     flete,
     traslado,
@@ -180,6 +190,7 @@ export function calcularEnvio(input: CalcularEnvioInput): ResultadoEnvio {
     traslado: Math.round(traslado * 100) / 100,
     vehiculos,
     tarifaServicio,
+    tarifaColocacion,
     tipoEnvio: zona.tipo,
     zonaEtiqueta: zona.etiqueta,
     distanciaKm: zona.distanciaKm,
@@ -195,6 +206,7 @@ export function calcularEnvio(input: CalcularEnvioInput): ResultadoEnvio {
 // ── Construcción del texto de desglose ─────────────────────────────
 
 function construirDesglose(args: {
+  tarifaColocacion: number;
   subtotal: number;
   flete: number;
   traslado: number;
@@ -215,6 +227,7 @@ function construirDesglose(args: {
     total,
     requiereFactura,
     zona,
+    tarifaColocacion,
   } = args;
 
   const lineaTraslado =
@@ -228,6 +241,9 @@ function construirDesglose(args: {
     `• Flete (manejo de bultos): $${flete.toFixed(2)}`,
     `• ${lineaTraslado}: $${traslado.toFixed(2)}`,
     `• Tarifa de servicio: $${tarifaServicio.toFixed(2)}`,
+    ...(tarifaColocacion > 0
+      ? [`• Tarifa de colocacion (rollo): $${tarifaColocacion.toFixed(2)}`]
+      : []),
     `• Base: $${base.toFixed(2)}`,
   ];
   if (requiereFactura) {
