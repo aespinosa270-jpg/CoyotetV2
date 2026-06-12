@@ -183,6 +183,12 @@ export async function sendTemplate(
  * configurado en Meta Business Manager. Cualquier typo → error 132001.
  */
 export const TEMPLATES = {
+  /** "el_coyote" — registrada en Meta como English. Bienvenida/prospeccion. Sin variables. */
+  EL_COYOTE: {
+    name: "el_coyote",
+    language: "en",
+    requiresParams: false,
+  },
   /** "bienvenida" — Spanish. Activa: calidad pendiente. Sin variables. */
   BIENVENIDA: {
     name: "bienvenida",
