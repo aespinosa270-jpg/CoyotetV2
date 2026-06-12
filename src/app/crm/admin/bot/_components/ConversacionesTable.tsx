@@ -743,6 +743,7 @@ function ChatPane({ phone, resumen, onBack }: {
             {paused
               ? <button onClick={release} disabled={taking} title="Devolver al bot" className="px-3 h-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 flex items-center gap-1.5 transition disabled:opacity-50"><Bot className="w-3.5 h-3.5" />Al bot</button>
               : <button onClick={takeOver} disabled={taking} title="Tomar control" className="px-3 h-9 rounded-lg bg-amber-400 hover:bg-amber-300 text-xs font-bold text-black flex items-center gap-1.5 transition disabled:opacity-50 shadow-[0_0_18px_rgba(251,191,36,0.25)]"><Hand className="w-3.5 h-3.5" />{taking ? "..." : "Control"}</button>}
+            <TemplateSendButton phone={phone} />
             <button onClick={() => setSearchOpen((v) => !v)} title="Buscar en la conversacion" className={`w-9 h-9 rounded-lg grid place-items-center transition ${searchOpen ? "bg-amber-400/20 text-amber-300 border border-amber-400/40" : "border border-zinc-800 text-zinc-400 hover:text-amber-300 hover:bg-zinc-900"}`}><Search className="w-4 h-4" /></button>
             <a href={`tel:${phone}`} className="w-9 h-9 rounded-lg border border-zinc-800 grid place-items-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition"><Phone className="w-4 h-4" /></a>
           </div>
@@ -1094,6 +1095,55 @@ function BulkBienvenidaButton() {
       className="px-3 h-7 rounded-full text-xs font-semibold border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 transition disabled:opacity-60 whitespace-nowrap">
       {label}
     </button>
+  );
+}
+
+function TemplateSendButton({ phone }: { phone: string }) {
+  const [open, setOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const plantillas = [
+    { name: "el_coyote", label: "El Coyote (presentacion)" },
+    { name: "bienvenida", label: "Bienvenida Coyote Textil" },
+    { name: "oferta_de_reactivacion", label: "Oferta reactivacion (con imagen)" },
+  ];
+  async function enviar(name: string) {
+    if (sending) return;
+    if (!window.confirm('Enviar la plantilla "' + name + '" a este cliente?')) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/admin/bot/send-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telefono: phone, templateName: name }),
+      });
+      const d = await res.json();
+      if (res.ok && d.ok) alert("Plantilla enviada");
+      else alert("Error: " + (d.error || ("HTTP " + res.status)));
+    } catch (e) {
+      alert("Error: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSending(false);
+      setOpen(false);
+    }
+  }
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((v) => !v)} disabled={sending} title="Enviar plantilla de Meta"
+        className={`w-9 h-9 rounded-lg grid place-items-center transition ${open ? "bg-emerald-400/20 text-emerald-300 border border-emerald-400/40" : "border border-zinc-800 text-zinc-400 hover:text-emerald-300 hover:bg-zinc-900"}`}>
+        <span className="text-sm">{sending ? "..." : "📨"}</span>
+      </button>
+      {open && !sending && (
+        <div className="absolute right-0 top-11 z-50 w-60 rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl p-1">
+          <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-zinc-500">Enviar plantilla</div>
+          {plantillas.map((t) => (
+            <button key={t.name} onClick={() => enviar(t.name)}
+              className="w-full text-left px-3 py-2 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 transition">
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

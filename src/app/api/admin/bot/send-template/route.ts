@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
     to: telefono,
     templateName,
     language: templateConfig.language,
+    headerImageUrl: (templateConfig as any).headerImageUrl,
   });
 
   // Audit log
