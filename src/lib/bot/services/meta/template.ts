@@ -5,8 +5,8 @@
  * fuera de la ventana de 24h. Deben estar pre-aprobadas en Meta Business.
  *
  * Diferencia con `sendText`:
- *  - sendText: respuesta dentro de 24h (texto libre, sin restricciones)
- *  - sendTemplate: iniciar conversación (template aprobada con variables)
+ * - sendText: respuesta dentro de 24h (texto libre, sin restricciones)
+ * - sendTemplate: iniciar conversación (template aprobada con variables)
  *
  * Si la plantilla NO está aprobada o cae fuera del catálogo de Meta, falla
  * con error 132xxx. Si está pendiente de calidad, Meta puede silenciosamente
@@ -204,4 +204,11 @@ export const TEMPLATES = {
     /** Header tipo IMAGE — requiere URL pública accesible por Meta. */
     headerImageUrl: "https://www.coyotetextil.com/assets/oferta-reactivacion.jpg",
   },
+  /** "tuvimos_inconvenientes_en_el_sitema_" — Spanish. Aviso de sistema restablecido. */
+  TUVIMOS_INCONVENIENTES_SISTEMA: {
+    name: "tuvimos_inconvenientes_en_el_sitema_",
+    language: "es",
+    requiresParams: false,
+    headerImageUrl: "https://www.coyotetextil.com/assets/inconvenientes-sistema.jpg",
+  }
 } as const;
