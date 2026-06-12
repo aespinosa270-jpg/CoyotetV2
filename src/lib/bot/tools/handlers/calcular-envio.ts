@@ -102,7 +102,7 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
           `📦 *Desglose de su cotización*`,
           `• Subtotal productos: $${subtotal.toFixed(2)} MXN`,
           `• Flete (manejo de bultos): $${resultado.flete.toFixed(2)}`,
-          `• Traslado vía ${skydropxData.carrier} (${skydropxData.days} días hábiles): $${trasladoReal.toFixed(2)}`,
+          `• Traslado vía ${skydropxData.carrier}: $${trasladoReal.toFixed(2)}`,
           ...(resultado.tarifaServicio > 0
             ? [`• Tarifa de servicio: $${resultado.tarifaServicio.toFixed(2)}`]
             : []),
@@ -137,7 +137,7 @@ export async function calcularEnvioHandler(args: any, context: BotContext) {
     // 6. Instrucción mejorada para que el bot mencione el carrier
     let instruccion = "Muestra el total al cliente y pregúntale si requiere factura o si procedemos al cobro.";
     if (skydropxData) {
-      instruccion = `IMPORTANTE: El envío va con ${skydropxData.carrier} en ${skydropxData.days} días hábiles. Menciona claramente al cliente quién entregará y en cuántos días. Después pregunta si procedemos al cobro.`;
+      instruccion = `IMPORTANTE: El envío va con ${skydropxData.carrier}. Menciona quién lo transportará y que la COLOCACIÓN en paquetería es en 1 a 2 días hábiles. NO prometas fecha ni días de entrega (eso depende de la paquetería). Después pregunta si procedemos al cobro.`;
     } else if (zona.tipo === "COYOTE") {
       instruccion = `IMPORTANTE: El envío va con NUESTRA FLOTILLA COYOTE (entrega directa a ${zona.etiqueta}). Menciona que es entrega de nuestra propia flotilla. Después pregunta si procedemos al cobro.`;
     }
