@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pipeline de análisis de imágenes.
  *
  *   IncomingMessage (type=image)
@@ -257,6 +257,36 @@ export function buildEnrichedMessage(
   caption: string
 ): string {
   // Caso: GPT marcó esProducto=false
+  // G4: tipos de imagen no-textiles con instrucciones propias
+  const _NL = String.fromCharCode(10);
+  const tipoImagen = (analysis as any).tipoImagen as string | undefined;
+  if (tipoImagen === "comprobante_pago") {
+    const pago = ((analysis as any).pago ?? {}) as Record<string, string>;
+    const datos = [
+      pago.monto ? "monto $" + pago.monto : null,
+      pago.banco ? "banco " + pago.banco : null,
+      pago.fecha ? "fecha " + pago.fecha : null,
+      pago.folio ? "folio " + pago.folio : null,
+    ].filter(Boolean).join(", ");
+    return [
+      "[IMAGEN ANALIZADA: COMPROBANTE DE PAGO" + (datos ? " - " + datos : "") + "]",
+      "El cliente envio un comprobante de transferencia/pago." + (caption.trim() ? " Ademas escribio: \"" + caption.trim() + "\"." : ""),
+      "INSTRUCCION (regla OP8): reconoce el comprobante DE INMEDIATO mencionando el monto si lo tienes. Responde algo como: Recibi su comprobante, permitame confirmar el pago y en cuanto quede confirmado proseguimos con su envio. JAMAS des el pago por confirmado solo por la imagen.",
+    ].join(_NL);
+  }
+  if (tipoImagen === "guia_envio") {
+    const guia = ((analysis as any).guia ?? {}) as Record<string, string>;
+    const datosGuia = [
+      guia.numero ? "guia " + guia.numero : null,
+      guia.paqueteria ? "paqueteria " + guia.paqueteria : null,
+    ].filter(Boolean).join(", ");
+    return [
+      "[IMAGEN ANALIZADA: GUIA DE ENVIO" + (datosGuia ? " - " + datosGuia : "") + "]",
+      caption.trim() ? "El cliente escribio: \"" + caption.trim() + "\"." : "El cliente envio una guia de envio.",
+      "INSTRUCCION: responde sobre el seguimiento de su envio con esos datos. Si pregunta cuando llega, aplica la regla OP7: NO prometas fechas; la colocacion es 1-2 dias habiles y el transito depende de la paqueteria.",
+    ].join(_NL);
+  }
+
   if (!analysis.esProducto) {
     const motivo = analysis.razonNoEsProducto
       ? ` (parece ${analysis.razonNoEsProducto})`
