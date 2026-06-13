@@ -172,8 +172,8 @@ function mergeHistorialMedia(
 }
 
 /** Reproduce un tono de notificacion estilo WhatsApp (du-dun) usando
- *  Web Audio. No requiere archivo .mp3. Los navegadores bloquean audio
- *  hasta el primer clic del usuario; despues suena sin problema. */
+ * Web Audio. No requiere archivo .mp3. Los navegadores bloquean audio
+ * hasta el primer clic del usuario; despues suena sin problema. */
 let _audioCtx: AudioContext | null = null;
 function playDing() {
   try {
@@ -1105,6 +1105,7 @@ function TemplateSendButton({ phone }: { phone: string }) {
     { name: "el_coyote", label: "El Coyote (presentacion)" },
     { name: "bienvenida", label: "Bienvenida Coyote Textil" },
     { name: "oferta_de_reactivacion", label: "Oferta reactivacion (con imagen)" },
+    { name: "tuvimos_inconvenientes_en_el_sitema_", label: "Aviso restablecimiento de sistema" },
   ];
   async function enviar(name: string) {
     if (sending) return;
