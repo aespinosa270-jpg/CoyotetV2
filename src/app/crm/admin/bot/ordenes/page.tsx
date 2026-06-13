@@ -66,8 +66,8 @@ export default async function OrdenesBotPage({
       <style>{CSS}</style>
 
       <header>
-        <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">Bot v2 — Logistica</p>
-        <h1 className="text-3xl font-black uppercase tracking-tight">Ordenes del <span className="text-amber-400">Bot</span></h1>
+        <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-400">Bot v2 — Logistica</p>
+        <h1 className="text-3xl font-black uppercase tracking-tight text-zinc-900">Ordenes del <span className="text-amber-500">Bot</span></h1>
       </header>
 
       {/* RESUMEN DE CARTERA */}
