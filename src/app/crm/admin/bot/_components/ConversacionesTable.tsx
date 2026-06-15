@@ -356,7 +356,7 @@ export function ConversacionesTable({ items }: Props) {
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(idx * 0.025, 0.3) }}
-                    className={`group relative w-full text-left flex gap-3 px-3 py-3 rounded-xl mb-0.5 transition-colors ${isActive ? "bg-zinc-800/80" : "hover:bg-zinc-900"}`}
+                    className={`group relative w-full text-left flex gap-3 px-3 py-3 rounded-xl mb-1 border transition-colors ${isActive ? "bg-zinc-800/80 border-amber-400/30" : c.sinResponder ? "bg-red-500/[0.07] border-red-500/20 hover:bg-red-500/10" : "border-transparent hover:bg-zinc-900"}`}
                   >
                     {isActive && <motion.span layoutId="activebar" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.5)]" />}
                     <div className={`relative w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br ${avatarColor(c.nombre || c.phone)} grid place-items-center font-bold text-base text-black/80`}>
@@ -368,10 +368,14 @@ export function ConversacionesTable({ items }: Props) {
                         <span className="text-sm font-semibold text-zinc-100 truncate">{c.nombre}</span>
                         <span className={`text-[11px] shrink-0 font-medium ${c.sinResponder ? "text-amber-400" : "text-zinc-500"}`}>{relTime(c.ultimoMensajeAt)}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        {c.ultimoMensajeRole === "user" && <span className="text-[11px] font-semibold text-red-400 shrink-0">Cliente:</span>}
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {c.ultimoMensajeRole === "user" && (
+                          <span className="inline-flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide bg-red-500/15 text-red-300 border border-red-500/25">
+                            <span className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />espera
+                          </span>
+                        )}
                         {c.ultimoMensajeRole === "assistant" && <CheckCheck className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
-                        <span className={`text-xs truncate ${c.sinResponder ? "text-zinc-200" : "text-zinc-400"}`}>{cleanPreview(c.ultimoMensajeTexto) || "Sin mensajes"}</span>
+                        <span className={`text-xs truncate ${c.sinResponder ? "text-zinc-100 font-medium" : "text-zinc-400"}`}>{cleanPreview(c.ultimoMensajeTexto) || "Sin mensajes"}</span>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {lead && (
