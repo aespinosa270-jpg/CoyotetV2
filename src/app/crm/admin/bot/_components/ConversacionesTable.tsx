@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Image as ImageIcon } from "lucide-react";
 import {
   Search, Send, Paperclip, Phone, Hand,
   Bot, Flame, Snowflake, Gem, DollarSign, Eye,
@@ -984,11 +985,20 @@ function Bubble({ m, idx }: { m: MensajeHistorial; idx: number }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(idx * 0.01, 0.2) }}
-      className={`flex flex-col max-w-[76%] ${isUser ? "self-start items-start" : "self-end items-end"}`}
+      className={`flex flex-col max-w-[76%] mb-2.5 ${isUser ? "self-start items-start" : "self-end items-end"}`}
     >
       {(proxySrc || m.mediaUrl) && isImg && (
-        <a href={proxySrc || m.mediaUrl} target="_blank" rel="noopener noreferrer" className="block mb-1">
-          <img src={proxySrc || m.mediaUrl} alt={m.content || "imagen"} className="rounded-2xl max-w-[240px] max-h-[320px] object-cover border border-zinc-700/50" loading="lazy" />
+        <a href={proxySrc || m.mediaUrl} target="_blank" rel="noopener noreferrer"
+           className={`group/img relative block mb-1 rounded-2xl overflow-hidden ${isUser ? "ring-1 ring-emerald-500/40 shadow-[0_0_0_3px_rgba(16,185,129,0.08)]" : "border border-zinc-700/50"}`}>
+          <img src={proxySrc || m.mediaUrl} alt={m.content || "imagen"} className="block max-w-[240px] max-h-[320px] object-cover" loading="lazy" />
+          {isUser && (
+            <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/90 text-emerald-950 backdrop-blur-sm shadow">
+              <ImageIcon className="w-2.5 h-2.5" />Imagen recibida
+            </span>
+          )}
+          <span className="absolute inset-0 bg-black/0 group-hover/img:bg-black/20 transition flex items-center justify-center opacity-0 group-hover/img:opacity-100">
+            <span className="px-2.5 py-1 rounded-lg bg-black/70 text-white text-[11px] font-medium">Ver completa</span>
+          </span>
         </a>
       )}
       {proxySrc && !isImg && (
@@ -1002,11 +1012,11 @@ function Bubble({ m, idx }: { m: MensajeHistorial; idx: number }) {
           {m.content}
         </div>
       )}
-      <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-zinc-500">
-        {!isUser && <span className="text-amber-400/80 font-medium">El Coyote</span>}
-        {!isUser && <span>-</span>}
-        <span>{fmtTime(m.timestamp)}</span>
-        {!isUser && (m.status === "sent" ? <CheckCheck className="w-3.5 h-3.5 text-sky-400" /> : <Check className="w-3.5 h-3.5" />)}
+      <div className="flex items-center gap-1.5 mt-1 px-1 text-[10px] text-zinc-500">
+        {!isUser && <span className="text-amber-400/80 font-semibold">El Coyote</span>}
+        {!isUser && <span className="text-zinc-700">·</span>}
+        <span className="tabular-nums">{fmtTime(m.timestamp)}</span>
+        {!isUser && (m.status === "sent" ? <CheckCheck className="w-3.5 h-3.5 text-sky-400" /> : <Check className="w-3.5 h-3.5 text-zinc-500" />)}
       </div>
     </motion.div>
   );
