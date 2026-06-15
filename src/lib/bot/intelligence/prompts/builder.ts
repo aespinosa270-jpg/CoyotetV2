@@ -673,11 +673,13 @@ CONTEXTO DEL CLIENTE:
     (memoryBlock ? "\n\n" + memoryBlock : "") +
     historialBlock +
     lastQuoteBlock +
+    sentimentBlock +
     objecionesBlock +
     resumenBlock +
     extraBlock +
     fraudBlock +
     membershipBlock +
-    tacticBlock
+    tacticBlock +
+    (learnedBlockFinal ? "\n\n" + learnedBlockFinal : "")
   );
 }
