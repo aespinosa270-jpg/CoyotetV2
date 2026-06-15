@@ -671,9 +671,12 @@ CONTEXTO DEL CLIENTE:
     base +
     contextoCliente +
     (memoryBlock ? "\n\n" + memoryBlock : "") +
+    historialBlock +
+    lastQuoteBlock +
     objecionesBlock +
     resumenBlock +
     extraBlock +
+    fraudBlock +
     membershipBlock +
     tacticBlock
   );
