@@ -1,12 +1,15 @@
 /**
  * POST /api/admin/bot/contactos/send-all
  *
- * Envía la plantilla `bienvenida` a todos los contactos que cumplen UNA de:
- *  - Nunca recibieron plantilla (plantillaEnviada: false)
- *  - Recibieron plantilla PERO no respondieron (plantillaEnviada: true, clienteRespondio: false)
+ * Campana de plantilla a TODA la cartera (contactoOutbound), por TANDAS.
+ * El front llama repetidamente con offset creciente hasta done=true.
+ * Esto evita el timeout de Vercel (60s) y hace goteo seguro para no quemar
+ * el numero de WhatsApp.
  *
- * Procesa secuencial con delay 300ms para no saturar la API de Meta.
- * Devuelve { ok, total, enviados, fallidos, detalles }.
+ * Body: { templateKey, offset?, batchSize? }
+ * Respuesta: { ok, done, offset, nextOffset, total, batchEnviados, batchFallidos, errores }
+ *
+ * NOTA: manda a TODA la cartera, reenviando aunque ya haya recibido antes.
  */
 import { NextResponse } from "next/server";
 import { requireAdmin } from "../../_lib/guard";
@@ -14,10 +17,12 @@ import { prisma } from "@/lib/prisma";
 import { sendTemplate, TEMPLATES } from "@/lib/bot/services/meta/template";
 import { getLogger } from "@/lib/bot/observability/logger";
 
+export const maxDuration = 60;
+
 const log = getLogger({ module: "api/contactos/send-all" });
 
-// Delay entre envíos para no exceder rate limits de Meta
-const DELAY_MS = 300;
+const DEFAULT_BATCH = 25;
+const DELAY_MS = 1200; // goteo entre cada mensaje (mas seguro para Meta)
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -27,56 +32,39 @@ export async function POST(req: Request): Promise<NextResponse> {
   const guard = await requireAdmin();
   if (guard) return guard;
 
-  // Leer plantilla a usar (default: BIENVENIDA para no romper comportamiento previo)
-  let templateKey: "BIENVENIDA" | "OFERTA_REACTIVACION" = "BIENVENIDA";
-  try {
-    const body = await req.json();
-    if (body?.templateKey === "OFERTA_REACTIVACION") {
-      templateKey = "OFERTA_REACTIVACION";
-    }
-  } catch {
-    // sin body = usar default
-  }
+  let body: any = {};
+  try { body = await req.json(); } catch {}
+
+  let templateKey: "BIENVENIDA" | "OFERTA_REACTIVACION" =
+    body?.templateKey === "OFERTA_REACTIVACION" ? "OFERTA_REACTIVACION" : "BIENVENIDA";
   const plantilla = TEMPLATES[templateKey];
 
-  // Filtro: nunca enviado O (enviado AND no respondió)
-  const candidatos = await prisma.contactoOutbound.findMany({
-    where: {
-      OR: [
-        { plantillaEnviada: false },
-        { AND: [{ plantillaEnviada: true }, { clienteRespondio: false }] },
-      ],
-    },
+  const offset = Math.max(0, parseInt(String(body?.offset ?? 0), 10) || 0);
+  const batchSize = Math.min(50, Math.max(1, parseInt(String(body?.batchSize ?? DEFAULT_BATCH), 10) || DEFAULT_BATCH));
+
+  // Total de la cartera (toda, salvo opt-out). orden estable por createdAt.
+  const total = await prisma.contactoOutbound.count();
+
+  // Tanda actual
+  const tanda = await prisma.contactoOutbound.findMany({
     select: { id: true, phone: true, nombre: true, plantillaEnviada: true },
     orderBy: { createdAt: "asc" },
+    skip: offset,
+    take: batchSize,
   });
 
-  if (candidatos.length === 0) {
-    return NextResponse.json({
-      ok: true,
-      total: 0,
-      enviados: 0,
-      fallidos: 0,
-      message: "No hay contactos pendientes",
-    });
-  }
-
-  log.info(
-    { total: candidatos.length, plantilla: plantilla.name },
-    "Iniciando envío masivo de plantilla"
-  );
-
-  let enviados = 0;
-  let fallidos = 0;
+  let batchEnviados = 0;
+  let batchFallidos = 0;
   const errores: Array<{ phone: string; error: string }> = [];
 
-  for (const contacto of candidatos) {
+  for (let i = 0; i < tanda.length; i++) {
+    const contacto = tanda[i];
     try {
       const result = await sendTemplate({
         to: contacto.phone,
         templateName: plantilla.name,
         language: plantilla.language,
-        headerImageUrl: "headerImageUrl" in plantilla ? plantilla.headerImageUrl : undefined,
+        headerImageUrl: "headerImageUrl" in plantilla ? (plantilla as any).headerImageUrl : undefined,
       });
 
       await prisma.contactoOutbound.update({
@@ -84,44 +72,35 @@ export async function POST(req: Request): Promise<NextResponse> {
         data: {
           plantillaEnviada: result.ok ? true : contacto.plantillaEnviada,
           plantillaEnviadaAt: result.ok ? new Date() : undefined,
-          plantillaResponse: result.ok
-            ? "SUCCESS"
-            : `ERROR: ${result.error}`,
+          plantillaResponse: result.ok ? "SUCCESS" : `ERROR: ${result.error}`,
         },
-      });
+      }).catch(() => {});
 
-      if (result.ok) {
-        enviados++;
-      } else {
-        fallidos++;
-        errores.push({
-          phone: contacto.phone,
-          error: result.error ?? "unknown",
-        });
-      }
+      if (result.ok) batchEnviados++;
+      else { batchFallidos++; errores.push({ phone: contacto.phone, error: result.error ?? "unknown" }); }
     } catch (err) {
-      fallidos++;
+      batchFallidos++;
       const msg = err instanceof Error ? err.message : String(err);
       errores.push({ phone: contacto.phone, error: msg });
-      log.error({ err, phone: contacto.phone }, "Error en envío individual");
+      log.error({ err, phone: contacto.phone }, "Error en envio individual");
     }
 
-    // Delay entre envíos
-    if (candidatos.indexOf(contacto) < candidatos.length - 1) {
-      await sleep(DELAY_MS);
-    }
+    if (i < tanda.length - 1) await sleep(DELAY_MS);
   }
 
-  log.info(
-    { total: candidatos.length, enviados, fallidos },
-    "Envío masivo completado"
-  );
+  const nextOffset = offset + tanda.length;
+  const done = nextOffset >= total || tanda.length === 0;
+
+  log.info({ offset, nextOffset, total, batchEnviados, batchFallidos, done }, "Tanda de campana procesada");
 
   return NextResponse.json({
     ok: true,
-    total: candidatos.length,
-    enviados,
-    fallidos,
-    errores: errores.slice(0, 10), // Solo primeros 10 errores
+    done,
+    offset,
+    nextOffset,
+    total,
+    batchEnviados,
+    batchFallidos,
+    errores: errores.slice(0, 5),
   });
 }
