@@ -22,7 +22,7 @@ import { getLogger } from "../observability/logger";
 
 const log = getLogger({ module: "pause-repo" });
 
-const TTL_SECONDS = 60 * 60 * 23; // 23 horas
+const TTL_SECONDS = 60 * 60 * 2; // 2 horas (antes 23h: apagaba el bot todo el dia y mataba ventas)
 
 export interface PauseState {
   pausedAt: string;
