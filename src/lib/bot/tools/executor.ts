@@ -3,6 +3,7 @@ import type { BotContext } from "../core/types";
 import { calcularEnvioHandler } from "./handlers/calcular-envio";
 import { generarCobroStripeHandler, generarCobroSpeiHandler } from "./handlers/generar-cobros";
 import { escalarAHumanoHandler } from "./handlers/escalar";
+import { consultarEstadoPedidoHandler } from "./handlers/consultar-estado-pedido";
 import {
   ejecutarObtenerInfoMembresias,
   ejecutarProponerMembresia,
@@ -73,6 +74,9 @@ export async function executeTool(toolCall: any, context: BotContext): Promise<a
 
       case "consultar_transportistas":
         return await ejecutarConsultarTransportistas(args, context);
+
+      case "consultar_estado_pedido":
+        return await consultarEstadoPedidoHandler(args, context);
 
       default:
         log.warn({ tool: toolCall.function.name }, "Tool invocada no existe");

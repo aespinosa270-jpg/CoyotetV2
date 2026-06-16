@@ -1,6 +1,15 @@
 // Le quitamos el tipo estricto de OpenAI para evitar el doble enrutamiento en chat.ts
 export const BOT_TOOLS: any[] = [
   {
+    name: "consultar_estado_pedido",
+    description: "Consulta el estado real del pedido del cliente en el CRM (en preparacion, enviado, entregado, etc.). Llamar cuando el cliente pregunte por el ESTATUS o SEGUIMIENTO de un pedido que YA hizo: 'donde va mi pedido', 'ya lo enviaron', 'estado de mi paquete', 'ya pague cuando llega', 'rastreo', 'mi orden'. Busca automaticamente los pedidos del numero del cliente. NO requiere parametros. NO escalar a humano por preguntas de estatus: usar este tool.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  },
+  {
     name: "calcular_envio",
     description: "Calcula el costo real de envío logístico basado en el código postal y los kilos/rollos del pedido.",
     parameters: {
