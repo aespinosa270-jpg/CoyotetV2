@@ -75,6 +75,9 @@ export default function HoyBoard({ orders, mensajesHoy, escalaciones, topObjecio
         <div className="sp">
           <div className="h1">{saludo}, <span>Jack</span> 👋</div>
           <div className="ln">{frase}</div>
+          {mensajesHoy > 0 && (
+            <div className="msgline">🐺 El Coyote contesto <b>{mensajesHoy.toLocaleString("es-MX")}</b> mensaje{mensajesHoy === 1 ? "" : "s"} hoy</div>
+          )}
         </div>
       </div>
 
@@ -140,6 +143,8 @@ const CSS = `
 .hoy .hello .h1{font-family:'Space Grotesk',sans-serif;font-size:27px;font-weight:600;color:#0f1115}
 .hoy .hello .h1 span{color:#f5a623}
 .hoy .hello .ln{font-size:15px;color:#52606d;margin-top:5px;line-height:1.55;max-width:680px}
+.hoy .hello .msgline{font-size:12.5px;color:#8a939e;margin-top:6px}
+.hoy .hello .msgline b{color:#52606d;font-weight:700}
 .hoy .hello .ln b{color:#0f1115;font-weight:700}
 .hoy .pulse{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:30px}
 .hoy .pc{display:flex;align-items:center;gap:15px;border-radius:18px;padding:18px 20px;border:1px solid #2c323b;background:#15181d;text-decoration:none;transition:.18s}
