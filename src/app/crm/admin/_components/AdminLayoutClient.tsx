@@ -20,25 +20,32 @@ type MenuGroup = { group: string; items: MenuItem[] };
 
 // Subrutas del bot (la antigua segunda barra) -> submenu de "El Coyote"
 const BOT_SUBMENUS = [
+  { divider: "Inicio" },
+  { name: "Hoy", href: "/crm/admin/bot/hoy" },
   { name: "Dashboard", href: "/crm/admin/bot" },
+  { divider: "Vender" },
   { name: "Conversaciones", href: "/crm/admin/bot/conversaciones" },
-  { name: "Ordenes del Bot", href: "/crm/admin/bot/ordenes" },
   { name: "Clientes", href: "/crm/admin/bot/clientes" },
-  { name: "Escalaciones", href: "/crm/admin/bot/escalaciones" },
   { name: "Seguimientos", href: "/crm/admin/bot/seguimientos" },
-  { name: "Contactos", href: "/crm/admin/bot/contactos" },
   { name: "Sales Agent", href: "/crm/admin/bot/sales-agent" },
+  { name: "Referidos", href: "/crm/admin/bot/referidos" },
+  { divider: "Operar" },
+  { name: "Ordenes del Bot", href: "/crm/admin/bot/ordenes" },
+  { name: "Escalaciones", href: "/crm/admin/bot/escalaciones" },
+  { name: "Transportistas", href: "/crm/admin/bot/transportistas" },
   { name: "Sourcing >1tn", href: "/crm/admin/bot/sourcing-queue" },
   { name: "Aftercare", href: "/crm/admin/bot/aftercare" },
-  { name: "Voz de Marca", href: "/crm/admin/bot/voz-de-marca" },
-  { name: "Referidos", href: "/crm/admin/bot/referidos" },
-  { name: "Transportistas", href: "/crm/admin/bot/transportistas" },
+  { divider: "Cobrar" },
   { name: "Pagos pendientes", href: "/crm/admin/bot/pendientes" },
-  { name: "Telas solicitadas", href: "/crm/admin/bot/telas-solicitadas" },
-  { name: "Programaciones", href: "/crm/admin/bot/programaciones" },
-  { name: "Catalogo del bot", href: "/crm/admin/bot/catalogo" },
-  { name: "Objeciones", href: "/crm/admin/bot/objeciones" },
+  { divider: "Entender" },
   { name: "Metricas", href: "/crm/admin/bot/metricas" },
+  { name: "Objeciones", href: "/crm/admin/bot/objeciones" },
+  { name: "Catalogo del bot", href: "/crm/admin/bot/catalogo" },
+  { name: "Telas solicitadas", href: "/crm/admin/bot/telas-solicitadas" },
+  { name: "Voz de Marca", href: "/crm/admin/bot/voz-de-marca" },
+  { divider: "Config" },
+  { name: "Contactos", href: "/crm/admin/bot/contactos" },
+  { name: "Programaciones", href: "/crm/admin/bot/programaciones" },
   { name: "Configuracion bot", href: "/crm/admin/bot/config" },
   { name: "Estado tecnico", href: "/crm/admin/bot/health" },
 ];
@@ -243,7 +250,14 @@ export default function AdminLayoutClient({ children, employee, notifCount }: { 
                         {hasSubmenu && isSubmenuOpen && (
                           <motion.div key="sub" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
                             <div className="ml-7 mt-1 flex flex-col gap-0.5 border-l border-[#2c323b] pl-3 py-1 max-h-[280px] overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2c323b]">
-                              {item.submenus!.map((sub) => {
+                              {item.submenus!.map((sub: any) => {
+                                  if (sub.divider) {
+                                    return (
+                                      <p key={"div-" + sub.divider} className="text-[8px] font-black uppercase tracking-[0.2em] text-zinc-600 px-3 pt-2.5 pb-1">
+                                        {sub.divider}
+                                      </p>
+                                    );
+                                  }
                                 const isSubActive = pathname === sub.href || (sub.href !== "/crm/admin/bot" && pathname.startsWith(sub.href + "/")) || (sub.href === "/crm/admin/bot" && pathname === "/crm/admin/bot");
                                 return (
                                   <Link key={sub.href} href={sub.href} onClick={() => setIsMobileOpen(false)}
