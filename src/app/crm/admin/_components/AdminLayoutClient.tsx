@@ -50,85 +50,83 @@ const BOT_SUBMENUS = [
   { name: "Estado tecnico", href: "/crm/admin/bot/health" },
 ];
 
+// CRM general (Leads, Inventario, etc.) - casi no se usa, colapsado al fondo
+const CRM_GENERAL_SUBMENUS = [
+  { name: "Leads / Ventas", href: "/crm/admin/leads" },
+  { name: "Clientes (directorio)", href: "/crm/admin/clientes" },
+  { name: "Interacciones", href: "/crm/admin/interacciones" },
+  { name: "Pedidos web", href: "/crm/admin/pedidos" },
+  { name: "Catalogo web", href: "/crm/admin/productos" },
+  { name: "Inventario", href: "/crm/admin/inventario" },
+  { name: "Flotilla / Rutas", href: "/crm/admin/flotilla" },
+  { name: "Tickets / Soporte", href: "/crm/admin/tickets" },
+  { name: "Dashboard general", href: "/crm/admin" },
+  { name: "Reportes", href: "/crm/admin/reportes" },
+  { name: "Agentes", href: "/crm/admin/agentes" },
+  { name: "Horarios", href: "/crm/admin/horarios" },
+  { name: "Vigilancia QA", href: "/crm/admin/calidad" },
+];
+
+// "El Coyote primero": secciones del bot planas por zona, un clic cada una.
 const menuGroups: MenuGroup[] = [
+  {
+    group: "Inicio",
+    items: [
+      { name: "Hoy", icon: Sun, href: "/crm/admin/bot/hoy" },
+      { name: "Dashboard", icon: LayoutDashboard, href: "/crm/admin/bot" },
+    ],
+  },
   {
     group: "Vender",
     items: [
-      { name: "Hoy", icon: Sun, href: "/crm/admin/bot/hoy" },
-      { name: "El Coyote", icon: Bot, href: "/crm/admin/bot", submenus: BOT_SUBMENUS },
-      {
-        name: "Leads / Ventas", icon: Target, href: "/crm/admin/leads",
-        submenus: [
-          { name: "Pipeline General", href: "/crm/admin/leads" },
-          { name: "Asignados", href: "/crm/admin/leads/asignados" },
-          { name: "Cerrados", href: "/crm/admin/leads/cerrados" },
-        ],
-      },
-      {
-        name: "Clientes", icon: Users, href: "/crm/admin/clientes",
-        submenus: [
-          { name: "Directorio", href: "/crm/admin/clientes" },
-          { name: "Alta de Cliente", href: "/crm/admin/clientes/nuevo" },
-        ],
-      },
-      { name: "Interacciones", icon: MessageSquare, href: "/crm/admin/interacciones" },
+      { name: "Conversaciones", icon: MessageSquare, href: "/crm/admin/bot/conversaciones" },
+      { name: "Clientes", icon: Users, href: "/crm/admin/bot/clientes" },
+      { name: "Seguimientos", icon: Target, href: "/crm/admin/bot/seguimientos" },
+      { name: "Sales Agent", icon: Bot, href: "/crm/admin/bot/sales-agent" },
+      { name: "Referidos", icon: ShoppingBag, href: "/crm/admin/bot/referidos" },
     ],
   },
   {
     group: "Operar",
     items: [
-      { name: "Pedidos", icon: ShoppingBag, href: "/crm/admin/pedidos" },
-      { name: "Catalogo", icon: Package, href: "/crm/admin/productos" },
-      {
-        name: "Inventario", icon: Warehouse, href: "/crm/admin/inventario",
-        submenus: [
-          { name: "Stock Actual", href: "/crm/admin/inventario" },
-          { name: "Mov. Entrada", href: "/crm/admin/inventario/movimiento" },
-          { name: "Historial", href: "/crm/admin/inventario/historial" },
-        ],
-      },
-      {
-        name: "Flotilla / Rutas", icon: Truck, href: "/crm/admin/flotilla",
-        submenus: [
-          { name: "Vehiculos", href: "/crm/admin/flotilla" },
-          { name: "Rutas del Dia", href: "/crm/admin/flotilla/rutas" },
-        ],
-      },
-      {
-        name: "Tickets / Soporte", icon: Ticket, href: "/crm/admin/tickets",
-        submenus: [
-          { name: "Abiertos", href: "/crm/admin/tickets/abiertos" },
-          { name: "Pendientes", href: "/crm/admin/tickets/pendientes" },
-          { name: "Cerrados", href: "/crm/admin/tickets/cerrados" },
-        ],
-      },
+      { name: "Ordenes del Bot", icon: ShoppingBag, href: "/crm/admin/bot/ordenes" },
+      { name: "Pedidos", icon: Package, href: "/crm/admin/pedidos" },
+      { name: "Escalaciones", icon: AlertTriangle, href: "/crm/admin/bot/escalaciones" },
+      { name: "Transportistas", icon: Truck, href: "/crm/admin/bot/transportistas" },
+      { name: "Sourcing >1tn", icon: Warehouse, href: "/crm/admin/bot/sourcing-queue" },
+      { name: "Aftercare", icon: ShieldCheck, href: "/crm/admin/bot/aftercare" },
+    ],
+  },
+  {
+    group: "Cobrar",
+    items: [
+      { name: "Pagos pendientes", icon: Package, href: "/crm/admin/bot/pendientes" },
     ],
   },
   {
     group: "Entender",
     items: [
-      { name: "Dashboard", icon: LayoutDashboard, href: "/crm/admin" },
-      { name: "Reportes", icon: BarChart, href: "/crm/admin/reportes" },
-      { name: "Agentes", icon: Users, href: "/crm/admin/agentes" },
-      {
-        name: "Horarios", icon: Clock, href: "/crm/admin/horarios",
-        submenus: [
-          { name: "Hoy", href: "/crm/admin/horarios" },
-          { name: "Semanal", href: "/crm/admin/horarios/semana" },
-        ],
-      },
-      {
-        name: "Vigilancia QA", icon: ShieldCheck, href: "/crm/admin/calidad",
-        submenus: [
-          { name: "Monitor Calidad IA", href: "/crm/admin/calidad" },
-          { name: "Logs del Sistema", href: "/crm/admin/auditoria" },
-        ],
-      },
+      { name: "Metricas", icon: BarChart, href: "/crm/admin/bot/metricas" },
+      { name: "Objeciones", icon: AlertTriangle, href: "/crm/admin/bot/objeciones" },
+      { name: "Catalogo del bot", icon: Package, href: "/crm/admin/bot/catalogo" },
+      { name: "Telas solicitadas", icon: Warehouse, href: "/crm/admin/bot/telas-solicitadas" },
+      { name: "Voz de Marca", icon: MessageSquare, href: "/crm/admin/bot/voz-de-marca" },
     ],
   },
   {
-    group: "Configurar",
-    items: [ { name: "Configuracion", icon: Settings, href: "/crm/admin/configuracion" } ],
+    group: "Config",
+    items: [
+      { name: "Contactos", icon: Users, href: "/crm/admin/bot/contactos" },
+      { name: "Programaciones", icon: Clock, href: "/crm/admin/bot/programaciones" },
+      { name: "Configuracion bot", icon: Settings, href: "/crm/admin/bot/config" },
+      { name: "Estado tecnico", icon: ShieldCheck, href: "/crm/admin/bot/health" },
+    ],
+  },
+  {
+    group: "CRM General",
+    items: [
+      { name: "CRM General (web)", icon: LayoutDashboard, href: "/crm/admin", submenus: CRM_GENERAL_SUBMENUS },
+    ],
   },
 ];
 
