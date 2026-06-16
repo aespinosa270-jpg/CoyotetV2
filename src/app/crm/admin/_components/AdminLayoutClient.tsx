@@ -23,6 +23,7 @@ const BOT_SUBMENUS = [
   { name: "Dashboard", href: "/crm/admin/bot" },
   { name: "Conversaciones", href: "/crm/admin/bot/conversaciones" },
   { name: "Ordenes del Bot", href: "/crm/admin/bot/ordenes" },
+  { name: "Clientes", href: "/crm/admin/bot/clientes" },
   { name: "Escalaciones", href: "/crm/admin/bot/escalaciones" },
   { name: "Seguimientos", href: "/crm/admin/bot/seguimientos" },
   { name: "Contactos", href: "/crm/admin/bot/contactos" },
