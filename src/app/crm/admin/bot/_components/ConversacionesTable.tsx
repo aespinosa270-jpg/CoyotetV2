@@ -8,7 +8,7 @@ import {
   Bot, Flame, Snowflake, Gem, DollarSign, Eye,
   Check, CheckCheck, ArrowLeft, MessageSquare, Sparkles,
   TrendingUp, ShieldCheck, Package, X, FileText, Loader2,
-  Tag, CheckCircle2, Zap,
+  Tag, CheckCircle2, Zap, Archive, Trash2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { ConversacionResumen } from "@/lib/bot/repositories/admin-queries";
@@ -431,6 +431,36 @@ function ChatPane({ phone, resumen, onBack }: {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [taking, setTaking] = useState(false);
+  const [archivando, setArchivando] = useState(false);
+
+  async function archivarConv() {
+    if (archivando) return;
+    setArchivando(true);
+    try {
+      await fetch(`/api/admin/bot/conversaciones/${encodeURIComponent(phone)}/archivar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archivada: true }),
+      });
+      onBack();
+    } catch { /* noop */ }
+    finally { setArchivando(false); }
+  }
+
+  async function eliminarConv() {
+    if (archivando) return;
+    if (!confirm("¿Eliminar esta conversacion de la vista? Podras recuperarla si hace falta, pero ya no aparecera en la bandeja.")) return;
+    setArchivando(true);
+    try {
+      await fetch(`/api/admin/bot/conversaciones/${encodeURIComponent(phone)}/eliminar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eliminada: true }),
+      });
+      onBack();
+    } catch { /* noop */ }
+    finally { setArchivando(false); }
+  }
   const [media, setMedia] = useState<UploadedMedia | null>(null);
   const [uploading, setUploading] = useState(false);
   const [tags, setTags] = useState<string[]>(((resumen as any).tags as string[]) || []);
@@ -726,6 +756,14 @@ function ChatPane({ phone, resumen, onBack }: {
             <button onClick={toggleAtendido} title="Marcar como atendido (E)"
               className={`w-9 h-9 rounded-lg grid place-items-center transition ${atendido ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "border border-zinc-800 text-zinc-400 hover:text-emerald-300 hover:bg-zinc-900"}`}>
               <CheckCircle2 className="w-4 h-4" />
+            </button>
+            <button onClick={archivarConv} disabled={archivando} title="Archivar conversacion"
+              className="w-9 h-9 rounded-lg grid place-items-center transition border border-zinc-800 text-zinc-400 hover:text-sky-300 hover:bg-zinc-900 disabled:opacity-40">
+              <Archive className="w-4 h-4" />
+            </button>
+            <button onClick={eliminarConv} disabled={archivando} title="Eliminar de la vista"
+              className="w-9 h-9 rounded-lg grid place-items-center transition border border-zinc-800 text-zinc-400 hover:text-rose-300 hover:bg-zinc-900 disabled:opacity-40">
+              <Trash2 className="w-4 h-4" />
             </button>
             <div className="relative">
               <button onClick={() => setTagMenuOpen((v) => !v)} title="Etiquetar"

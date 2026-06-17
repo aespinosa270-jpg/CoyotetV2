@@ -38,6 +38,8 @@ export const keys = {
   // ── Pedidos ─────────────────────────────────────────────────────────────
   /** ACCION RAPIDA: conversacion marcada como atendida por un humano. */
   atendido: (phone: string) => `${PREFIX}:atendido:${safe(phone)}`,
+  archivada: (phone: string) => `${PREFIX}:archivada:${safe(phone)}`,
+  eliminada: (phone: string) => `${PREFIX}:eliminada:${safe(phone)}`,
   /** ACCION RAPIDA: etiquetas manuales del cliente (hot, mayoreo, etc.). */
   tags: (phone: string) => `${PREFIX}:tags:${safe(phone)}`,
   /** NOTAS INTERNAS: texto privado del agente sobre el cliente (no se envia). */
