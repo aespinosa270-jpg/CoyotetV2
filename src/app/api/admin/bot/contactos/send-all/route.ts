@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "../../_lib/guard";
 import { prisma } from "@/lib/prisma";
 import { sendTemplate, TEMPLATES } from "@/lib/bot/services/meta/template";
+import { appendMensaje } from "@/lib/bot/repositories/conversation-repo";
 import { getLogger } from "@/lib/bot/observability/logger";
 
 export const maxDuration = 60;
@@ -75,6 +76,15 @@ export async function POST(req: Request): Promise<NextResponse> {
           plantillaResponse: result.ok ? "SUCCESS" : `ERROR: ${result.error}`,
         },
       }).catch(() => {});
+
+      // Guardar la plantilla en el historial del chat para que sea visible en Conversaciones
+      if (result.ok) {
+        await appendMensaje(contacto.phone, {
+          role: "assistant",
+          content: `📋 [Plantilla enviada: ${plantilla.name}]`,
+          timestamp: new Date().toISOString(),
+        }).catch(() => {});
+      }
 
       if (result.ok) batchEnviados++;
       else { batchFallidos++; errores.push({ phone: contacto.phone, error: result.error ?? "unknown" }); }
