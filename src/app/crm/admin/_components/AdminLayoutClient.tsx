@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { EmployeeRole } from "@prisma/client";
+import { puedeVer } from "@/lib/permisos";
 
 type Employee = { id: string; name: string; email: string; role: EmployeeRole; };
 type MenuItem = { name: string; icon: any; href: string; submenus?: { name: string; href: string }[] };
@@ -226,7 +227,13 @@ export default function AdminLayoutClient({ children, employee, notifCount }: { 
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2c323b] [&::-webkit-scrollbar-thumb]:rounded-full">
-          {menuGroups.map((grp) => (
+          {menuGroups
+            .map((grp) => ({
+              ...grp,
+              items: grp.items.filter((it) => puedeVer(employee?.role, it.href)),
+            }))
+            .filter((grp) => grp.items.length > 0)
+            .map((grp) => (
             <div key={grp.group} className="mb-3">
               <p className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-600 mb-1.5 px-2 mt-2">{grp.group}</p>
               <div className="flex flex-col gap-0.5">
