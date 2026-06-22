@@ -1,4 +1,4 @@
-﻿// src/middleware.ts
+// src/middleware.ts
 // Auth.js v5 usa auth() como middleware directamente
 
 import { auth } from "@/auth";
@@ -38,25 +38,26 @@ export default auth((req) => {
     // 🔥 FIX 2: Leemos "role" en lugar de "employeeRole" porque así lo armó NextAuth en tu auth.ts
     const role = (session.user as any)?.role ?? ""; 
     
-    return NextResponse.redirect(
-      new URL(ADMIN_ROLES.includes(role) ? "/crm/admin" : "/crm/agente", req.url)
-    );
+    // CRM unificado: todos entran a /crm/admin
+    void role;
+    return NextResponse.redirect(new URL("/crm/admin", req.url));
   }
 
   // =========================================================
   // 3. CONTROL DE ACCESO POR ROL
   // =========================================================
   if (session) {
-    // Mismo ajuste aquí para leer "role"
     const role = (session.user as any)?.role ?? "";
 
-    if (pathname.startsWith("/crm/admin") && !ADMIN_ROLES.includes(role)) {
-      return NextResponse.redirect(new URL("/crm/agente", req.url));
+    // CRM unificado: TODOS los roles del CRM entran a /crm/admin.
+    // El bloqueo de rutas sensibles para vendedoras se hace por ruta (Paso 2),
+    // leyendo permisos.ts. Aqui solo exigimos que sea un rol del CRM.
+    const ROLES_CRM = ["ADMIN", "SUPERVISOR", "VENDEDORA", "LOGISTICA", "CONTABILIDAD"];
+    if (pathname.startsWith("/crm/admin") && !ROLES_CRM.includes(role)) {
+      return NextResponse.redirect(new URL("/crm/login", req.url));
     }
 
-    if (pathname.startsWith("/crm/agente") && ADMIN_ROLES.includes(role)) {
-      return NextResponse.redirect(new URL("/crm/admin", req.url));
-    }
+    // El viejo portal /crm/agente queda accesible pero ya no es el destino por defecto.
   }
 
   return NextResponse.next();

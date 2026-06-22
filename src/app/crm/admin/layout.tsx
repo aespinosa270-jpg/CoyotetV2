@@ -1,8 +1,7 @@
-﻿import { auth } from "@/auth";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import AdminLayoutClient from "./_components/AdminLayoutClient";
 import { redirect } from "next/navigation";
-import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
 export default async function AdminLayout({
   children,
@@ -14,16 +13,20 @@ export default async function AdminLayout({
   
   if (!session?.user?.email) redirect("/crm/login");
 
-  if (!ADMIN_EMAILS.includes(session.user.email)) {
-    redirect("/crm/agente");
-  }
-
   const employee = await prisma.employee.findUnique({
     where:  { email: session.user.email },
     select: { id: true, name: true, email: true, role: true },
   });
 
   if (!employee) redirect("/crm/login");
+
+  // CRM unificado: admin y vendedoras entran al MISMO /crm/admin.
+  // El menu y el bloqueo por ruta (permisos.ts) deciden que ve cada rol.
+  // Roles sin acceso al CRM se mandan al login.
+  const ROLES_CRM = ["ADMIN", "SUPERVISOR", "VENDEDORA", "LOGISTICA", "CONTABILIDAD"];
+  if (!ROLES_CRM.includes(employee.role)) {
+    redirect("/crm/login");
+  }
 
   const ticketsUrgentes = await prisma.ticket.count({
     where: { priority: "URGENTE", status: "ABIERTO" },
