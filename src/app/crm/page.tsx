@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { ADMIN_EMAILS } from "@/lib/admin-emails";
 import { auth } from "@/auth";
 
 export default async function CRMRootPage() {
@@ -14,9 +13,7 @@ export default async function CRMRootPage() {
 
   if (!employee?.isActive) redirect("/login");
 
-  if (ADMIN_EMAILS.includes(session.user.email)) {
-    redirect("/crm/admin");
-  }
-
-  redirect("/crm/agente");
+  // CRM unificado: todos los empleados activos entran al mismo /crm/admin.
+  // El menu y permisos.ts deciden que ve cada rol.
+  redirect("/crm/admin");
 }
