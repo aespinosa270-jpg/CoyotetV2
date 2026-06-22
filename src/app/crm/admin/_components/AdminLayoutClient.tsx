@@ -85,6 +85,7 @@ const menuGroups: MenuGroup[] = [
       { name: "Seguimientos", icon: Target, href: "/crm/admin/bot/seguimientos" },
       { name: "Sales Agent", icon: Bot, href: "/crm/admin/bot/sales-agent" },
       { name: "Referidos", icon: ShoppingBag, href: "/crm/admin/bot/referidos" },
+      { name: "Checador", icon: Clock, href: "/crm/admin/checador" },
     ],
   },
   {

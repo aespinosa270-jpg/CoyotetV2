@@ -22,6 +22,7 @@ export async function checkInAction(employeeId: string, lat?: number, lng?: numb
     });
 
     revalidatePath("/crm/agente/checador");
+    revalidatePath("/crm/admin/checador");
     return { success: true, attendanceId: attendance.id, data: attendance };
   } catch (error) {
     console.error("[checkInAction]", error);
@@ -64,6 +65,7 @@ export async function checkOutAction(attendanceId: string, employeeId: string, l
     });
 
     revalidatePath("/crm/agente/checador");
+    revalidatePath("/crm/admin/checador");
     return { success: true, data: updated };
   } catch (error) {
     console.error("[checkOutAction]", error);
@@ -78,6 +80,7 @@ export async function startBreakAction(attendanceId: string, type: BreakType) {
     });
     
     revalidatePath("/crm/agente/checador");
+    revalidatePath("/crm/admin/checador");
     return { success: true, data: newBreak }; 
   } catch (error) {
     console.error("[startBreakAction]", error);
@@ -100,6 +103,7 @@ export async function endBreakAction(breakId: string) {
     });
     
     revalidatePath("/crm/agente/checador");
+    revalidatePath("/crm/admin/checador");
     return { success: true, data: updatedBreak };
   } catch (error) {
     console.error("[endBreakAction]", error);
