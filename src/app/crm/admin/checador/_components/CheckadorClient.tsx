@@ -46,8 +46,9 @@ function saludoPorHora(h: number) {
   return "Buenas noches";
 }
 
-// ── Reloj analogo de lujo ──
+// ── Reloj analogo de lujo (rotacion SVG nativa, correcta) ──
 function RelojAnalogo({ now, accent }: { now: Date; accent: string }) {
+  const ms = now.getMilliseconds();
   const s = now.getSeconds();
   const m = now.getMinutes();
   const h = now.getHours() % 12;
@@ -62,29 +63,36 @@ function RelojAnalogo({ now, accent }: { now: Date; accent: string }) {
             <stop offset="0%" stopColor="#1c2026" />
             <stop offset="100%" stopColor="#0d0f12" />
           </radialGradient>
-          <filter id="glow"><feGaussianBlur stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+          <filter id="glowSeg"><feGaussianBlur stdDeviation="1.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
         </defs>
+
         {/* marco */}
         <circle cx="100" cy="100" r="96" fill="url(#clockFace)" stroke="#2c323b" strokeWidth="2" />
-        <circle cx="100" cy="100" r="96" fill="none" stroke={accent} strokeWidth="1.5" opacity="0.4" />
+        <circle cx="100" cy="100" r="93" fill="none" stroke={accent} strokeWidth="1" opacity="0.35" />
+
         {/* marcas de horas */}
         {Array.from({ length: 12 }).map((_, i) => {
-          const a = (i * 30 - 90) * (Math.PI / 180);
-          const x1 = 100 + Math.cos(a) * 82, y1 = 100 + Math.sin(a) * 82;
-          const x2 = 100 + Math.cos(a) * 90, y2 = 100 + Math.sin(a) * 90;
+          const a = (i * 30) * (Math.PI / 180);
+          const x1 = 100 + Math.sin(a) * 80, y1 = 100 - Math.cos(a) * 80;
+          const x2 = 100 + Math.sin(a) * 88, y2 = 100 - Math.cos(a) * 88;
           return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={i % 3 === 0 ? accent : "#3f4651"} strokeWidth={i % 3 === 0 ? 3 : 1.5} strokeLinecap="round" />;
         })}
-        {/* manecilla hora */}
-        <motion.line x1="100" y1="100" x2="100" y2="55" stroke="#e4e7eb" strokeWidth="4.5" strokeLinecap="round"
-          style={{ originX: "100px", originY: "100px" }} animate={{ rotate: horDeg }} transition={{ type: "spring", stiffness: 60, damping: 15 }} />
-        {/* manecilla minuto */}
-        <motion.line x1="100" y1="100" x2="100" y2="35" stroke="#e4e7eb" strokeWidth="3" strokeLinecap="round"
-          style={{ originX: "100px", originY: "100px" }} animate={{ rotate: minDeg }} transition={{ type: "spring", stiffness: 60, damping: 15 }} />
-        {/* segundero */}
-        <motion.line x1="100" y1="110" x2="100" y2="28" stroke={accent} strokeWidth="1.5" strokeLinecap="round" filter="url(#glow)"
-          style={{ originX: "100px", originY: "100px" }} animate={{ rotate: segDeg }} transition={{ type: "tween", ease: "linear", duration: 0.15 }} />
-        <circle cx="100" cy="100" r="5" fill={accent} filter="url(#glow)" />
-        <circle cx="100" cy="100" r="2" fill="#0d0f12" />
+
+        {/* manecilla HORA (rotacion nativa desde el centro 100,100) */}
+        <line x1="100" y1="100" x2="100" y2="52" stroke="#e4e7eb" strokeWidth="5" strokeLinecap="round"
+          transform={`rotate(${horDeg} 100 100)`} />
+
+        {/* manecilla MINUTO */}
+        <line x1="100" y1="100" x2="100" y2="34" stroke="#e4e7eb" strokeWidth="3.5" strokeLinecap="round"
+          transform={`rotate(${minDeg} 100 100)`} />
+
+        {/* SEGUNDERO (con cola, glow, color de acento) */}
+        <line x1="100" y1="112" x2="100" y2="28" stroke={accent} strokeWidth="1.5" strokeLinecap="round" filter="url(#glowSeg)"
+          transform={`rotate(${segDeg} 100 100)`} />
+
+        {/* centro */}
+        <circle cx="100" cy="100" r="6" fill={accent} filter="url(#glowSeg)" />
+        <circle cx="100" cy="100" r="2.5" fill="#0d0f12" />
       </svg>
     </div>
   );
