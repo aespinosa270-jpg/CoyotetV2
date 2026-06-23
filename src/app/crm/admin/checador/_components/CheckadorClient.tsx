@@ -50,71 +50,18 @@ const ROLE_LABEL: Record<EmployeeRole, string> = {
   ADMIN:        "Administrador",
   SUPERVISOR:   "Supervisor",
   VENDEDORA:    "Vendedora",
-  LOGISTICA:    "Logística",
+  LOGISTICA:    "Logistica",
   CONTABILIDAD: "Contabilidad",
 };
 
-// ── Configuración centralizada de tipos de pausa ──────────────────────────────
 const BREAK_CONFIG: Record<BreakType, {
-  label:        string;
-  labelFin:     string;
-  emoji:        string;
-  icon:         React.ReactNode;
-  color:        string;   // text color
-  border:       string;   // border color
-  bg:           string;   // background (idle)
-  bgActive:     string;   // background (active button)
-  bgBadge:      string;   // background (badge)
-  borderBadge:  string;
+  label: string; labelFin: string; emoji: string; icon: React.ReactNode;
+  accent: string;
 }> = {
-  BANO: {
-    label:       "Baño",
-    labelFin:    "Fin Baño",
-    emoji:       "🚻",
-    icon:        <Droplets size={12} />,
-    color:       "text-sky-400",
-    border:      "border-sky-800",
-    bg:          "bg-sky-500/10 hover:bg-sky-500/20",
-    bgActive:    "bg-sky-500 text-black",
-    bgBadge:     "bg-sky-500/5",
-    borderBadge: "border-sky-800/50",
-  },
-  LUNCH: {
-    label:       "Lunch",
-    labelFin:    "Fin Lunch",
-    emoji:       "🍽️",
-    icon:        <Coffee size={12} />,
-    color:       "text-amber-400",
-    border:      "border-amber-800",
-    bg:          "bg-amber-500/10 hover:bg-amber-500/20",
-    bgActive:    "bg-amber-500 text-black",
-    bgBadge:     "bg-amber-500/5",
-    borderBadge: "border-amber-800/50",
-  },
-  PEDIDO: {
-    label:       "Pedido",
-    labelFin:    "Fin Pedido",
-    emoji:       "📦",
-    icon:        <Package size={12} />,
-    color:       "text-violet-400",
-    border:      "border-violet-800",
-    bg:          "bg-violet-500/10 hover:bg-violet-500/20",
-    bgActive:    "bg-violet-500 text-white",
-    bgBadge:     "bg-violet-500/5",
-    borderBadge: "border-violet-800/50",
-  },
-  ENTRENAMIENTO: {
-    label:       "Training",
-    labelFin:    "Fin Training",
-    emoji:       "🎓",
-    icon:        <GraduationCap size={12} />,
-    color:       "text-emerald-400",
-    border:      "border-emerald-800",
-    bg:          "bg-emerald-500/10 hover:bg-emerald-500/20",
-    bgActive:    "bg-emerald-500 text-black",
-    bgBadge:     "bg-emerald-500/5",
-    borderBadge: "border-emerald-800/50",
-  },
+  BANO:          { label: "Bano",    labelFin: "Fin Bano",     emoji: "🚻", icon: <Droplets size={13} />,      accent: "#5b9dff" },
+  LUNCH:         { label: "Lunch",   labelFin: "Fin Lunch",    emoji: "🍽️", icon: <Coffee size={13} />,        accent: "#f5a623" },
+  PEDIDO:        { label: "Pedido",  labelFin: "Fin Pedido",   emoji: "📦", icon: <Package size={13} />,       accent: "#b794f6" },
+  ENTRENAMIENTO: { label: "Training", labelFin: "Fin Training", emoji: "🎓", icon: <GraduationCap size={13} />, accent: "#34d399" },
 };
 
 const ALL_BREAK_TYPES: BreakType[] = ["BANO", "LUNCH", "PEDIDO", "ENTRENAMIENTO"];
@@ -124,17 +71,34 @@ function formatHoras(h: number) {
   const min = Math.round((h - hrs) * 60);
   return `${hrs}h ${min > 0 ? `${min}m` : ""}`.trim();
 }
-
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("es-MX", {
-    hour: "2-digit", minute: "2-digit",
-  });
+  return new Date(iso).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+}
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("es-MX", { weekday: "long", day: "2-digit", month: "long" });
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("es-MX", {
-    weekday: "long", day: "2-digit", month: "long",
-  });
+// Anillo de progreso SVG
+function ProgressRing({ value, max, accent, children }: { value: number; max: number; accent: string; children: React.ReactNode }) {
+  const r = 34;
+  const circ = 2 * Math.PI * r;
+  const pct = max > 0 ? Math.min(value / max, 1) : 0;
+  const offset = circ - pct * circ;
+  return (
+    <div className="relative w-[84px] h-[84px] shrink-0">
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 84 84">
+        <circle cx="42" cy="42" r={r} fill="none" stroke="#22272f" strokeWidth="5" />
+        <motion.circle
+          cx="42" cy="42" r={r} fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round"
+          strokeDasharray={circ}
+          initial={{ strokeDashoffset: circ }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 1, ease: "easeOut" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">{children}</div>
+    </div>
+  );
 }
 
 export default function CheckadorClient({
@@ -159,8 +123,15 @@ export default function CheckadorClient({
   const [activeBreak,   setActiveBreak] = useState<AttendanceBreak | null>(null);
   const [breaks,        setBreaks]      = useState<AttendanceBreak[]>(initialActive?.breaks ?? []);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [now, setNow] = useState<Date>(new Date());
 
-  // Reloj principal
+  // Reloj de pared en vivo (hora actual)
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Reloj principal (tiempo trabajado)
   useEffect(() => {
     if (!active) return;
     const interval = setInterval(() => {
@@ -168,9 +139,7 @@ export default function CheckadorClient({
       const h    = Math.floor(diff / 3600000);
       const m    = Math.floor((diff % 3600000) / 60000);
       const s    = Math.floor((diff % 60000) / 1000);
-      setElapsed(
-        `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-      );
+      setElapsed(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`);
     }, 1000);
     return () => clearInterval(interval);
   }, [active]);
@@ -187,7 +156,6 @@ export default function CheckadorClient({
     return () => clearInterval(interval);
   }, [activeBreak]);
 
-  // Detectar break activo al cargar
   useEffect(() => {
     const openBreak = breaks.find((b) => !b.endAt);
     setActiveBreak(openBreak ?? null);
@@ -208,9 +176,7 @@ export default function CheckadorClient({
           const lng = pos.coords.longitude;
           let label = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
           try {
-            const r = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
-            );
+            const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
             const d = await r.json();
             label = d.display_name?.split(",").slice(0, 3).join(",") ?? label;
           } catch { /* silent */ }
@@ -218,7 +184,7 @@ export default function CheckadorClient({
           setLocLabel(label);
           resolve({ lat, lng, label });
         },
-        () => { setLocStatus("error"); reject(new Error("No se pudo obtener ubicación")); },
+        () => { setLocStatus("error"); reject(new Error("No se pudo obtener ubicacion")); },
         { timeout: 10000, enableHighAccuracy: true }
       );
     });
@@ -228,20 +194,12 @@ export default function CheckadorClient({
     try {
       const { lat, lng, label } = await getLocation();
       const res = await checkInAction(employee.id, lat, lng, label);
-      
       if (!res.success || !res.data) throw new Error(res.error);
-      
-      const newAttendance: Attendance = { 
-        ...res.data, 
-        checkIn: res.data.checkIn.toISOString(),
-        checkOut: null, 
-        breaks: [] 
-      };
-      
+      const newAttendance: Attendance = { ...res.data, checkIn: res.data.checkIn.toISOString(), checkOut: null, breaks: [] };
       setActive(newAttendance);
       setBreaks([]);
       setAttendances((prev) => [newAttendance, ...prev]);
-      showToast("Check-In registrado ✓", true);
+      showToast("Check-In registrado", true);
     } catch (e: any) {
       showToast(e.message ?? "Error al registrar", false);
     } finally {
@@ -251,28 +209,23 @@ export default function CheckadorClient({
 
   const handleCheckOut = async () => {
     if (!active) return;
-    if (activeBreak) {
-      showToast("Termina tu pausa antes de hacer Check-Out", false);
-      return;
-    }
+    if (activeBreak) { showToast("Termina tu pausa antes de hacer Check-Out", false); return; }
     setLoading(true);
     try {
       const { lat, lng } = await getLocation();
       const res = await checkOutAction(active.id, employee.id, lat, lng);
-      
       if (!res.success || !res.data) throw new Error(res.error);
-      
       setActive(null);
       setElapsed("00:00:00");
       setBreaks([]);
       setActiveBreak(null);
       setAttendances((prev) =>
-        prev.map((a) => a.id === active.id 
-          ? { ...a, checkOut: new Date().toISOString(), horasTrabajadas: res.data.horasTrabajadas, breaks } 
+        prev.map((a) => a.id === active.id
+          ? { ...a, checkOut: new Date().toISOString(), horasTrabajadas: res.data.horasTrabajadas, breaks }
           : a
         )
       );
-      showToast("Check-Out registrado ✓", true);
+      showToast("Check-Out registrado", true);
     } catch (e: any) {
       showToast(e.message ?? "Error al registrar", false);
     } finally {
@@ -286,11 +239,9 @@ export default function CheckadorClient({
     try {
       const res = await startBreakAction(active.id, type);
       if (!res.success || !res.data) throw new Error(res.error);
-      
       const newBreak: AttendanceBreak = { ...res.data, startAt: res.data.startAt.toISOString(), endAt: null, duration: null };
       setActiveBreak(newBreak);
       setBreaks((prev) => [...prev, newBreak]);
-      
       const cfg = BREAK_CONFIG[type];
       showToast(`${cfg.emoji} ${cfg.label} iniciado`, true);
     } catch (e: any) {
@@ -306,7 +257,6 @@ export default function CheckadorClient({
     try {
       const res = await endBreakAction(activeBreak.id);
       if (!res.success || !res.data) throw new Error(res.error);
-      
       setBreaks((prev) =>
         prev.map((b) => b.id === activeBreak.id
           ? { ...b, endAt: res.data.endAt?.toISOString() ?? null, duration: res.data.duration }
@@ -323,275 +273,224 @@ export default function CheckadorClient({
     }
   };
 
-  // Stats de breaks del día por tipo
   const breakMinsByType = (type: BreakType) =>
-    breaks.filter((b) => b.type === type && b.duration)
-          .reduce((s, b) => s + (b.duration ?? 0), 0);
+    breaks.filter((b) => b.type === type && b.duration).reduce((s, b) => s + (b.duration ?? 0), 0);
 
-  const today = new Date().toLocaleDateString("es-MX", {
-    weekday: "long", day: "2-digit", month: "long", year: "numeric",
-  });
-
+  const today = now.toLocaleDateString("es-MX", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  const horaActual = now.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const activeBreakCfg = activeBreak ? BREAK_CONFIG[activeBreak.type] : null;
+  const initials = employee.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 gap-4 overflow-hidden">
+    <div className="flex-1 flex flex-col min-h-0 gap-4 overflow-hidden" style={{ fontFamily: "'Space Grotesk', system-ui, sans-serif" }}>
 
       {/* Toast */}
       <AnimatePresence>
         {toast && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-xl border font-bold text-xs uppercase tracking-widest shadow-2xl ${
-              toast.ok
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                : "bg-red-500/10 border-red-500/30 text-red-400"
-            }`}
+            initial={{ opacity: 0, y: -20, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.96 }}
+            className="fixed top-6 right-6 z-50 flex items-center gap-2 px-5 py-3.5 rounded-2xl border font-bold text-xs uppercase tracking-widest shadow-2xl backdrop-blur-xl"
+            style={{
+              background: toast.ok ? "rgba(52,211,153,0.12)" : "rgba(251,111,111,0.12)",
+              borderColor: toast.ok ? "rgba(52,211,153,0.35)" : "rgba(251,111,111,0.35)",
+              color: toast.ok ? "#34d399" : "#fb6f6f",
+            }}
           >
-            {toast.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+            {toast.ok ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
             {toast.msg}
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-3 gap-4 shrink-0">
+      {/* ═══ FILA SUPERIOR: Punch card + Reloj de pared + KPIs ═══ */}
+      <div className="grid grid-cols-12 gap-4 shrink-0">
 
-        {/* ── PUNCH CARD ── */}
-        <div className="col-span-1 bg-[#0a0a0a] border border-white/[0.04] rounded-3xl p-6 flex flex-col items-center gap-4 relative overflow-hidden shadow-2xl">
-          {active      && !activeBreak && <div className="absolute inset-0 bg-emerald-500/3 rounded-3xl pointer-events-none" />}
-          {activeBreak && <div className={`absolute inset-0 rounded-3xl pointer-events-none ${activeBreakCfg?.bgBadge}`} />}
+        {/* ── PUNCH CARD (col 4) ── */}
+        <div className="col-span-12 lg:col-span-4 rounded-3xl p-6 flex flex-col items-center gap-5 relative overflow-hidden"
+          style={{
+            background: "linear-gradient(160deg, #1c2026 0%, #15181d 60%, #101216 100%)",
+            border: "1px solid #2c323b",
+            boxShadow: "0 20px 60px -20px rgba(0,0,0,0.7)",
+          }}>
+          {/* glow de estado */}
+          {active && !activeBreak && (
+            <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full pointer-events-none"
+              style={{ background: "radial-gradient(circle, rgba(52,211,153,0.18), transparent 70%)" }} />
+          )}
+          {activeBreak && (
+            <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full pointer-events-none"
+              style={{ background: `radial-gradient(circle, ${activeBreakCfg?.accent}30, transparent 70%)` }} />
+          )}
 
-          {/* Avatar */}
-          <div className="text-center">
-            <div className="w-14 h-14 rounded-2xl bg-[#FDCB02] text-black font-black text-lg flex items-center justify-center mx-auto mb-2 shadow-inner">
-              {employee.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+          {/* Avatar + nombre */}
+          <div className="text-center relative z-10">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-2.5 font-black text-xl text-black shadow-lg"
+              style={{ background: "linear-gradient(135deg, #fbbf24, #f5a623)", boxShadow: "0 8px 24px -6px rgba(245,166,35,0.5)" }}>
+              {initials}
             </div>
-            <p className="text-sm font-black text-white">{employee.name}</p>
-            <p className="text-[9px] text-[#FDCB02] uppercase tracking-widest">{ROLE_LABEL[employee.role]}</p>
-            <p className="text-[9px] text-zinc-600 mt-1 font-mono capitalize">{today}</p>
+            <p className="text-base font-bold text-zinc-100">{employee.name}</p>
+            <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "#f5a623" }}>{ROLE_LABEL[employee.role]}</p>
           </div>
 
-          {/* Reloj principal */}
-          <div className="text-center w-full">
-            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-1">
-              {activeBreak
-                ? `${activeBreakCfg?.emoji} ${activeBreakCfg?.label}`
-                : active ? "Tiempo trabajado" : "Sin sesión activa"
-              }
+          {/* Reloj: tiempo trabajado o estado */}
+          <div className="text-center w-full relative z-10">
+            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-zinc-500 mb-1.5">
+              {activeBreak ? `${activeBreakCfg?.emoji} ${activeBreakCfg?.label}` : active ? "Tiempo trabajado" : "Sin sesion activa"}
             </p>
-            <p className={`text-3xl font-mono font-black tracking-tighter transition-colors ${
-              activeBreak ? activeBreakCfg?.color :
-              active      ? "text-emerald-400" : "text-zinc-700"
-            }`}>
+            <p className="text-[44px] leading-none font-bold tracking-tighter tabular-nums transition-colors"
+              style={{ color: activeBreak ? activeBreakCfg?.accent : active ? "#34d399" : "#3f4651" }}>
               {active ? elapsed : "00:00:00"}
             </p>
             {activeBreak && (
-              <div className="mt-1 flex items-center justify-center gap-1.5">
-                <Timer size={10} className={activeBreakCfg?.color} />
-                <p className={`text-[10px] font-mono ${activeBreakCfg?.color}`}>{breakElapsed}</p>
+              <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: `${activeBreakCfg?.accent}1a` }}>
+                <Timer size={11} style={{ color: activeBreakCfg?.accent }} />
+                <span className="text-[11px] font-bold tabular-nums" style={{ color: activeBreakCfg?.accent }}>{breakElapsed}</span>
               </div>
             )}
             {active && !activeBreak && (
-              <p className="text-[9px] text-zinc-600 font-mono mt-1">
-                Desde {formatTime(active.checkIn)}
-              </p>
+              <p className="text-[10px] text-zinc-500 mt-1.5 tabular-nums">Entrada {formatTime(active.checkIn)}</p>
             )}
           </div>
 
-          {/* GPS status */}
+          {/* GPS */}
           {locStatus !== "idle" && (
-            <div className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full border ${
-              locStatus === "getting" ? "text-amber-400 border-amber-800 bg-amber-500/10" :
-              locStatus === "ok"      ? "text-emerald-400 border-emerald-800 bg-emerald-500/10" :
-                                        "text-red-400 border-red-800 bg-red-500/10"
-            }`}>
+            <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full border relative z-10"
+              style={{
+                color: locStatus === "getting" ? "#f5a623" : locStatus === "ok" ? "#34d399" : "#fb6f6f",
+                borderColor: locStatus === "getting" ? "#f5a62340" : locStatus === "ok" ? "#34d39940" : "#fb6f6f40",
+                background: locStatus === "getting" ? "#f5a6231a" : locStatus === "ok" ? "#34d3991a" : "#fb6f6f1a",
+              }}>
               {locStatus === "getting" && <Loader2 size={10} className="animate-spin" />}
-              {locStatus === "ok"      && <MapPin size={10} />}
-              {locStatus === "error"   && <AlertCircle size={10} />}
-              {locStatus === "getting" ? "Obteniendo GPS..." :
-               locStatus === "ok"      ? "Ubicación capturada" : "Error GPS"}
+              {locStatus === "ok" && <MapPin size={10} />}
+              {locStatus === "error" && <AlertCircle size={10} />}
+              {locStatus === "getting" ? "Obteniendo GPS..." : locStatus === "ok" ? "Ubicacion capturada" : "Error GPS"}
             </div>
           )}
 
-          {/* ── BOTONES ── */}
-          <div className="w-full space-y-2 mt-auto">
-
+          {/* Botones */}
+          <div className="w-full space-y-2.5 mt-auto relative z-10">
             {!active ? (
-              // ── CHECK-IN ──
-              <motion.button whileTap={{ scale: 0.97 }}
+              <motion.button whileTap={{ scale: 0.97 }} whileHover={{ scale: 1.02 }}
                 onClick={handleCheckIn} disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-widest py-3 rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20"
-              >
-                {loading ? <Loader2 size={14} className="animate-spin" /> : <LogIn size={14} />}
-                Check-In
+                className="w-full flex items-center justify-center gap-2 text-black font-black text-sm uppercase tracking-widest py-4 rounded-2xl transition-all disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #34d399, #10b981)", boxShadow: "0 10px 30px -8px rgba(52,211,153,0.5)" }}>
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
+                Registrar Entrada
               </motion.button>
             ) : (
               <>
-                {/* ── GRID 2x2 DE PAUSAS ── */}
                 <div className="grid grid-cols-2 gap-2">
                   {ALL_BREAK_TYPES.map((type) => {
-                    const cfg       = BREAK_CONFIG[type];
-                    const isActive  = activeBreak?.type === type;
+                    const cfg = BREAK_CONFIG[type];
+                    const isActive = activeBreak?.type === type;
                     const isBlocked = !!activeBreak && !isActive;
-
                     if (isActive) {
-                      // Botón para terminar esta pausa
                       return (
-                        <motion.button key={type} whileTap={{ scale: 0.97 }}
-                          onClick={handleBreakEnd}
-                          disabled={!!breakLoading}
-                          className={`flex items-center justify-center gap-1.5 ${cfg.bgActive} font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl transition-all disabled:opacity-50 animate-pulse`}
-                        >
-                          {breakLoading === type
-                            ? <Loader2 size={12} className="animate-spin" />
-                            : <Square size={12} />
-                          }
+                        <motion.button key={type} whileTap={{ scale: 0.97 }} onClick={handleBreakEnd} disabled={!!breakLoading}
+                          className="flex items-center justify-center gap-1.5 font-black text-[10px] uppercase tracking-widest py-2.5 rounded-xl transition-all disabled:opacity-50 text-black animate-pulse"
+                          style={{ background: cfg.accent }}>
+                          {breakLoading === type ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />}
                           {cfg.labelFin}
                         </motion.button>
                       );
                     }
-
                     if (isBlocked) {
-                      // Deshabilitado mientras hay otra pausa activa
                       return (
                         <button key={type} disabled
-                          className={`flex items-center justify-center gap-1.5 bg-zinc-900 text-zinc-700 border border-zinc-800 font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl opacity-40`}
-                        >
-                          {cfg.icon}
-                          {cfg.label}
+                          className="flex items-center justify-center gap-1.5 font-black text-[10px] uppercase tracking-widest py-2.5 rounded-xl opacity-30"
+                          style={{ background: "#15181d", color: "#3f4651", border: "1px solid #22272f" }}>
+                          {cfg.icon}{cfg.label}
                         </button>
                       );
                     }
-
-                    // Botón normal para iniciar pausa
                     return (
-                      <motion.button key={type} whileTap={{ scale: 0.97 }}
-                        onClick={() => handleBreakStart(type)}
-                        disabled={!!breakLoading || loading}
-                        className={`flex items-center justify-center gap-1.5 ${cfg.bg} ${cfg.color} border ${cfg.border} font-black text-[9px] uppercase tracking-widest py-2.5 rounded-xl transition-all disabled:opacity-40`}
-                      >
-                        {breakLoading === type
-                          ? <Loader2 size={12} className="animate-spin" />
-                          : cfg.icon
-                        }
+                      <motion.button key={type} whileTap={{ scale: 0.97 }} onClick={() => handleBreakStart(type)} disabled={!!breakLoading || loading}
+                        className="flex items-center justify-center gap-1.5 font-black text-[10px] uppercase tracking-widest py-2.5 rounded-xl transition-all disabled:opacity-40"
+                        style={{ background: `${cfg.accent}14`, color: cfg.accent, border: `1px solid ${cfg.accent}30` }}>
+                        {breakLoading === type ? <Loader2 size={12} className="animate-spin" /> : cfg.icon}
                         {cfg.label}
                       </motion.button>
                     );
                   })}
                 </div>
-
-                {/* ── CHECK-OUT ── */}
-                <motion.button whileTap={{ scale: 0.97 }}
-                  onClick={handleCheckOut}
-                  disabled={loading || !!activeBreak}
-                  className="w-full flex items-center justify-center gap-2 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 font-black text-[10px] uppercase tracking-widest py-3 rounded-xl transition-all disabled:opacity-40"
-                >
-                  {loading ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
-                  {activeBreak ? "Termina la pausa primero" : "Check-Out"}
+                <motion.button whileTap={{ scale: 0.97 }} onClick={handleCheckOut} disabled={loading || !!activeBreak}
+                  className="w-full flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest py-3.5 rounded-2xl transition-all disabled:opacity-40"
+                  style={{ background: "#fb6f6f14", color: "#fb6f6f", border: "1px solid #fb6f6f33" }}>
+                  {loading ? <Loader2 size={15} className="animate-spin" /> : <LogOut size={15} />}
+                  {activeBreak ? "Termina la pausa primero" : "Registrar Salida"}
                 </motion.button>
               </>
             )}
           </div>
-
-          {/* ── Mini stats de pausas del día ── */}
-          {active && ALL_BREAK_TYPES.some((t) => breakMinsByType(t) > 0) && (
-            <div className="w-full grid grid-cols-2 gap-2 pt-2 border-t border-white/[0.04]">
-              {ALL_BREAK_TYPES.map((type) => {
-                const mins = breakMinsByType(type);
-                if (mins === 0) return null;
-                const cfg = BREAK_CONFIG[type];
-                return (
-                  <div key={type} className={`flex items-center gap-1.5 ${cfg.bgBadge} border ${cfg.borderBadge} rounded-lg px-2 py-1.5`}>
-                    <span className={cfg.color + " shrink-0"}>{cfg.icon}</span>
-                    <div>
-                      <p className={`text-[8px] ${cfg.color} font-black uppercase tracking-widest`}>{cfg.label}</p>
-                      <p className={`text-[9px] font-mono ${cfg.color}`}>{Math.round(mins)} min</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
-        {/* ── KPIs + sesión activa ── */}
-        <div className="col-span-2 grid grid-cols-3 gap-4 content-start">
-          {[
-            { label: "Horas Este Mes",  value: formatHoras(kpis.totalHorasMes),  icon: <Clock      size={14} className="text-[#FDCB02]"  />, sub: "Total acumulado"   },
-            { label: "Días Trabajados", value: kpis.diasTrabajados,              icon: <Calendar   size={14} className="text-sky-400"    />, sub: "Con check-out"     },
-            { label: "Promedio Diario", value: formatHoras(kpis.promedioHoras),  icon: <TrendingUp size={14} className="text-emerald-400"/>, sub: "Por día trabajado" },
-          ].map((k, i) => (
-            <div key={i} className="bg-[#0a0a0a] border border-white/[0.03] rounded-3xl p-6 flex flex-col justify-between h-32 shadow-xl">
-              <div className="flex justify-between items-start">
-                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600">{k.label}</p>
-                {k.icon}
-              </div>
-              <div>
-                <p className="text-3xl font-mono font-bold text-white">{k.value}</p>
-                <p className="text-[10px] text-zinc-700 mt-1">{k.sub}</p>
+        {/* ── RELOJ DE PARED + KPIs (col 8) ── */}
+        <div className="col-span-12 lg:col-span-8 flex flex-col gap-4">
+
+          {/* Reloj de pared en vivo */}
+          <div className="rounded-3xl px-7 py-6 flex items-center justify-between relative overflow-hidden"
+            style={{ background: "linear-gradient(120deg, #15181d, #101216)", border: "1px solid #2c323b" }}>
+            <div className="absolute right-0 top-0 w-64 h-full pointer-events-none opacity-50"
+              style={{ background: "radial-gradient(circle at right, rgba(245,166,35,0.08), transparent 70%)" }} />
+            <div className="relative z-10">
+              <p className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-1">Hora actual</p>
+              <p className="text-5xl font-bold tracking-tighter tabular-nums text-zinc-100">{horaActual}</p>
+              <p className="text-[11px] text-zinc-500 mt-1.5 capitalize">{today}</p>
+            </div>
+            <div className="relative z-10 text-right">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+                style={{ background: active ? "#34d3991a" : "#22272f", border: active ? "1px solid #34d39940" : "1px solid #2c323b" }}>
+                <span className="relative flex h-2 w-2">
+                  {active && <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: "#34d399" }} />}
+                  <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: active ? "#34d399" : "#3f4651" }} />
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: active ? "#34d399" : "#6b7280" }}>
+                  {active ? "En turno" : "Fuera"}
+                </span>
               </div>
             </div>
-          ))}
+          </div>
 
-          {/* Sesión activa */}
-          {active && (
-            <div className={`col-span-3 rounded-2xl p-5 flex items-center gap-4 border shadow-lg ${
-              activeBreak
-                ? `${activeBreakCfg?.bgBadge} ${activeBreakCfg?.borderBadge}`
-                : "bg-emerald-500/5 border-emerald-500/20"
-            }`}>
-              <div className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse ${
-                activeBreak ? activeBreakCfg?.color.replace("text-", "bg-") : "bg-emerald-500"
-              }`} />
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-bold uppercase tracking-widest ${
-                  activeBreak ? activeBreakCfg?.color : "text-emerald-400"
-                }`}>
-                  {activeBreak
-                    ? `${activeBreakCfg?.emoji} En pausa — ${activeBreakCfg?.label}`
-                    : "Sesión Activa"
-                  }
-                </p>
-                <p className="text-xs text-zinc-500 mt-1 capitalize">
-                  {formatDate(active.checkIn)} · Entrada: {formatTime(active.checkIn)}
-                </p>
-                {active.location && (
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <MapPin size={11} className="text-zinc-600 shrink-0" />
-                    <p className="text-[10px] text-zinc-600 truncate uppercase tracking-widest">{active.location}</p>
-                  </div>
-                )}
-              </div>
-              {activeBreak && (
-                <div className="text-right shrink-0">
-                  <p className="text-[9px] text-zinc-600 uppercase tracking-widest">Tiempo</p>
-                  <p className={`text-lg font-mono font-bold ${activeBreakCfg?.color}`}>{breakElapsed}</p>
+          {/* KPIs con anillos */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Horas del mes", raw: kpis.totalHorasMes, display: formatHoras(kpis.totalHorasMes), max: 200, accent: "#f5a623", icon: <Clock size={15} /> },
+              { label: "Dias trabajados", raw: kpis.diasTrabajados, display: String(kpis.diasTrabajados), max: 26, accent: "#5b9dff", icon: <Calendar size={15} /> },
+              { label: "Promedio diario", raw: kpis.promedioHoras, display: formatHoras(kpis.promedioHoras), max: 10, accent: "#34d399", icon: <TrendingUp size={15} /> },
+            ].map((k, i) => (
+              <motion.div key={i}
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
+                className="rounded-3xl p-5 flex items-center gap-4"
+                style={{ background: "#15181d", border: "1px solid #2c323b" }}>
+                <ProgressRing value={k.raw} max={k.max} accent={k.accent}>
+                  <span style={{ color: k.accent }}>{k.icon}</span>
+                </ProgressRing>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-1">{k.label}</p>
+                  <p className="text-2xl font-bold tabular-nums text-zinc-100 leading-none">{k.display}</p>
                 </div>
-              )}
-            </div>
-          )}
+              </motion.div>
+            ))}
+          </div>
 
-          {/* Breaks del día */}
+          {/* Pausas de hoy (si hay) */}
           {breaks.length > 0 && (
-            <div className="col-span-3 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl p-5 shadow-xl">
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-4 flex items-center gap-1.5">
-                <Timer size={13} /> Pausas Registradas Hoy
+            <div className="rounded-3xl p-5" style={{ background: "#15181d", border: "1px solid #2c323b" }}>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-3 flex items-center gap-1.5">
+                <Timer size={13} /> Pausas de hoy
               </p>
               <div className="flex flex-wrap gap-2">
                 {breaks.map((b) => {
                   const cfg = BREAK_CONFIG[b.type];
                   return (
-                    <div key={b.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-widest ${cfg.bgBadge} ${cfg.borderBadge} ${cfg.color}`}>
-                      {cfg.icon}
-                      {cfg.label}
-                      <span className="font-mono bg-black/20 px-2 py-0.5 rounded-md">
-                        {formatTime(b.startAt)}
-                        {b.endAt ? ` → ${formatTime(b.endAt)}` : " · En curso"}
+                    <div key={b.id} className="flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest"
+                      style={{ background: `${cfg.accent}12`, border: `1px solid ${cfg.accent}30`, color: cfg.accent }}>
+                      {cfg.icon}{cfg.label}
+                      <span className="font-mono tabular-nums px-2 py-0.5 rounded-md" style={{ background: "rgba(0,0,0,0.25)" }}>
+                        {formatTime(b.startAt)}{b.endAt ? ` → ${formatTime(b.endAt)}` : " · En curso"}
                       </span>
-                      {b.duration != null && (
-                        <span className="opacity-60">{Math.round(b.duration)}m</span>
-                      )}
+                      {b.duration != null && <span className="opacity-60">{Math.round(b.duration)}m</span>}
                     </div>
                   );
                 })}
@@ -601,98 +500,93 @@ export default function CheckadorClient({
         </div>
       </div>
 
-      {/* ── HISTORIAL ── */}
-      <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a] border border-white/[0.03] rounded-3xl overflow-hidden shadow-2xl">
-        <div className="px-6 py-5 border-b border-white/[0.04] shrink-0 flex items-center justify-between">
-          <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
-            <Clock size={15} className="text-[#FDCB02]" /> Historial de Asistencia
+      {/* ═══ HISTORIAL ═══ */}
+      <div className="flex-1 flex flex-col min-h-0 rounded-3xl overflow-hidden"
+        style={{ background: "#15181d", border: "1px solid #2c323b" }}>
+        <div className="px-6 py-4 shrink-0 flex items-center justify-between" style={{ borderBottom: "1px solid #2c323b" }}>
+          <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-100 flex items-center gap-2">
+            <Clock size={15} style={{ color: "#f5a623" }} /> Historial de asistencia
           </h3>
-          <p className="text-[10px] text-zinc-600 uppercase tracking-widest">Últimos 30 días</p>
+          <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Ultimos 30 dias</p>
         </div>
 
-        <div className="flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full">
+        <div className="flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2c323b] [&::-webkit-scrollbar-thumb]:rounded-full">
           {attendances.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-[10px] text-zinc-700 uppercase tracking-widest font-bold">Sin registros</p>
+            <div className="flex flex-col items-center justify-center h-full gap-2">
+              <Clock size={28} className="text-zinc-700" />
+              <p className="text-[11px] text-zinc-600 uppercase tracking-widest font-bold">Aun no hay registros</p>
+              <p className="text-[10px] text-zinc-700">Tu primer check-in aparecera aqui</p>
             </div>
           ) : (
             <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-[#0a0a0a] z-10 backdrop-blur-md">
-                <tr className="border-b border-white/[0.04] text-[9px] uppercase tracking-[0.2em] text-zinc-600 font-bold bg-[#0a0a0a]/90">
-                  <th className="px-6 py-4">Fecha</th>
-                  <th className="px-6 py-4">Check-In</th>
-                  <th className="px-6 py-4">Check-Out</th>
-                  <th className="px-6 py-4">Horas</th>
-                  <th className="px-6 py-4">Pausas</th>
-                  <th className="px-6 py-4">Ubicación</th>
-                  <th className="px-6 py-4 text-right">Estado</th>
+              <thead className="sticky top-0 z-10" style={{ background: "#15181d" }}>
+                <tr className="text-[9px] uppercase tracking-[0.2em] text-zinc-500 font-bold" style={{ borderBottom: "1px solid #2c323b" }}>
+                  <th className="px-6 py-3.5">Fecha</th>
+                  <th className="px-6 py-3.5">Entrada</th>
+                  <th className="px-6 py-3.5">Salida</th>
+                  <th className="px-6 py-3.5">Horas</th>
+                  <th className="px-6 py-3.5">Pausas</th>
+                  <th className="px-6 py-3.5">Ubicacion</th>
+                  <th className="px-6 py-3.5 text-right">Estado</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.02]">
+              <tbody>
                 {attendances.map((a, idx) => {
                   const completo = !!a.checkOut;
                   return (
                     <motion.tr key={a.id}
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                      transition={{ delay: idx * 0.03 }}
-                      className="hover:bg-white/[0.01] transition-colors"
-                    >
-                      <td className="px-6 py-4">
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(idx * 0.03, 0.4) }}
+                      className="transition-colors hover:bg-white/[0.02]"
+                      style={{ borderBottom: "1px solid #1c2026" }}>
+                      <td className="px-6 py-3.5">
                         <p className="text-xs font-bold text-zinc-300 capitalize">
-                          {new Date(a.checkIn).toLocaleDateString("es-MX", {
-                            weekday: "short", day: "2-digit", month: "short",
-                          })}
+                          {new Date(a.checkIn).toLocaleDateString("es-MX", { weekday: "short", day: "2-digit", month: "short" })}
                         </p>
                       </td>
-                      <td className="px-6 py-4">
-                        <p className="text-xs font-mono font-bold text-emerald-400">{formatTime(a.checkIn)}</p>
+                      <td className="px-6 py-3.5">
+                        <p className="text-xs font-bold tabular-nums" style={{ color: "#34d399" }}>{formatTime(a.checkIn)}</p>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-3.5">
                         {a.checkOut
-                          ? <p className="text-xs font-mono font-bold text-red-400">{formatTime(a.checkOut)}</p>
-                          : <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest animate-pulse border border-amber-500/20 bg-amber-500/10 px-2 py-1 rounded">Activo</span>
-                        }
+                          ? <p className="text-xs font-bold tabular-nums" style={{ color: "#fb6f6f" }}>{formatTime(a.checkOut)}</p>
+                          : <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded animate-pulse" style={{ color: "#f5a623", background: "#f5a6231a", border: "1px solid #f5a62330" }}>Activo</span>}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-3.5">
                         {a.horasTrabajadas != null
-                          ? <p className="text-xs font-mono text-[#FDCB02] font-black">{formatHoras(a.horasTrabajadas)}</p>
-                          : <p className="text-xs text-zinc-700">—</p>
-                        }
+                          ? <p className="text-xs font-black tabular-nums" style={{ color: "#f5a623" }}>{formatHoras(a.horasTrabajadas)}</p>
+                          : <p className="text-xs text-zinc-700">—</p>}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 flex-wrap">
+                      <td className="px-6 py-3.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           {ALL_BREAK_TYPES.map((type) => {
-                            const mins = (a.breaks ?? [])
-                              .filter((b) => b.type === type && b.duration)
-                              .reduce((s, b) => s + (b.duration ?? 0), 0);
+                            const mins = (a.breaks ?? []).filter((b) => b.type === type && b.duration).reduce((s, b) => s + (b.duration ?? 0), 0);
                             if (mins === 0) return null;
                             const cfg = BREAK_CONFIG[type];
                             return (
-                              <span key={type} className={`flex items-center gap-1 text-[10px] ${cfg.color} font-mono bg-white/5 px-2 py-0.5 rounded`}>
+                              <span key={type} className="flex items-center gap-1 text-[10px] font-mono tabular-nums px-2 py-0.5 rounded" style={{ color: cfg.accent, background: `${cfg.accent}12` }}>
                                 {cfg.icon} {Math.round(mins)}m
                               </span>
                             );
                           })}
-                          {ALL_BREAK_TYPES.every((t) =>
-                            (a.breaks ?? []).filter((b) => b.type === t && b.duration).reduce((s, b) => s + (b.duration ?? 0), 0) === 0
-                          ) && <span className="text-zinc-700 text-xs font-bold">—</span>}
+                          {ALL_BREAK_TYPES.every((t) => (a.breaks ?? []).filter((b) => b.type === t && b.duration).reduce((s, b) => s + (b.duration ?? 0), 0) === 0)
+                            && <span className="text-zinc-700 text-xs">—</span>}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-3.5">
                         {a.location ? (
                           <div className="flex items-center gap-1.5">
                             <MapPin size={11} className="text-zinc-600 shrink-0" />
                             <p className="text-[10px] text-zinc-500 uppercase tracking-widest truncate max-w-[160px]">{a.location}</p>
                           </div>
-                        ) : <p className="text-zinc-700 text-xs font-bold">—</p>}
+                        ) : <p className="text-zinc-700 text-xs">—</p>}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-3.5 text-right">
                         {completo ? (
-                          <span className="flex items-center justify-end gap-1.5 text-[9px] font-black text-emerald-400 uppercase tracking-widest">
+                          <span className="inline-flex items-center justify-end gap-1.5 text-[9px] font-black uppercase tracking-widest" style={{ color: "#34d399" }}>
                             <CheckCircle2 size={12} /> Completo
                           </span>
                         ) : (
-                          <span className="flex items-center justify-end gap-1.5 text-[9px] font-black text-amber-400 uppercase tracking-widest animate-pulse">
+                          <span className="inline-flex items-center justify-end gap-1.5 text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: "#f5a623" }}>
                             <Clock size={12} /> En curso
                           </span>
                         )}
