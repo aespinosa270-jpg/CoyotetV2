@@ -37,3 +37,107 @@ html.lenis, .lenis body {
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   COYOTE VIVO — Sistema de diseño (Fase 1)
+   Tokens cálidos estilo "Coyote Vivo". Namespaced bajo .coyote-vivo
+   para NO afectar las pantallas viejas. Solo las pantallas que usen
+   la clase .coyote-vivo (o esten dentro de un contenedor con ella)
+   tomaran estos estilos.
+   ═══════════════════════════════════════════════════════════ */
+
+.coyote-vivo {
+  /* Paleta */
+  --cv-bg: #f4f2fb;
+  --cv-card: #ffffff;
+  --cv-ink: #2b2546;
+  --cv-soft: #8b85a6;
+  --cv-line: #ece8fa;
+  --cv-violet: #7c5cff;
+  --cv-violet-2: #9d7bff;
+  --cv-blue: #3db8ff;
+  --cv-pink: #ff6ba6;
+  --cv-amber: #ffb340;
+  --cv-green: #36d6a0;
+  --cv-red: #ff6b6b;
+  /* Gradientes */
+  --cv-grad-primary: linear-gradient(135deg, #7c5cff, #9d7bff);
+  --cv-grad-violet-blue: linear-gradient(135deg, #7c5cff, #3db8ff);
+  --cv-grad-warm: linear-gradient(135deg, #ffb340, #ff6ba6);
+  --cv-grad-fresh: linear-gradient(135deg, #36d6a0, #3db8ff);
+  --cv-grad-hot: linear-gradient(135deg, #ff6ba6, #ff6b6b);
+  /* Sombras */
+  --cv-shadow: 0 12px 32px -14px rgba(124,92,255,0.25);
+  --cv-shadow-soft: 0 8px 22px -14px rgba(43,37,70,0.18);
+  --cv-shadow-glow: 0 10px 30px -8px rgba(124,92,255,0.5);
+  /* Radios */
+  --cv-r-sm: 12px;
+  --cv-r-md: 16px;
+  --cv-r-lg: 22px;
+  --cv-r-xl: 28px;
+  /* Tipografia (variables next/font inyectadas en el layout) */
+  --cv-font-display: var(--font-baloo), system-ui, sans-serif;
+  --cv-font-body: var(--font-nunito), system-ui, sans-serif;
+
+  font-family: var(--cv-font-body);
+  color: var(--cv-ink);
+}
+
+/* ── Tipografia ── */
+.cv-display { font-family: var(--cv-font-display); font-weight: 800; letter-spacing: -0.5px; }
+.cv-h1 { font-family: var(--cv-font-display); font-weight: 800; font-size: 30px; letter-spacing: -0.5px; line-height: 1.1; }
+.cv-h2 { font-family: var(--cv-font-display); font-weight: 700; font-size: 21px; }
+.cv-muted { color: var(--cv-soft); }
+
+/* ── Card ── */
+.cv-card {
+  background: var(--cv-card);
+  border: 1.5px solid var(--cv-line);
+  border-radius: var(--cv-r-lg);
+  box-shadow: var(--cv-shadow-soft);
+  transition: transform .25s cubic-bezier(.4,0,.2,1), box-shadow .25s;
+}
+.cv-card-hover:hover { transform: translateY(-4px); box-shadow: var(--cv-shadow); }
+.cv-card-tinted { background: linear-gradient(135deg, #f0ebff, #fdeef6); border-color: #e7ddff; }
+
+/* ── Botones ── */
+.cv-btn {
+  font-family: var(--cv-font-body); font-weight: 800; font-size: 13px;
+  border: none; cursor: pointer; border-radius: var(--cv-r-md);
+  padding: 11px 20px; transition: transform .2s, box-shadow .2s;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.cv-btn:hover { transform: translateY(-2px); }
+.cv-btn-primary { background: var(--cv-grad-primary); color: #fff; box-shadow: var(--cv-shadow-glow); }
+.cv-btn-warm { background: var(--cv-grad-warm); color: #fff; box-shadow: 0 8px 18px -8px rgba(255,107,166,0.6); }
+.cv-btn-fresh { background: var(--cv-grad-fresh); color: #fff; box-shadow: 0 8px 18px -8px rgba(54,214,160,0.6); }
+.cv-btn-soft { background: #f3eeff; color: var(--cv-violet); }
+.cv-btn:disabled { opacity: .5; cursor: default; transform: none; }
+
+/* ── Badges ── */
+.cv-badge { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.cv-badge-hot { background: #ffe8ec; color: #e8407a; }
+.cv-badge-ai { background: #eee9ff; color: var(--cv-violet); }
+.cv-badge-wait { background: #fff0e0; color: #e8881e; }
+.cv-badge-new { background: #eafaf3; color: #1ea672; }
+
+/* ── Pill IA ── */
+.cv-pill-ai {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg, #f0ebff, #fdeef6);
+  border: 1.5px solid #e7ddff; padding: 5px 12px; border-radius: 30px;
+  font-size: 12px; font-weight: 800; color: var(--cv-violet);
+}
+
+/* ── Avatar ── */
+.cv-avatar { border-radius: var(--cv-r-md); display: grid; place-items: center; font-weight: 800; color: #fff; }
+
+/* ── Animaciones ── */
+@keyframes cv-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.cv-bob { animation: cv-bob 3s ease-in-out infinite; }
+@keyframes cv-pop { 0% { transform: scale(.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+.cv-pop { animation: cv-pop .35s cubic-bezier(.2,.9,.3,1.2); }
+
+/* ── Scrollbar suave ── */
+.cv-scroll::-webkit-scrollbar { width: 7px; height: 7px; }
+.cv-scroll::-webkit-scrollbar-thumb { background: #e0d9f5; border-radius: 10px; }

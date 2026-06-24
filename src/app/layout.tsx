@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Baloo_2, Nunito } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/navbar";
 import Footer from "@/components/layout/footer";
@@ -12,6 +12,9 @@ import { CoyoteWidget } from "@/components/CoyoteWidget";
 // Llamadas:  55 9602 3567
 // WhatsApp:  55 3131 4617
 const inter = Inter({ subsets: ["latin"] });
+// Coyote Vivo: fuentes del sistema de diseño (variables CSS, no afectan lo existente)
+const baloo = Baloo_2({ subsets: ["latin"], weight: ["500", "600", "700", "800"], variable: "--font-baloo" });
+const nunito = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800", "900"], variable: "--font-nunito" });
 export const metadata: Metadata = {
   title: "Coyote Textil | Infraestructura Nacional",
   description: "Proveeduría estratégica de tejidos de alto rendimiento.",
@@ -27,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className={inter.className}>
+      <body className={`${inter.className} ${baloo.variable} ${nunito.variable}`}>
         <Providers>
           <HideInCRM>
             <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-neutral-200 shadow-sm">
