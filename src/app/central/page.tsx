@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * COYOTE TEXTIL · Central de llamadas
- * Módulo nuevo, desde cero. Ruta: /central
- * Fiel al mock coyote-textil-llamadas.html
- *
- * Estados: idle → entrante → llamada → dispo (obligatoria) → conf → idle
- * Próximo paso: conectar SIP.js en los puntos marcados con TODO(SIP)
+ * COYOTE TEXTIL · Central de llamadas — REAL
+ * Ruta: /central
+ * - Ficha del cliente: se busca EN VIVO en Upstash por teléfono (/api/central/cliente)
+ * - Disposición: se guarda EN VIVO en la RDS vía Prisma (/api/central/llamada)
+ * - Voz: pendiente de troncal SIP → puntos marcados TODO(SIP)
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import './central.css';
 
 // ─── Tipos ───────────────────────────────────────────────
@@ -27,24 +27,23 @@ type Cliente = {
   leadTemp: string;
 };
 
-// ─── Datos demo (luego se jalan de Upstash/RDS por teléfono) ──
-const CLIENTE_DEMO: Cliente = {
-  iniciales: 'RM',
-  nombre: 'Rosa Martínez',
-  empresa: 'Deportes RM',
-  telefono: '+52 55 3408 1869',
-  tier: 'ELITE',
-  leadScore: 87,
-  leadTemp: 'Caliente',
+// ─── Ficha vacía por defecto (se llena EN VIVO desde Upstash) ──
+const CLIENTE_VACIO: Cliente = {
+  iniciales: '??',
+  nombre: 'Desconocido',
+  empresa: '',
+  telefono: '',
+  tier: 'NONE',
+  leadScore: 0,
+  leadTemp: 'Nuevo',
 };
 
-const GUION_DEMO: LineaTrans[] = [
-  { tipo: 'cli', quien: 'Rosa', texto: 'Oye Katy, ¿tienes el micro piqué en azul rey todavía?' },
-  { tipo: 'agt', quien: 'Katy', texto: '¡Claro Rosa! Tenemos 8 rollos en Guatemala 97.' },
-  { tipo: 'cli', quien: 'Rosa', texto: 'Perfecto, apártame 5 y el resto lo veo la otra semana.' },
-  { tipo: 'agt', quien: 'Katy', texto: 'Listo, te los aparto ahorita. ¿Te los mando el jueves como siempre?' },
-  { tipo: 'cli', quien: 'Rosa', texto: 'Sí porfa, jueves está perfecto 🙌' },
-];
+function inicialesDe(nombre: string, tel: string): string {
+  const limpio = (nombre || '').trim();
+  if (!limpio) return tel.slice(-2) || '??';
+  const partes = limpio.split(/\s+/);
+  return (partes[0][0] + (partes[1]?.[0] || '')).toUpperCase();
+}
 
 const RESULTADOS = [
   { v: 'Venta cerrada', e: '🛒' },
@@ -57,11 +56,45 @@ const RESULTADOS = [
   { v: 'Número equivocado', e: '📵' },
 ];
 
-const AGENTE = { iniciales: 'KT', nombre: 'Katy Torres', rol: 'Vendedora', nombreCorto: 'Katy' };
+type Agente = { id: string; nombre: string; rol: string };
+type Stats = { llamadasHoy: number; ventasHoy: number; duracionPromedio: string };
 
 // ─── Helpers ─────────────────────────────────────────────
 const fmt = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+
+// ─── Historial real de llamadas anteriores (RDS) ─────────
+function HistorialLlamadas({ telefono }: { telefono: string }) {
+  const [items, setItems] = useState<Array<{ id: string; resultado: string; nota: string; createdAt: string }>>([]);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/central/llamada')
+      .then((r) => r.json())
+      .then((d) => {
+        const propias = (d.llamadas || []).filter(
+          (l: { telefono: string }) => l.telefono === telefono.replace(/\D/g, ''),
+        );
+        setItems(propias.slice(0, 5));
+      })
+      .catch(() => {})
+      .finally(() => setCargando(false));
+  }, [telefono]);
+
+  if (cargando) return <p style={{ fontWeight: 700, color: 'var(--cafe-suave)' }}>Cargando…</p>;
+  if (items.length === 0)
+    return <p style={{ fontWeight: 700, color: 'var(--cafe-suave)' }}>Sin llamadas anteriores registradas.</p>;
+  return (
+    <>
+      {items.map((l) => (
+        <p key={l.id} style={{ marginBottom: 8 }}>
+          <b>{l.createdAt.slice(0, 10)}</b> · {l.resultado} — {l.nota.slice(0, 90)}
+        </p>
+      ))}
+    </>
+  );
+}
 
 // ─── Componente ──────────────────────────────────────────
 export default function CentralLlamadas() {
@@ -76,26 +109,43 @@ export default function CentralLlamadas() {
   const [trans, setTrans] = useState<LineaTrans[]>([]);
   const [resultado, setResultado] = useState<string | null>(null);
   const [nota, setNota] = useState('');
+  const [cliente, setCliente] = useState<Cliente>(CLIENTE_VACIO);
+  const [ficha, setFicha] = useState<Record<string, unknown>>({});
+  const [agente, setAgente] = useState<Agente | null>(null);
+  const [stats, setStats] = useState<Stats>({ llamadasHoy: 0, ventasHoy: 0, duracionPromedio: '0:00' });
+  const [inventario, setInventario] = useState<Record<string, { menudeo?: number; mayoreo?: number; info?: string }>>({});
+  const [invVisible, setInvVisible] = useState(false);
+  const [invFiltro, setInvFiltro] = useState('');
+  const router = useRouter();
+  const [telPrueba, setTelPrueba] = useState('');
+  const [buscando, setBuscando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const transRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const cliente = CLIENTE_DEMO;
+  // ── Sesión REAL: exige login contra Employee de la RDS ──
+  useEffect(() => {
+    fetch('/api/central/yo')
+      .then((r) => {
+        if (r.status === 401) { router.push('/central/login'); return null; }
+        return r.json();
+      })
+      .then((d) => { if (d?.empleado) setAgente(d.empleado); })
+      .catch(() => {});
+    // Stats REALES del día desde la tabla Llamada
+    fetch('/api/central/stats')
+      .then((r) => r.json())
+      .then((d) => setStats(d))
+      .catch(() => {});
+  }, [router]);
 
   // ── Timer de llamada ──
   useEffect(() => {
     if (pantalla === 'llamada') {
       timerRef.current = setInterval(() => setSeg((s: number) => s + 1), 1000);
-      // Transcripción simulada (TODO(SIP): reemplazar por stream real de Whisper)
-      let i = 0;
-      transRef.current = setInterval(() => {
-        if (i >= GUION_DEMO.length) {
-          if (transRef.current) clearInterval(transRef.current);
-          return;
-        }
-        const linea = GUION_DEMO[i++];
-        setTrans((t: LineaTrans[]) => [...t, linea]);
-      }, 2600);
+      // TODO(SIP): aquí se conectará el stream de audio → Whisper para transcripción real
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -104,7 +154,34 @@ export default function CentralLlamadas() {
   }, [pantalla]);
 
   // ── Acciones ──
-  const simularEntrante = () => setEntrante(true); // TODO(SIP): evento real 'invite'
+  // Hoy: se dispara a mano con un teléfono real de tu Upstash.
+  // TODO(SIP): cuando haya troncal, el evento 'invite' de SIP.js llamará a esta misma función con el caller ID.
+  const entrarLlamada = async (telefonoRaw: string) => {
+    const tel = telefonoRaw.replace(/\D/g, '');
+    if (!tel) { setErrorMsg('Escribe un teléfono'); return; }
+    setBuscando(true);
+    setErrorMsg('');
+    try {
+      const r = await fetch(`/api/central/cliente?tel=${tel}`);
+      const data = await r.json();
+      const c = data.cliente || {};
+      setFicha(c);
+      setCliente({
+        iniciales: inicialesDe(c.nombre, tel),
+        nombre: c.nombre || 'Cliente nuevo',
+        empresa: c.empresa || '',
+        telefono: tel,
+        tier: (c.membershipTier as Cliente['tier']) || 'NONE',
+        leadScore: c.leadScore ?? c.engagementScore ?? 0,
+        leadTemp: c.temperatura || (data.encontrado ? 'Conocido' : 'Nuevo'),
+      });
+      setEntrante(true);
+    } catch {
+      setErrorMsg('No se pudo consultar la ficha');
+    } finally {
+      setBuscando(false);
+    }
+  };
 
   const contestar = () => {
     // TODO(SIP): session.accept()
@@ -132,8 +209,29 @@ export default function CentralLlamadas() {
   };
 
   const guardar = async () => {
-    // TODO(API): POST /api/central/interaccion { resultado, nota, durFinal, telefono, grabacionUrl }
-    setPantalla('conf');
+    setGuardando(true);
+    setErrorMsg('');
+    try {
+      const r = await fetch('/api/central/llamada', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telefono: cliente.telefono,
+          nombre: cliente.nombre,
+          empresa: cliente.empresa,
+          resultado,
+          nota,
+          duracionSeg: durFinal,
+          agente: agente?.nombre || 'Sin sesión',
+        }),
+      });
+      if (!r.ok) throw new Error('fallo');
+      setPantalla('conf');
+    } catch {
+      setErrorMsg('No se pudo guardar. Revisa la conexión e intenta de nuevo.');
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const volverIdle = () => {
@@ -151,6 +249,27 @@ export default function CentralLlamadas() {
         ? 'Falta tu nota de la interacción (mínimo unas palabras).'
         : '';
 
+  const nombreCorto = (agente?.nombre || '').split(' ')[0] || '';
+  const inicialesAgente = agente
+    ? agente.nombre.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
+    : '··';
+
+  const cargarInventario = async () => {
+    setInvVisible(!invVisible);
+    if (Object.keys(inventario).length === 0) {
+      try {
+        const r = await fetch('/api/central/inventario');
+        const d = await r.json();
+        setInventario(d.bodega || {});
+      } catch { /* silencioso */ }
+    }
+  };
+
+  const cerrarSesion = async () => {
+    await fetch('/api/central/yo', { method: 'DELETE' });
+    router.push('/central/login');
+  };
+
   const saludoTier =
     cliente.tier === 'ELITE' ? 'Elite' : cliente.tier === 'BLACK' ? 'Black' : cliente.tier === 'GOLD' ? 'Gold' : '';
 
@@ -166,9 +285,10 @@ export default function CentralLlamadas() {
           </div>
         </div>
         <div className="agente-chip">
-          <div className="foto">{AGENTE.iniciales}</div>
-          {AGENTE.nombre} · {AGENTE.rol}
+          <div className="foto">{inicialesAgente}</div>
+          {agente ? `${agente.nombre} · ${agente.rol}` : 'Cargando…'}
           <span className="punto-verde" /> Disponible
+          <button className="x-sesion" onClick={cerrarSesion} title="Cerrar sesión">⏻</button>
         </div>
       </div>
 
@@ -178,21 +298,33 @@ export default function CentralLlamadas() {
           <div className="idle-grid">
             <div className="hero-idle">
               <div className="saludo-hora">Turno matutino</div>
-              <h2>Buenos días, {AGENTE.nombreCorto} 🌞</h2>
+              <h2>Buenos días{nombreCorto ? `, ${nombreCorto}` : ''} 🌞</h2>
               <p>
                 Tu línea está activa. Sin llamadas en cola por ahora — cuando entre una, la verás
                 aquí al instante con toda la ficha del cliente.
               </p>
-              <div style={{ marginTop: 26 }}>
-                <button className="btn btn-sol" onClick={simularEntrante}>
-                  📞 Simular llamada entrante
+              <div style={{ marginTop: 26, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <input
+                  className="input-tel"
+                  placeholder="Teléfono (ej. 5215534081869)"
+                  value={telPrueba}
+                  onChange={(e) => setTelPrueba(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && entrarLlamada(telPrueba)}
+                />
+                <button className="btn btn-sol" onClick={() => entrarLlamada(telPrueba)} disabled={buscando}>
+                  {buscando ? 'Buscando…' : '📞 Entrar llamada'}
                 </button>
               </div>
+              {errorMsg && <div className="aviso-falta" style={{ marginTop: 8 }}>{errorMsg}</div>}
+              <p style={{ marginTop: 10, fontSize: 12, color: 'var(--cafe-suave)', fontWeight: 700 }}>
+                Prueba con un teléfono real de tu base — la ficha se busca en vivo en Upstash.
+                Cuando conectemos el troncal SIP, esto se disparará solo con cada llamada entrante.
+              </p>
             </div>
             <div className="stats-dia">
-              <div className="stat"><div className="icono i-amarillo">📞</div><div><b>12</b><span>Llamadas hoy</span></div></div>
-              <div className="stat"><div className="icono i-verde">🛒</div><div><b>4</b><span>Ventas cerradas</span></div></div>
-              <div className="stat"><div className="icono i-coral">⏱️</div><div><b>3:42</b><span>Duración promedio</span></div></div>
+              <div className="stat"><div className="icono i-amarillo">📞</div><div><b>{stats.llamadasHoy}</b><span>Llamadas hoy</span></div></div>
+              <div className="stat"><div className="icono i-verde">🛒</div><div><b>{stats.ventasHoy}</b><span>Ventas cerradas</span></div></div>
+              <div className="stat"><div className="icono i-coral">⏱️</div><div><b>{stats.duracionPromedio}</b><span>Duración promedio</span></div></div>
             </div>
           </div>
         </div>
@@ -237,7 +369,6 @@ export default function CentralLlamadas() {
             <div className="controles">
               <button className={`ctrl ${mute ? 'on' : ''}`} onClick={() => setMute(!mute)} title="Silenciar">🎙️</button>
               <button className={`ctrl ${hold ? 'on' : ''}`} onClick={() => setHold(!hold)} title="En espera">⏸️</button>
-              <button className="ctrl" title="Transferir">🔀</button>
               <button className={`ctrl-rec ${grabando ? 'grabando' : ''}`} onClick={() => setGrabando(!grabando)}>
                 <span className="puntito" />
                 <span>{grabando ? 'Grabando' : 'REC'}</span>
@@ -249,7 +380,7 @@ export default function CentralLlamadas() {
           {scriptVisible && (
             <div className="script">
               <p>
-                💬 "Hola, soy <b>{AGENTE.nombreCorto}</b> de <b>Coyote Textil</b> 🐺.
+                💬 "Hola, soy <b>{nombreCorto || 'tu asesora'}</b> de <b>Coyote Textil</b> 🐺.
                 {saludoTier && <> Gracias por ser cliente <b>{saludoTier}</b>.</>}
                 {' '}¿Cómo le ayudamos el día de hoy?"
               </p>
@@ -259,54 +390,43 @@ export default function CentralLlamadas() {
 
           <div className="grid-llamada">
             <div>
-              {/* Membresía estilo Prime */}
-              <div className="card-elite">
-                <div className="sello">coyote ELITE ⭐<small>Membresía anual</small></div>
-                <div className="datos">
-                  $4,999 MXN / año
-                  <small>Vence 15 mar 2027 · 2,340 puntos</small>
-                  <small>3 de 12 colocaciones usadas</small>
+              {/* Membresía: solo si el cliente la tiene en su ficha real */}
+              {typeof ficha.membershipTier === 'string' && ficha.membershipTier !== 'NONE' && (
+                <div className="card-elite">
+                  <div className="sello">coyote {String(ficha.membershipTier)} ⭐<small>Membresía</small></div>
+                  <div className="datos">
+                    {ficha.membershipExpiry ? <small>Vence {String(ficha.membershipExpiry).slice(0, 10)}</small> : null}
+                    {ficha.points != null ? <small>{String(ficha.points)} puntos</small> : null}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Pedidos estilo Amazon */}
-              <div className="cards-pedidos">
-                <div className="pedido"><span className="em">🧵</span><b>14 rollos micro piqué azul rey</b><span className="est e1">En camino · llega mañana 10 PM</span></div>
-                <div className="pedido"><span className="em">📦</span><b>Dry-fit 145g negro · 8 rollos</b><span className="est e2">Preparando en Plomo 203</span></div>
-                <div className="pedido"><span className="em">✅</span><b>Felpa francesa · 5 rollos</b><span className="est e3">Entregado 20 jun</span></div>
-              </div>
-
-              <details>
-                <summary>💬 Últimos WhatsApp</summary>
+              {/* Ficha completa REAL: todo lo que exista en Upstash para este cliente */}
+              <details open>
+                <summary>🐺 Ficha del cliente (Upstash en vivo)</summary>
                 <div className="cont">
-                  <div className="chip-wa"><span className="h-wa">ayer 6:12pm</span> — "¿Llegó el azul rey?"</div><br />
-                  <div className="chip-wa"><span className="h-wa">ayer 6:15pm</span> — Bot 🐺: "Sí Rosa, 8 rollos en Guatemala 97"</div><br />
-                  <div className="chip-wa"><span className="h-wa">hoy 9:03am</span> — "Te marco al rato para apartar"</div>
+                  {Object.keys(ficha).length === 0 ? (
+                    <p style={{ fontWeight: 700, color: 'var(--cafe-suave)' }}>Sin ficha en Redis para este teléfono.</p>
+                  ) : (
+                    <table>
+                      <tbody>
+                        {Object.entries(ficha).map(([k, v]) => (
+                          <tr key={k}>
+                            <td>{k}</td>
+                            <td>{typeof v === 'object' ? JSON.stringify(v).slice(0, 80) : String(v).slice(0, 80)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
-              </details>
-
-              <details>
-                <summary>📦 Pedidos y saldo</summary>
-                <div className="cont">
-                  <table>
-                    <tbody>
-                      <tr><td>Pedido activo</td><td>#ORD-2201 · preparando</td></tr>
-                      <tr><td>Saldo pendiente</td><td className="txt-rojo">$12,400</td></tr>
-                      <tr><td>LTV</td><td className="txt-verde">$184,500</td></tr>
-                      <tr><td>Sucursal preferida</td><td>Guatemala 97</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </details>
-
-              <details>
-                <summary>🧵 Telas que siempre compra</summary>
-                <div className="cont">Micro piqué (azul rey, negro) · Dry-fit 145g · Felpa francesa. Promedio: 12 rollos/mes.</div>
               </details>
 
               <details>
                 <summary>📝 Notas de llamadas anteriores</summary>
-                <div className="cont">12 jun — Pidió precio mayoreo actualizado. Prefiere entregas jueves. No llamar antes de 10am 🕙</div>
+                <div className="cont">
+                  <HistorialLlamadas telefono={cliente.telefono} />
+                </div>
               </details>
             </div>
 
@@ -314,6 +434,11 @@ export default function CentralLlamadas() {
               <details open>
                 <summary>🎙️ Transcripción en vivo <span className="tag-whisper">● Whisper</span></summary>
                 <div className="cont">
+                  {trans.length === 0 && (
+                    <p style={{ fontSize: 13, color: 'var(--cafe-suave)', fontWeight: 700 }}>
+                      La transcripción en vivo se activará al conectar el troncal SIP + Whisper.
+                    </p>
+                  )}
                   {trans.map((l, i) => (
                     <p key={i} className="trans-linea">
                       <span className={`h h-${l.tipo}`}>{l.quien}:</span> {l.texto}
@@ -323,11 +448,56 @@ export default function CentralLlamadas() {
               </details>
 
               <div className="acciones">
-                <button className="btn-acc">🛒 Crear pedido</button>
-                <button className="btn-acc">📝 Añadir nota</button>
-                <button className="btn-acc">💬 Ir a su WhatsApp</button>
-                <button className="btn-acc">🧵 Inventario en vivo</button>
+                <button
+                  className="btn-acc"
+                  onClick={() => window.open(`https://wa.me/${cliente.telefono}`, '_blank')}
+                >
+                  💬 Ir a su WhatsApp
+                </button>
+                <button className="btn-acc" onClick={cargarInventario}>
+                  🧵 {invVisible ? 'Ocultar inventario' : 'Inventario en vivo'}
+                </button>
+                <button className="btn-acc btn-acc-off" disabled title="Próximo módulo del CRM nuevo">
+                  🛒 Crear pedido (próximamente)
+                </button>
+                <button className="btn-acc btn-acc-off" disabled title="Requiere troncal SIP">
+                  🔀 Transferir (requiere SIP)
+                </button>
               </div>
+
+              {invVisible && (
+                <details open style={{ marginTop: 10 }}>
+                  <summary>🧵 Bodega Coyote (Upstash en vivo)</summary>
+                  <div className="cont">
+                    <input
+                      className="input-tel"
+                      style={{ minWidth: 0, width: '100%', marginBottom: 10 }}
+                      placeholder="Buscar tela…"
+                      value={invFiltro}
+                      onChange={(e) => setInvFiltro(e.target.value)}
+                    />
+                    {Object.keys(inventario).length === 0 ? (
+                      <p style={{ fontWeight: 700, color: 'var(--cafe-suave)' }}>Cargando bodega…</p>
+                    ) : (
+                      <table>
+                        <tbody>
+                          {Object.entries(inventario)
+                            .filter(([nombre]) => nombre.toLowerCase().includes(invFiltro.toLowerCase()))
+                            .slice(0, 30)
+                            .map(([nombre, p]) => (
+                              <tr key={nombre}>
+                                <td>{nombre}</td>
+                                <td>
+                                  ${p.menudeo ?? '—'} men · ${p.mayoreo ?? '—'} may
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </details>
+              )}
             </div>
           </div>
         </div>
@@ -364,12 +534,12 @@ export default function CentralLlamadas() {
                 onChange={(e) => setNota(e.target.value)}
                 placeholder="Ej: Apartó 5 rollos de micro piqué azul rey, entrega el jueves. Quedé de mandarle cotización de dry-fit por WhatsApp."
               />
-              <div className="aviso-falta">{aviso}</div>
+              <div className="aviso-falta">{aviso || errorMsg}</div>
 
               <div className="dispo-footer">
-                <div className="meta-llamada">🎙️ Grabación guardada · Transcripción lista (Whisper)</div>
-                <button className={`btn btn-sol btn-guardar ${listo ? 'listo' : ''}`} onClick={guardar}>
-                  💾 Guardar y cerrar llamada
+                <div className="meta-llamada">🎙️ Grabación y transcripción: se activan al conectar el troncal SIP</div>
+                <button className={`btn btn-sol btn-guardar ${listo && !guardando ? 'listo' : ''}`} onClick={guardar}>
+                  {guardando ? 'Guardando…' : '💾 Guardar y cerrar llamada'}
                 </button>
               </div>
             </div>
@@ -388,7 +558,7 @@ export default function CentralLlamadas() {
               <div><span>Resultado</span><b>{resultado}</b></div>
               <div><span>Duración</span><b>{fmt(durFinal)}</b></div>
               <div><span>Nota</span><b style={{ maxWidth: 280 }}>{nota.length > 60 ? nota.slice(0, 60) + '…' : nota}</b></div>
-              <div><span>Grabación</span><b className="txt-verde">Guardada 🎙️</b></div>
+              <div><span>Guardado en</span><b className="txt-verde">RDS · tabla Llamada ✅</b></div>
             </div>
             <button className="btn btn-sol" onClick={volverIdle}>🐺 Volver a disponible</button>
           </div>

@@ -314,3 +314,22 @@
 }
 .central-root .conf-resumen div{display:flex;justify-content:space-between;padding:5px 0;gap:14px;}
 .central-root .conf-resumen b{color:var(--cafe);text-align:right;}
+
+/* ═══ INPUT TELÉFONO (idle) ═══ */
+.central-root .input-tel{
+  border:2px solid var(--crema-2);border-radius:15px;
+  padding:12px 16px;font-family:'Nunito';font-size:15px;font-weight:700;color:var(--cafe);
+  background:var(--blanco);min-width:250px;transition:border-color .13s;
+}
+.central-root .input-tel:focus{outline:none;border-color:var(--amarillo);}
+.central-root .input-tel::placeholder{color:var(--cafe-suave);font-weight:600;}
+.central-root .btn:disabled{opacity:.5;pointer-events:none;}
+
+/* ═══ SESIÓN Y BOTONES DESHABILITADOS ═══ */
+.central-root .x-sesion{
+  background:none;border:none;cursor:pointer;font-size:15px;color:var(--cafe-suave);
+  padding:2px 4px;transition:color .13s;
+}
+.central-root .x-sesion:hover{color:var(--rojo);}
+.central-root .btn-acc-off{opacity:.45;cursor:not-allowed;}
+.central-root .btn-acc-off:hover{border-color:var(--crema-2);background:var(--blanco);transform:none;}
