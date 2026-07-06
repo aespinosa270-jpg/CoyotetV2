@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { usePathname } from 'next/navigation';
 
@@ -9,11 +9,12 @@ export default function HideInCRM({ children }: { children: React.ReactNode }) {
   if (
     pathname?.startsWith('/crm') || 
     pathname?.startsWith('/flotilla') || 
-    pathname?.startsWith('/admin')
+    pathname?.startsWith('/admin') ||
+    pathname?.startsWith('/pos')
   ) {
     return null;
   }
 
-  // Si es la tienda pública, mostramos todo normal
+  // Si es la tienda pÃºblica, mostramos todo normal
   return <>{children}</>;
 }

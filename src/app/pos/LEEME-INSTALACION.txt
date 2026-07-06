@@ -1,0 +1,45 @@
+═══════════════════════════════════════════════
+  INTEGRAR COYOTE POS EN TU PROYECTO REAL
+═══════════════════════════════════════════════
+
+Esta carpeta "pos" va dentro de: src/app/
+
+Resultado: el POS queda en coyotetextil.com/pos
+(y en local en http://localhost:3000/pos)
+
+───────────────────────────────────────────────
+PASOS (PowerShell, parado en storefront):
+───────────────────────────────────────────────
+
+1. Copia la carpeta "pos" completa a src/app:
+
+   Copy-Item -Recurse "RUTA_DONDE_DESCOMPRIMISTE\pos" "src\app\pos"
+
+   (ajusta RUTA_DONDE_DESCOMPRIMISTE a donde tengas
+    esta carpeta; por ejemplo Downloads)
+
+2. Verifica que quedó:
+   dir src\app\pos
+   (debes ver: CoyotePOS.jsx  y  page.tsx)
+
+3. Arranca tu proyecto normal:
+   npm run dev
+
+4. Abre:
+   http://localhost:3000/pos
+
+LISTO. No se tocó NINGÚN archivo existente.
+Solo se agregó una ruta nueva. Si algo sale mal,
+borras la carpeta src\app\pos y todo queda igual
+que antes.
+
+───────────────────────────────────────────────
+NOTAS:
+───────────────────────────────────────────────
+• El componente trae sus propios estilos (no usa
+  Tailwind), así que no choca con tu config.
+• Persiste en localStorage del navegador por ahora.
+• Cuando conectemos Supabase, se cambia el objeto
+  "DB" del inicio del archivo por llamadas a la base.
+
+No nos rajamos.
