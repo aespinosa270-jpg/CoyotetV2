@@ -906,3 +906,42 @@ enum TelaSolicitadaStatus {
   RECHAZADA
   AGREGADA_AL_CATALOGO
 }
+model Llamada {
+  id           String   @id @default(cuid())
+  telefono     String
+  nombre       String?
+  empresa      String?
+  resultado    String   // Venta cerrada, Cotización enviada, Seguimiento agendado, etc.
+  nota         String
+  duracionSeg  Int      @default(0)
+  agente       String?  // nombre de la vendedora
+  grabacionUrl String?  // se llenará cuando conectemos la grabación SIP
+  createdAt    DateTime @default(now())
+
+  @@index([telefono])
+  @@index([resultado])
+  @@index([createdAt(sort: Desc)])
+}
+
+model Venta {
+  id                   String   @id @default(cuid())
+  folio                Int      @unique @default(autoincrement()) // folio de la nota de venta
+  telefono             String
+  clienteNombre        String?
+  agente               String?
+  // items: [{tipo:'PRODUCTO', nombre, cantidad, precioUnit, tier} | {tipo:'ENVIO', concepto, precio}]
+  items                Json
+  subtotal             Float    @default(0)
+  envioTotal           Float    @default(0)
+  total                Float    @default(0)
+  pagoConfirmado       Boolean  @default(false)
+  notaGenerada         Boolean  @default(false)
+  inventarioDescontado Boolean  @default(false)
+  llamadaId            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([telefono])
+  @@index([pagoConfirmado])
+  @@index([createdAt(sort: Desc)])
+}

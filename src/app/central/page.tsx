@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { VentaForm, PagosPendientes, type ItemVenta } from './venta';
 import './central.css';
 
 // ─── Tipos ───────────────────────────────────────────────
@@ -116,7 +117,13 @@ export default function CentralLlamadas() {
   const [inventario, setInventario] = useState<Record<string, { menudeo?: number; mayoreo?: number; info?: string }>>({});
   const [invVisible, setInvVisible] = useState(false);
   const [invFiltro, setInvFiltro] = useState('');
+  const [ventaItems, setVentaItems] = useState<ItemVenta[]>([]);
+  const [ventaPagoConf, setVentaPagoConf] = useState(false);
+  const [pedidoVisible, setPedidoVisible] = useState(false);
+  const [folioNota, setFolioNota] = useState<number | null>(null);
   const router = useRouter();
+
+  const esVendedora = agente?.rol === 'VENDEDORA';
   const [telPrueba, setTelPrueba] = useState('');
   const [buscando, setBuscando] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -192,6 +199,9 @@ export default function CentralLlamadas() {
     setGrabando(true);
     setMute(false);
     setHold(false);
+    setVentaItems([]);
+    setVentaPagoConf(false);
+    setPedidoVisible(false);
     setPantalla('llamada');
   };
 
@@ -211,7 +221,9 @@ export default function CentralLlamadas() {
   const guardar = async () => {
     setGuardando(true);
     setErrorMsg('');
+    setFolioNota(null);
     try {
+      // 1. Guardar la llamada
       const r = await fetch('/api/central/llamada', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -225,10 +237,37 @@ export default function CentralLlamadas() {
           agente: agente?.nombre || 'Sin sesión',
         }),
       });
-      if (!r.ok) throw new Error('fallo');
+      const dataLlamada = await r.json();
+      if (!r.ok) {
+        setErrorMsg(dataLlamada.error || 'No se pudo guardar la llamada.');
+        return;
+      }
+
+      // 2. Si fue venta cerrada con items → guardar la venta REAL
+      if (resultado === 'Venta cerrada' && ventaItems.length > 0) {
+        const rv = await fetch('/api/central/venta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            telefono: cliente.telefono,
+            clienteNombre: cliente.nombre,
+            agente: agente?.nombre,
+            items: ventaItems,
+            pagoConfirmado: ventaPagoConf,
+            llamadaId: dataLlamada.id,
+          }),
+        });
+        const dv = await rv.json();
+        if (!rv.ok) {
+          setErrorMsg(dv.error || 'La llamada se guardó pero la venta falló.');
+          return;
+        }
+        if (dv.folio) setFolioNota(dv.folio);
+      }
+
       setPantalla('conf');
-    } catch {
-      setErrorMsg('No se pudo guardar. Revisa la conexión e intenta de nuevo.');
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Error de conexión con el servidor.');
     } finally {
       setGuardando(false);
     }
@@ -401,26 +440,45 @@ export default function CentralLlamadas() {
                 </div>
               )}
 
-              {/* Ficha completa REAL: todo lo que exista en Upstash para este cliente */}
-              <details open>
-                <summary>🐺 Ficha del cliente (Upstash en vivo)</summary>
-                <div className="cont">
-                  {Object.keys(ficha).length === 0 ? (
-                    <p style={{ fontWeight: 700, color: 'var(--cafe-suave)' }}>Sin ficha en Redis para este teléfono.</p>
-                  ) : (
-                    <table>
-                      <tbody>
-                        {Object.entries(ficha).map(([k, v]) => (
-                          <tr key={k}>
-                            <td>{k}</td>
-                            <td>{typeof v === 'object' ? JSON.stringify(v).slice(0, 80) : String(v).slice(0, 80)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </details>
+              {/* PERMISOS por rol:
+                  - VENDEDORA: solo pagos pendientes/por confirmar (sin datos personales del cliente)
+                  - ADMIN/SUPERVISOR: ficha completa de Upstash */}
+              {esVendedora ? (
+                <details open>
+                  <summary>💰 Pagos pendientes / por confirmar</summary>
+                  <div className="cont">
+                    <PagosPendientes telefono={cliente.telefono} />
+                  </div>
+                </details>
+              ) : (
+                <>
+                  <details open>
+                    <summary>🐺 Ficha del cliente (Upstash en vivo)</summary>
+                    <div className="cont">
+                      {Object.keys(ficha).length === 0 ? (
+                        <p style={{ fontWeight: 700, color: 'var(--cafe-suave)' }}>Sin ficha en Redis para este teléfono.</p>
+                      ) : (
+                        <table>
+                          <tbody>
+                            {Object.entries(ficha).map(([k, v]) => (
+                              <tr key={k}>
+                                <td>{k}</td>
+                                <td>{typeof v === 'object' ? JSON.stringify(v).slice(0, 80) : String(v).slice(0, 80)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </details>
+                  <details>
+                    <summary>💰 Pagos pendientes / por confirmar</summary>
+                    <div className="cont">
+                      <PagosPendientes telefono={cliente.telefono} />
+                    </div>
+                  </details>
+                </>
+              )}
 
               <details>
                 <summary>📝 Notas de llamadas anteriores</summary>
@@ -457,13 +515,27 @@ export default function CentralLlamadas() {
                 <button className="btn-acc" onClick={cargarInventario}>
                   🧵 {invVisible ? 'Ocultar inventario' : 'Inventario en vivo'}
                 </button>
-                <button className="btn-acc btn-acc-off" disabled title="Próximo módulo del CRM nuevo">
-                  🛒 Crear pedido (próximamente)
+                <button className="btn-acc" onClick={() => setPedidoVisible(!pedidoVisible)}>
+                  🛒 {pedidoVisible ? 'Ocultar pedido' : `Crear pedido${ventaItems.length ? ` (${ventaItems.length})` : ''}`}
                 </button>
                 <button className="btn-acc btn-acc-off" disabled title="Requiere troncal SIP">
                   🔀 Transferir (requiere SIP)
                 </button>
               </div>
+
+              {pedidoVisible && (
+                <div style={{ marginTop: 10 }}>
+                  <VentaForm
+                    items={ventaItems}
+                    setItems={setVentaItems}
+                    pagoConfirmado={ventaPagoConf}
+                    setPagoConfirmado={setVentaPagoConf}
+                  />
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--cafe-suave)', marginTop: 6 }}>
+                    El pedido se guarda al cerrar la llamada (elige "Venta cerrada" en el resultado).
+                  </p>
+                </div>
+              )}
 
               {invVisible && (
                 <details open style={{ marginTop: 10 }}>
@@ -528,6 +600,15 @@ export default function CentralLlamadas() {
                 ))}
               </div>
 
+              {resultado === 'Venta cerrada' && (
+                <VentaForm
+                  items={ventaItems}
+                  setItems={setVentaItems}
+                  pagoConfirmado={ventaPagoConf}
+                  setPagoConfirmado={setVentaPagoConf}
+                />
+              )}
+
               <h3>Notas de la interacción <span className="obligatorio">* obligatorio</span></h3>
               <textarea
                 value={nota}
@@ -559,6 +640,9 @@ export default function CentralLlamadas() {
               <div><span>Duración</span><b>{fmt(durFinal)}</b></div>
               <div><span>Nota</span><b style={{ maxWidth: 280 }}>{nota.length > 60 ? nota.slice(0, 60) + '…' : nota}</b></div>
               <div><span>Guardado en</span><b className="txt-verde">RDS · tabla Llamada ✅</b></div>
+              {folioNota != null && (
+                <div><span>Nota de venta</span><b className="txt-verde">Folio #{folioNota} emitida 🧾</b></div>
+              )}
             </div>
             <button className="btn btn-sol" onClick={volverIdle}>🐺 Volver a disponible</button>
           </div>
