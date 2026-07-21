@@ -184,8 +184,10 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
   const precioCorte = (p, cant) => (cant >= LIMITE_MAYOREO ? p.precio_mayoreo : p.precio);
 
   // CORTE: suma 1 unidad y recalcula el precio de toda la línea (menudeo/mayoreo)
+  // La venta NUNCA se bloquea (el inventario real aún no está cargado). Si pasa
+  // del stock registrado, avisamos de forma amable pero dejamos continuar.
   function agregarCorte(p) {
-    if (consumoDe(p) + 1 > stockEn(p)) return flash(`No hay suficiente ${p.nombre} aquí`);
+    if (consumoDe(p) + 1 > stockEn(p)) flash(`Ojo: registrabas ${stockEn(p)} ${p.unidad} de ${p.nombre}. Puedes seguir vendiendo.`);
     setCarrito((c) => {
       const i = c.findIndex((l) => l.producto.id === p.id && l.tipo === "corte");
       if (i >= 0) {
@@ -202,7 +204,7 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
     const p = pesando;
     const kg = Number(peso) || 0;
     if (kg <= 0) { setPesando(null); return; }
-    if (consumoDe(p) + kg > stockEn(p)) { setPesando(null); return flash(`No hay suficiente ${p.nombre} aquí`); }
+    if (consumoDe(p) + kg > stockEn(p)) flash(`Ojo: registrabas ${stockEn(p)} ${p.unidad} de ${p.nombre}. Puedes seguir vendiendo.`);
     setCarrito((c) => [...c, { lid: uid(), producto: p, tipo: "rollo", cantidad: kg, precio_unit: p.precio_rollo }]);
     setPesando(null);
   }
@@ -229,16 +231,28 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
 
   function confirmarCobro() {
     let unds = 0;
+    const faltantes = []; // telas que quedaron en negativo: qué había y cuánto se vendió
     setProductos((prev) => prev.map((p) => {
       const c = consumoDe(p); if (c === 0) return p; unds += c;
-      return ubicacion === "guatemala" ? { ...p, stock_guatemala: Math.max(0, +(p.stock_guatemala - c).toFixed(2)) } : { ...p, stock_plomo: Math.max(0, +(p.stock_plomo - c).toFixed(2)) };
+      const antes = ubicacion === "guatemala" ? p.stock_guatemala : p.stock_plomo;
+      const despues = +(antes - c).toFixed(2); // SIN tope en 0: puede quedar negativo (es el margen mientras se carga el inventario real)
+      if (despues < 0) faltantes.push({ nombre: p.nombre, habia: antes, vendido: c, unidad: p.unidad });
+      return ubicacion === "guatemala" ? { ...p, stock_guatemala: despues } : { ...p, stock_plomo: despues };
     }));
     const folio = (ubicacion === "guatemala" ? "GT" : "PL") + "-" + Math.floor(1000 + Math.random() * 9000);
     const items = lineas.map((l) => ({ nombre: l.producto.nombre, tipo: l.tipo, unidad: l.producto.unidad, cantidad: l.cantidad, precio_unit: l.precio_unit }));
     const ticketCompleto = { folio, ubicacion, items, subtotal, descuentoPct, descuentoMonto, conIva, ivaMonto, total, metodoPago, fecha: new Date().toISOString() };
     imprimirVenta(ticketCompleto);
     setTickets((prev) => [ticketCompleto, ...prev]); // guarda la venta completa para reimprimir
-    setHistorial((prev) => [{ id: uid(), tipo: "venta", fecha: ticketCompleto.fecha, monto: total, ubicacion, desc: `Venta ${folio} · ${metodoPago}`, total_unidades: +unds.toFixed(2) }, ...prev]);
+    setHistorial((prev) => {
+      const nuevos = [{ id: uid(), tipo: "venta", fecha: ticketCompleto.fecha, monto: total, ubicacion, desc: `Venta ${folio} · ${metodoPago}`, total_unidades: +unds.toFixed(2) }];
+      // Si algo se vendió sin stock registrado, dejamos un aviso auditable (no invisible)
+      if (faltantes.length > 0) {
+        const detalle = faltantes.map((f) => `${f.nombre} (había ${f.habia}, vendió ${f.vendido} ${f.unidad})`).join(", ");
+        nuevos.push({ id: uid(), tipo: "aviso_stock", fecha: ticketCompleto.fecha, monto: 0, ubicacion, desc: `⚠️  Stock registrado insuficiente en ${folio}: ${detalle}`, total_unidades: 0 });
+      }
+      return [...nuevos, ...prev];
+    });
     setConfirmando(false);
     setFestejo({ total, folio }); setTimeout(() => setFestejo(null), 2000);
     setCarrito([]); setDescuentoPct(0); setConIva(false);
@@ -300,14 +314,15 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
           {visibles.map((p) => {
             const t = tinte(productos.indexOf(p));
             const disp = stockEn(p) - consumoDe(p);
-            const agotado = disp <= 0;
-            const bajo = !agotado && disp <= p.minimo;
+            // "sinRegistro": el inventario dice 0 o menos, pero SE PUEDE seguir vendiendo.
+            const sinRegistro = disp <= 0;
+            const bajo = !sinRegistro && disp <= p.minimo;
             const enCarro = consumoDe(p);
             return (
-              <div key={p.id} className="prod" style={{ "--bg": agotado ? "#DADADA" : t.bg, "--ink": agotado ? "#888" : t.ink, "--soft": t.soft }}>
+              <div key={p.id} className="prod" style={{ "--bg": t.bg, "--ink": t.ink, "--soft": t.soft }}>
                 <div className="prod-name">{p.nombre}</div>
-                {agotado
-                  ? <div className="prod-stock prod-out">Agotado aquí</div>
+                {sinRegistro
+                  ? <div className="prod-stock prod-sinreg">Sin registro · puedes vender</div>
                   : bajo
                     ? <div className="prod-stock prod-low">¡Quedan {disp} {p.unidad}!</div>
                     : <div className="prod-stock prod-ok">{disp} {p.unidad}</div>}
@@ -317,10 +332,10 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
                   <span>Rollo <b>{money(p.precio_rollo)}</b></span>
                 </div>
                 <div className="prod-buys">
-                  <button className="buy" onClick={() => agregarCorte(p)} disabled={agotado}>
+                  <button className="buy" onClick={() => agregarCorte(p)}>
                     <span className="buy-l">+1 {p.unidad}</span><span className="buy-p">Corte</span>
                   </button>
-                  <button className="buy buy-2" onClick={() => pedirPesoRollo(p)} disabled={agotado}>
+                  <button className="buy buy-2" onClick={() => pedirPesoRollo(p)}>
                     <span className="buy-l">pesar</span><span className="buy-p">Rollo</span>
                   </button>
                 </div>
@@ -429,9 +444,9 @@ function ConfirmarCobro({ total, piezas, metodo, conIva, ivaMonto, ubicacion, on
 function CapturarPeso({ prod, onGuardar, onCerrar }) {
   const [peso, setPeso] = useState("");
   const u = prod.unidad;
-  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "←"];
+  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "⌫"];
   const onKey = (k) => setPeso((s) => {
-    if (k === "←") return s.slice(0, -1);
+    if (k === "⌫") return s.slice(0, -1);
     if (k === "." && s.includes(".")) return s; // un solo punto
     if (k === "." && s === "") return "0.";
     return s + k;
@@ -647,13 +662,13 @@ function Admin({ productos, setProductos, setHistorial }) {
 }
 
 function NumPad({ onKey }) {
-  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "00", "←"];
+  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "00", "⌫"];
   return <div className="numpad">{keys.map((k) => <button key={k} className="numk" onClick={() => onKey(k)}>{k}</button>)}</div>;
 }
 
 function ModalAjuste({ prod, onGuardar, onCerrar }) {
   const [f, setF] = useState({ tipo: "entrada", ubicacion: "guatemala", cantidad: "" });
-  const onKey = (k) => setF((s) => ({ ...s, cantidad: k === "←" ? String(s.cantidad).slice(0, -1) : String(s.cantidad) + k }));
+  const onKey = (k) => setF((s) => ({ ...s, cantidad: k === "⌫" ? String(s.cantidad).slice(0, -1) : String(s.cantidad) + k }));
   const esEnt = f.tipo === "entrada";
   return (
     <Overlay onCerrar={onCerrar}>
@@ -686,7 +701,7 @@ function ModalTraspaso({ productos, onGuardar, onCerrar }) {
   const conStock = productos.filter((p) => p.stock_plomo > 0);
   const prod = productos.find((p) => p.id === prodId);
   const onKey = (k) => setCant((s) => {
-    if (k === "←") return s.slice(0, -1);
+    if (k === "⌫") return s.slice(0, -1);
     if (k === "." && s.includes(".")) return s;
     if (k === "." && s === "") return "0.";
     return s + k;
@@ -813,7 +828,7 @@ function Reportes({ historial, productos }) {
         <div className="kpi"><div className="kpi-l">⬆️ Entró</div><div className="kpi-v" style={{ color: "#22B8C4" }}>+{d.entradas}</div></div>
         <div className="kpi"><div className="kpi-l">⬇️ Salió</div><div className="kpi-v" style={{ color: "#FF5C8A" }}>−{d.salidas}</div></div>
       </div>
-      {critico.length > 0 && <div className="alerta">⚠️ Poco stock: <b>{critico.map((p) => p.nombre).join(", ")}</b></div>}
+      {critico.length > 0 && <div className="alerta">⚠️ ï¸ Poco stock: <b>{critico.map((p) => p.nombre).join(", ")}</b></div>}
       <div style={S.tableWrap}>
         <div style={S.tableHead}>Movimientos</div>
         <div style={{ overflowX: "auto" }}>
@@ -824,7 +839,7 @@ function Reportes({ historial, productos }) {
               {d.movs.map((m) => (
                 <tr key={m.id}>
                   <td>{new Date(m.fecha).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
-                  <td>{m.tipo === "venta" && <span className="badge bg-v">Venta</span>}{m.tipo === "entrada" && <span className="badge bg-e">Entró</span>}{m.tipo === "salida" && <span className="badge bg-s">Salió</span>}{m.tipo === "traspaso" && <span className="badge bg-t">Traspaso</span>}{m.tipo === "cancelada" && <span className="badge bg-c">Cancelada</span>}</td>
+                  <td>{m.tipo === "venta" && <span className="badge bg-v">Venta</span>}{m.tipo === "entrada" && <span className="badge bg-e">Entró</span>}{m.tipo === "salida" && <span className="badge bg-s">Salió</span>}{m.tipo === "traspaso" && <span className="badge bg-t">Traspaso</span>}{m.tipo === "cancelada" && <span className="badge bg-c">Cancelada</span>}{m.tipo === "aviso_stock" && <span className="badge bg-aviso">Aviso</span>}</td>
                   <td>{m.ubicacion === "guatemala" ? "Guatemala" : "Plomo"}</td>
                   <td>{m.desc}</td>
                   <td style={{ fontWeight: 800 }}>{m.total_unidades}</td>
@@ -893,6 +908,7 @@ body,html{margin:0;background:#FFF8F0;font-family:${F};color:#3A2E26}
 .prod-ok{color:#3A7A00}
 .prod-low{color:#C46A00}
 .prod-out{color:#C0392B}
+.prod-sinreg{color:#B06A00;font-size:14px}
 .prod-buys{display:flex;gap:10px}
 .buy{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:14px 6px;border:none;border-radius:18px;background:#FFF;color:var(--ink);cursor:pointer;box-shadow:0 4px 0 rgba(0,0,0,.15);transition:.1s}
 .buy:active:not(:disabled){transform:translateY(4px);box-shadow:none}
@@ -1016,7 +1032,7 @@ body,html{margin:0;background:#FFF8F0;font-family:${F};color:#3A2E26}
 .tbl th{background:#FFF8F0;color:#9A8674;font-size:15px;font-weight:900;padding:14px 16px;text-align:left;border-bottom:3px solid #EFE3D5}
 .tbl td{padding:14px 16px;border-bottom:1px solid #F2E9DE;font-size:16px;font-weight:600}
 .badge{font-size:14px;font-weight:900;padding:4px 12px;border-radius:999px;color:#fff}
-.bg-v{background:#7BC62D}.bg-e{background:#22B8C4}.bg-s{background:#FF5C8A}.bg-t{background:#9B6BF0}.bg-c{background:#999}
+.bg-v{background:#7BC62D}.bg-e{background:#22B8C4}.bg-s{background:#FF5C8A}.bg-t{background:#9B6BF0}.bg-c{background:#999}.bg-aviso{background:#E8A317}
 .tk-acciones{display:flex;gap:6px;flex-shrink:0}
 .tk-cancel{padding:12px 14px;background:#FFF;color:#FF5C8A;border:2px solid #FF5C8A;border-radius:14px;font-size:14px;font-weight:900;cursor:pointer;transition:.1s}
 .tk-cancel:active{transform:scale(.95)}

@@ -5,7 +5,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import '../central.css';
 
 export default function LoginCentral() {
   const router = useRouter();

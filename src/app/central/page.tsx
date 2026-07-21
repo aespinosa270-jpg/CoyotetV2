@@ -11,10 +11,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { VentaForm, PagosPendientes, type ItemVenta } from './venta';
+import { BuscadorClientes, type FichaCliente } from './clientes';
+// @ts-ignore TS7016: CSS imports are handled by Next.js
 import './central.css';
 
 // ─── Tipos ───────────────────────────────────────────────
-type Pantalla = 'idle' | 'llamada' | 'dispo' | 'conf';
+type Pantalla = 'idle' | 'clientes' | 'llamada' | 'dispo' | 'conf';
 
 type LineaTrans = { tipo: 'cli' | 'agt'; quien: string; texto: string };
 
@@ -120,6 +122,8 @@ export default function CentralLlamadas() {
   const [ventaItems, setVentaItems] = useState<ItemVenta[]>([]);
   const [ventaPagoConf, setVentaPagoConf] = useState(false);
   const [pedidoVisible, setPedidoVisible] = useState(false);
+  const [canal, setCanal] = useState<'Llamada' | 'WhatsApp' | 'Presencial' | 'Correo'>('Llamada');
+  const [altaAbierta, setAltaAbierta] = useState(false);
   const [folioNota, setFolioNota] = useState<number | null>(null);
   const router = useRouter();
 
@@ -150,7 +154,7 @@ export default function CentralLlamadas() {
 
   // ── Timer de llamada ──
   useEffect(() => {
-    if (pantalla === 'llamada') {
+    if (pantalla === 'llamada' && canal === 'Llamada') {
       timerRef.current = setInterval(() => setSeg((s: number) => s + 1), 1000);
       // TODO(SIP): aquí se conectará el stream de audio → Whisper para transcripción real
     }
@@ -158,7 +162,7 @@ export default function CentralLlamadas() {
       if (timerRef.current) clearInterval(timerRef.current);
       if (transRef.current) clearInterval(transRef.current);
     };
-  }, [pantalla]);
+  }, [pantalla, canal]);
 
   // ── Acciones ──
   // Hoy: se dispara a mano con un teléfono real de tu Upstash.
@@ -190,6 +194,36 @@ export default function CentralLlamadas() {
     }
   };
 
+  // Abrir un cliente SIN llamada: ficha o registro de interacción manual
+  const abrirCliente = (f: FichaCliente, modo: 'ficha' | 'interaccion') => {
+    const tel = String(f.telefono || '').replace(/\D/g, '');
+    setFicha(f);
+    setCliente({
+      iniciales: inicialesDe(String(f.nombre || ''), tel),
+      nombre: String(f.nombre || 'Cliente nuevo'),
+      empresa: String(f.empresa || ''),
+      telefono: tel,
+      tier: (f.membershipTier as Cliente['tier']) || 'NONE',
+      leadScore: Number(f.leadScore ?? f.engagementScore ?? 0),
+      leadTemp: String(f.temperatura || 'Conocido'),
+    });
+    setVentaItems([]);
+    setVentaPagoConf(false);
+    setPedidoVisible(false);
+    setSeg(0);
+    if (modo === 'interaccion') {
+      setCanal('WhatsApp');
+      setDurFinal(0);
+      setResultado(null);
+      setNota('');
+      setPantalla('dispo'); // va directo a registrar qué pasó
+    } else {
+      setScriptVisible(false);
+      setCanal('Presencial');
+      setPantalla('llamada'); // usa la vista de ficha completa, sin timer de voz
+    }
+  };
+
   const contestar = () => {
     // TODO(SIP): session.accept()
     setEntrante(false);
@@ -202,6 +236,7 @@ export default function CentralLlamadas() {
     setVentaItems([]);
     setVentaPagoConf(false);
     setPedidoVisible(false);
+    setCanal('Llamada');
     setPantalla('llamada');
   };
 
@@ -232,7 +267,7 @@ export default function CentralLlamadas() {
           nombre: cliente.nombre,
           empresa: cliente.empresa,
           resultado,
-          nota,
+          nota: `[${canal}] ${nota}`,
           duracionSeg: durFinal,
           agente: agente?.nombre || 'Sin sesión',
         }),
@@ -275,6 +310,9 @@ export default function CentralLlamadas() {
 
   const volverIdle = () => {
     setSeg(0);
+    setCanal('Llamada');
+    setVentaItems([]);
+    setVentaPagoConf(false);
     setPantalla('idle');
   };
 
@@ -342,7 +380,7 @@ export default function CentralLlamadas() {
                 Tu línea está activa. Sin llamadas en cola por ahora — cuando entre una, la verás
                 aquí al instante con toda la ficha del cliente.
               </p>
-              <div style={{ marginTop: 26, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div className="hero-acciones">
                 <input
                   className="input-tel"
                   placeholder="Teléfono (ej. 5215534081869)"
@@ -350,8 +388,14 @@ export default function CentralLlamadas() {
                   onChange={(e) => setTelPrueba(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && entrarLlamada(telPrueba)}
                 />
-                <button className="btn btn-sol" onClick={() => entrarLlamada(telPrueba)} disabled={buscando}>
+                <button type="button" className="btn btn-sol" onClick={() => entrarLlamada(telPrueba)} disabled={buscando}>
                   {buscando ? 'Buscando…' : '📞 Entrar llamada'}
+                </button>
+                <button type="button" className="btn btn-linea" onClick={() => setPantalla('clientes')}>
+                  🔍 Buscar clientes
+                </button>
+                <button type="button" className="btn btn-nuevo" onClick={() => { setAltaAbierta(true); setPantalla('clientes'); }}>
+                  ＋ Nuevo cliente
                 </button>
               </div>
               {errorMsg && <div className="aviso-falta" style={{ marginTop: 8 }}>{errorMsg}</div>}
@@ -364,6 +408,32 @@ export default function CentralLlamadas() {
               <div className="stat"><div className="icono i-amarillo">📞</div><div><b>{stats.llamadasHoy}</b><span>Llamadas hoy</span></div></div>
               <div className="stat"><div className="icono i-verde">🛒</div><div><b>{stats.ventasHoy}</b><span>Ventas cerradas</span></div></div>
               <div className="stat"><div className="icono i-coral">⏱️</div><div><b>{stats.duracionPromedio}</b><span>Duración promedio</span></div></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ 1b. CLIENTES (sin llamada) ═══ */}
+      {pantalla === 'clientes' && (
+        <div className="pantalla">
+          <div className="dispo-wrap">
+            <div className="dispo-head">
+              <div className="foto">🔍</div>
+              <div>
+                <h2>Clientes</h2>
+                <div className="sub">Busca, registra interacciones o da de alta sin necesidad de llamada</div>
+              </div>
+            </div>
+            <div className="dispo-body">
+              <BuscadorClientes
+                onAbrir={abrirCliente}
+                esVendedora={Boolean(esVendedora)}
+                altaAbierta={altaAbierta}
+                setAltaAbierta={setAltaAbierta}
+              />
+              <div style={{ marginTop: 18 }}>
+                <button className="btn btn-linea" onClick={() => setPantalla('idle')}>← Volver</button>
+              </div>
             </div>
           </div>
         </div>
@@ -402,17 +472,35 @@ export default function CentralLlamadas() {
                 <h2>{cliente.nombre}</h2>
                 <div className="mini">{cliente.empresa} · {cliente.telefono} · ⭐ {saludoTier}</div>
               </div>
-              <div className="onditas"><i /><i /><i /><i /><i /></div>
-              <div className="timer-grande">{fmt(seg)}</div>
+              {canal === 'Llamada' && (
+                <>
+                  <div className="onditas"><i /><i /><i /><i /><i /></div>
+                  <div className="timer-grande">{fmt(seg)}</div>
+                </>
+              )}
+              {canal !== 'Llamada' && (
+                <span className="badge b-lead" style={{ marginLeft: 8 }}>Sin llamada · {canal}</span>
+              )}
             </div>
             <div className="controles">
-              <button className={`ctrl ${mute ? 'on' : ''}`} onClick={() => setMute(!mute)} title="Silenciar">🎙️</button>
-              <button className={`ctrl ${hold ? 'on' : ''}`} onClick={() => setHold(!hold)} title="En espera">⏸️</button>
-              <button className={`ctrl-rec ${grabando ? 'grabando' : ''}`} onClick={() => setGrabando(!grabando)}>
-                <span className="puntito" />
-                <span>{grabando ? 'Grabando' : 'REC'}</span>
-              </button>
-              <button className="ctrl-colgar" onClick={colgar}>📵 Colgar</button>
+              {canal === 'Llamada' ? (
+                <>
+                  <button className={`ctrl ${mute ? 'on' : ''}`} onClick={() => setMute(!mute)} title="Silenciar">🎙️</button>
+                  <button className={`ctrl ${hold ? 'on' : ''}`} onClick={() => setHold(!hold)} title="En espera">⏸️</button>
+                  <button className={`ctrl-rec ${grabando ? 'grabando' : ''}`} onClick={() => setGrabando(!grabando)}>
+                    <span className="puntito" />
+                    <span>{grabando ? 'Grabando' : 'REC'}</span>
+                  </button>
+                  <button className="ctrl-colgar" onClick={colgar}>📵 Colgar</button>
+                </>
+              ) : (
+                <>
+                  <button className="ctrl-colgar" style={{ background: 'var(--verde)' }} onClick={colgar}>
+                    📝 Registrar interacción
+                  </button>
+                  <button className="ctrl" onClick={() => setPantalla('clientes')} title="Volver a clientes">✕</button>
+                </>
+              )}
             </div>
           </div>
 
@@ -582,12 +670,28 @@ export default function CentralLlamadas() {
             <div className="dispo-head">
               <div className="foto">{cliente.iniciales}</div>
               <div>
-                <h2>¿Qué pasó en la llamada?</h2>
-                <div className="sub">{cliente.nombre} · {cliente.empresa} · duró {fmt(durFinal)}</div>
+                <h2>{canal === 'Llamada' ? '¿Qué pasó en la llamada?' : '¿Qué pasó en la interacción?'}</h2>
+                <div className="sub">
+                  {cliente.nombre}{cliente.empresa ? ` · ${cliente.empresa}` : ''}
+                  {canal === 'Llamada' ? ` · duró ${fmt(durFinal)}` : ` · ${cliente.telefono}`}
+                </div>
               </div>
             </div>
             <div className="dispo-body">
-              <h3>Resultado de la llamada <span className="obligatorio">* obligatorio</span></h3>
+              {canal !== 'Llamada' && (
+                <>
+                  <h3>Canal de la interacción</h3>
+                  <div className="chips" style={{ marginBottom: 18 }}>
+                    {(['WhatsApp', 'Presencial', 'Correo', 'Llamada'] as const).map((c) => (
+                      <button key={c} className={`chip ${canal === c ? 'sel' : ''}`} onClick={() => setCanal(c)}>
+                        {c === 'WhatsApp' ? '💬' : c === 'Presencial' ? '🤝' : c === 'Correo' ? '✉️' : '📞'} {c}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <h3>Resultado <span className="obligatorio">* obligatorio</span></h3>
               <div className="chips">
                 {RESULTADOS.map((r) => (
                   <button
@@ -637,7 +741,8 @@ export default function CentralLlamadas() {
             <p>{cliente.nombre} · {cliente.empresa} · ⭐ {saludoTier}</p>
             <div className="conf-resumen">
               <div><span>Resultado</span><b>{resultado}</b></div>
-              <div><span>Duración</span><b>{fmt(durFinal)}</b></div>
+              <div><span>Canal</span><b>{canal}</b></div>
+              {canal === 'Llamada' && <div><span>Duración</span><b>{fmt(durFinal)}</b></div>}
               <div><span>Nota</span><b style={{ maxWidth: 280 }}>{nota.length > 60 ? nota.slice(0, 60) + '…' : nota}</b></div>
               <div><span>Guardado en</span><b className="txt-verde">RDS · tabla Llamada ✅</b></div>
               {folioNota != null && (
