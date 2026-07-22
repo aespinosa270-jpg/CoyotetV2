@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation";
 import Navbar from "@/components/layout/navbar";
 import Footer from "@/components/layout/footer";
 import CartSidebar from "@/components/layout/cart-sidebar";
-import WhatsAppButton from "@/components/ui/whatsapp-button";
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -31,7 +30,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </footer>
           <aside>
              <CartSidebar /> 
-             <WhatsAppButton /> 
           </aside>
         </>
       )}

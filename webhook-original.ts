@@ -5,6 +5,7 @@ import Stripe from "stripe"
 import { prisma } from "@/lib/prisma"
 import { sendAdminOrderNotification } from "@/lib/mailer"      // 🔥 Tu misil de ZeptoMail (Admin)
 import { timbrarFacturaReal } from "@/lib/facturapi"
+import { onStripePaymentSuccess, onStripePaymentFailed } from "@/lib/bot/services/crm/stripe-hooks"       // 🧾 Tu misil del SAT (CFDI 4.0)
 
 // 🐺 Inicializamos Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -114,6 +115,13 @@ export async function POST(req: Request) {
         })
         
                 console.log(`✅ Pago exitoso. Orden ${updatedOrder.orderNumber} marcada como PAGADA.`)
+
+        // ─── BOT V2: notificar al cliente con recibo PNG ───
+        try {
+          await onStripePaymentSuccess(paymentIntent.id, orderId)
+        } catch (botErr) {
+          console.error("⚠️ Error notificando bot v2 (no detiene flujo):", botErr)
+        }
 
         // =====================================================================
         // 💰 INYECCIÓN: SISTEMA DE PUNTOS COYOTE (SOLO USUARIOS REGISTRADOS)

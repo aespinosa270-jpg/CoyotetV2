@@ -8,7 +8,6 @@ import CartSidebar from "@/components/layout/cart-sidebar";
 import CookieBanner from "@/components/cookie-banner";
 import { Providers } from "@/components/providers";
 import HideInCRM from "../components/hide-in-crm";
-import { CoyoteWidget } from "@/components/CoyoteWidget";
 // Contacto Coyote Textil
 // Llamadas:  55 9602 3567
 // WhatsApp:  55 3131 4617
@@ -45,7 +44,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Footer />
             <CookieBanner />
             <CartSidebar />
-            <CoyoteWidget />
           </HideInCRM>
         </Providers>
       </body>
