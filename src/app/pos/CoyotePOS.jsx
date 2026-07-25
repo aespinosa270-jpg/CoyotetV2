@@ -47,7 +47,7 @@ const SEED_MOVS = [
   { id: uid(), tipo: "venta",   fecha: new Date(hoyMs - 3600000).toISOString(),   monto: 1250, ubicacion: "guatemala", desc: "Venta GT-0103", total_unidades: 6 },
 ];
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€ Impresión â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -------------------------------------------------------------------------------------------------------------------------------- Impresión -------------------------------------------------------------------------------------------------------------------------------- */
 function abrirYImprimir(html, w, h) {
   const win = window.open("", "_blank", `width=${w},height=${h}`);
   if (!win) return alert("Activa las ventanas emergentes para imprimir.");
