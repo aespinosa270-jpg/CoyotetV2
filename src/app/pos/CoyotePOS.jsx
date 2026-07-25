@@ -100,18 +100,18 @@ function exportarPDF(d) {
 }
 
 /* ════════════ APP ════════════ */
-export default function CoyotePOS() {
+export default function CoyotePOS({ initialProducts }) {
   const [montado, setMontado] = useState(false);
   const [pantalla, setPantalla] = useState("vender");
   // Arranca con los datos base (igual en servidor y navegador, sin desajuste)
-  const [productos, setProductos] = useState(SEED_PROD);
+  const [productos, setProductos] = useState(initialProducts || SEED_PROD);
   const [historial, setHistorial] = useState(SEED_MOVS);
   const [tickets, setTickets] = useState([]); // ventas completas para reimprimir
   const [ubicacion, setUbicacion] = useState("guatemala");
 
   // Ya en el navegador: cargamos lo guardado en localStorage
   useEffect(() => {
-    setProductos(DB.load("productos", SEED_PROD));
+    if (initialProducts) DB.save("productos", initialProducts); setProductos(DB.load("productos", initialProducts || SEED_PROD));
     setHistorial(DB.load("historial", SEED_MOVS));
     setTickets(DB.load("tickets", []));
     setUbicacion(DB.load("ubicacion", "guatemala"));
@@ -262,9 +262,12 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
   }
 
   const visibles = useMemo(() => {
-    const q = busqueda.toLowerCase().trim();
+    const q = busqueda.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     if (!q) return productos;
-    return productos.filter((p) => p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
+    return productos.filter((p) => 
+      p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q) || 
+      p.sku.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q)
+    );
   }, [productos, busqueda]);
 
   return (
