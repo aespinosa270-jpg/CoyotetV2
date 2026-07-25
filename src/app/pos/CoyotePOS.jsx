@@ -143,11 +143,11 @@ export default function CoyotePOS({ initialProducts }) {
 }
 
 function TopBar({ pantalla, setPantalla }) {
-  const tabs = [["vender", "Vender", "\uD83D\uDED2"], ["admin", "Inventario", "\uD83D\uDCE6"], ["reportes", "Reportes", "\uD83D\uDCCA"]];
+  const tabs = [["vender", "Vender", "🛒"], ["admin", "Inventario", "📦"], ["reportes", "Reportes", "��"]];
   return (
     <header style={S.top}>
       <div style={S.brand}>
-        <div className="logo">\uD83D\uDC3A</div>
+        <div className="logo">🐺</div>
         <div style={S.brandName}>COYOTE</div>
       </div>
       <nav style={S.nav}>
@@ -278,7 +278,7 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
   const visibles = useMemo(() => {
     const q = busqueda.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     if (!q) return productos;
-    return productos.filter((p) => p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q) || p.sku.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q));
+    return productos.filter((p) => p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q) || p.sku.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q));
   }, [productos, busqueda]);
 
   return (
@@ -444,7 +444,7 @@ function ConfirmarCobro({ total, piezas, metodo, conIva, ivaMonto, ubicacion, on
 function CapturarPeso({ prod, onGuardar, onCerrar }) {
   const [peso, setPeso] = useState("");
   const u = prod.unidad;
-  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "\u232B"];
+  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "⌋"];
   const onKey = (k) => setPeso((s) => {
     if (k === "âŒ«") return s.slice(0, -1);
     if (k === "." && s.includes(".")) return s; // un solo punto
@@ -662,7 +662,7 @@ function Admin({ productos, setProductos, setHistorial }) {
 }
 
 function NumPad({ onKey }) {
-  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "00", "\u232B"];
+  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "00", "⌋"];
   return <div className="numpad">{keys.map((k) => <button key={k} className="numk" onClick={() => onKey(k)}>{k}</button>)}</div>;
 }
 
