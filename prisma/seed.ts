@@ -1,43 +1,266 @@
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs'; // 🔥 CORREGIDO: Usando bcryptjs para compatibilidad con Vercel
+﻿import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  // ==========================================
-  // 1. CREDENCIALES DE ACCESO (SEGURIDAD INDIVIDUAL)
-  // ==========================================
-  console.log('🔒 Forjando llaves maestras únicas para el equipo de Coyote Textil...');
+const rawCatalog = `ALASKA 3.9 METROS KILO 1.6 $140 $135 $125 150 G/M2 100% POLIÉSTER
+ANDROMEDA 3.7 METROS KILO 1.6 $155 $145 $135 145 G/M2 80% POL 20% ELA
+APOLO 3.7 METROS KILO 1.6 $160 $155 $145 150 G/M2 100% POLIÉSTER
+ARES 4.2 METROS KILO 1.6 $115 $110 $100 145 G/M2 100% POLIÉSTER
+ATHLOS 4.3 METROS KILO 1.6 $120 $115 $105 145 G/M2 100% POLIÉSTER
+ATHLOS COLORES 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
+BIES BOMBAY BLANCO 300 GRAMOS PIEZA NA $140 $140 $140 100% POLIÉSTER
+BIES BOMBAY COLORES 300 GRAMOS PIEZA NA $140 $140 $140 100% POLIÉSTER
+BIES SOCCER 300 GRAMOS PIEZA NA $150 $150 $150 100% POLIÉSTER
+BOMBAY (5.5 METROS RINDE 1 KILO) METRO METRO 1.6 $25.00 $20.00 $15.00 125 G/M2 100% POLIÉSTER
+BOMBAY COLORES (5 METROS RINDE 1 KILO) METRO METRO 1.6 $26 $21 $16 135 G/M2 100% POLIÉSTER
+BOMBAY NEON METRO METRO 1.6 $31 $26 $16 135 G/M2 100% POLIÉSTER
+BROCK 4.2 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
+BRUSH (COLORES) 6 METROS KILO 1.6 $140 $135 $125 140 G/M2 95% POL 5% ELA
+BRUSH (SOLO BCO RINDE 4.3 MT) 4.3 METROS KILO 1.6 $120 $115 $105 95% POL 5% ELA
+CAPITONADA MICRO PANAL BLANCO Y COLORES METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
+CAPITONADA MICRO PIQUE SENCILLO METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
+CAPITONADA MICROTRIX METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
+CAPITONADA TORNEO METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
+CAPITONADO MICRO FIBR Y PREMIER NUBE METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
+CAPITONADO MICRO FIBRA NUBES SENCILLO METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
+CAPITONADO PREMIER SENCILLO METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
+CAPITONADO PREMIER Y MICRO FIBRA METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
+CAPITONADO ZIGZAG TEJIDO PREMIER MICRO FIBRA METRO METRO 1.5 $110 $105 $95 90 G/M2 100% POLIÉSTER
+CAPRIATI 3.1 METROS KILO 1.6 $130 $125 $115 150 G/M2 80% POL 20% ELA
+CAPRICE 4.3 METROS KILO 1.6 $130 $125 $115 140 G/M2 100% POLIÉSTER
+CAPRICE COLORES 4.3 METROS KILO 1.6 $155 $150 $140 140 G/M2 100% POLIÉSTER
+CARDIGAN 2.2 METROS KILO .90 MT. $165 $160 $150 100% POLIÉSTER
+CARDIGAN (ACRILAN 2.2 METROS KILO .90 MT. $255 $250 $240 100% ACRILÁN
+CHICAGO 4.5 METROS KILO 1.7 $140 $135 $125 150 G/M2 100% POLIÉSTER
+CHIFON 2.8 METROS KILO .90 MT. $155 $150 $140 195 G/M2 50% POL 50% ELA
+CUELLOS Y PUÑOS (NUEVO) 40 A 50 PIEZAS KILO $225 $220 $210 100% POLIÉSTER
+DELTA 4.2 METROS KILO 1.6 $175 $170 $160 145 G/M2 95% POL 5% ELA
+DIABLO METRO METRO 1.5 $90 $85 $75 100% POLIÉSTER
+DIABLO (COLORES) METRO METRO 1.5 $95 $90 $80 100% POLIÉSTER
+DUBLIN 3 METROS KILO 1.6 $125 $120 $110 155 G/M2 100% POLIÉSTER
+ELASTICO BEISBOLERO METRO 50 MT METRO 2 1/2" $19 $19 $19 N/A
+ELASTICO BLANCO (10 LIGAS) 50 MT PIEZA 10 LIGAS $100 $100 $100 N/A
+ELASTICO BLANCO (12 LIGAS) 50 MT PIEZA 12 LIGAS $110 $110 $110 N/A
+ELASTICO BLANCO (16 LIGAS) 50 MT PIEZA 16 LIGAS $80 $80 $80 N/A
+ELASTICO BLANCO (20 LIGAS) 50 MT PIEZA 20 LIGAS $100 $100 $100 N/A
+ELASTICO BLANCO (25 LIGAS) 50 MT PIEZA 25 LIGAS $100 $100 $100 N/A
+ELASTICO BLANCO (3 LIGAS) 50 MT PIEZA 3 LIGAS $80 $80 $80 N/A
+ELASTICO BLANCO (30 LIGAS) 50 MT PIEZA 30 LIGAS $120 $120 $120 N/A
+ELASTICO BLANCO (5 LIGAS) 50 MT PIEZA 5 LIGAS $100 $100 $100 N/A
+ELASTICO BLANCO (7 LIGAS) 50 MT PIEZA 7 LIGAS $110 $110 $110 N/A
+ELASTICO CON JARETA 3 CM 50 MT CONO 3 CM $140 $140 $140 N/A
+ELASTICO CON JARETA 4 CM 50 MT CONO 4 CM $145 $145 $145 N/A
+ELASTICO NEGRO (10 LIGAS) 50 MT PIEZA 10 LIGAS $120 $120 $120 N/A
+ELASTICO NEGRO (12 LIGAS) 50 MT PIEZA 12 LIGAS $120 $120 $120 N/A
+ELASTICO NEGRO (16 LIGAS) 50 MT PIEZA 16 LIGAS $90 $90 $90 N/A
+ELASTICO NEGRO (20 LIGAS) 50 MT PIEZA 20 LIGAS $110 $110 $110 N/A
+ELASTICO NEGRO (25 LIGAS) 50 MT PIEZA 25 LIGAS $110 $110 $110 N/A
+ELASTICO NEGRO (3 LIGAS) 50 MT PIEZA 3 LIGAS $90 $90 $90 N/A
+ELASTICO NEGRO (30 LIGAS) 50 MT PIEZA 30 LIGAS $130 $130 $130 N/A
+ELASTICO NEGRO (5 LIGAS) 50 MT PIEZA 5 LIGAS $110 $110 $110 N/A
+ELASTICO NEGRO (7 LIGAS) 50 MT PIEZA 7 LIGAS $130 $130 $130 N/A
+ESCAROLA 10 MM - 200MTS 200 MT CONO 10 MM $300 $300 $300 N/A
+ESCAROLA 19MM - 100MTS 100 MT CONO 19 MM $500 $500 $500 N/A
+ETIQUETAS BORDADAS 50 MT CONO $50 $50 $50 BORDADA
+ETIQUETAS COMPOSICIÓN 50 MT CONO $65 $65 $65 NYLON
+ETIQUETAS PELLON 1400 A 1500 PZ CONO $25 $25 $25 PELLÓN
+F30 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
+F30 COLORES 4.3 METROS KILO 1.6 $150 $145 $135 145 G/M2 100% POLIÉSTER
+FELPA CHINA 2.5 METROS KILO 1.6 $113 $108 $98 250 G/M2 100% POLIÉSTER
+FELPA CHINA (NEONES) 2.5 METROS KILO 1.6 $125 $120 $110 250 G/M2 100% POLIÉSTER
+FELPA GOLD 2.5 METROS KILO 1.6 $113 $108 $98 250 G/M2 100% POLIÉSTER
+FELPA NACIONAL 2.3 METROS KILO 1.6 $135 $130 $120 260 G/M2 50% POL 50% ALG
+FELPA SPUN 2.5 METROS KILO 1.6 $113 $108 $98 250 G/M2 100% POLIÉSTER
+FLANEL 2.7 METROS KILO 1.5 $130 $125 $115 240 G/M2 100% POLIÉSTER
+FLANEL (COLORES) 2.7 METROS KILO 1.5 $130 $125 $115 240 G/M2 100% POLIÉSTER
+FRENCH TERRY 2.80 MTS. KILO 1.6 $150 $145 $135 240 G/M2 100% POLIÉSTER
+FUSIONADA ATHLOS 2.5 METROS KILO 1.55 $150 $145 $135 250 G/M2 100% POLIÉSTER
+FUSIONADA PIQUE VERA 2.5 METROS KILO 1.55 $150 $145 $135 250 G/M2 100% POLIÉSTER
+FUSIONADA TORNEO 2.5 METROS KILO 1.55 $150 $145 $135 250 G/M2 100% POLIÉSTER
+FUSIONADAS MICRO PANAL 2.5 METROS KILO 1.55 $155 $150 $140 250 G/M2 100% POLIÉSTER
+GABARDINA 100% METRO METRO 1.6 $90 $85 $80 100% ALGODÓN
+GABARDINA 70/30 METRO METRO 1.6 $80 $75 $70 65% ALG 35% POL
+GABARDINA 80/20 METRO METRO 1.6 $75 $70 $60 80% ALG 20% POL
+GABARDINA 90/10 METRO METRO 1.6 $60 $55 $50 90% POL 10% ELA
+GOLF 4.3 METROS KILO 1.6 $130 $125 $120 100% POLIÉSTER
+GRAN BAY METRO METRO 1.6 $45 $40 $35 100% POLIÉSTER
+GRANIZO 4.3 METROS KILO 1.6 $105 $100 $90 145 G/M2 100% POLIÉSTER
+GRANIZO COLORES 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
+HILO KINGTEX 5000 M 0.05 GROSOR $40 $38 200 G N/A
+HIROSHIMA 2.5 METROS KILO 1.8 $145 $140 $130 245 G/M2 80% POL 20% ELA
+HOPPER 4.2 METROS KILO 1.6 $155 $150 $140 145 G/M2 95% POL 5% ELA
+HOROUS (WAFFLE) 4.65 METROS KILO 1.6 $130 $125 $115 145 G/M2 100% POLIESTER
+HOUSTON 4.6 METROS KILO 1.6 $155 $150 $140 135 G/M2 100% POLIÉSTER
+INTER 70 4.3 METROS KILO 1.6 $140 $135 $125 145 G/M2 95% POL 5% ELA
+INTER 70 COLORES 4.3 METROS KILO 1.6 $150 $145 $135 145 G/M2 95% POL 5% ELA
+INTERLOCK 2.2 METROS KILO .90 MT. $155 $150 $140 240 G/M2 50% POL 50% ALG
+JARETA 200 M LARGO 0.5 GROSOR $135 $135 $135 N/A
+JUMANJI 4.4 METROS KILO 1.6 $145 $140 $130 140 G/M2 80% POL 20% ELA
+JURLY 100 MT X ROLLO METRO 1.5 $35 $30 $25 135 G/M2 95% POL 5% ELA
+JURLY (COLORES) 100 MT X ROLLO METRO 1.5 $40 $35 $30 135 G/M2 95% POL 5% ELA
+KYOTO 4 METROS KILO 1.6 $145 $140 $130 145 G/M2 100% POLIÉSTER
+LICRA JAPONESA 4 METROS KILO 1.8 $140 $135 $125 290 G/M2 80% POL 20% ELA
+LICRA LULU 2.25 METROS KILO 1.63 $140 $135 $125 290 G/M2 84% POL 16% ELA
+LICRA METALICA METRO METRO 1.5 $50 $45 $40 70% POL 30% ELA
+LICRA PLAYERA 4.7 METROS KILO 1.6 $130 $125 $115 265 G/M2 80% POL 20% ELA
+LICRA PLAYERA COLORES 4.7 METROS KILO 1.6 $135 $130 $120 265 G/M2 80% POL 20% ELA
+LICRA POLIESTER B/N/ROJO 2.6 METROS KILO 1.55 $145 $140 $130 265 G/M2 80% POL 20% ELA
+LICRA POLIESTER COLORES 2.6 METROS KILO 1.55 $145 $140 $130 265 G/M2 80% POL 20% ELA
+LIVERPOOL 4.3 METROS KILO 1.6 $130 $125 $115 145 G/M2 100% POLIÉSTER
+MACUCO (rinde 3.8 mt por 1 kilo) METRO METRO 1.6 $45 $40 $30 100% POLIÉSTER
+MADELINO 4.2 METROS KILO 1.6 $155 $150 $140 145 G/M2 95% POL 5% ELA
+MAR 4.3 METROS KILO 1.6 $140 $135 $125 145 G/M2 100% POLIÉSTER
+MEMORY METRO METRO 1.5 $30 $25 $21 108 G/M2 100% POLIÉSTER
+MERCURY 3 METROS KILO 1.6 $160 $155 $145 160 G/M2 80% POL 20% ELA
+MICRO ESTRELLA 4.3 METROS KILO 1.6 $150 $145 $135 145 G/M2 100% POLIÉSTER
+MICRO ESTRELLA COLORES 4.3 METROS KILO 1.6 $155 $150 $140 145 G/M2 100% POLIÉSTER
+MICRO JUMANJI 5.4 METROS KILO 1.6 $135 $130 $120 145 G/M2 90% POL 10% ELA
+MICRO PANAL 4.3 METROS KILO 1.6 $110 $105 $95 145 G/M2 100% POLIÉSTER
+MICRO PANAL COLORES 4.3 METROS KILO 1.6 $120 $115 $105 145 G/M2 100% POLIÉSTER
+MICRO PANAL NEON 4.3 METROS KILO 1.6 $125 $120 $110 145 G/M2 100% POLIÉSTER
+MICRO PIQUE 4.3 METROS KILO 1.6 $100 $95 $85 145 G/M2 100% POLIÉSTER
+MICRO PIQUE COLORES 4.3 METROS KILO 1.6 $115 $110 $100 145 G/M2 100% POLIÉSTER
+MICRO PIQUE FUSIONADA COLORES 2.5 METROS KILO 155 $160 $155 $145 250 G/M2 100% POLIÉSTER
+MICRO PIQUE NEON 4.3 METROS KILO 1.6 $120 $115 $105 145 G/M2 100% POLIÉSTER
+MICROFIBRA METRO METRO 1.5 $35 $30 $21 100% POLIÉSTER
+MICROFIBRA FUSIONADA METRO METRO 1.5 $70 $65 $55 100% POLIÉSTER
+MICROPIQUE DIAMANTE 4.3 METROS KILO 1.6 $140 $135 $125 145 G/M2 100% POLIÉSTER
+MICROPIQUE FUSIONADA 2.5 METROS KILO 1.55 $130 $125 $115 250 G/M2 100% POLIÉSTER
+MICROTRIX 3.6 METROS KILO 1.65 $155 $150 $140 140 G/M2 80% POL 20% ELA
+MICROTRIX COLORES 3.6 METROS KILO 1.6 $160 $155 $145 140 G/M2 80% POL 20% ELA
+MIKY 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
+MIKY COLORES 4.3 METROS KILO 1.6 $150 $145 $135 145 G/M2 100% POLIÉSTER
+MILENIO CALADO (5.8 MT) METRO METRO 1.6 $31 $26 $21 100% POLIÉSTER
+MILENIO CALADO COLORES METRO METRO 1.6 $35 $30 $25 100% POLIÉSTER
+MONACO 3.7 METROS KILO 1.6 $140 $135 $125 150 G/M2 90% POL 10% ELA
+MOSCU 4.3 METROS KILO 1.78 $140 $135 $125 140 G/M2 80% POL 20% ELA
+NAGASAKY 3.7 METROS KILO 1.6 $135 $130 $120 150 G/M2 100% POLIÉSTER
+OKLAHOMA 4.3 METROS KILO 1.6 $130 $125 $115 145 G/M2 100% POLIÉSTER
+OKLAHOMA COLORES 4.3 METROS KILO 1.6 $140 $135 $125 145 G/M2 100% POLIÉSTER
+PALMITA 10 MM 100 METROS PIEZA NA $107 $107 $107 N/A
+PALMITA 12 MM 100 METROS PIEZA NA $110 $110 $110 N/A
+PALMITA 19 MM 100 METROS PIEZA NA $142 $142 $142 N/A
+PALMITA 25 MM 100 METROS PIEZA NA $170 $170 $170 N/A
+PANAL NITRO 4.2 METROS KILO 1.6 $185 $180 $170 145 G/M2 95% POL 5% ELA
+PANAL PLUS (HEXA-DRY) 3.7 METROS KILO 1.6 $145 $140 $130 145 G/M2 100% POLIÉSTER
+PELLON ADHERIBLE 100 METROS METRO 1.5 $16 $14 $12 PELLON
+PHOENIX 4.1 METROS KILO 1.6 $165 $160 $150 145 G/M2 100% POLIÉSTER
+PIQUE 50/50 BLANCO 2.2 METROS KILO .90 MT. $170 $165 $155 220 G/M2 50% POL 50% ALG
+PIQUE 50/50 COLORES 2.2 METROS KILO .90 MT. $175 $170 $160 220 G/M2 50% POL 50% ALG
+PIQUE LACOST 4.3 METROS KILO 1.6 $140 $135 $125 145 G/M2 100% POLIÉSTER
+PIQUE POLIÉSTER 3 METROS KILO .90 MT. $145 $140 $130 180 G/M2 100% POLIÉSTER
+PIQUE SPORT (NUEVO) 2.5 METROS KILO 1.6 $140 $135 $125 100% POLIÉSTER
+PIQUE VERA 4.3 METROS KILO 1.6 $110 $105 $95 145 G/M2 100% POLIÉSTER
+PIQUE VERA COLORES 4.3 METROS KILO 1.6 $120 $115 $105 145 G/M2 100% POLIÉSTER
+PIQUE VERA NEON 4.3 METROS KILO 1.6 $125 $120 $110 145 G/M2 100% POLIÉSTER
+PIXEL 4.2 METROS KILO 1.6 $145 $140 $130 145 G/M2 100% POLIESTER
+POLAR 2.5 METROS KILO 1.6 $120 $115 $105 250 G/M2 100% POLIÉSTER
+POLAR (COLORES) 2.5 METROS KILO 1.6 $125 $120 $110 250 G/M2 100% POLIÉSTER
+POLAR CUADRO 2.5 METROS KILO 1.6 $135 $130 $120 250 G/M2 100% POLIÉSTER
+PREMIER 3 METROS KILO 1.6 $115 $110 $100 145 G/M2 100% POLIÉSTER
+PREMIER COLORES 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
+PUNTO DE ROMA 1.6 METROS KILO .90 MT. $250 $245 $240 350 G/M2 100% ACRILÁN
+RAZO SATIN METRO METRO 1.5 $30 $25 $20
+RIN SPORT (NUEVO) 2.5 METROS KILO 1.6 $130 $125 $115 100% POLIÉSTER
+ROMPEVIENTOS METRO METRO 1.5 $29 $27 $25 145 G/M2 100% POLIÉSTER
+SALUDABLE 2.3 METROS KILO 1.75 $140 $135 $125 265 G/M2 92% POL 8% ELAS
+SALUDABLE CAMUFLAJE NEGRO 2.3 METROS KILO 1.75 $135 $130 $120 265 G/M2 92% POL 8% ELAS
+SALUDABLE OLIMPIA/POLILASER 2.3 METROS KILO 1.7 $140 $135 $125 265 G/M2 92% POL 8% ELAS
+SATURNO 4.2 METROS KILO 1.6 $155 $150 $140 145 G/M2 92% POL 8% ELAS
+SOCCER 4 METROS KILO 1.6 $125 $120 $110 160 G/M2 100% POLIÉSTER
+SPORTOK (En existencia de plomo) 2.5 METROS KILO 1.6 $80 $75 $65 250 G/M2 100% POLIÉSTER
+SPORTOK (OTROS) 2.5 METROS KILO 1.6 $85 $80 $70 250 G/M2 100% POLIÉSTER
+SPORTOK NEONES 2.5 METROS KILO 1.6 $95 $90 $80 250 G/M2 100% POLIÉSTER
+SUPERTRIX 4.3 METROS KILO 1.6 $175 $170 $160 140 G/M2 80% POL 20% ELA
+SUPERTRIX COLORES 4.3 METROS KILO 1.6 $180 $175 $165 140 G/M2 80% POL 20% ELA
+TACTO PRINCESA 1.8 METROS KILO 1.5 $125 $120 $110 85% POL 15% ELA
+TAFETA (B,N,R,R,M) METRO METRO 1.5 $14 $12 $7 100% POLIÉSTER
+TAFETAN METRO METRO 1.5 $36 $31 $21 100% POLIÉSTER
+TIMBERLAND M METRO METRO 1.5 $60 $55 $45 100% POLIÉSTER
+TITANIUM 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
+TOALLIN (2.65 M X KILO) METRO METRO 1.6 $65 $60 $55 100% POLIÉSTER
+TORNEO 4.3 METROS KILO 1.6 $110 $105 $95 150 G/M2 100% POLIÉSTER
+TORNEO COLORES 4.3 METROS KILO 1.6 $120 $115 $105 150 G/M2 100% POLIÉSTER
+TRICOT METRO METRO 3.4 $30 $28 $25 145 G/M2 100% POLIÉSTER
+UNIVERSITY M METRO METRO 1.5 $25 100% POLIÉSTER
+VELURT METRO METRO 1.6 $70 $65 $60 100% POLIÉSTER
+VERA SPORT 4.3 METROS KILO 1.6 $150 $145 $135 145 G/M2 95% POL 5% ELA
+VINIPIEL METRO METRO 1.5 $75 $70 $68 100% POLIÉSTER
+ZARGA MT METRO METRO 1.6 $85 $80 $70 100% POLIÉSTER`;
+
+function parseLine(line: string) {
+  const priceMatches = line.match(/\$[\d.]+/g);
+  if (!priceMatches || priceMatches.length === 0) return null;
+
+  let priceMenudeo = parseFloat(priceMatches[0].replace('$', ''));
+  let priceMayoreo = priceMenudeo;
+  let priceRollo = priceMenudeo;
+
+  if (priceMatches.length >= 2) priceMayoreo = parseFloat(priceMatches[1].replace('$', ''));
+  if (priceMatches.length >= 3) priceRollo = parseFloat(priceMatches[2].replace('$', ''));
+
+  const prePrice = line.split(priceMatches[0])[0].trim();
+  const postPrice = line.split(priceMatches[priceMatches.length - 1])[1].trim();
+
+  let unit = 'KILO';
+  if (prePrice.includes('METRO')) unit = 'METRO';
+  if (prePrice.includes('PIEZA') || prePrice.includes('CONO')) unit = 'PIEZA';
+
+  const rendMatch = prePrice.match(/([\d.]+)\s*(METROS|MTS|MT|GRAMOS|PIEZAS|GROSOR|LARGO)/i);
+  const rendimiento = rendMatch ? parseFloat(rendMatch[1]) : null;
+
+  const anchoMatch = prePrice.match(/(\d+(\.\d+)?|NA)\s*(MT|CM|MM|LIGAS|GROSOR|")/i);
+  const ancho = anchoMatch ? anchoMatch[0] : 'N/A';
+
+  let title = prePrice
+    .replace(/[\d.]+\s*(METROS|MTS|MT|GRAMOS|PIEZAS|GROSOR|LARGO)/i, '')
+    .replace(/[\d.]+\s*(MT|CM|MM|LIGAS|GROSOR|")/i, '')
+    .replace(/\b(KILO|METRO|PIEZA|CONO|NA)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const gramajeMatch = postPrice.match(/(\d+\s*G\/M2|\d+\s*G)/i);
+  const gramaje = gramajeMatch ? gramajeMatch[0] : 'N/A';
   
-  // 👑 LOS JEFES (ADMIN)
+  const composicion = postPrice.replace(gramajeMatch ? gramajeMatch[0] : '', '').trim() || 'N/A';
+
+  const sku = 'COY-' + title.replace(/[^A-Z0-9]/gi, '').toUpperCase().substring(0, 10).padStart(4, '0');
+
+  return {
+    sku,
+    title,
+    unit: unit as any,
+    rendimiento,
+    ancho,
+    priceMenudeo,
+    priceMayoreo,
+    gramaje,
+    composicion,
+    description: `Precio Rollo: $${priceRollo} | Rendimiento: ${rendMatch ? rendMatch[0] : 'N/A'} | Ancho: ${ancho}`,
+    category: 'GENERAL',
+    isActive: true,
+    hasRollo: true
+  };
+}
+
+async function main() {
+  console.log('Forjando llaves maestras...');
+
   const admins = [
     { email: 'jackrizk@coyotetextil.com', name: 'Jack Rizk', pass: 'JackCoyote2026!' },
     { email: 'stephanyrizk@coyotetextil.com', name: 'Stephany Rizk', pass: 'StephanyCoyote2026!' }
   ];
 
   for (const admin of admins) {
-    // Hasheamos la contraseña ESPECÍFICA usando bcryptjs
     const hashedPassword = await bcrypt.hash(admin.pass, 10);
-
     await prisma.employee.upsert({
       where: { email: admin.email },
-      update: { 
-        password: hashedPassword, 
-        isActive: true, 
-        role: 'ADMIN' 
-      },
-      create: {
-        email: admin.email,
-        name: admin.name,
-        password: hashedPassword,
-        role: 'ADMIN',
-        isActive: true,
-      },
+      update: { password: hashedPassword, isActive: true, role: 'ADMIN' },
+      create: { email: admin.email, name: admin.name, password: hashedPassword, role: 'ADMIN', isActive: true },
     });
-    console.log(`👑 Admin listo: ${admin.name} | Pass temporal: ${admin.pass}`);
   }
 
-  // 💼 LAS VENDEDORAS (Operación - Sin acceso a /admin)
   const vendedoras = [
     { email: 'valeria@coyotetextil.com', name: 'Valeria', pass: 'ValeriaVentas01' },
     { email: 'paula@coyotetextil.com', name: 'Paula', pass: 'PaulaVentas02' },
@@ -46,35 +269,51 @@ async function main() {
 
   for (const vendedora of vendedoras) {
     const hashedPassword = await bcrypt.hash(vendedora.pass, 10);
-
     await prisma.employee.upsert({
       where: { email: vendedora.email },
-      update: { 
-        password: hashedPassword, 
-        isActive: true, 
-        role: 'VENDEDORA' 
-      },
-      create: {
-        email: vendedora.email,
-        name: vendedora.name,
-        password: hashedPassword,
-        role: 'VENDEDORA',
-        isActive: true,
-      },
+      update: { password: hashedPassword, isActive: true, role: 'VENDEDORA' },
+      create: { email: vendedora.email, name: vendedora.name, password: hashedPassword, role: 'VENDEDORA', isActive: true },
     });
-    console.log(`✅ Vendedora en posición: ${vendedora.name} | Pass temporal: ${vendedora.pass}`);
   }
+
+  console.log('Cargando catálogo de productos Coyote en Prisma...');
+  const lines = rawCatalog.trim().split('\n');
+  let count = 0;
+
+  for (const line of lines) {
+    if (!line.trim() || line.includes('Lista de Precios')) continue;
+    const p = parseLine(line);
+    if (p) {
+      await prisma.product.upsert({
+        where: { sku: p.sku },
+        update: {
+          title: p.title,
+          unit: p.unit,
+          rendimiento: p.rendimiento,
+          ancho: p.ancho,
+          priceMenudeo: p.priceMenudeo,
+          priceMayoreo: p.priceMayoreo,
+          gramaje: p.gramaje,
+          composicion: p.composicion,
+          description: p.description,
+          category: p.category,
+          isActive: p.isActive
+        },
+        create: p,
+      });
+      count++;
+    }
+  }
+  console.log(`${count} productos cargados exitosamente.`);
 }
 
-// Ejecutamos la función principal y cerramos la conexión limpiamente
 main()
   .then(async () => {
-    console.log("🌱 Semilla ejecutada con éxito. La Jauría está en Supabase.");
+    console.log("Semilla ejecutada con éxito. La Jauría está en Supabase.");
     await prisma.$disconnect();
   })
   .catch(async (e) => {
-    console.error("❌ Error al plantar la semilla:");
-    console.error(e);
+    console.error("Error al plantar la semilla:", e);
     await prisma.$disconnect();
     process.exit(1);
   });
