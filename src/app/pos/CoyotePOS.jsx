@@ -1,14 +1,14 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
-/* ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
-   COYOTE POS v9 — FÃCIL PARA TODOS
+/* ════════════════════════════════════════════════════════════
+   COYOTE POS v9 — FÁCIL PARA TODOS
    · Claro y suave, con los colores vivos de Coyote
    · Letra muy grande, botones enormes, pocas opciones a la vez
    · Confirmación clara antes de cobrar
    · Venta por corte y por rollo · persistencia · CRUD · reportes
-   ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
+   ════════════════════════════════════════════════════════════ */
 
 const money = (n) => "$" + Number(n || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -47,7 +47,7 @@ const SEED_MOVS = [
   { id: uid(), tipo: "venta",   fecha: new Date(hoyMs - 3600000).toISOString(),   monto: 1250, ubicacion: "guatemala", desc: "Venta GT-0103", total_unidades: 6 },
 ];
 
-/* -------------------------------------------------------------------------------------------------------------------------------- Impresión -------------------------------------------------------------------------------------------------------------------------------- */
+/* ──────── Impresión ──────── */
 function abrirYImprimir(html, w, h) {
   const win = window.open("", "_blank", `width=${w},height=${h}`);
   if (!win) return alert("Activa las ventanas emergentes para imprimir.");
@@ -72,7 +72,7 @@ function imprimirVenta(t) {
   ${t.conIva ? `<tr class="tot"><td>IVA 16%</td><td class="i">+${money(t.ivaMonto)}</td></tr>` : ""}
   <tr class="gr"><td>TOTAL</td><td class="i">${money(t.total)}</td></tr>
   <tr class="tot"><td>Pago</td><td class="i">${t.metodoPago}</td></tr></table>
-  <div class="hr"></div><div class="c">Â¡Gracias por tu compra!<br>coyotetextil.com</div></body></html>`;
+  <div class="hr"></div><div class="c">¡Gracias por tu compra!<br>coyotetextil.com</div></body></html>`;
   abrirYImprimir(html, 340, 600);
 }
 function imprimirCorte(d) {
@@ -99,19 +99,19 @@ function exportarPDF(d) {
   abrirYImprimir(html, 980, 720);
 }
 
-/* ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== APP ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
-export default function CoyotePOS({ initialProducts }) {
+/* ════════════ APP ════════════ */
+export default function CoyotePOS() {
   const [montado, setMontado] = useState(false);
   const [pantalla, setPantalla] = useState("vender");
   // Arranca con los datos base (igual en servidor y navegador, sin desajuste)
-  const [productos, setProductos] = useState(initialProducts || SEED_PROD);
+  const [productos, setProductos] = useState(SEED_PROD);
   const [historial, setHistorial] = useState(SEED_MOVS);
   const [tickets, setTickets] = useState([]); // ventas completas para reimprimir
   const [ubicacion, setUbicacion] = useState("guatemala");
 
   // Ya en el navegador: cargamos lo guardado en localStorage
   useEffect(() => {
-    if (initialProducts) DB.save("productos", initialProducts); setProductos(DB.load("productos", initialProducts || SEED_PROD));
+    setProductos(DB.load("productos", SEED_PROD));
     setHistorial(DB.load("historial", SEED_MOVS));
     setTickets(DB.load("tickets", []));
     setUbicacion(DB.load("ubicacion", "guatemala"));
@@ -143,7 +143,7 @@ export default function CoyotePOS({ initialProducts }) {
 }
 
 function TopBar({ pantalla, setPantalla }) {
-  const tabs = [["vender", "Vender", "🛒"], ["admin", "Inventario", "📦"], ["reportes", "Reportes", "��"]];
+  const tabs = [["vender", "Vender", "🛒"], ["admin", "Inventario", "📦"], ["reportes", "Reportes", "📊"]];
   return (
     <header style={S.top}>
       <div style={S.brand}>
@@ -161,7 +161,7 @@ function TopBar({ pantalla, setPantalla }) {
   );
 }
 
-/* ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== VENDER ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
+/* ════════════ VENDER ════════════ */
 function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial, tickets, setTickets }) {
   const [carrito, setCarrito] = useState([]); // array de líneas
   const [descuentoPct, setDescuentoPct] = useState(0);
@@ -184,10 +184,8 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
   const precioCorte = (p, cant) => (cant >= LIMITE_MAYOREO ? p.precio_mayoreo : p.precio);
 
   // CORTE: suma 1 unidad y recalcula el precio de toda la línea (menudeo/mayoreo)
-  // La venta NUNCA se bloquea (el inventario real aún no está cargado). Si pasa
-  // del stock registrado, avisamos de forma amable pero dejamos continuar.
   function agregarCorte(p) {
-    if (consumoDe(p) + 1 > stockEn(p)) flash(`Ojo: registrabas ${stockEn(p)} ${p.unidad} de ${p.nombre}. Puedes seguir vendiendo.`);
+    if (consumoDe(p) + 1 > stockEn(p)) return flash(`No hay suficiente ${p.nombre} aquí`);
     setCarrito((c) => {
       const i = c.findIndex((l) => l.producto.id === p.id && l.tipo === "corte");
       if (i >= 0) {
@@ -204,7 +202,7 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
     const p = pesando;
     const kg = Number(peso) || 0;
     if (kg <= 0) { setPesando(null); return; }
-    if (consumoDe(p) + kg > stockEn(p)) flash(`Ojo: registrabas ${stockEn(p)} ${p.unidad} de ${p.nombre}. Puedes seguir vendiendo.`);
+    if (consumoDe(p) + kg > stockEn(p)) { setPesando(null); return flash(`No hay suficiente ${p.nombre} aquí`); }
     setCarrito((c) => [...c, { lid: uid(), producto: p, tipo: "rollo", cantidad: kg, precio_unit: p.precio_rollo }]);
     setPesando(null);
   }
@@ -231,28 +229,16 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
 
   function confirmarCobro() {
     let unds = 0;
-    const faltantes = []; // telas que quedaron en negativo: qué había y cuánto se vendió
     setProductos((prev) => prev.map((p) => {
       const c = consumoDe(p); if (c === 0) return p; unds += c;
-      const antes = ubicacion === "guatemala" ? p.stock_guatemala : p.stock_plomo;
-      const despues = +(antes - c).toFixed(2); // SIN tope en 0: puede quedar negativo (es el margen mientras se carga el inventario real)
-      if (despues < 0) faltantes.push({ nombre: p.nombre, habia: antes, vendido: c, unidad: p.unidad });
-      return ubicacion === "guatemala" ? { ...p, stock_guatemala: despues } : { ...p, stock_plomo: despues };
+      return ubicacion === "guatemala" ? { ...p, stock_guatemala: Math.max(0, +(p.stock_guatemala - c).toFixed(2)) } : { ...p, stock_plomo: Math.max(0, +(p.stock_plomo - c).toFixed(2)) };
     }));
     const folio = (ubicacion === "guatemala" ? "GT" : "PL") + "-" + Math.floor(1000 + Math.random() * 9000);
     const items = lineas.map((l) => ({ nombre: l.producto.nombre, tipo: l.tipo, unidad: l.producto.unidad, cantidad: l.cantidad, precio_unit: l.precio_unit }));
     const ticketCompleto = { folio, ubicacion, items, subtotal, descuentoPct, descuentoMonto, conIva, ivaMonto, total, metodoPago, fecha: new Date().toISOString() };
     imprimirVenta(ticketCompleto);
     setTickets((prev) => [ticketCompleto, ...prev]); // guarda la venta completa para reimprimir
-    setHistorial((prev) => {
-      const nuevos = [{ id: uid(), tipo: "venta", fecha: ticketCompleto.fecha, monto: total, ubicacion, desc: `Venta ${folio} · ${metodoPago}`, total_unidades: +unds.toFixed(2) }];
-      // Si algo se vendió sin stock registrado, dejamos un aviso auditable (no invisible)
-      if (faltantes.length > 0) {
-        const detalle = faltantes.map((f) => `${f.nombre} (había ${f.habia}, vendió ${f.vendido} ${f.unidad})`).join(", ");
-        nuevos.push({ id: uid(), tipo: "aviso_stock", fecha: ticketCompleto.fecha, monto: 0, ubicacion, desc: `âš ï¸  Stock registrado insuficiente en ${folio}: ${detalle}`, total_unidades: 0 });
-      }
-      return [...nuevos, ...prev];
-    });
+    setHistorial((prev) => [{ id: uid(), tipo: "venta", fecha: ticketCompleto.fecha, monto: total, ubicacion, desc: `Venta ${folio} · ${metodoPago}`, total_unidades: +unds.toFixed(2) }, ...prev]);
     setConfirmando(false);
     setFestejo({ total, folio }); setTimeout(() => setFestejo(null), 2000);
     setCarrito([]); setDescuentoPct(0); setConIva(false);
@@ -276,9 +262,9 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
   }
 
   const visibles = useMemo(() => {
-    const q = busqueda.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const q = busqueda.toLowerCase().trim();
     if (!q) return productos;
-    return productos.filter((p) => p.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q) || p.sku.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q));
+    return productos.filter((p) => p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
   }, [productos, busqueda]);
 
   return (
@@ -295,36 +281,35 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
       <div style={S.leftSide}>
         {/* Barra: pregunta + botón últimos tickets */}
         <div style={S.tituloRow}>
-          <div style={S.pregunta}>Â¿De dónde sale la tela?</div>
-          <button className="btn-tickets" onClick={() => setVerTickets(true)}>ðŸ§¾ Ãšltimos tickets</button>
+          <div style={S.pregunta}>¿De dónde sale la tela?</div>
+          <button className="btn-tickets" onClick={() => setVerTickets(true)}>🧾 Últimos tickets</button>
         </div>
         <div style={S.ubiRow}>
           <button className={`ubi ${ubicacion === "guatemala" ? "ubi-on" : ""}`} onClick={() => setUbicacion("guatemala")}>
-            <span className="ubi-ic">ðŸª</span><span>GUATEMALA</span><span className="ubi-sub">Sucursal</span>
+            <span className="ubi-ic">🏪</span><span>GUATEMALA</span><span className="ubi-sub">Sucursal</span>
           </button>
           <button className={`ubi ${ubicacion === "plomo" ? "ubi-on" : ""}`} onClick={() => setUbicacion("plomo")}>
-            <span className="ubi-ic">ðŸ­</span><span>PLOMO</span><span className="ubi-sub">Bodega</span>
+            <span className="ubi-ic">🏭</span><span>PLOMO</span><span className="ubi-sub">Bodega</span>
           </button>
         </div>
 
-        <input className="buscar" placeholder="ðŸ” Buscar tela”¦" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+        <input className="buscar" placeholder="🔍 Buscar tela…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
 
         <div style={S.pregunta}>Toca la tela que vendes</div>
         <div style={S.productGrid}>
           {visibles.map((p) => {
             const t = tinte(productos.indexOf(p));
             const disp = stockEn(p) - consumoDe(p);
-            // "sinRegistro": el inventario dice 0 o menos, pero SE PUEDE seguir vendiendo.
-            const sinRegistro = disp <= 0;
-            const bajo = !sinRegistro && disp <= p.minimo;
+            const agotado = disp <= 0;
+            const bajo = !agotado && disp <= p.minimo;
             const enCarro = consumoDe(p);
             return (
-              <div key={p.id} className="prod" style={{ "--bg": t.bg, "--ink": t.ink, "--soft": t.soft }}>
+              <div key={p.id} className="prod" style={{ "--bg": agotado ? "#DADADA" : t.bg, "--ink": agotado ? "#888" : t.ink, "--soft": t.soft }}>
                 <div className="prod-name">{p.nombre}</div>
-                {sinRegistro
-                  ? <div className="prod-stock prod-sinreg">Sin registro · puedes vender</div>
+                {agotado
+                  ? <div className="prod-stock prod-out">Agotado aquí</div>
                   : bajo
-                    ? <div className="prod-stock prod-low">Â¡Quedan {disp} {p.unidad}!</div>
+                    ? <div className="prod-stock prod-low">¡Quedan {disp} {p.unidad}!</div>
                     : <div className="prod-stock prod-ok">{disp} {p.unidad}</div>}
                 <div className="prod-precios">
                   <span>Menudeo <b>{money(p.precio)}</b></span>
@@ -332,10 +317,10 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
                   <span>Rollo <b>{money(p.precio_rollo)}</b></span>
                 </div>
                 <div className="prod-buys">
-                  <button className="buy" onClick={() => agregarCorte(p)}>
+                  <button className="buy" onClick={() => agregarCorte(p)} disabled={agotado}>
                     <span className="buy-l">+1 {p.unidad}</span><span className="buy-p">Corte</span>
                   </button>
-                  <button className="buy buy-2" onClick={() => pedirPesoRollo(p)}>
+                  <button className="buy buy-2" onClick={() => pedirPesoRollo(p)} disabled={agotado}>
                     <span className="buy-l">pesar</span><span className="buy-p">Rollo</span>
                   </button>
                 </div>
@@ -343,19 +328,19 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
               </div>
             );
           })}
-          {visibles.length === 0 && <div style={S.noRes}>No encontré “{busqueda}”.</div>}
+          {visibles.length === 0 && <div style={S.noRes}>No encontré “{busqueda}”.</div>}
         </div>
       </div>
 
       {/* TICKET */}
       <aside style={S.cart}>
         <div style={S.cartHead}>
-          <span>ðŸ§¾ Venta</span>
+          <span>🧾 Venta</span>
           {totalPiezas > 0 && <span className="cart-n">{totalPiezas}</span>}
         </div>
         <div style={S.cartScroll}>
           {lineas.length === 0
-            ? <div style={S.cartEmpty}><div className="big-arrow">ðŸ‘ˆ</div>Toca una tela<br />para empezar</div>
+            ? <div style={S.cartEmpty}><div className="big-arrow">👈</div>Toca una tela<br />para empezar</div>
             : lineas.map((l) => {
                 const t = tinte(productos.findIndex((p) => p.id === l.producto.id));
                 const u = l.producto.unidad;
@@ -370,17 +355,17 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
                         {esMayoreo && <span className="mayoreo-tag">MAYOREO</span>}
                       </div>
                       {l.tipo === "rollo"
-                        ? <div className="crow-price">{l.cantidad} {u} Ã— {money(l.precio_unit)} = <b>{money(lineaTotal)}</b></div>
-                        : <div className="crow-price">{l.cantidad} {u} Ã— {money(l.precio_unit)} = <b>{money(lineaTotal)}</b></div>}
+                        ? <div className="crow-price">{l.cantidad} {u} × {money(l.precio_unit)} = <b>{money(lineaTotal)}</b></div>
+                        : <div className="crow-price">{l.cantidad} {u} × {money(l.precio_unit)} = <b>{money(lineaTotal)}</b></div>}
                     </div>
                     {l.tipo === "corte" ? (
                       <div className="step">
-                        <button className="step-b step-min" onClick={() => quitarLinea(l.lid)}>âˆ’</button>
+                        <button className="step-b step-min" onClick={() => quitarLinea(l.lid)}>−</button>
                         <span className="step-n">{l.cantidad}</span>
                         <button className="step-b step-plus" onClick={() => agregarCorte(l.producto)}>+</button>
                       </div>
                     ) : (
-                      <button className="step-b step-min" onClick={() => quitarLinea(l.lid)} title="Quitar rollo">âˆ’</button>
+                      <button className="step-b step-min" onClick={() => quitarLinea(l.lid)} title="Quitar rollo">−</button>
                     )}
                   </div>
                 );
@@ -394,19 +379,19 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
               <button key={v} className={`dchip ${descuentoPct === v ? "dchip-on" : ""}`} onClick={() => setDescuentoPct(v)}>{v === 0 ? "Sin" : `${v}%`}</button>
             ))}
           </div>
-          <div className="dlabel">Â¿Cómo paga?</div>
+          <div className="dlabel">¿Cómo paga?</div>
           <div className="pays">
             {["Efectivo", "Tarjeta", "Transfer"].map((m) => (
               <button key={m} className={`pay ${metodoPago === m ? "pay-on" : ""}`} onClick={() => setMetodoPago(m)}>{m}</button>
             ))}
           </div>
           <button className={`iva-btn ${conIva ? "iva-on" : ""}`} onClick={() => setConIva(!conIva)}>
-            <span className="iva-check">{conIva ? "âœ“" : ""}</span>
+            <span className="iva-check">{conIva ? "✓" : ""}</span>
             Agregar IVA (16%)
           </button>
           <div style={S.totalCard}>
             {(descuentoPct > 0 || conIva) && <div className="tl"><span>Subtotal</span><span>{money(subtotal)}</span></div>}
-            {descuentoPct > 0 && <div className="tl" style={{ color: "#C46A00" }}><span>Descuento {descuentoPct}%</span><span>âˆ’{money(descuentoMonto)}</span></div>}
+            {descuentoPct > 0 && <div className="tl" style={{ color: "#C46A00" }}><span>Descuento {descuentoPct}%</span><span>−{money(descuentoMonto)}</span></div>}
             {conIva && <div className="tl" style={{ color: "#3A7A00" }}><span>IVA 16%</span><span>+{money(ivaMonto)}</span></div>}
             <div className="tgrand"><span>TOTAL</span><span>{money(total)}</span></div>
           </div>
@@ -424,7 +409,7 @@ function ConfirmarCobro({ total, piezas, metodo, conIva, ivaMonto, ubicacion, on
   return (
     <Overlay onCerrar={onNo}>
       <div className="confirm">
-        <div className="confirm-q">Â¿Cobrar esta venta?</div>
+        <div className="confirm-q">¿Cobrar esta venta?</div>
         <div className="confirm-total">{money(total)}</div>
         <div className="confirm-detail">
           {piezas} {piezas === 1 ? "cosa" : "cosas"} · {metodo}<br />
@@ -433,7 +418,7 @@ function ConfirmarCobro({ total, piezas, metodo, conIva, ivaMonto, ubicacion, on
         </div>
         <div className="confirm-btns">
           <button className="confirm-no" onClick={onNo}>No, volver</button>
-          <button className="confirm-si" onClick={onSi}>Sí, cobrar âœ“</button>
+          <button className="confirm-si" onClick={onSi}>Sí, cobrar ✓</button>
         </div>
       </div>
     </Overlay>
@@ -444,9 +429,9 @@ function ConfirmarCobro({ total, piezas, metodo, conIva, ivaMonto, ubicacion, on
 function CapturarPeso({ prod, onGuardar, onCerrar }) {
   const [peso, setPeso] = useState("");
   const u = prod.unidad;
-  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "⌋"];
+  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "←"];
   const onKey = (k) => setPeso((s) => {
-    if (k === "âŒ«") return s.slice(0, -1);
+    if (k === "←") return s.slice(0, -1);
     if (k === "." && s.includes(".")) return s; // un solo punto
     if (k === "." && s === "") return "0.";
     return s + k;
@@ -456,10 +441,10 @@ function CapturarPeso({ prod, onGuardar, onCerrar }) {
   return (
     <Overlay onCerrar={onCerrar}>
       <div className="modal-title">Rollo de {prod.nombre}</div>
-      <div className="big-label">Â¿Cuánto pesa este rollo? ({u})</div>
+      <div className="big-label">¿Cuánto pesa este rollo? ({u})</div>
       <div className="peso-disp">{peso || "0"} <span className="peso-u">{u}</span></div>
       <div className="peso-calc">
-        {money(prod.precio_rollo)} Ã— {kg || 0} {u} = <b>{money(cobro)}</b>
+        {money(prod.precio_rollo)} × {kg || 0} {u} = <b>{money(cobro)}</b>
       </div>
       <div className="numpad">
         {keys.map((k) => <button key={k} className="numk" onClick={() => onKey(k)}>{k}</button>)}
@@ -502,8 +487,8 @@ function VisorTickets({ tickets, onCancelar, onCerrar }) {
     <Overlay onCerrar={onCerrar}>
       {cancelando && <ModalCancelar ticket={cancelando} onConfirmar={hacerCancelacion} onCerrar={() => setCancelando(null)} />}
       <div className="tk-head">
-        <div className="modal-title" style={{ margin: 0 }}>ðŸ§¾ Tickets</div>
-        <button className="tk-x" onClick={onCerrar}>âœ•</button>
+        <div className="modal-title" style={{ margin: 0 }}>🧾 Tickets</div>
+        <button className="tk-x" onClick={onCerrar}>✕</button>
       </div>
 
       {dias.length === 0
@@ -528,9 +513,9 @@ function VisorTickets({ tickets, onCancelar, onCerrar }) {
                   </div>
                   <div className="tk-total" style={t.cancelado ? { textDecoration: "line-through", color: "#bbb" } : null}>{money(t.total)}</div>
                   {t.cancelado
-                    ? <button className="tk-print" onClick={() => imprimirVenta(t)}>ðŸ–¨ï¸</button>
+                    ? <button className="tk-print" onClick={() => imprimirVenta(t)}>🖨️</button>
                     : <div className="tk-acciones">
-                        <button className="tk-print" onClick={() => imprimirVenta(t)}>ðŸ–¨ï¸</button>
+                        <button className="tk-print" onClick={() => imprimirVenta(t)}>🖨️</button>
                         <button className="tk-cancel" onClick={() => setCancelando(t)}>Cancelar</button>
                       </div>}
                 </div>
@@ -553,19 +538,19 @@ function ModalCancelar({ ticket, onConfirmar, onCerrar }) {
       <div className="modal-title">Cancelar {ticket.folio}</div>
       <div className="cancel-aviso">Se regresará la tela al inventario y se anulará el cobro de <b>{money(ticket.total)}</b>.</div>
 
-      <div className="big-label">Â¿A qué sede regresa la tela?</div>
+      <div className="big-label">¿A qué sede regresa la tela?</div>
       <div className="seg-big">
-        <button className={`seg-opt ${sede === "guatemala" ? "seg-sel" : ""}`} onClick={() => setSede("guatemala")}>ðŸª Guatemala</button>
-        <button className={`seg-opt ${sede === "plomo" ? "seg-sel" : ""}`} onClick={() => setSede("plomo")}>ðŸ­ Plomo</button>
+        <button className={`seg-opt ${sede === "guatemala" ? "seg-sel" : ""}`} onClick={() => setSede("guatemala")}>🏪 Guatemala</button>
+        <button className={`seg-opt ${sede === "plomo" ? "seg-sel" : ""}`} onClick={() => setSede("plomo")}>🏭 Plomo</button>
       </div>
 
-      <div className="big-label">Â¿Por qué se cancela?</div>
+      <div className="big-label">¿Por qué se cancela?</div>
       <div className="motivos">
         {motivos.map((m) => (
           <button key={m} className={`motivo-chip ${motivo === m ? "motivo-on" : ""}`} onClick={() => setMotivo(m)}>{m}</button>
         ))}
       </div>
-      <input className="inp" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="O escribe el motivo”¦" style={{ marginTop: 10 }} />
+      <input className="inp" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="O escribe el motivo…" style={{ marginTop: 10 }} />
 
       <div className="modal-btns">
         <button className="mbtn-no" onClick={onCerrar}>No cancelar</button>
@@ -576,7 +561,7 @@ function ModalCancelar({ ticket, onConfirmar, onCerrar }) {
   );
 }
 
-/* ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== INVENTARIO ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
+/* ════════════ INVENTARIO ════════════ */
 function Admin({ productos, setProductos, setHistorial }) {
   const [ajustando, setAjustando] = useState(null);
   const [editando, setEditando] = useState(null);
@@ -594,7 +579,7 @@ function Admin({ productos, setProductos, setHistorial }) {
     setHistorial((prev) => [{ id: uid(), tipo: f.tipo, fecha: new Date().toISOString(), monto: 0, ubicacion: f.ubicacion, desc: `${f.tipo === "entrada" ? "Entrada" : "Salida"} · ${ajustando.nombre}`, total_unidades: cant }, ...prev]);
     setAjustando(null);
   }
-  // Traspaso Plomo â†’ Guatemala: descuenta de Plomo, suma a Guatemala
+  // Traspaso Plomo → Guatemala: descuenta de Plomo, suma a Guatemala
   function ejecutarTraspaso(prodId, cantidad) {
     const cant = Number(cantidad) || 0;
     const prod = productos.find((p) => p.id === prodId);
@@ -604,7 +589,7 @@ function Admin({ productos, setProductos, setHistorial }) {
       if (p.id !== prodId) return p;
       return { ...p, stock_plomo: Math.max(0, +(p.stock_plomo - cant).toFixed(2)), stock_guatemala: +(p.stock_guatemala + cant).toFixed(2) };
     }));
-    setHistorial((prev) => [{ id: uid(), tipo: "traspaso", fecha: new Date().toISOString(), monto: 0, ubicacion: "guatemala", desc: `Traspaso Plomo â†’ Guatemala · ${prod.nombre}`, total_unidades: cant }, ...prev]);
+    setHistorial((prev) => [{ id: uid(), tipo: "traspaso", fecha: new Date().toISOString(), monto: 0, ubicacion: "guatemala", desc: `Traspaso Plomo → Guatemala · ${prod.nombre}`, total_unidades: cant }, ...prev]);
     setTraspasando(false);
   }
   function guardar(f) {
@@ -613,14 +598,14 @@ function Admin({ productos, setProductos, setHistorial }) {
     else setProductos((prev) => [...prev, { ...limpio, id: uid() }]);
     setEditando(null);
   }
-  function borrar(p) { if (confirm(`Â¿Borrar "${p.nombre}"?`)) setProductos((prev) => prev.filter((x) => x.id !== p.id)); }
+  function borrar(p) { if (confirm(`¿Borrar "${p.nombre}"?`)) setProductos((prev) => prev.filter((x) => x.id !== p.id)); }
 
   return (
     <div>
       <div style={S.sectionHead}>
         <div style={S.sectionTitle}>📦 Inventario</div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button className="btn-traspaso" onClick={() => setTraspasando(true)}>ðŸ”„ Traspaso entre sedes</button>
+          <button className="btn-traspaso" onClick={() => setTraspasando(true)}>🔄 Traspaso entre sedes</button>
           <button className="btn-new" onClick={() => setEditando(nuevo)}>+ Agregar tela</button>
         </div>
       </div>
@@ -633,8 +618,8 @@ function Admin({ productos, setProductos, setHistorial }) {
               <div className="acard-top" style={{ background: t.bg, color: t.ink }}>
                 <div className="acard-name">{p.nombre}</div>
                 <div className="acard-actions">
-                  <button className="atool" onClick={() => setEditando(p)}>âœï¸</button>
-                  <button className="atool" onClick={() => borrar(p)}>ðŸ—‘ï¸</button>
+                  <button className="atool" onClick={() => setEditando(p)}>✏️</button>
+                  <button className="atool" onClick={() => borrar(p)}>🗑️</button>
                 </div>
               </div>
               <div className="acard-body">
@@ -645,8 +630,8 @@ function Admin({ productos, setProductos, setHistorial }) {
                   <div className="acp-unidad">por {p.unidad}</div>
                 </div>
                 <div className="acard-stocks">
-                  <div className="sbox"><div className="sbox-l">ðŸª Guatemala</div><div className="sbox-n" style={{ color: critGT ? "#E0392B" : "#333" }}>{p.stock_guatemala}</div></div>
-                  <div className="sbox"><div className="sbox-l">ðŸ­ Plomo</div><div className="sbox-n" style={{ color: critPL ? "#E0392B" : "#333" }}>{p.stock_plomo}</div></div>
+                  <div className="sbox"><div className="sbox-l">🏪 Guatemala</div><div className="sbox-n" style={{ color: critGT ? "#E0392B" : "#333" }}>{p.stock_guatemala}</div></div>
+                  <div className="sbox"><div className="sbox-l">🏭 Plomo</div><div className="sbox-n" style={{ color: critPL ? "#E0392B" : "#333" }}>{p.stock_plomo}</div></div>
                 </div>
                 <button className="btn-adj" onClick={() => setAjustando(p)}>Entrada / Salida</button>
               </div>
@@ -662,28 +647,28 @@ function Admin({ productos, setProductos, setHistorial }) {
 }
 
 function NumPad({ onKey }) {
-  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "00", "⌋"];
+  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "00", "←"];
   return <div className="numpad">{keys.map((k) => <button key={k} className="numk" onClick={() => onKey(k)}>{k}</button>)}</div>;
 }
 
 function ModalAjuste({ prod, onGuardar, onCerrar }) {
   const [f, setF] = useState({ tipo: "entrada", ubicacion: "guatemala", cantidad: "" });
-  const onKey = (k) => setF((s) => ({ ...s, cantidad: k === "âŒ«" ? String(s.cantidad).slice(0, -1) : String(s.cantidad) + k }));
+  const onKey = (k) => setF((s) => ({ ...s, cantidad: k === "←" ? String(s.cantidad).slice(0, -1) : String(s.cantidad) + k }));
   const esEnt = f.tipo === "entrada";
   return (
     <Overlay onCerrar={onCerrar}>
       <div className="modal-title">{prod.nombre}</div>
-      <div className="big-label">Â¿Qué hago?</div>
+      <div className="big-label">¿Qué hago?</div>
       <div className="seg-big">
-        <button className={`seg-opt ${esEnt ? "seg-in" : ""}`} onClick={() => setF({ ...f, tipo: "entrada" })}>â¬†ï¸ Entra</button>
-        <button className={`seg-opt ${!esEnt ? "seg-out" : ""}`} onClick={() => setF({ ...f, tipo: "salida" })}>â¬‡ï¸ Sale</button>
+        <button className={`seg-opt ${esEnt ? "seg-in" : ""}`} onClick={() => setF({ ...f, tipo: "entrada" })}>⬆️ Entra</button>
+        <button className={`seg-opt ${!esEnt ? "seg-out" : ""}`} onClick={() => setF({ ...f, tipo: "salida" })}>⬇️ Sale</button>
       </div>
-      <div className="big-label">Â¿En qué sede?</div>
+      <div className="big-label">¿En qué sede?</div>
       <div className="seg-big">
-        <button className={`seg-opt ${f.ubicacion === "guatemala" ? "seg-sel" : ""}`} onClick={() => setF({ ...f, ubicacion: "guatemala" })}>ðŸª Guatemala</button>
-        <button className={`seg-opt ${f.ubicacion === "plomo" ? "seg-sel" : ""}`} onClick={() => setF({ ...f, ubicacion: "plomo" })}>ðŸ­ Plomo</button>
+        <button className={`seg-opt ${f.ubicacion === "guatemala" ? "seg-sel" : ""}`} onClick={() => setF({ ...f, ubicacion: "guatemala" })}>🏪 Guatemala</button>
+        <button className={`seg-opt ${f.ubicacion === "plomo" ? "seg-sel" : ""}`} onClick={() => setF({ ...f, ubicacion: "plomo" })}>🏭 Plomo</button>
       </div>
-      <div className="big-label">Â¿Cuánto? ({prod.unidad})</div>
+      <div className="big-label">¿Cuánto? ({prod.unidad})</div>
       <div className="numdisp">{f.cantidad || "0"}</div>
       <NumPad onKey={onKey} />
       <div className="modal-btns">
@@ -694,14 +679,14 @@ function ModalAjuste({ prod, onGuardar, onCerrar }) {
   );
 }
 
-/* Traspaso de tela: Plomo (bodega) â†’ Guatemala (sucursal) */
+/* Traspaso de tela: Plomo (bodega) → Guatemala (sucursal) */
 function ModalTraspaso({ productos, onGuardar, onCerrar }) {
   const [prodId, setProdId] = useState("");
   const [cant, setCant] = useState("");
   const conStock = productos.filter((p) => p.stock_plomo > 0);
   const prod = productos.find((p) => p.id === prodId);
   const onKey = (k) => setCant((s) => {
-    if (k === "âŒ«") return s.slice(0, -1);
+    if (k === "←") return s.slice(0, -1);
     if (k === "." && s.includes(".")) return s;
     if (k === "." && s === "") return "0.";
     return s + k;
@@ -712,14 +697,14 @@ function ModalTraspaso({ productos, onGuardar, onCerrar }) {
 
   return (
     <Overlay onCerrar={onCerrar}>
-      <div className="modal-title">ðŸ”„ Traspaso entre sedes</div>
+      <div className="modal-title">🔄 Traspaso entre sedes</div>
       <div className="trasp-flujo">
-        <span className="trasp-de">ðŸ­ PLOMO</span>
-        <span className="trasp-flecha">â†’</span>
-        <span className="trasp-a">ðŸª GUATEMALA</span>
+        <span className="trasp-de">🏭 PLOMO</span>
+        <span className="trasp-flecha">→</span>
+        <span className="trasp-a">🏪 GUATEMALA</span>
       </div>
 
-      <div className="big-label">Â¿Qué tela mueves?</div>
+      <div className="big-label">¿Qué tela mueves?</div>
       {!prodId ? (
         <div className="trasp-lista">
           {conStock.length === 0
@@ -735,10 +720,10 @@ function ModalTraspaso({ productos, onGuardar, onCerrar }) {
         <>
           <button className="trasp-sel" onClick={() => { setProdId(""); setCant(""); }}>
             <span className="trasp-nom">{prod.nombre}</span>
-            <span className="trasp-cambiar">cambiar âœŽ</span>
+            <span className="trasp-cambiar">cambiar ✎</span>
           </button>
           <div className="trasp-hay">Hay <b>{prod.stock_plomo} {prod.unidad}</b> en Plomo</div>
-          <div className="big-label">Â¿Cuánto mueves? ({prod.unidad})</div>
+          <div className="big-label">¿Cuánto mueves? ({prod.unidad})</div>
           <div className="numdisp" style={excede ? { color: "#E0392B" } : null}>{cant || "0"}</div>
           {excede && <div className="trasp-error">No hay tanto en Plomo (máx {prod.stock_plomo})</div>}
           <NumPad onKey={onKey} />
@@ -794,14 +779,14 @@ function Overlay({ children, onCerrar }) {
   return <div className="ov" onClick={onCerrar}><div className="modal" onClick={(e) => e.stopPropagation()}>{children}</div></div>;
 }
 
-/* ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== REPORTES ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
+/* ════════════ REPORTES ════════════ */
 function Reportes({ historial, productos }) {
   const [filtro, setFiltro] = useState("hoy");
   const movs = historial.filter((m) => filtro === "hoy" ? dateKey(m.fecha) === dateKey(new Date()) : new Date(m.fecha) >= new Date(Date.now() - 7 * unDia));
   const ventas = movs.filter((m) => m.tipo === "venta");
   const canceladas = movs.filter((m) => m.tipo === "cancelada"); // monto negativo
   const d = {
-    filtro: filtro === "hoy" ? "Hoy" : "Ãšltimos 7 días",
+    filtro: filtro === "hoy" ? "Hoy" : "Últimos 7 días",
     ingresos: ventas.reduce((a, v) => a + v.monto, 0) + canceladas.reduce((a, v) => a + v.monto, 0), // canceladas restan
     ventasCount: ventas.length,
     entradas: movs.filter((m) => m.tipo === "entrada").reduce((a, m) => a + m.total_unidades, 0),
@@ -819,16 +804,16 @@ function Reportes({ historial, productos }) {
             <button className={`seg2-b ${filtro === "hoy" ? "seg2-on" : ""}`} onClick={() => setFiltro("hoy")}>Hoy</button>
             <button className={`seg2-b ${filtro === "semana" ? "seg2-on" : ""}`} onClick={() => setFiltro("semana")}>7 días</button>
           </div>
-          <button className="btn-tk" onClick={() => imprimirCorte(d)}>ðŸ–¨ï¸ Ticket</button>
-          <button className="btn-pdf" onClick={() => exportarPDF(d)}>ðŸ“„ PDF</button>
+          <button className="btn-tk" onClick={() => imprimirCorte(d)}>🖨️ Ticket</button>
+          <button className="btn-pdf" onClick={() => exportarPDF(d)}>📄 PDF</button>
         </div>
       </div>
       <div style={S.kpiRow}>
-        <div className="kpi kpi-big"><div className="kpi-l">ðŸ’° Ventas de {d.filtro.toLowerCase()}</div><div className="kpi-v" style={{ color: "#4CAF00" }}>{money(d.ingresos)}</div><div className="kpi-s">{d.ventasCount} ventas</div></div>
-        <div className="kpi"><div className="kpi-l">â¬†ï¸ Entró</div><div className="kpi-v" style={{ color: "#22B8C4" }}>+{d.entradas}</div></div>
-        <div className="kpi"><div className="kpi-l">â¬‡ï¸ Salió</div><div className="kpi-v" style={{ color: "#FF5C8A" }}>âˆ’{d.salidas}</div></div>
+        <div className="kpi kpi-big"><div className="kpi-l">💰 Ventas de {d.filtro.toLowerCase()}</div><div className="kpi-v" style={{ color: "#4CAF00" }}>{money(d.ingresos)}</div><div className="kpi-s">{d.ventasCount} ventas</div></div>
+        <div className="kpi"><div className="kpi-l">⬆️ Entró</div><div className="kpi-v" style={{ color: "#22B8C4" }}>+{d.entradas}</div></div>
+        <div className="kpi"><div className="kpi-l">⬇️ Salió</div><div className="kpi-v" style={{ color: "#FF5C8A" }}>−{d.salidas}</div></div>
       </div>
-      {critico.length > 0 && <div className="alerta">âš ï¸Â Ã¯Â¸ Poco stock: <b>{critico.map((p) => p.nombre).join(", ")}</b></div>}
+      {critico.length > 0 && <div className="alerta">⚠️ Poco stock: <b>{critico.map((p) => p.nombre).join(", ")}</b></div>}
       <div style={S.tableWrap}>
         <div style={S.tableHead}>Movimientos</div>
         <div style={{ overflowX: "auto" }}>
@@ -839,7 +824,7 @@ function Reportes({ historial, productos }) {
               {d.movs.map((m) => (
                 <tr key={m.id}>
                   <td>{new Date(m.fecha).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
-                  <td>{m.tipo === "venta" && <span className="badge bg-v">Venta</span>}{m.tipo === "entrada" && <span className="badge bg-e">Entró</span>}{m.tipo === "salida" && <span className="badge bg-s">Salió</span>}{m.tipo === "traspaso" && <span className="badge bg-t">Traspaso</span>}{m.tipo === "cancelada" && <span className="badge bg-c">Cancelada</span>}{m.tipo === "aviso_stock" && <span className="badge bg-aviso">Aviso</span>}</td>
+                  <td>{m.tipo === "venta" && <span className="badge bg-v">Venta</span>}{m.tipo === "entrada" && <span className="badge bg-e">Entró</span>}{m.tipo === "salida" && <span className="badge bg-s">Salió</span>}{m.tipo === "traspaso" && <span className="badge bg-t">Traspaso</span>}{m.tipo === "cancelada" && <span className="badge bg-c">Cancelada</span>}</td>
                   <td>{m.ubicacion === "guatemala" ? "Guatemala" : "Plomo"}</td>
                   <td>{m.desc}</td>
                   <td style={{ fontWeight: 800 }}>{m.total_unidades}</td>
@@ -858,17 +843,17 @@ function Festejo({ data }) {
   return (
     <div className="festejo-ov">
       <div className="festejo-card">
-        <div className="festejo-check">âœ“</div>
-        <div className="festejo-done">Â¡Listo!</div>
+        <div className="festejo-check">✓</div>
+        <div className="festejo-done">¡Listo!</div>
         <div className="festejo-total">{money(data.total)}</div>
-        <div className="festejo-sub">Imprimiendo ticket ðŸ–¨ï¸</div>
+        <div className="festejo-sub">Imprimiendo ticket 🖨️</div>
       </div>
     </div>
   );
 }
 function Toast({ texto }) { return <div className="toast">{texto}</div>; }
 
-/* ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== ESTILOS ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
+/* ════════════ ESTILOS ════════════ */
 const F = "'Nunito', system-ui, sans-serif";
 const CSS = `
 *{box-sizing:border-box}
@@ -908,7 +893,6 @@ body,html{margin:0;background:#FFF8F0;font-family:${F};color:#3A2E26}
 .prod-ok{color:#3A7A00}
 .prod-low{color:#C46A00}
 .prod-out{color:#C0392B}
-.prod-sinreg{color:#B06A00;font-size:14px}
 .prod-buys{display:flex;gap:10px}
 .buy{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:14px 6px;border:none;border-radius:18px;background:#FFF;color:var(--ink);cursor:pointer;box-shadow:0 4px 0 rgba(0,0,0,.15);transition:.1s}
 .buy:active:not(:disabled){transform:translateY(4px);box-shadow:none}
@@ -1032,7 +1016,7 @@ body,html{margin:0;background:#FFF8F0;font-family:${F};color:#3A2E26}
 .tbl th{background:#FFF8F0;color:#9A8674;font-size:15px;font-weight:900;padding:14px 16px;text-align:left;border-bottom:3px solid #EFE3D5}
 .tbl td{padding:14px 16px;border-bottom:1px solid #F2E9DE;font-size:16px;font-weight:600}
 .badge{font-size:14px;font-weight:900;padding:4px 12px;border-radius:999px;color:#fff}
-.bg-v{background:#7BC62D}.bg-e{background:#22B8C4}.bg-s{background:#FF5C8A}.bg-t{background:#9B6BF0}.bg-c{background:#999}.bg-aviso{background:#E8A317}
+.bg-v{background:#7BC62D}.bg-e{background:#22B8C4}.bg-s{background:#FF5C8A}.bg-t{background:#9B6BF0}.bg-c{background:#999}
 .tk-acciones{display:flex;gap:6px;flex-shrink:0}
 .tk-cancel{padding:12px 14px;background:#FFF;color:#FF5C8A;border:2px solid #FF5C8A;border-radius:14px;font-size:14px;font-weight:900;cursor:pointer;transition:.1s}
 .tk-cancel:active{transform:scale(.95)}
