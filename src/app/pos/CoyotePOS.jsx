@@ -143,11 +143,11 @@ export default function CoyotePOS({ initialProducts }) {
 }
 
 function TopBar({ pantalla, setPantalla }) {
-  const tabs = [["vender", "Vender", "🛒"], ["admin", "Inventario", "📦"], ["reportes", "Reportes", "📊"]];
+  const tabs = [["vender", "Vender", "\uD83D\uDED2"], ["admin", "Inventario", "\uD83D\uDCE6"], ["reportes", "Reportes", "\uD83D\uDCCA"]];
   return (
     <header style={S.top}>
       <div style={S.brand}>
-        <div className="logo">ðŸº</div>
+        <div className="logo">\uD83D\uDC3A</div>
         <div style={S.brandName}>COYOTE</div>
       </div>
       <nav style={S.nav}>
@@ -444,7 +444,7 @@ function ConfirmarCobro({ total, piezas, metodo, conIva, ivaMonto, ubicacion, on
 function CapturarPeso({ prod, onGuardar, onCerrar }) {
   const [peso, setPeso] = useState("");
   const u = prod.unidad;
-  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "âŒ«"];
+  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "\u232B"];
   const onKey = (k) => setPeso((s) => {
     if (k === "âŒ«") return s.slice(0, -1);
     if (k === "." && s.includes(".")) return s; // un solo punto
@@ -662,7 +662,7 @@ function Admin({ productos, setProductos, setHistorial }) {
 }
 
 function NumPad({ onKey }) {
-  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "00", "âŒ«"];
+  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "00", "\u232B"];
   return <div className="numpad">{keys.map((k) => <button key={k} className="numk" onClick={() => onKey(k)}>{k}</button>)}</div>;
 }
 
