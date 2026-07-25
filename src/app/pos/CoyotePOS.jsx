@@ -1,14 +1,14 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
-/* ════════════════════════════════════════════════════════════
-   COYOTE POS v9 — FÁCIL PARA TODOS
-   · Claro y suave, con los colores vivos de Coyote
-   · Letra muy grande, botones enormes, pocas opciones a la vez
-   · Confirmación clara antes de cobrar
-   · Venta por corte y por rollo · persistencia · CRUD · reportes
-   ════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   COYOTE POS v9 â€” FÃCIL PARA TODOS
+   Â· Claro y suave, con los colores vivos de Coyote
+   Â· Letra muy grande, botones enormes, pocas opciones a la vez
+   Â· ConfirmaciÃ³n clara antes de cobrar
+   Â· Venta por corte y por rollo Â· persistencia Â· CRUD Â· reportes
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 const money = (n) => "$" + Number(n || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -18,7 +18,7 @@ const LIMITE_MAYOREO = 5; // a partir de 5 unidades, el corte usa precio de mayo
 
 /* Colores vivos de Coyote sobre claro. Cada tela su color. */
 const TINTES = [
-  { bg: "#FF8A3D", ink: "#5A2800", soft: "#FFF1E6" }, // ámbar coyote
+  { bg: "#FF8A3D", ink: "#5A2800", soft: "#FFF1E6" }, // Ã¡mbar coyote
   { bg: "#7BC62D", ink: "#284800", soft: "#F1F9E4" }, // verde
   { bg: "#22B8C4", ink: "#003E44", soft: "#E2F7F9" }, // turquesa
   { bg: "#9B6BF0", ink: "#2C0F5E", soft: "#F2EBFE" }, // morado
@@ -37,17 +37,17 @@ const DB = {
 const SEED_PROD = [
   { id: "p1", sku: "LIL-01X", nombre: "Liluna",       precio: 320, precio_mayoreo: 290, precio_rollo: 270, unidad: "m",  stock_guatemala: 40, minimo: 10, stock_plomo: 150 },
   { id: "p2", sku: "PHX-001", nombre: "Phoenix",      precio: 189, precio_mayoreo: 170, precio_rollo: 155, unidad: "m",  stock_guatemala: 80, minimo: 20, stock_plomo: 120 },
-  { id: "p3", sku: "ALG-004", nombre: "Algodón",      precio: 210, precio_mayoreo: 190, precio_rollo: 175, unidad: "kg", stock_guatemala: 45, minimo: 15, stock_plomo: 64  },
+  { id: "p3", sku: "ALG-004", nombre: "AlgodÃ³n",      precio: 210, precio_mayoreo: 190, precio_rollo: 175, unidad: "kg", stock_guatemala: 45, minimo: 15, stock_plomo: 64  },
   { id: "p4", sku: "DRY-022", nombre: "Dry-Fit Azul", precio: 130, precio_mayoreo: 115, precio_rollo: 105, unidad: "kg", stock_guatemala: 12, minimo: 30, stock_plomo: 210 },
 ];
 const hoyMs = Date.now();
 const SEED_MOVS = [
   { id: uid(), tipo: "venta",   fecha: new Date(hoyMs - unDia * 2).toISOString(), monto: 6000, ubicacion: "guatemala", desc: "Venta GT-0102", total_unidades: 25 },
-  { id: uid(), tipo: "entrada", fecha: new Date(hoyMs - unDia).toISOString(),     monto: 0,    ubicacion: "plomo",     desc: "Recepción Liluna", total_unidades: 150 },
+  { id: uid(), tipo: "entrada", fecha: new Date(hoyMs - unDia).toISOString(),     monto: 0,    ubicacion: "plomo",     desc: "RecepciÃ³n Liluna", total_unidades: 150 },
   { id: uid(), tipo: "venta",   fecha: new Date(hoyMs - 3600000).toISOString(),   monto: 1250, ubicacion: "guatemala", desc: "Venta GT-0103", total_unidades: 6 },
 ];
 
-/* ──────── Impresión ──────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€ ImpresiÃ³n â”€â”€â”€â”€â”€â”€â”€â”€ */
 function abrirYImprimir(html, w, h) {
   const win = window.open("", "_blank", `width=${w},height=${h}`);
   if (!win) return alert("Activa las ventanas emergentes para imprimir.");
@@ -72,7 +72,7 @@ function imprimirVenta(t) {
   ${t.conIva ? `<tr class="tot"><td>IVA 16%</td><td class="i">+${money(t.ivaMonto)}</td></tr>` : ""}
   <tr class="gr"><td>TOTAL</td><td class="i">${money(t.total)}</td></tr>
   <tr class="tot"><td>Pago</td><td class="i">${t.metodoPago}</td></tr></table>
-  <div class="hr"></div><div class="c">¡Gracias por tu compra!<br>coyotetextil.com</div></body></html>`;
+  <div class="hr"></div><div class="c">Â¡Gracias por tu compra!<br>coyotetextil.com</div></body></html>`;
   abrirYImprimir(html, 340, 600);
 }
 function imprimirCorte(d) {
@@ -86,7 +86,7 @@ function imprimirCorte(d) {
   abrirYImprimir(html, 340, 600);
 }
 function exportarPDF(d) {
-  const filas = d.movs.map((m) => `<tr><td>${new Date(m.fecha).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}</td><td><b>${m.tipo}</b></td><td>${m.ubicacion}</td><td>${m.desc}</td><td>${m.total_unidades}</td><td class="r"><b>${m.monto > 0 ? money(m.monto) : "—"}</b></td></tr>`).join("");
+  const filas = d.movs.map((m) => `<tr><td>${new Date(m.fecha).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}</td><td><b>${m.tipo}</b></td><td>${m.ubicacion}</td><td>${m.desc}</td><td>${m.total_unidades}</td><td class="r"><b>${m.monto > 0 ? money(m.monto) : "â€”"}</b></td></tr>`).join("");
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Reporte Coyote</title>
   <style>@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap');body{font-family:'Nunito',sans-serif;color:#222;padding:48px}
   .h{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:5px solid #FF8A3D;padding-bottom:18px;margin-bottom:28px}h1{margin:0;font-size:44px;font-weight:900}.acc{color:#FF8A3D}
@@ -99,26 +99,26 @@ function exportarPDF(d) {
   abrirYImprimir(html, 980, 720);
 }
 
-/* ════════════ APP ════════════ */
-export default function CoyotePOS() {
+/* â•â•â•â•â•â•â•â•â•â•â•â• APP â•â•â•â•â•â•â•â•â•â•â•â• */
+export default function CoyotePOS({ initialProducts }) {
   const [montado, setMontado] = useState(false);
   const [pantalla, setPantalla] = useState("vender");
   // Arranca con los datos base (igual en servidor y navegador, sin desajuste)
-  const [productos, setProductos] = useState(SEED_PROD);
+  const [productos, setProductos] = useState(initialProducts || SEED_PROD);
   const [historial, setHistorial] = useState(SEED_MOVS);
   const [tickets, setTickets] = useState([]); // ventas completas para reimprimir
   const [ubicacion, setUbicacion] = useState("guatemala");
 
   // Ya en el navegador: cargamos lo guardado en localStorage
   useEffect(() => {
-    setProductos(DB.load("productos", SEED_PROD));
+    if (initialProducts) DB.save("productos", initialProducts); setProductos(DB.load("productos", initialProducts || SEED_PROD));
     setHistorial(DB.load("historial", SEED_MOVS));
     setTickets(DB.load("tickets", []));
     setUbicacion(DB.load("ubicacion", "guatemala"));
     setMontado(true);
   }, []);
 
-  // Guardamos solo después de montar (no pisar datos durante la carga inicial)
+  // Guardamos solo despuÃ©s de montar (no pisar datos durante la carga inicial)
   useEffect(() => { if (montado) DB.save("productos", productos); }, [productos, montado]);
   useEffect(() => { if (montado) DB.save("historial", historial); }, [historial, montado]);
   useEffect(() => { if (montado) DB.save("tickets", tickets); }, [tickets, montado]);
@@ -143,11 +143,11 @@ export default function CoyotePOS() {
 }
 
 function TopBar({ pantalla, setPantalla }) {
-  const tabs = [["vender", "Vender", "🛒"], ["admin", "Inventario", "📦"], ["reportes", "Reportes", "📊"]];
+  const tabs = [["vender", "Vender", "ðŸ›’"], ["admin", "Inventario", "ðŸ“¦"], ["reportes", "Reportes", "ðŸ“Š"]];
   return (
     <header style={S.top}>
       <div style={S.brand}>
-        <div className="logo">🐺</div>
+        <div className="logo">ðŸº</div>
         <div style={S.brandName}>COYOTE</div>
       </div>
       <nav style={S.nav}>
@@ -161,9 +161,9 @@ function TopBar({ pantalla, setPantalla }) {
   );
 }
 
-/* ════════════ VENDER ════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â• VENDER â•â•â•â•â•â•â•â•â•â•â•â• */
 function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial, tickets, setTickets }) {
-  const [carrito, setCarrito] = useState([]); // array de líneas
+  const [carrito, setCarrito] = useState([]); // array de lÃ­neas
   const [descuentoPct, setDescuentoPct] = useState(0);
   const [conIva, setConIva] = useState(false);
   const [metodoPago, setMetodoPago] = useState("Efectivo");
@@ -180,11 +180,11 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
   // unidades de un producto ya comprometidas en el carrito (suma de cortes y pesos de rollos)
   const consumoDe = (p) => carrito.filter((l) => l.producto.id === p.id).reduce((a, l) => a + l.cantidad, 0);
 
-  // precio unitario del corte según cantidad (mayoreo a partir del límite)
+  // precio unitario del corte segÃºn cantidad (mayoreo a partir del lÃ­mite)
   const precioCorte = (p, cant) => (cant >= LIMITE_MAYOREO ? p.precio_mayoreo : p.precio);
 
-  // CORTE: suma 1 unidad y recalcula el precio de toda la línea (menudeo/mayoreo)
-  // La venta NUNCA se bloquea (el inventario real aún no está cargado). Si pasa
+  // CORTE: suma 1 unidad y recalcula el precio de toda la lÃ­nea (menudeo/mayoreo)
+  // La venta NUNCA se bloquea (el inventario real aÃºn no estÃ¡ cargado). Si pasa
   // del stock registrado, avisamos de forma amable pero dejamos continuar.
   function agregarCorte(p) {
     if (consumoDe(p) + 1 > stockEn(p)) flash(`Ojo: registrabas ${stockEn(p)} ${p.unidad} de ${p.nombre}. Puedes seguir vendiendo.`);
@@ -217,7 +217,7 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
         const n = [...c]; n[i] = { ...l, cantidad: nuevaCant, precio_unit: precioCorte(l.producto, nuevaCant) };
         return n;
       }
-      return c.filter((x) => x.lid !== lid); // rollo o último corte: se borra entero
+      return c.filter((x) => x.lid !== lid); // rollo o Ãºltimo corte: se borra entero
     });
   }
 
@@ -231,7 +231,7 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
 
   function confirmarCobro() {
     let unds = 0;
-    const faltantes = []; // telas que quedaron en negativo: qué había y cuánto se vendió
+    const faltantes = []; // telas que quedaron en negativo: quÃ© habÃ­a y cuÃ¡nto se vendiÃ³
     setProductos((prev) => prev.map((p) => {
       const c = consumoDe(p); if (c === 0) return p; unds += c;
       const antes = ubicacion === "guatemala" ? p.stock_guatemala : p.stock_plomo;
@@ -245,11 +245,11 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
     imprimirVenta(ticketCompleto);
     setTickets((prev) => [ticketCompleto, ...prev]); // guarda la venta completa para reimprimir
     setHistorial((prev) => {
-      const nuevos = [{ id: uid(), tipo: "venta", fecha: ticketCompleto.fecha, monto: total, ubicacion, desc: `Venta ${folio} · ${metodoPago}`, total_unidades: +unds.toFixed(2) }];
-      // Si algo se vendió sin stock registrado, dejamos un aviso auditable (no invisible)
+      const nuevos = [{ id: uid(), tipo: "venta", fecha: ticketCompleto.fecha, monto: total, ubicacion, desc: `Venta ${folio} Â· ${metodoPago}`, total_unidades: +unds.toFixed(2) }];
+      // Si algo se vendiÃ³ sin stock registrado, dejamos un aviso auditable (no invisible)
       if (faltantes.length > 0) {
-        const detalle = faltantes.map((f) => `${f.nombre} (había ${f.habia}, vendió ${f.vendido} ${f.unidad})`).join(", ");
-        nuevos.push({ id: uid(), tipo: "aviso_stock", fecha: ticketCompleto.fecha, monto: 0, ubicacion, desc: `⚠️  Stock registrado insuficiente en ${folio}: ${detalle}`, total_unidades: 0 });
+        const detalle = faltantes.map((f) => `${f.nombre} (habÃ­a ${f.habia}, vendiÃ³ ${f.vendido} ${f.unidad})`).join(", ");
+        nuevos.push({ id: uid(), tipo: "aviso_stock", fecha: ticketCompleto.fecha, monto: 0, ubicacion, desc: `âš ï¸  Stock registrado insuficiente en ${folio}: ${detalle}`, total_unidades: 0 });
       }
       return [...nuevos, ...prev];
     });
@@ -272,7 +272,7 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
     setTickets((prev) => prev.map((t) => (t.folio === ticket.folio ? { ...t, cancelado: true, motivoCancel: motivo, fechaCancel: new Date().toISOString() } : t)));
     // Registrar en el historial (monto negativo para restar de ingresos)
     const unds = ticket.items.reduce((a, it) => a + it.cantidad, 0);
-    setHistorial((prev) => [{ id: uid(), tipo: "cancelada", fecha: new Date().toISOString(), monto: -ticket.total, ubicacion: sedeDestino, desc: `Cancelada ${ticket.folio} · ${motivo}`, total_unidades: +unds.toFixed(2) }, ...prev]);
+    setHistorial((prev) => [{ id: uid(), tipo: "cancelada", fecha: new Date().toISOString(), monto: -ticket.total, ubicacion: sedeDestino, desc: `Cancelada ${ticket.folio} Â· ${motivo}`, total_unidades: +unds.toFixed(2) }, ...prev]);
   }
 
   const visibles = useMemo(() => {
@@ -293,21 +293,21 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
       {verTickets && <VisorTickets tickets={tickets} onCancelar={cancelarVenta} onCerrar={() => setVerTickets(false)} />}
 
       <div style={S.leftSide}>
-        {/* Barra: pregunta + botón últimos tickets */}
+        {/* Barra: pregunta + botÃ³n Ãºltimos tickets */}
         <div style={S.tituloRow}>
-          <div style={S.pregunta}>¿De dónde sale la tela?</div>
-          <button className="btn-tickets" onClick={() => setVerTickets(true)}>🧾 Últimos tickets</button>
+          <div style={S.pregunta}>Â¿De dÃ³nde sale la tela?</div>
+          <button className="btn-tickets" onClick={() => setVerTickets(true)}>ðŸ§¾ Ãšltimos tickets</button>
         </div>
         <div style={S.ubiRow}>
           <button className={`ubi ${ubicacion === "guatemala" ? "ubi-on" : ""}`} onClick={() => setUbicacion("guatemala")}>
-            <span className="ubi-ic">🏪</span><span>GUATEMALA</span><span className="ubi-sub">Sucursal</span>
+            <span className="ubi-ic">ðŸª</span><span>GUATEMALA</span><span className="ubi-sub">Sucursal</span>
           </button>
           <button className={`ubi ${ubicacion === "plomo" ? "ubi-on" : ""}`} onClick={() => setUbicacion("plomo")}>
-            <span className="ubi-ic">🏭</span><span>PLOMO</span><span className="ubi-sub">Bodega</span>
+            <span className="ubi-ic">ðŸ­</span><span>PLOMO</span><span className="ubi-sub">Bodega</span>
           </button>
         </div>
 
-        <input className="buscar" placeholder="🔍 Buscar tela…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+        <input className="buscar" placeholder="ðŸ” Buscar telaâ€¦" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
 
         <div style={S.pregunta}>Toca la tela que vendes</div>
         <div style={S.productGrid}>
@@ -322,9 +322,9 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
               <div key={p.id} className="prod" style={{ "--bg": t.bg, "--ink": t.ink, "--soft": t.soft }}>
                 <div className="prod-name">{p.nombre}</div>
                 {sinRegistro
-                  ? <div className="prod-stock prod-sinreg">Sin registro · puedes vender</div>
+                  ? <div className="prod-stock prod-sinreg">Sin registro Â· puedes vender</div>
                   : bajo
-                    ? <div className="prod-stock prod-low">¡Quedan {disp} {p.unidad}!</div>
+                    ? <div className="prod-stock prod-low">Â¡Quedan {disp} {p.unidad}!</div>
                     : <div className="prod-stock prod-ok">{disp} {p.unidad}</div>}
                 <div className="prod-precios">
                   <span>Menudeo <b>{money(p.precio)}</b></span>
@@ -343,19 +343,19 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
               </div>
             );
           })}
-          {visibles.length === 0 && <div style={S.noRes}>No encontré “{busqueda}”.</div>}
+          {visibles.length === 0 && <div style={S.noRes}>No encontrÃ© â€œ{busqueda}â€.</div>}
         </div>
       </div>
 
       {/* TICKET */}
       <aside style={S.cart}>
         <div style={S.cartHead}>
-          <span>🧾 Venta</span>
+          <span>ðŸ§¾ Venta</span>
           {totalPiezas > 0 && <span className="cart-n">{totalPiezas}</span>}
         </div>
         <div style={S.cartScroll}>
           {lineas.length === 0
-            ? <div style={S.cartEmpty}><div className="big-arrow">👈</div>Toca una tela<br />para empezar</div>
+            ? <div style={S.cartEmpty}><div className="big-arrow">ðŸ‘ˆ</div>Toca una tela<br />para empezar</div>
             : lineas.map((l) => {
                 const t = tinte(productos.findIndex((p) => p.id === l.producto.id));
                 const u = l.producto.unidad;
@@ -370,17 +370,17 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
                         {esMayoreo && <span className="mayoreo-tag">MAYOREO</span>}
                       </div>
                       {l.tipo === "rollo"
-                        ? <div className="crow-price">{l.cantidad} {u} × {money(l.precio_unit)} = <b>{money(lineaTotal)}</b></div>
-                        : <div className="crow-price">{l.cantidad} {u} × {money(l.precio_unit)} = <b>{money(lineaTotal)}</b></div>}
+                        ? <div className="crow-price">{l.cantidad} {u} Ã— {money(l.precio_unit)} = <b>{money(lineaTotal)}</b></div>
+                        : <div className="crow-price">{l.cantidad} {u} Ã— {money(l.precio_unit)} = <b>{money(lineaTotal)}</b></div>}
                     </div>
                     {l.tipo === "corte" ? (
                       <div className="step">
-                        <button className="step-b step-min" onClick={() => quitarLinea(l.lid)}>−</button>
+                        <button className="step-b step-min" onClick={() => quitarLinea(l.lid)}>âˆ’</button>
                         <span className="step-n">{l.cantidad}</span>
                         <button className="step-b step-plus" onClick={() => agregarCorte(l.producto)}>+</button>
                       </div>
                     ) : (
-                      <button className="step-b step-min" onClick={() => quitarLinea(l.lid)} title="Quitar rollo">−</button>
+                      <button className="step-b step-min" onClick={() => quitarLinea(l.lid)} title="Quitar rollo">âˆ’</button>
                     )}
                   </div>
                 );
@@ -394,19 +394,19 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
               <button key={v} className={`dchip ${descuentoPct === v ? "dchip-on" : ""}`} onClick={() => setDescuentoPct(v)}>{v === 0 ? "Sin" : `${v}%`}</button>
             ))}
           </div>
-          <div className="dlabel">¿Cómo paga?</div>
+          <div className="dlabel">Â¿CÃ³mo paga?</div>
           <div className="pays">
             {["Efectivo", "Tarjeta", "Transfer"].map((m) => (
               <button key={m} className={`pay ${metodoPago === m ? "pay-on" : ""}`} onClick={() => setMetodoPago(m)}>{m}</button>
             ))}
           </div>
           <button className={`iva-btn ${conIva ? "iva-on" : ""}`} onClick={() => setConIva(!conIva)}>
-            <span className="iva-check">{conIva ? "✓" : ""}</span>
+            <span className="iva-check">{conIva ? "âœ“" : ""}</span>
             Agregar IVA (16%)
           </button>
           <div style={S.totalCard}>
             {(descuentoPct > 0 || conIva) && <div className="tl"><span>Subtotal</span><span>{money(subtotal)}</span></div>}
-            {descuentoPct > 0 && <div className="tl" style={{ color: "#C46A00" }}><span>Descuento {descuentoPct}%</span><span>−{money(descuentoMonto)}</span></div>}
+            {descuentoPct > 0 && <div className="tl" style={{ color: "#C46A00" }}><span>Descuento {descuentoPct}%</span><span>âˆ’{money(descuentoMonto)}</span></div>}
             {conIva && <div className="tl" style={{ color: "#3A7A00" }}><span>IVA 16%</span><span>+{money(ivaMonto)}</span></div>}
             <div className="tgrand"><span>TOTAL</span><span>{money(total)}</span></div>
           </div>
@@ -419,21 +419,21 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
   );
 }
 
-/* Confirmación grande antes de cobrar */
+/* ConfirmaciÃ³n grande antes de cobrar */
 function ConfirmarCobro({ total, piezas, metodo, conIva, ivaMonto, ubicacion, onSi, onNo }) {
   return (
     <Overlay onCerrar={onNo}>
       <div className="confirm">
-        <div className="confirm-q">¿Cobrar esta venta?</div>
+        <div className="confirm-q">Â¿Cobrar esta venta?</div>
         <div className="confirm-total">{money(total)}</div>
         <div className="confirm-detail">
-          {piezas} {piezas === 1 ? "cosa" : "cosas"} · {metodo}<br />
+          {piezas} {piezas === 1 ? "cosa" : "cosas"} Â· {metodo}<br />
           {conIva && <>IVA incluido ({money(ivaMonto)})<br /></>}
           desde {ubicacion === "guatemala" ? "Guatemala" : "Plomo"}
         </div>
         <div className="confirm-btns">
           <button className="confirm-no" onClick={onNo}>No, volver</button>
-          <button className="confirm-si" onClick={onSi}>Sí, cobrar ✓</button>
+          <button className="confirm-si" onClick={onSi}>SÃ­, cobrar âœ“</button>
         </div>
       </div>
     </Overlay>
@@ -444,9 +444,9 @@ function ConfirmarCobro({ total, piezas, metodo, conIva, ivaMonto, ubicacion, on
 function CapturarPeso({ prod, onGuardar, onCerrar }) {
   const [peso, setPeso] = useState("");
   const u = prod.unidad;
-  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "⌫"];
+  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "âŒ«"];
   const onKey = (k) => setPeso((s) => {
-    if (k === "⌫") return s.slice(0, -1);
+    if (k === "âŒ«") return s.slice(0, -1);
     if (k === "." && s.includes(".")) return s; // un solo punto
     if (k === "." && s === "") return "0.";
     return s + k;
@@ -456,10 +456,10 @@ function CapturarPeso({ prod, onGuardar, onCerrar }) {
   return (
     <Overlay onCerrar={onCerrar}>
       <div className="modal-title">Rollo de {prod.nombre}</div>
-      <div className="big-label">¿Cuánto pesa este rollo? ({u})</div>
+      <div className="big-label">Â¿CuÃ¡nto pesa este rollo? ({u})</div>
       <div className="peso-disp">{peso || "0"} <span className="peso-u">{u}</span></div>
       <div className="peso-calc">
-        {money(prod.precio_rollo)} × {kg || 0} {u} = <b>{money(cobro)}</b>
+        {money(prod.precio_rollo)} Ã— {kg || 0} {u} = <b>{money(cobro)}</b>
       </div>
       <div className="numpad">
         {keys.map((k) => <button key={k} className="numk" onClick={() => onKey(k)}>{k}</button>)}
@@ -472,12 +472,12 @@ function CapturarPeso({ prod, onGuardar, onCerrar }) {
   );
 }
 
-/* Visor de tickets: hoy + días anteriores, reimprime tal cual */
+/* Visor de tickets: hoy + dÃ­as anteriores, reimprime tal cual */
 function VisorTickets({ tickets, onCancelar, onCerrar }) {
-  const [dia, setDia] = useState(dateKey(new Date())); // día seleccionado
-  const [cancelando, setCancelando] = useState(null); // ticket que se está cancelando
+  const [dia, setDia] = useState(dateKey(new Date())); // dÃ­a seleccionado
+  const [cancelando, setCancelando] = useState(null); // ticket que se estÃ¡ cancelando
 
-  // días con ventas, más reciente primero
+  // dÃ­as con ventas, mÃ¡s reciente primero
   const dias = useMemo(() => {
     const set = [...new Set(tickets.map((t) => dateKey(t.fecha)))];
     return set.sort((a, b) => (a < b ? 1 : -1));
@@ -502,35 +502,35 @@ function VisorTickets({ tickets, onCancelar, onCerrar }) {
     <Overlay onCerrar={onCerrar}>
       {cancelando && <ModalCancelar ticket={cancelando} onConfirmar={hacerCancelacion} onCerrar={() => setCancelando(null)} />}
       <div className="tk-head">
-        <div className="modal-title" style={{ margin: 0 }}>🧾 Tickets</div>
-        <button className="tk-x" onClick={onCerrar}>✕</button>
+        <div className="modal-title" style={{ margin: 0 }}>ðŸ§¾ Tickets</div>
+        <button className="tk-x" onClick={onCerrar}>âœ•</button>
       </div>
 
       {dias.length === 0
-        ? <div className="tk-vacio">Aún no hay ventas registradas.</div>
+        ? <div className="tk-vacio">AÃºn no hay ventas registradas.</div>
         : <>
             <div className="tk-dias">
               {dias.map((k) => (
                 <button key={k} className={`tk-dia ${dia === k ? "tk-dia-on" : ""}`} onClick={() => setDia(k)}>{nombreDia(k)}</button>
               ))}
             </div>
-            <div className="tk-resumen">{delDia.filter((t) => !t.cancelado).length} venta{delDia.filter((t) => !t.cancelado).length !== 1 ? "s" : ""} · <b>{money(totalDia)}</b></div>
+            <div className="tk-resumen">{delDia.filter((t) => !t.cancelado).length} venta{delDia.filter((t) => !t.cancelado).length !== 1 ? "s" : ""} Â· <b>{money(totalDia)}</b></div>
             <div className="tk-lista">
               {delDia.map((t) => (
                 <div key={t.folio} className={`tk-row ${t.cancelado ? "tk-cancelada" : ""}`}>
                   <div className="tk-info">
                     <div className="tk-folio">{t.folio}{t.cancelado && <span className="tk-badge-cancel">CANCELADA</span>}</div>
                     <div className="tk-meta">
-                      {new Date(t.fecha).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })} · {t.ubicacion === "guatemala" ? "Guatemala" : "Plomo"} · {t.metodoPago}
-                      {t.conIva ? " · IVA" : ""}
+                      {new Date(t.fecha).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })} Â· {t.ubicacion === "guatemala" ? "Guatemala" : "Plomo"} Â· {t.metodoPago}
+                      {t.conIva ? " Â· IVA" : ""}
                       {t.cancelado && <><br /><span className="tk-motivo">Motivo: {t.motivoCancel}</span></>}
                     </div>
                   </div>
                   <div className="tk-total" style={t.cancelado ? { textDecoration: "line-through", color: "#bbb" } : null}>{money(t.total)}</div>
                   {t.cancelado
-                    ? <button className="tk-print" onClick={() => imprimirVenta(t)}>🖨️</button>
+                    ? <button className="tk-print" onClick={() => imprimirVenta(t)}>ðŸ–¨ï¸</button>
                     : <div className="tk-acciones">
-                        <button className="tk-print" onClick={() => imprimirVenta(t)}>🖨️</button>
+                        <button className="tk-print" onClick={() => imprimirVenta(t)}>ðŸ–¨ï¸</button>
                         <button className="tk-cancel" onClick={() => setCancelando(t)}>Cancelar</button>
                       </div>}
                 </div>
@@ -543,40 +543,40 @@ function VisorTickets({ tickets, onCancelar, onCerrar }) {
 
 /* Modal para cancelar: pide sede de regreso y motivo */
 function ModalCancelar({ ticket, onConfirmar, onCerrar }) {
-  const [sede, setSede] = useState(ticket.ubicacion); // por default, la sede donde se vendió
+  const [sede, setSede] = useState(ticket.ubicacion); // por default, la sede donde se vendiÃ³
   const [motivo, setMotivo] = useState("");
-  const motivos = ["Equivocación", "Devolución", "Cliente canceló", "Cobro doble"];
+  const motivos = ["EquivocaciÃ³n", "DevoluciÃ³n", "Cliente cancelÃ³", "Cobro doble"];
   const puede = motivo.trim().length > 0;
 
   return (
     <Overlay onCerrar={onCerrar}>
       <div className="modal-title">Cancelar {ticket.folio}</div>
-      <div className="cancel-aviso">Se regresará la tela al inventario y se anulará el cobro de <b>{money(ticket.total)}</b>.</div>
+      <div className="cancel-aviso">Se regresarÃ¡ la tela al inventario y se anularÃ¡ el cobro de <b>{money(ticket.total)}</b>.</div>
 
-      <div className="big-label">¿A qué sede regresa la tela?</div>
+      <div className="big-label">Â¿A quÃ© sede regresa la tela?</div>
       <div className="seg-big">
-        <button className={`seg-opt ${sede === "guatemala" ? "seg-sel" : ""}`} onClick={() => setSede("guatemala")}>🏪 Guatemala</button>
-        <button className={`seg-opt ${sede === "plomo" ? "seg-sel" : ""}`} onClick={() => setSede("plomo")}>🏭 Plomo</button>
+        <button className={`seg-opt ${sede === "guatemala" ? "seg-sel" : ""}`} onClick={() => setSede("guatemala")}>ðŸª Guatemala</button>
+        <button className={`seg-opt ${sede === "plomo" ? "seg-sel" : ""}`} onClick={() => setSede("plomo")}>ðŸ­ Plomo</button>
       </div>
 
-      <div className="big-label">¿Por qué se cancela?</div>
+      <div className="big-label">Â¿Por quÃ© se cancela?</div>
       <div className="motivos">
         {motivos.map((m) => (
           <button key={m} className={`motivo-chip ${motivo === m ? "motivo-on" : ""}`} onClick={() => setMotivo(m)}>{m}</button>
         ))}
       </div>
-      <input className="inp" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="O escribe el motivo…" style={{ marginTop: 10 }} />
+      <input className="inp" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="O escribe el motivoâ€¦" style={{ marginTop: 10 }} />
 
       <div className="modal-btns">
         <button className="mbtn-no" onClick={onCerrar}>No cancelar</button>
         <button className="mbtn-si" style={{ background: puede ? "#FF5C8A" : "#DBB", cursor: puede ? "pointer" : "not-allowed" }}
-          onClick={() => puede && onConfirmar(sede, motivo.trim())} disabled={!puede}>Sí, cancelar venta</button>
+          onClick={() => puede && onConfirmar(sede, motivo.trim())} disabled={!puede}>SÃ­, cancelar venta</button>
       </div>
     </Overlay>
   );
 }
 
-/* ════════════ INVENTARIO ════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â• INVENTARIO â•â•â•â•â•â•â•â•â•â•â•â• */
 function Admin({ productos, setProductos, setHistorial }) {
   const [ajustando, setAjustando] = useState(null);
   const [editando, setEditando] = useState(null);
@@ -591,20 +591,20 @@ function Admin({ productos, setProductos, setHistorial }) {
       const mod = f.tipo === "entrada" ? cant : -cant;
       return f.ubicacion === "guatemala" ? { ...p, stock_guatemala: Math.max(0, p.stock_guatemala + mod) } : { ...p, stock_plomo: Math.max(0, p.stock_plomo + mod) };
     }));
-    setHistorial((prev) => [{ id: uid(), tipo: f.tipo, fecha: new Date().toISOString(), monto: 0, ubicacion: f.ubicacion, desc: `${f.tipo === "entrada" ? "Entrada" : "Salida"} · ${ajustando.nombre}`, total_unidades: cant }, ...prev]);
+    setHistorial((prev) => [{ id: uid(), tipo: f.tipo, fecha: new Date().toISOString(), monto: 0, ubicacion: f.ubicacion, desc: `${f.tipo === "entrada" ? "Entrada" : "Salida"} Â· ${ajustando.nombre}`, total_unidades: cant }, ...prev]);
     setAjustando(null);
   }
-  // Traspaso Plomo → Guatemala: descuenta de Plomo, suma a Guatemala
+  // Traspaso Plomo â†’ Guatemala: descuenta de Plomo, suma a Guatemala
   function ejecutarTraspaso(prodId, cantidad) {
     const cant = Number(cantidad) || 0;
     const prod = productos.find((p) => p.id === prodId);
     if (!prod || cant <= 0) return setTraspasando(false);
-    if (cant > prod.stock_plomo) return; // no debería pasar (validado en el modal)
+    if (cant > prod.stock_plomo) return; // no deberÃ­a pasar (validado en el modal)
     setProductos((prev) => prev.map((p) => {
       if (p.id !== prodId) return p;
       return { ...p, stock_plomo: Math.max(0, +(p.stock_plomo - cant).toFixed(2)), stock_guatemala: +(p.stock_guatemala + cant).toFixed(2) };
     }));
-    setHistorial((prev) => [{ id: uid(), tipo: "traspaso", fecha: new Date().toISOString(), monto: 0, ubicacion: "guatemala", desc: `Traspaso Plomo → Guatemala · ${prod.nombre}`, total_unidades: cant }, ...prev]);
+    setHistorial((prev) => [{ id: uid(), tipo: "traspaso", fecha: new Date().toISOString(), monto: 0, ubicacion: "guatemala", desc: `Traspaso Plomo â†’ Guatemala Â· ${prod.nombre}`, total_unidades: cant }, ...prev]);
     setTraspasando(false);
   }
   function guardar(f) {
@@ -613,14 +613,14 @@ function Admin({ productos, setProductos, setHistorial }) {
     else setProductos((prev) => [...prev, { ...limpio, id: uid() }]);
     setEditando(null);
   }
-  function borrar(p) { if (confirm(`¿Borrar "${p.nombre}"?`)) setProductos((prev) => prev.filter((x) => x.id !== p.id)); }
+  function borrar(p) { if (confirm(`Â¿Borrar "${p.nombre}"?`)) setProductos((prev) => prev.filter((x) => x.id !== p.id)); }
 
   return (
     <div>
       <div style={S.sectionHead}>
-        <div style={S.sectionTitle}>📦 Inventario</div>
+        <div style={S.sectionTitle}>ðŸ“¦ Inventario</div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button className="btn-traspaso" onClick={() => setTraspasando(true)}>🔄 Traspaso entre sedes</button>
+          <button className="btn-traspaso" onClick={() => setTraspasando(true)}>ðŸ”„ Traspaso entre sedes</button>
           <button className="btn-new" onClick={() => setEditando(nuevo)}>+ Agregar tela</button>
         </div>
       </div>
@@ -633,8 +633,8 @@ function Admin({ productos, setProductos, setHistorial }) {
               <div className="acard-top" style={{ background: t.bg, color: t.ink }}>
                 <div className="acard-name">{p.nombre}</div>
                 <div className="acard-actions">
-                  <button className="atool" onClick={() => setEditando(p)}>✏️</button>
-                  <button className="atool" onClick={() => borrar(p)}>🗑️</button>
+                  <button className="atool" onClick={() => setEditando(p)}>âœï¸</button>
+                  <button className="atool" onClick={() => borrar(p)}>ðŸ—‘ï¸</button>
                 </div>
               </div>
               <div className="acard-body">
@@ -645,8 +645,8 @@ function Admin({ productos, setProductos, setHistorial }) {
                   <div className="acp-unidad">por {p.unidad}</div>
                 </div>
                 <div className="acard-stocks">
-                  <div className="sbox"><div className="sbox-l">🏪 Guatemala</div><div className="sbox-n" style={{ color: critGT ? "#E0392B" : "#333" }}>{p.stock_guatemala}</div></div>
-                  <div className="sbox"><div className="sbox-l">🏭 Plomo</div><div className="sbox-n" style={{ color: critPL ? "#E0392B" : "#333" }}>{p.stock_plomo}</div></div>
+                  <div className="sbox"><div className="sbox-l">ðŸª Guatemala</div><div className="sbox-n" style={{ color: critGT ? "#E0392B" : "#333" }}>{p.stock_guatemala}</div></div>
+                  <div className="sbox"><div className="sbox-l">ðŸ­ Plomo</div><div className="sbox-n" style={{ color: critPL ? "#E0392B" : "#333" }}>{p.stock_plomo}</div></div>
                 </div>
                 <button className="btn-adj" onClick={() => setAjustando(p)}>Entrada / Salida</button>
               </div>
@@ -662,28 +662,28 @@ function Admin({ productos, setProductos, setHistorial }) {
 }
 
 function NumPad({ onKey }) {
-  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "00", "⌫"];
+  const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "00", "âŒ«"];
   return <div className="numpad">{keys.map((k) => <button key={k} className="numk" onClick={() => onKey(k)}>{k}</button>)}</div>;
 }
 
 function ModalAjuste({ prod, onGuardar, onCerrar }) {
   const [f, setF] = useState({ tipo: "entrada", ubicacion: "guatemala", cantidad: "" });
-  const onKey = (k) => setF((s) => ({ ...s, cantidad: k === "⌫" ? String(s.cantidad).slice(0, -1) : String(s.cantidad) + k }));
+  const onKey = (k) => setF((s) => ({ ...s, cantidad: k === "âŒ«" ? String(s.cantidad).slice(0, -1) : String(s.cantidad) + k }));
   const esEnt = f.tipo === "entrada";
   return (
     <Overlay onCerrar={onCerrar}>
       <div className="modal-title">{prod.nombre}</div>
-      <div className="big-label">¿Qué hago?</div>
+      <div className="big-label">Â¿QuÃ© hago?</div>
       <div className="seg-big">
-        <button className={`seg-opt ${esEnt ? "seg-in" : ""}`} onClick={() => setF({ ...f, tipo: "entrada" })}>⬆️ Entra</button>
-        <button className={`seg-opt ${!esEnt ? "seg-out" : ""}`} onClick={() => setF({ ...f, tipo: "salida" })}>⬇️ Sale</button>
+        <button className={`seg-opt ${esEnt ? "seg-in" : ""}`} onClick={() => setF({ ...f, tipo: "entrada" })}>â¬†ï¸ Entra</button>
+        <button className={`seg-opt ${!esEnt ? "seg-out" : ""}`} onClick={() => setF({ ...f, tipo: "salida" })}>â¬‡ï¸ Sale</button>
       </div>
-      <div className="big-label">¿En qué sede?</div>
+      <div className="big-label">Â¿En quÃ© sede?</div>
       <div className="seg-big">
-        <button className={`seg-opt ${f.ubicacion === "guatemala" ? "seg-sel" : ""}`} onClick={() => setF({ ...f, ubicacion: "guatemala" })}>🏪 Guatemala</button>
-        <button className={`seg-opt ${f.ubicacion === "plomo" ? "seg-sel" : ""}`} onClick={() => setF({ ...f, ubicacion: "plomo" })}>🏭 Plomo</button>
+        <button className={`seg-opt ${f.ubicacion === "guatemala" ? "seg-sel" : ""}`} onClick={() => setF({ ...f, ubicacion: "guatemala" })}>ðŸª Guatemala</button>
+        <button className={`seg-opt ${f.ubicacion === "plomo" ? "seg-sel" : ""}`} onClick={() => setF({ ...f, ubicacion: "plomo" })}>ðŸ­ Plomo</button>
       </div>
-      <div className="big-label">¿Cuánto? ({prod.unidad})</div>
+      <div className="big-label">Â¿CuÃ¡nto? ({prod.unidad})</div>
       <div className="numdisp">{f.cantidad || "0"}</div>
       <NumPad onKey={onKey} />
       <div className="modal-btns">
@@ -694,14 +694,14 @@ function ModalAjuste({ prod, onGuardar, onCerrar }) {
   );
 }
 
-/* Traspaso de tela: Plomo (bodega) → Guatemala (sucursal) */
+/* Traspaso de tela: Plomo (bodega) â†’ Guatemala (sucursal) */
 function ModalTraspaso({ productos, onGuardar, onCerrar }) {
   const [prodId, setProdId] = useState("");
   const [cant, setCant] = useState("");
   const conStock = productos.filter((p) => p.stock_plomo > 0);
   const prod = productos.find((p) => p.id === prodId);
   const onKey = (k) => setCant((s) => {
-    if (k === "⌫") return s.slice(0, -1);
+    if (k === "âŒ«") return s.slice(0, -1);
     if (k === "." && s.includes(".")) return s;
     if (k === "." && s === "") return "0.";
     return s + k;
@@ -712,14 +712,14 @@ function ModalTraspaso({ productos, onGuardar, onCerrar }) {
 
   return (
     <Overlay onCerrar={onCerrar}>
-      <div className="modal-title">🔄 Traspaso entre sedes</div>
+      <div className="modal-title">ðŸ”„ Traspaso entre sedes</div>
       <div className="trasp-flujo">
-        <span className="trasp-de">🏭 PLOMO</span>
-        <span className="trasp-flecha">→</span>
-        <span className="trasp-a">🏪 GUATEMALA</span>
+        <span className="trasp-de">ðŸ­ PLOMO</span>
+        <span className="trasp-flecha">â†’</span>
+        <span className="trasp-a">ðŸª GUATEMALA</span>
       </div>
 
-      <div className="big-label">¿Qué tela mueves?</div>
+      <div className="big-label">Â¿QuÃ© tela mueves?</div>
       {!prodId ? (
         <div className="trasp-lista">
           {conStock.length === 0
@@ -735,12 +735,12 @@ function ModalTraspaso({ productos, onGuardar, onCerrar }) {
         <>
           <button className="trasp-sel" onClick={() => { setProdId(""); setCant(""); }}>
             <span className="trasp-nom">{prod.nombre}</span>
-            <span className="trasp-cambiar">cambiar ✎</span>
+            <span className="trasp-cambiar">cambiar âœŽ</span>
           </button>
           <div className="trasp-hay">Hay <b>{prod.stock_plomo} {prod.unidad}</b> en Plomo</div>
-          <div className="big-label">¿Cuánto mueves? ({prod.unidad})</div>
+          <div className="big-label">Â¿CuÃ¡nto mueves? ({prod.unidad})</div>
           <div className="numdisp" style={excede ? { color: "#E0392B" } : null}>{cant || "0"}</div>
-          {excede && <div className="trasp-error">No hay tanto en Plomo (máx {prod.stock_plomo})</div>}
+          {excede && <div className="trasp-error">No hay tanto en Plomo (mÃ¡x {prod.stock_plomo})</div>}
           <NumPad onKey={onKey} />
         </>
       )}
@@ -763,7 +763,7 @@ function ModalProducto({ inicial, onGuardar, onCerrar }) {
       <div className="modal-title">{esNuevo ? "Nueva tela" : "Editar tela"}</div>
       <Campo label="Nombre"><input className="inp" value={f.nombre} onChange={set("nombre")} placeholder="Phoenix" autoFocus /></Campo>
       <div className="row2">
-        <Campo label="Código (SKU)"><input className="inp" value={f.sku} onChange={set("sku")} placeholder="PHX-001" /></Campo>
+        <Campo label="CÃ³digo (SKU)"><input className="inp" value={f.sku} onChange={set("sku")} placeholder="PHX-001" /></Campo>
         <Campo label="Unidad"><select className="inp" value={f.unidad} onChange={set("unidad")}><option value="m">metro</option><option value="kg">kilo</option><option value="pz">pieza</option></select></Campo>
       </div>
       <div className="precios-hint">Los 3 precios son por {f.unidad === "kg" ? "kilo" : f.unidad === "m" ? "metro" : "unidad"}</div>
@@ -794,14 +794,14 @@ function Overlay({ children, onCerrar }) {
   return <div className="ov" onClick={onCerrar}><div className="modal" onClick={(e) => e.stopPropagation()}>{children}</div></div>;
 }
 
-/* ════════════ REPORTES ════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â• REPORTES â•â•â•â•â•â•â•â•â•â•â•â• */
 function Reportes({ historial, productos }) {
   const [filtro, setFiltro] = useState("hoy");
   const movs = historial.filter((m) => filtro === "hoy" ? dateKey(m.fecha) === dateKey(new Date()) : new Date(m.fecha) >= new Date(Date.now() - 7 * unDia));
   const ventas = movs.filter((m) => m.tipo === "venta");
   const canceladas = movs.filter((m) => m.tipo === "cancelada"); // monto negativo
   const d = {
-    filtro: filtro === "hoy" ? "Hoy" : "Últimos 7 días",
+    filtro: filtro === "hoy" ? "Hoy" : "Ãšltimos 7 dÃ­as",
     ingresos: ventas.reduce((a, v) => a + v.monto, 0) + canceladas.reduce((a, v) => a + v.monto, 0), // canceladas restan
     ventasCount: ventas.length,
     entradas: movs.filter((m) => m.tipo === "entrada").reduce((a, m) => a + m.total_unidades, 0),
@@ -813,37 +813,37 @@ function Reportes({ historial, productos }) {
   return (
     <div>
       <div style={S.sectionHead}>
-        <div style={S.sectionTitle}>📊 Reportes</div>
+        <div style={S.sectionTitle}>ðŸ“Š Reportes</div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <div className="seg2">
             <button className={`seg2-b ${filtro === "hoy" ? "seg2-on" : ""}`} onClick={() => setFiltro("hoy")}>Hoy</button>
-            <button className={`seg2-b ${filtro === "semana" ? "seg2-on" : ""}`} onClick={() => setFiltro("semana")}>7 días</button>
+            <button className={`seg2-b ${filtro === "semana" ? "seg2-on" : ""}`} onClick={() => setFiltro("semana")}>7 dÃ­as</button>
           </div>
-          <button className="btn-tk" onClick={() => imprimirCorte(d)}>🖨️ Ticket</button>
-          <button className="btn-pdf" onClick={() => exportarPDF(d)}>📄 PDF</button>
+          <button className="btn-tk" onClick={() => imprimirCorte(d)}>ðŸ–¨ï¸ Ticket</button>
+          <button className="btn-pdf" onClick={() => exportarPDF(d)}>ðŸ“„ PDF</button>
         </div>
       </div>
       <div style={S.kpiRow}>
-        <div className="kpi kpi-big"><div className="kpi-l">💰 Ventas de {d.filtro.toLowerCase()}</div><div className="kpi-v" style={{ color: "#4CAF00" }}>{money(d.ingresos)}</div><div className="kpi-s">{d.ventasCount} ventas</div></div>
-        <div className="kpi"><div className="kpi-l">⬆️ Entró</div><div className="kpi-v" style={{ color: "#22B8C4" }}>+{d.entradas}</div></div>
-        <div className="kpi"><div className="kpi-l">⬇️ Salió</div><div className="kpi-v" style={{ color: "#FF5C8A" }}>−{d.salidas}</div></div>
+        <div className="kpi kpi-big"><div className="kpi-l">ðŸ’° Ventas de {d.filtro.toLowerCase()}</div><div className="kpi-v" style={{ color: "#4CAF00" }}>{money(d.ingresos)}</div><div className="kpi-s">{d.ventasCount} ventas</div></div>
+        <div className="kpi"><div className="kpi-l">â¬†ï¸ EntrÃ³</div><div className="kpi-v" style={{ color: "#22B8C4" }}>+{d.entradas}</div></div>
+        <div className="kpi"><div className="kpi-l">â¬‡ï¸ SaliÃ³</div><div className="kpi-v" style={{ color: "#FF5C8A" }}>âˆ’{d.salidas}</div></div>
       </div>
-      {critico.length > 0 && <div className="alerta">⚠️ ï¸ Poco stock: <b>{critico.map((p) => p.nombre).join(", ")}</b></div>}
+      {critico.length > 0 && <div className="alerta">âš ï¸Â Ã¯Â¸ Poco stock: <b>{critico.map((p) => p.nombre).join(", ")}</b></div>}
       <div style={S.tableWrap}>
         <div style={S.tableHead}>Movimientos</div>
         <div style={{ overflowX: "auto" }}>
           <table className="tbl">
-            <thead><tr><th>Cuándo</th><th>Qué</th><th>Sede</th><th>Detalle</th><th>Cant.</th><th style={{ textAlign: "right" }}>Monto</th></tr></thead>
+            <thead><tr><th>CuÃ¡ndo</th><th>QuÃ©</th><th>Sede</th><th>Detalle</th><th>Cant.</th><th style={{ textAlign: "right" }}>Monto</th></tr></thead>
             <tbody>
               {d.movs.length === 0 && <tr><td colSpan="6" style={{ textAlign: "center", padding: 40, color: "#aaa" }}>Sin movimientos.</td></tr>}
               {d.movs.map((m) => (
                 <tr key={m.id}>
                   <td>{new Date(m.fecha).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
-                  <td>{m.tipo === "venta" && <span className="badge bg-v">Venta</span>}{m.tipo === "entrada" && <span className="badge bg-e">Entró</span>}{m.tipo === "salida" && <span className="badge bg-s">Salió</span>}{m.tipo === "traspaso" && <span className="badge bg-t">Traspaso</span>}{m.tipo === "cancelada" && <span className="badge bg-c">Cancelada</span>}{m.tipo === "aviso_stock" && <span className="badge bg-aviso">Aviso</span>}</td>
+                  <td>{m.tipo === "venta" && <span className="badge bg-v">Venta</span>}{m.tipo === "entrada" && <span className="badge bg-e">EntrÃ³</span>}{m.tipo === "salida" && <span className="badge bg-s">SaliÃ³</span>}{m.tipo === "traspaso" && <span className="badge bg-t">Traspaso</span>}{m.tipo === "cancelada" && <span className="badge bg-c">Cancelada</span>}{m.tipo === "aviso_stock" && <span className="badge bg-aviso">Aviso</span>}</td>
                   <td>{m.ubicacion === "guatemala" ? "Guatemala" : "Plomo"}</td>
                   <td>{m.desc}</td>
                   <td style={{ fontWeight: 800 }}>{m.total_unidades}</td>
-                  <td style={{ textAlign: "right", fontWeight: 800, color: m.monto > 0 ? "#4CAF00" : "#bbb" }}>{m.monto > 0 ? money(m.monto) : "—"}</td>
+                  <td style={{ textAlign: "right", fontWeight: 800, color: m.monto > 0 ? "#4CAF00" : "#bbb" }}>{m.monto > 0 ? money(m.monto) : "â€”"}</td>
                 </tr>
               ))}
             </tbody>
@@ -858,17 +858,17 @@ function Festejo({ data }) {
   return (
     <div className="festejo-ov">
       <div className="festejo-card">
-        <div className="festejo-check">✓</div>
-        <div className="festejo-done">¡Listo!</div>
+        <div className="festejo-check">âœ“</div>
+        <div className="festejo-done">Â¡Listo!</div>
         <div className="festejo-total">{money(data.total)}</div>
-        <div className="festejo-sub">Imprimiendo ticket 🖨️</div>
+        <div className="festejo-sub">Imprimiendo ticket ðŸ–¨ï¸</div>
       </div>
     </div>
   );
 }
 function Toast({ texto }) { return <div className="toast">{texto}</div>; }
 
-/* ════════════ ESTILOS ════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â• ESTILOS â•â•â•â•â•â•â•â•â•â•â•â• */
 const F = "'Nunito', system-ui, sans-serif";
 const CSS = `
 *{box-sizing:border-box}
@@ -885,10 +885,10 @@ body,html{margin:0;background:#FFF8F0;font-family:${F};color:#3A2E26}
 .tab-ic{font-size:22px}
 .tab-on{background:#FF8A3D;color:#fff;border-color:#FF8A3D;box-shadow:0 4px 0 #D96E22}
 
-/* Pregunta guía */
+/* Pregunta guÃ­a */
 .pregunta-x{}
 
-/* Ubicación */
+/* UbicaciÃ³n */
 .ubi{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:22px;font-weight:900;padding:18px;background:#FFF;color:#9A8674;border:4px solid #EFE3D5;border-radius:22px;cursor:pointer;box-shadow:0 5px 0 #EFE3D5;transition:.1s}
 .ubi:active{transform:translateY(5px);box-shadow:none}
 .ubi-ic{font-size:38px}
@@ -945,7 +945,7 @@ body,html{margin:0;background:#FFF8F0;font-family:${F};color:#3A2E26}
 .iva-check{width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;font-size:18px}
 .iva-on .iva-check{background:#fff;color:#3A7A00}
 
-/* Botón últimos tickets */
+/* BotÃ³n Ãºltimos tickets */
 .btn-tickets{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:900;padding:12px 20px;background:#FFF;color:#6A5A4A;border:3px solid #EFE3D5;border-radius:16px;cursor:pointer;box-shadow:0 4px 0 #EFE3D5;transition:.1s;white-space:nowrap}
 .btn-tickets:active{transform:translateY(4px);box-shadow:none}
 
@@ -982,7 +982,7 @@ body,html{margin:0;background:#FFF8F0;font-family:${F};color:#3A2E26}
 .confirm-si{flex:1.6;padding:22px 0;border:none;border-radius:20px;background:#7BC62D;color:#fff;font-size:24px;font-weight:900;cursor:pointer;box-shadow:0 6px 0 #5DA31E}
 .confirm-si:active{transform:translateY(6px);box-shadow:none}
 
-/* Botones sección */
+/* Botones secciÃ³n */
 .btn-new{font-size:20px;font-weight:900;padding:16px 28px;background:#7BC62D;color:#fff;border:none;border-radius:18px;cursor:pointer;box-shadow:0 5px 0 #5DA31E}
 .btn-new:active{transform:translateY(5px);box-shadow:none}
 .btn-tk,.btn-pdf{font-size:17px;font-weight:900;padding:14px 22px;border:none;border-radius:16px;cursor:pointer;box-shadow:0 4px 0 rgba(0,0,0,.15)}
