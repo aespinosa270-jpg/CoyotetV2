@@ -10,14 +10,13 @@ export default async function PosPage() {
     where: { isActive: true }
   });
 
-  // Mapeamos los campos de la BD al formato que entiende el POS
   const initialProducts = dbProducts.map(p => ({
     id: p.id,
     sku: p.sku,
     nombre: p.title,
     precio: p.priceMenudeo,
     precio_mayoreo: p.priceMayoreo,
-    precio_rollo: p.priceMayoreo, // Usamos mayoreo como base para el rollo
+    precio_rollo: p.priceRollo || p.priceMayoreo,
     unidad: p.unit === "KILO" ? "kg" : p.unit === "METRO" ? "m" : "pza",
     stock_guatemala: 0, 
     minimo: 10,

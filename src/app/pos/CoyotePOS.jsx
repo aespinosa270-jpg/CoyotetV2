@@ -185,7 +185,7 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
 
   // CORTE: suma 1 unidad y recalcula el precio de toda la línea (menudeo/mayoreo)
   function agregarCorte(p) {
-    if (consumoDe(p) + 1 > stockEn(p)) return flash(`No hay suficiente ${p.nombre} aquí`);
+    
     setCarrito((c) => {
       const i = c.findIndex((l) => l.producto.id === p.id && l.tipo === "corte");
       if (i >= 0) {
@@ -202,7 +202,7 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
     const p = pesando;
     const kg = Number(peso) || 0;
     if (kg <= 0) { setPesando(null); return; }
-    if (consumoDe(p) + kg > stockEn(p)) { setPesando(null); return flash(`No hay suficiente ${p.nombre} aquí`); }
+    
     setCarrito((c) => [...c, { lid: uid(), producto: p, tipo: "rollo", cantidad: kg, precio_unit: p.precio_rollo }]);
     setPesando(null);
   }
@@ -231,7 +231,7 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
     let unds = 0;
     setProductos((prev) => prev.map((p) => {
       const c = consumoDe(p); if (c === 0) return p; unds += c;
-      return ubicacion === "guatemala" ? { ...p, stock_guatemala: Math.max(0, +(p.stock_guatemala - c).toFixed(2)) } : { ...p, stock_plomo: Math.max(0, +(p.stock_plomo - c).toFixed(2)) };
+      return ubicacion === "guatemala" ? { ...p, stock_guatemala: +(p.stock_guatemala - c).toFixed(2) } : { ...p, stock_plomo: +(p.stock_plomo - c).toFixed(2) };
     }));
     const folio = (ubicacion === "guatemala" ? "GT" : "PL") + "-" + Math.floor(1000 + Math.random() * 9000);
     const items = lineas.map((l) => ({ nombre: l.producto.nombre, tipo: l.tipo, unidad: l.producto.unidad, cantidad: l.cantidad, precio_unit: l.precio_unit }));
@@ -303,14 +303,14 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
           {visibles.map((p) => {
             const t = tinte(productos.indexOf(p));
             const disp = stockEn(p) - consumoDe(p);
-            const agotado = disp <= 0;
+            const sinRegistro = disp <= 0;
             const bajo = !agotado && disp <= p.minimo;
             const enCarro = consumoDe(p);
             return (
-              <div key={p.id} className="prod" style={{ "--bg": agotado ? "#DADADA" : t.bg, "--ink": agotado ? "#888" : t.ink, "--soft": t.soft }}>
+              <div key={p.id} className="prod" style={{ "--bg": sinRegistro ? "#DADADA" : t.bg, "--ink": sinRegistro ? "#888" : t.ink, "--soft": t.soft }}>
                 <div className="prod-name">{p.nombre}</div>
                 {agotado
-                  ? <div className="prod-stock prod-out">Agotado aquí</div>
+                  ? <div className="prod-stock prod-out">Sin registro · puedes vender</div>
                   : bajo
                     ? <div className="prod-stock prod-low">¡Quedan {disp} {p.unidad}!</div>
                     : <div className="prod-stock prod-ok">{disp} {p.unidad}</div>}
@@ -320,10 +320,10 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
                   <span>Rollo <b>{money(p.precio_rollo)}</b></span>
                 </div>
                 <div className="prod-buys">
-                  <button className="buy" onClick={() => agregarCorte(p)} disabled={agotado}>
+                  <button className="buy" onClick={() => agregarCorte(p)} >
                     <span className="buy-l">+1 {p.unidad}</span><span className="buy-p">Corte</span>
                   </button>
-                  <button className="buy buy-2" onClick={() => pedirPesoRollo(p)} disabled={agotado}>
+                  <button className="buy buy-2" onClick={() => pedirPesoRollo(p)} >
                     <span className="buy-l">pesar</span><span className="buy-p">Rollo</span>
                   </button>
                 </div>
@@ -444,7 +444,7 @@ function CapturarPeso({ prod, onGuardar, onCerrar }) {
   return (
     <Overlay onCerrar={onCerrar}>
       <div className="modal-title">Rollo de {prod.nombre}</div>
-      <div className="big-label">¿Cuánto pesa este rollo? ({u})</div>
+      <div className="big-label">¿Cuánto mide/pesa? ({u})</div>
       <div className="peso-disp">{peso || "0"} <span className="peso-u">{u}</span></div>
       <div className="peso-calc">
         {money(prod.precio_rollo)} × {kg || 0} {u} = <b>{money(cobro)}</b>

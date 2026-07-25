@@ -129,6 +129,7 @@ model Product {
   rendimiento         Float?
   priceMenudeo        Float
   priceMayoreo        Float
+  priceRollo          Float?
   hasRollo            Boolean             @default(true)
   unidadesPorRollo    Float?
   singleColor         Boolean             @default(true)
