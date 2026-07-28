@@ -307,7 +307,7 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
             const bajo = !sinRegistro && disp <= p.minimo;
             const enCarro = consumoDe(p);
             return (
-              <div key={p.id} className="prod" style={{ "--bg": sinRegistro ? "#DADADA" : t.bg, "--ink": sinRegistro ? "#888" : t.ink, "--soft": t.soft }}>
+              <div key={p.id} className="prod" style={{ "--bg": t.bg, "--ink": t.ink, "--soft": t.soft }}>
                 <div className="prod-name">{p.nombre}</div>
                 {sinRegistro
                   ? <div className="prod-stock prod-out">Sin registro · puedes vender</div>
