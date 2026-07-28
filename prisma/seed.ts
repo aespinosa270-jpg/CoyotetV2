@@ -1,257 +1,202 @@
-import { PrismaClient } from '@prisma/client';
+ï»¿import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-const rawCatalog = `ALASKA 3.9 METROS KILO 1.6 $140 $135 $125 150 G/M2 100% POLIÉSTER
-ANDROMEDA 3.7 METROS KILO 1.6 $155 $145 $135 145 G/M2 80% POL 20% ELA
-APOLO 3.7 METROS KILO 1.6 $160 $155 $145 150 G/M2 100% POLIÉSTER
-ARES 4.2 METROS KILO 1.6 $115 $110 $100 145 G/M2 100% POLIÉSTER
-ATHLOS 4.3 METROS KILO 1.6 $120 $115 $105 145 G/M2 100% POLIÉSTER
-ATHLOS COLORES 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
-BIES BOMBAY BLANCO 300 GRAMOS PIEZA NA $140 $140 $140 100% POLIÉSTER
-BIES BOMBAY COLORES 300 GRAMOS PIEZA NA $140 $140 $140 100% POLIÉSTER
-BIES SOCCER 300 GRAMOS PIEZA NA $150 $150 $150 100% POLIÉSTER
-BOMBAY (5.5 METROS RINDE 1 KILO) METRO METRO 1.6 $25.00 $20.00 $15.00 125 G/M2 100% POLIÉSTER
-BOMBAY COLORES (5 METROS RINDE 1 KILO) METRO METRO 1.6 $26 $21 $16 135 G/M2 100% POLIÉSTER
-BOMBAY NEON METRO METRO 1.6 $31 $26 $16 135 G/M2 100% POLIÉSTER
-BROCK 4.2 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
-BRUSH (COLORES) 6 METROS KILO 1.6 $140 $135 $125 140 G/M2 95% POL 5% ELA
-BRUSH (SOLO BCO RINDE 4.3 MT) 4.3 METROS KILO 1.6 $120 $115 $105 95% POL 5% ELA
-CAPITONADA MICRO PANAL BLANCO Y COLORES METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
-CAPITONADA MICRO PIQUE SENCILLO METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
-CAPITONADA MICROTRIX METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
-CAPITONADA TORNEO METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
-CAPITONADO MICRO FIBR Y PREMIER NUBE METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
-CAPITONADO MICRO FIBRA NUBES SENCILLO METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
-CAPITONADO PREMIER SENCILLO METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
-CAPITONADO PREMIER Y MICRO FIBRA METRO METRO 1.5 $85 $80 $70 70 G/M2 100% POLIÉSTER
-CAPITONADO ZIGZAG TEJIDO PREMIER MICRO FIBRA METRO METRO 1.5 $110 $105 $95 90 G/M2 100% POLIÉSTER
-CAPRIATI 3.1 METROS KILO 1.6 $130 $125 $115 150 G/M2 80% POL 20% ELA
-CAPRICE 4.3 METROS KILO 1.6 $130 $125 $115 140 G/M2 100% POLIÉSTER
-CAPRICE COLORES 4.3 METROS KILO 1.6 $155 $150 $140 140 G/M2 100% POLIÉSTER
-CARDIGAN 2.2 METROS KILO .90 MT. $165 $160 $150 100% POLIÉSTER
-CARDIGAN (ACRILAN 2.2 METROS KILO .90 MT. $255 $250 $240 100% ACRILÁN
-CHICAGO 4.5 METROS KILO 1.7 $140 $135 $125 150 G/M2 100% POLIÉSTER
-CHIFON 2.8 METROS KILO .90 MT. $155 $150 $140 195 G/M2 50% POL 50% ELA
-CUELLOS Y PUÑOS (NUEVO) 40 A 50 PIEZAS KILO $225 $220 $210 100% POLIÉSTER
-DELTA 4.2 METROS KILO 1.6 $175 $170 $160 145 G/M2 95% POL 5% ELA
-DIABLO METRO METRO 1.5 $90 $85 $75 100% POLIÉSTER
-DIABLO (COLORES) METRO METRO 1.5 $95 $90 $80 100% POLIÉSTER
-DUBLIN 3 METROS KILO 1.6 $125 $120 $110 155 G/M2 100% POLIÉSTER
-ELASTICO BEISBOLERO METRO 50 MT METRO 2 1/2" $19 $19 $19 N/A
-ELASTICO BLANCO (10 LIGAS) 50 MT PIEZA 10 LIGAS $100 $100 $100 N/A
-ELASTICO BLANCO (12 LIGAS) 50 MT PIEZA 12 LIGAS $110 $110 $110 N/A
-ELASTICO BLANCO (16 LIGAS) 50 MT PIEZA 16 LIGAS $80 $80 $80 N/A
-ELASTICO BLANCO (20 LIGAS) 50 MT PIEZA 20 LIGAS $100 $100 $100 N/A
-ELASTICO BLANCO (25 LIGAS) 50 MT PIEZA 25 LIGAS $100 $100 $100 N/A
-ELASTICO BLANCO (3 LIGAS) 50 MT PIEZA 3 LIGAS $80 $80 $80 N/A
-ELASTICO BLANCO (30 LIGAS) 50 MT PIEZA 30 LIGAS $120 $120 $120 N/A
-ELASTICO BLANCO (5 LIGAS) 50 MT PIEZA 5 LIGAS $100 $100 $100 N/A
-ELASTICO BLANCO (7 LIGAS) 50 MT PIEZA 7 LIGAS $110 $110 $110 N/A
-ELASTICO CON JARETA 3 CM 50 MT CONO 3 CM $140 $140 $140 N/A
-ELASTICO CON JARETA 4 CM 50 MT CONO 4 CM $145 $145 $145 N/A
-ELASTICO NEGRO (10 LIGAS) 50 MT PIEZA 10 LIGAS $120 $120 $120 N/A
-ELASTICO NEGRO (12 LIGAS) 50 MT PIEZA 12 LIGAS $120 $120 $120 N/A
-ELASTICO NEGRO (16 LIGAS) 50 MT PIEZA 16 LIGAS $90 $90 $90 N/A
-ELASTICO NEGRO (20 LIGAS) 50 MT PIEZA 20 LIGAS $110 $110 $110 N/A
-ELASTICO NEGRO (25 LIGAS) 50 MT PIEZA 25 LIGAS $110 $110 $110 N/A
-ELASTICO NEGRO (3 LIGAS) 50 MT PIEZA 3 LIGAS $90 $90 $90 N/A
-ELASTICO NEGRO (30 LIGAS) 50 MT PIEZA 30 LIGAS $130 $130 $130 N/A
-ELASTICO NEGRO (5 LIGAS) 50 MT PIEZA 5 LIGAS $110 $110 $110 N/A
-ELASTICO NEGRO (7 LIGAS) 50 MT PIEZA 7 LIGAS $130 $130 $130 N/A
-ESCAROLA 10 MM - 200MTS 200 MT CONO 10 MM $300 $300 $300 N/A
-ESCAROLA 19MM - 100MTS 100 MT CONO 19 MM $500 $500 $500 N/A
-ETIQUETAS BORDADAS 50 MT CONO $50 $50 $50 BORDADA
-ETIQUETAS COMPOSICIÓN 50 MT CONO $65 $65 $65 NYLON
-ETIQUETAS PELLON 1400 A 1500 PZ CONO $25 $25 $25 PELLÓN
-F30 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
-F30 COLORES 4.3 METROS KILO 1.6 $150 $145 $135 145 G/M2 100% POLIÉSTER
-FELPA CHINA 2.5 METROS KILO 1.6 $113 $108 $98 250 G/M2 100% POLIÉSTER
-FELPA CHINA (NEONES) 2.5 METROS KILO 1.6 $125 $120 $110 250 G/M2 100% POLIÉSTER
-FELPA GOLD 2.5 METROS KILO 1.6 $113 $108 $98 250 G/M2 100% POLIÉSTER
-FELPA NACIONAL 2.3 METROS KILO 1.6 $135 $130 $120 260 G/M2 50% POL 50% ALG
-FELPA SPUN 2.5 METROS KILO 1.6 $113 $108 $98 250 G/M2 100% POLIÉSTER
-FLANEL 2.7 METROS KILO 1.5 $130 $125 $115 240 G/M2 100% POLIÉSTER
-FLANEL (COLORES) 2.7 METROS KILO 1.5 $130 $125 $115 240 G/M2 100% POLIÉSTER
-FRENCH TERRY 2.80 MTS. KILO 1.6 $150 $145 $135 240 G/M2 100% POLIÉSTER
-FUSIONADA ATHLOS 2.5 METROS KILO 1.55 $150 $145 $135 250 G/M2 100% POLIÉSTER
-FUSIONADA PIQUE VERA 2.5 METROS KILO 1.55 $150 $145 $135 250 G/M2 100% POLIÉSTER
-FUSIONADA TORNEO 2.5 METROS KILO 1.55 $150 $145 $135 250 G/M2 100% POLIÉSTER
-FUSIONADAS MICRO PANAL 2.5 METROS KILO 1.55 $155 $150 $140 250 G/M2 100% POLIÉSTER
-GABARDINA 100% METRO METRO 1.6 $90 $85 $80 100% ALGODÓN
-GABARDINA 70/30 METRO METRO 1.6 $80 $75 $70 65% ALG 35% POL
-GABARDINA 80/20 METRO METRO 1.6 $75 $70 $60 80% ALG 20% POL
-GABARDINA 90/10 METRO METRO 1.6 $60 $55 $50 90% POL 10% ELA
-GOLF 4.3 METROS KILO 1.6 $130 $125 $120 100% POLIÉSTER
-GRAN BAY METRO METRO 1.6 $45 $40 $35 100% POLIÉSTER
-GRANIZO 4.3 METROS KILO 1.6 $105 $100 $90 145 G/M2 100% POLIÉSTER
-GRANIZO COLORES 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
-HILO KINGTEX 5000 M 0.05 GROSOR $40 $38 200 G N/A
-HIROSHIMA 2.5 METROS KILO 1.8 $145 $140 $130 245 G/M2 80% POL 20% ELA
-HOPPER 4.2 METROS KILO 1.6 $155 $150 $140 145 G/M2 95% POL 5% ELA
-HOROUS (WAFFLE) 4.65 METROS KILO 1.6 $130 $125 $115 145 G/M2 100% POLIESTER
-HOUSTON 4.6 METROS KILO 1.6 $155 $150 $140 135 G/M2 100% POLIÉSTER
-INTER 70 4.3 METROS KILO 1.6 $140 $135 $125 145 G/M2 95% POL 5% ELA
-INTER 70 COLORES 4.3 METROS KILO 1.6 $150 $145 $135 145 G/M2 95% POL 5% ELA
-INTERLOCK 2.2 METROS KILO .90 MT. $155 $150 $140 240 G/M2 50% POL 50% ALG
-JARETA 200 M LARGO 0.5 GROSOR $135 $135 $135 N/A
-JUMANJI 4.4 METROS KILO 1.6 $145 $140 $130 140 G/M2 80% POL 20% ELA
-JURLY 100 MT X ROLLO METRO 1.5 $35 $30 $25 135 G/M2 95% POL 5% ELA
-JURLY (COLORES) 100 MT X ROLLO METRO 1.5 $40 $35 $30 135 G/M2 95% POL 5% ELA
-KYOTO 4 METROS KILO 1.6 $145 $140 $130 145 G/M2 100% POLIÉSTER
-LICRA JAPONESA 4 METROS KILO 1.8 $140 $135 $125 290 G/M2 80% POL 20% ELA
-LICRA LULU 2.25 METROS KILO 1.63 $140 $135 $125 290 G/M2 84% POL 16% ELA
-LICRA METALICA METRO METRO 1.5 $50 $45 $40 70% POL 30% ELA
-LICRA PLAYERA 4.7 METROS KILO 1.6 $130 $125 $115 265 G/M2 80% POL 20% ELA
-LICRA PLAYERA COLORES 4.7 METROS KILO 1.6 $135 $130 $120 265 G/M2 80% POL 20% ELA
-LICRA POLIESTER B/N/ROJO 2.6 METROS KILO 1.55 $145 $140 $130 265 G/M2 80% POL 20% ELA
-LICRA POLIESTER COLORES 2.6 METROS KILO 1.55 $145 $140 $130 265 G/M2 80% POL 20% ELA
-LIVERPOOL 4.3 METROS KILO 1.6 $130 $125 $115 145 G/M2 100% POLIÉSTER
-MACUCO (rinde 3.8 mt por 1 kilo) METRO METRO 1.6 $45 $40 $30 100% POLIÉSTER
-MADELINO 4.2 METROS KILO 1.6 $155 $150 $140 145 G/M2 95% POL 5% ELA
-MAR 4.3 METROS KILO 1.6 $140 $135 $125 145 G/M2 100% POLIÉSTER
-MEMORY METRO METRO 1.5 $30 $25 $21 108 G/M2 100% POLIÉSTER
-MERCURY 3 METROS KILO 1.6 $160 $155 $145 160 G/M2 80% POL 20% ELA
-MICRO ESTRELLA 4.3 METROS KILO 1.6 $150 $145 $135 145 G/M2 100% POLIÉSTER
-MICRO ESTRELLA COLORES 4.3 METROS KILO 1.6 $155 $150 $140 145 G/M2 100% POLIÉSTER
-MICRO JUMANJI 5.4 METROS KILO 1.6 $135 $130 $120 145 G/M2 90% POL 10% ELA
-MICRO PANAL 4.3 METROS KILO 1.6 $110 $105 $95 145 G/M2 100% POLIÉSTER
-MICRO PANAL COLORES 4.3 METROS KILO 1.6 $120 $115 $105 145 G/M2 100% POLIÉSTER
-MICRO PANAL NEON 4.3 METROS KILO 1.6 $125 $120 $110 145 G/M2 100% POLIÉSTER
-MICRO PIQUE 4.3 METROS KILO 1.6 $100 $95 $85 145 G/M2 100% POLIÉSTER
-MICRO PIQUE COLORES 4.3 METROS KILO 1.6 $115 $110 $100 145 G/M2 100% POLIÉSTER
-MICRO PIQUE FUSIONADA COLORES 2.5 METROS KILO 155 $160 $155 $145 250 G/M2 100% POLIÉSTER
-MICRO PIQUE NEON 4.3 METROS KILO 1.6 $120 $115 $105 145 G/M2 100% POLIÉSTER
-MICROFIBRA METRO METRO 1.5 $35 $30 $21 100% POLIÉSTER
-MICROFIBRA FUSIONADA METRO METRO 1.5 $70 $65 $55 100% POLIÉSTER
-MICROPIQUE DIAMANTE 4.3 METROS KILO 1.6 $140 $135 $125 145 G/M2 100% POLIÉSTER
-MICROPIQUE FUSIONADA 2.5 METROS KILO 1.55 $130 $125 $115 250 G/M2 100% POLIÉSTER
-MICROTRIX 3.6 METROS KILO 1.65 $155 $150 $140 140 G/M2 80% POL 20% ELA
-MICROTRIX COLORES 3.6 METROS KILO 1.6 $160 $155 $145 140 G/M2 80% POL 20% ELA
-MIKY 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
-MIKY COLORES 4.3 METROS KILO 1.6 $150 $145 $135 145 G/M2 100% POLIÉSTER
-MILENIO CALADO (5.8 MT) METRO METRO 1.6 $31 $26 $21 100% POLIÉSTER
-MILENIO CALADO COLORES METRO METRO 1.6 $35 $30 $25 100% POLIÉSTER
-MONACO 3.7 METROS KILO 1.6 $140 $135 $125 150 G/M2 90% POL 10% ELA
-MOSCU 4.3 METROS KILO 1.78 $140 $135 $125 140 G/M2 80% POL 20% ELA
-NAGASAKY 3.7 METROS KILO 1.6 $135 $130 $120 150 G/M2 100% POLIÉSTER
-OKLAHOMA 4.3 METROS KILO 1.6 $130 $125 $115 145 G/M2 100% POLIÉSTER
-OKLAHOMA COLORES 4.3 METROS KILO 1.6 $140 $135 $125 145 G/M2 100% POLIÉSTER
-PALMITA 10 MM 100 METROS PIEZA NA $107 $107 $107 N/A
-PALMITA 12 MM 100 METROS PIEZA NA $110 $110 $110 N/A
-PALMITA 19 MM 100 METROS PIEZA NA $142 $142 $142 N/A
-PALMITA 25 MM 100 METROS PIEZA NA $170 $170 $170 N/A
-PANAL NITRO 4.2 METROS KILO 1.6 $185 $180 $170 145 G/M2 95% POL 5% ELA
-PANAL PLUS (HEXA-DRY) 3.7 METROS KILO 1.6 $145 $140 $130 145 G/M2 100% POLIÉSTER
-PELLON ADHERIBLE 100 METROS METRO 1.5 $16 $14 $12 PELLON
-PHOENIX 4.1 METROS KILO 1.6 $165 $160 $150 145 G/M2 100% POLIÉSTER
-PIQUE 50/50 BLANCO 2.2 METROS KILO .90 MT. $170 $165 $155 220 G/M2 50% POL 50% ALG
-PIQUE 50/50 COLORES 2.2 METROS KILO .90 MT. $175 $170 $160 220 G/M2 50% POL 50% ALG
-PIQUE LACOST 4.3 METROS KILO 1.6 $140 $135 $125 145 G/M2 100% POLIÉSTER
-PIQUE POLIÉSTER 3 METROS KILO .90 MT. $145 $140 $130 180 G/M2 100% POLIÉSTER
-PIQUE SPORT (NUEVO) 2.5 METROS KILO 1.6 $140 $135 $125 100% POLIÉSTER
-PIQUE VERA 4.3 METROS KILO 1.6 $110 $105 $95 145 G/M2 100% POLIÉSTER
-PIQUE VERA COLORES 4.3 METROS KILO 1.6 $120 $115 $105 145 G/M2 100% POLIÉSTER
-PIQUE VERA NEON 4.3 METROS KILO 1.6 $125 $120 $110 145 G/M2 100% POLIÉSTER
-PIXEL 4.2 METROS KILO 1.6 $145 $140 $130 145 G/M2 100% POLIESTER
-POLAR 2.5 METROS KILO 1.6 $120 $115 $105 250 G/M2 100% POLIÉSTER
-POLAR (COLORES) 2.5 METROS KILO 1.6 $125 $120 $110 250 G/M2 100% POLIÉSTER
-POLAR CUADRO 2.5 METROS KILO 1.6 $135 $130 $120 250 G/M2 100% POLIÉSTER
-PREMIER 3 METROS KILO 1.6 $115 $110 $100 145 G/M2 100% POLIÉSTER
-PREMIER COLORES 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
-PUNTO DE ROMA 1.6 METROS KILO .90 MT. $250 $245 $240 350 G/M2 100% ACRILÁN
-RAZO SATIN METRO METRO 1.5 $30 $25 $20
-RIN SPORT (NUEVO) 2.5 METROS KILO 1.6 $130 $125 $115 100% POLIÉSTER
-ROMPEVIENTOS METRO METRO 1.5 $29 $27 $25 145 G/M2 100% POLIÉSTER
-SALUDABLE 2.3 METROS KILO 1.75 $140 $135 $125 265 G/M2 92% POL 8% ELAS
-SALUDABLE CAMUFLAJE NEGRO 2.3 METROS KILO 1.75 $135 $130 $120 265 G/M2 92% POL 8% ELAS
-SALUDABLE OLIMPIA/POLILASER 2.3 METROS KILO 1.7 $140 $135 $125 265 G/M2 92% POL 8% ELAS
-SATURNO 4.2 METROS KILO 1.6 $155 $150 $140 145 G/M2 92% POL 8% ELAS
-SOCCER 4 METROS KILO 1.6 $125 $120 $110 160 G/M2 100% POLIÉSTER
-SPORTOK (En existencia de plomo) 2.5 METROS KILO 1.6 $80 $75 $65 250 G/M2 100% POLIÉSTER
-SPORTOK (OTROS) 2.5 METROS KILO 1.6 $85 $80 $70 250 G/M2 100% POLIÉSTER
-SPORTOK NEONES 2.5 METROS KILO 1.6 $95 $90 $80 250 G/M2 100% POLIÉSTER
-SUPERTRIX 4.3 METROS KILO 1.6 $175 $170 $160 140 G/M2 80% POL 20% ELA
-SUPERTRIX COLORES 4.3 METROS KILO 1.6 $180 $175 $165 140 G/M2 80% POL 20% ELA
-TACTO PRINCESA 1.8 METROS KILO 1.5 $125 $120 $110 85% POL 15% ELA
-TAFETA (B,N,R,R,M) METRO METRO 1.5 $14 $12 $7 100% POLIÉSTER
-TAFETAN METRO METRO 1.5 $36 $31 $21 100% POLIÉSTER
-TIMBERLAND M METRO METRO 1.5 $60 $55 $45 100% POLIÉSTER
-TITANIUM 4.3 METROS KILO 1.6 $135 $130 $120 145 G/M2 100% POLIÉSTER
-TOALLIN (2.65 M X KILO) METRO METRO 1.6 $65 $60 $55 100% POLIÉSTER
-TORNEO 4.3 METROS KILO 1.6 $110 $105 $95 150 G/M2 100% POLIÉSTER
-TORNEO COLORES 4.3 METROS KILO 1.6 $120 $115 $105 150 G/M2 100% POLIÉSTER
-TRICOT METRO METRO 3.4 $30 $28 $25 145 G/M2 100% POLIÉSTER
-UNIVERSITY M METRO METRO 1.5 $25 100% POLIÉSTER
-VELURT METRO METRO 1.6 $70 $65 $60 100% POLIÉSTER
-VERA SPORT 4.3 METROS KILO 1.6 $150 $145 $135 145 G/M2 95% POL 5% ELA
-VINIPIEL METRO METRO 1.5 $75 $70 $68 100% POLIÉSTER
-ZARGA MT METRO METRO 1.6 $85 $80 $70 100% POLIÉSTER`;
-
-function parseLine(line: string) {
-  const priceMatches = line.match(/\$[\d.]+/g);
-  if (!priceMatches || priceMatches.length === 0) return null;
-
-  let priceMenudeo = parseFloat(priceMatches[0].replace('$', ''));
-  let priceMayoreo = priceMenudeo;
-  let priceRollo = priceMenudeo;
-
-  if (priceMatches.length >= 2) priceMayoreo = parseFloat(priceMatches[1].replace('$', ''));
-  if (priceMatches.length >= 3) priceRollo = parseFloat(priceMatches[2].replace('$', ''));
-
-  const prePrice = line.split(priceMatches[0])[0].trim();
-  const postPrice = line.split(priceMatches[priceMatches.length - 1])[1].trim();
-
-  let unit = 'KILO';
-  if (prePrice.includes('METRO')) unit = 'METRO';
-  if (prePrice.includes('PIEZA') || prePrice.includes('CONO')) unit = 'PIEZA';
-
-  const rendMatch = prePrice.match(/([\d.]+)\s*(METROS|MTS|MT|GRAMOS|PIEZAS|GROSOR|LARGO)/i);
-  const rendimiento = rendMatch ? parseFloat(rendMatch[1]) : null;
-
-  const anchoMatch = prePrice.match(/(\d+(\.\d+)?|NA)\s*(MT|CM|MM|LIGAS|GROSOR|")/i);
-  const ancho = anchoMatch ? anchoMatch[0] : 'N/A';
-
-  let title = prePrice
-    .replace(/[\d.]+\s*(METROS|MTS|MT|GRAMOS|PIEZAS|GROSOR|LARGO)/i, '')
-    .replace(/[\d.]+\s*(MT|CM|MM|LIGAS|GROSOR|")/i, '')
-    .replace(/\b(KILO|METRO|PIEZA|CONO|NA)\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const gramajeMatch = postPrice.match(/(\d+\s*G\/M2|\d+\s*G)/i);
-  const gramaje = gramajeMatch ? gramajeMatch[0] : 'N/A';
-  
-  const composicion = postPrice.replace(gramajeMatch ? gramajeMatch[0] : '', '').trim() || 'N/A';
-
-  const sku = 'COY-' + title.replace(/[^A-Z0-9]/gi, '').toUpperCase().substring(0, 10).padStart(4, '0');
-
-  return {
-    sku,
-    title,
-    unit: unit as any,
-    rendimiento,
-    ancho,
-    priceMenudeo,
-    priceMayoreo,
-    gramaje,
-    composicion,
-    description: `Precio Rollo: $${priceRollo} | Rendimiento: ${rendMatch ? rendMatch[0] : 'N/A'} | Ancho: ${ancho}`,
-    category: 'GENERAL',
-    isActive: true,
-    hasRollo: true
-  };
-}
+const catalog = [
+  { t: "ALASKA", r: "3.9 METROS", u: "KILO", a: "1.6", m: 140, y: 135, o: 125, g: "150 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "ANDROMEDA", r: "3.7 METROS", u: "KILO", a: "1.6", m: 155, y: 145, o: 135, g: "145 G/M2", c: "80% POL 20% ELA" },
+  { t: "APOLO", r: "3.7 METROS", u: "KILO", a: "1.6", m: 160, y: 155, o: 145, g: "150 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "ARES", r: "4.2 METROS", u: "KILO", a: "1.6", m: 115, y: 110, o: 100, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "ATHLOS", r: "4.3 METROS", u: "KILO", a: "1.6", m: 120, y: 115, o: 105, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "ATHLOS COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "BIES BOMBAY BLANCO", r: "300 GRAMOS", u: "PIEZA", a: "NA", m: 140, y: 140, o: 140, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "BIES BOMBAY COLORES", r: "300 GRAMOS", u: "PIEZA", a: "NA", m: 140, y: 140, o: 140, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "BIES SOCCER", r: "300 GRAMOS", u: "PIEZA", a: "NA", m: 150, y: 150, o: 150, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "BOMBAY (5.5 METROS RINDE 1 KILO)", r: "METRO", u: "METRO", a: "1.6", m: 25, y: 20, o: 15, g: "125 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "BOMBAY COLORES (5 METROS RINDE 1 KILO)", r: "METRO", u: "METRO", a: "1.6", m: 26, y: 21, o: 16, g: "135 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "BOMBAY NEON", r: "METRO", u: "METRO", a: "1.6", m: 31, y: 26, o: 16, g: "135 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "BROCK", r: "4.2 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "BRUSH (COLORES)", r: "6 METROS", u: "KILO", a: "1.6", m: 140, y: 135, o: 125, g: "140 G/M2", c: "95% POL 5% ELA" },
+  { t: "BRUSH (SOLO BCO RINDE 4.3 MT)", r: "4.3 METROS", u: "KILO", a: "1.6", m: 120, y: 115, o: 105, g: "N/A", c: "95% POL 5% ELA" },
+  { t: "CAPITONADA MICRO PANAL BLANCO Y COLORES", r: "METRO", u: "METRO", a: "1.5", m: 85, y: 80, o: 70, g: "70 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CAPITONADA MICRO PIQUE SENCILLO", r: "METRO", u: "METRO", a: "1.5", m: 85, y: 80, o: 70, g: "70 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CAPITONADA MICROTRIX", r: "METRO", u: "METRO", a: "1.5", m: 85, y: 80, o: 70, g: "70 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CAPITONADA TORNEO", r: "METRO", u: "METRO", a: "1.5", m: 85, y: 80, o: 70, g: "70 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CAPITONADO MICRO FIBR Y PREMIER NUBE", r: "METRO", u: "METRO", a: "1.5", m: 85, y: 80, o: 70, g: "70 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CAPITONADO MICRO FIBRA NUBES SENCILLO", r: "METRO", u: "METRO", a: "1.5", m: 85, y: 80, o: 70, g: "70 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CAPITONADO PREMIER SENCILLO", r: "METRO", u: "METRO", a: "1.5", m: 85, y: 80, o: 70, g: "70 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CAPITONADO PREMIER Y MICRO FIBRA", r: "METRO", u: "METRO", a: "1.5", m: 85, y: 80, o: 70, g: "70 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CAPITONADO ZIGZAG TEJIDO PREMIER MICRO FIBRA", r: "METRO", u: "METRO", a: "1.5", m: 110, y: 105, o: 95, g: "90 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CAPRIATI", r: "3.1 METROS", u: "KILO", a: "1.6", m: 130, y: 125, o: 115, g: "150 G/M2", c: "80% POL 20% ELA" },
+  { t: "CAPRICE", r: "4.3 METROS", u: "KILO", a: "1.6", m: 130, y: 125, o: 115, g: "140 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CAPRICE COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 155, y: 150, o: 140, g: "140 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CARDIGAN", r: "2.2 METROS", u: "KILO", a: ".90 MT.", m: 165, y: 160, o: 150, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "CARDIGAN (ACRILAN)", r: "2.2 METROS", u: "KILO", a: ".90 MT.", m: 255, y: 250, o: 240, g: "N/A", c: "100% ACRILÃN" },
+  { t: "CHICAGO", r: "4.5 METROS", u: "KILO", a: "1.7", m: 140, y: 135, o: 125, g: "150 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "CHIFON", r: "2.8 METROS", u: "KILO", a: ".90 MT.", m: 155, y: 150, o: 140, g: "195 G/M2", c: "50% POL 50% ELA" },
+  { t: "CUELLOS Y PUÃ‘OS (NUEVO)", r: "40 A 50 PIEZAS", u: "KILO", a: "NA", m: 225, y: 220, o: 210, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "DELTA", r: "4.2 METROS", u: "KILO", a: "1.6", m: 175, y: 170, o: 160, g: "145 G/M2", c: "95% POL 5% ELA" },
+  { t: "DIABLO", r: "METRO", u: "METRO", a: "1.5", m: 90, y: 85, o: 75, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "DIABLO (COLORES)", r: "METRO", u: "METRO", a: "1.5", m: 95, y: 90, o: 80, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "DUBLIN", r: "3 METROS", u: "KILO", a: "1.6", m: 125, y: 120, o: 110, g: "155 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "ELASTICO BEISBOLERO", r: "METRO 50 MT", u: "METRO", a: "2 1/2\"", m: 19, y: 19, o: 19, g: "N/A", c: "N/A" },
+  { t: "ELASTICO BLANCO (10 LIGAS)", r: "50 MT", u: "PIEZA", a: "10 LIGAS", m: 100, y: 100, o: 100, g: "N/A", c: "N/A" },
+  { t: "ELASTICO BLANCO (12 LIGAS)", r: "50 MT", u: "PIEZA", a: "12 LIGAS", m: 110, y: 110, o: 110, g: "N/A", c: "N/A" },
+  { t: "ELASTICO BLANCO (16 LIGAS)", r: "50 MT", u: "PIEZA", a: "16 LIGAS", m: 80, y: 80, o: 80, g: "N/A", c: "N/A" },
+  { t: "ELASTICO BLANCO (20 LIGAS)", r: "50 MT", u: "PIEZA", a: "20 LIGAS", m: 100, y: 100, o: 100, g: "N/A", c: "N/A" },
+  { t: "ELASTICO BLANCO (25 LIGAS)", r: "50 MT", u: "PIEZA", a: "25 LIGAS", m: 100, y: 100, o: 100, g: "N/A", c: "N/A" },
+  { t: "ELASTICO BLANCO (3 LIGAS)", r: "50 MT", u: "PIEZA", a: "3 LIGAS", m: 80, y: 80, o: 80, g: "N/A", c: "N/A" },
+  { t: "ELASTICO BLANCO (30 LIGAS)", r: "50 MT", u: "PIEZA", a: "30 LIGAS", m: 120, y: 120, o: 120, g: "N/A", c: "N/A" },
+  { t: "ELASTICO BLANCO (5 LIGAS)", r: "50 MT", u: "PIEZA", a: "5 LIGAS", m: 100, y: 100, o: 100, g: "N/A", c: "N/A" },
+  { t: "ELASTICO BLANCO (7 LIGAS)", r: "50 MT", u: "PIEZA", a: "7 LIGAS", m: 110, y: 110, o: 110, g: "N/A", c: "N/A" },
+  { t: "ELASTICO CON JARETA 3 CM", r: "50 MT", u: "PIEZA", a: "3 CM", m: 140, y: 140, o: 140, g: "N/A", c: "N/A" },
+  { t: "ELASTICO CON JARETA 4 CM", r: "50 MT", u: "PIEZA", a: "4 CM", m: 145, y: 145, o: 145, g: "N/A", c: "N/A" },
+  { t: "ELASTICO NEGRO (10 LIGAS)", r: "50 MT", u: "PIEZA", a: "10 LIGAS", m: 120, y: 120, o: 120, g: "N/A", c: "N/A" },
+  { t: "ELASTICO NEGRO (12 LIGAS)", r: "50 MT", u: "PIEZA", a: "12 LIGAS", m: 120, y: 120, o: 120, g: "N/A", c: "N/A" },
+  { t: "ELASTICO NEGRO (16 LIGAS)", r: "50 MT", u: "PIEZA", a: "16 LIGAS", m: 90, y: 90, o: 90, g: "N/A", c: "N/A" },
+  { t: "ELASTICO NEGRO (20 LIGAS)", r: "50 MT", u: "PIEZA", a: "20 LIGAS", m: 110, y: 110, o: 110, g: "N/A", c: "N/A" },
+  { t: "ELASTICO NEGRO (25 LIGAS)", r: "50 MT", u: "PIEZA", a: "25 LIGAS", m: 110, y: 110, o: 110, g: "N/A", c: "N/A" },
+  { t: "ELASTICO NEGRO (3 LIGAS)", r: "50 MT", u: "PIEZA", a: "3 LIGAS", m: 90, y: 90, o: 90, g: "N/A", c: "N/A" },
+  { t: "ELASTICO NEGRO (30 LIGAS)", r: "50 MT", u: "PIEZA", a: "30 LIGAS", m: 130, y: 130, o: 130, g: "N/A", c: "N/A" },
+  { t: "ELASTICO NEGRO (5 LIGAS)", r: "50 MT", u: "PIEZA", a: "5 LIGAS", m: 110, y: 110, o: 110, g: "N/A", c: "N/A" },
+  { t: "ELASTICO NEGRO (7 LIGAS)", r: "50 MT", u: "PIEZA", a: "7 LIGAS", m: 130, y: 130, o: 130, g: "N/A", c: "N/A" },
+  { t: "ESCAROLA 10 MM - 200MTS", r: "200 MT", u: "PIEZA", a: "10 MM", m: 300, y: 300, o: 300, g: "N/A", c: "N/A" },
+  { t: "ESCAROLA 19MM - 100MTS", r: "100 MT", u: "PIEZA", a: "19 MM", m: 500, y: 500, o: 500, g: "N/A", c: "N/A" },
+  { t: "ETIQUETAS BORDADAS", r: "50 MT", u: "PIEZA", a: "NA", m: 50, y: 50, o: 50, g: "N/A", c: "BORDADA" },
+  { t: "ETIQUETAS COMPOSICIÃ“N", r: "50 MT", u: "PIEZA", a: "NA", m: 65, y: 65, o: 65, g: "N/A", c: "NYLON" },
+  { t: "ETIQUETAS PELLON 1400 A 1500 PZ", r: "PIEZA", u: "PIEZA", a: "NA", m: 25, y: 25, o: 25, g: "N/A", c: "PELLÃ“N" },
+  { t: "F30", r: "4.3 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "F30 COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 150, y: 145, o: 135, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "FELPA CHINA", r: "2.5 METROS", u: "KILO", a: "1.6", m: 113, y: 108, o: 98, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "FELPA CHINA (NEONES)", r: "2.5 METROS", u: "KILO", a: "1.6", m: 125, y: 120, o: 110, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "FELPA GOLD", r: "2.5 METROS", u: "KILO", a: "1.6", m: 113, y: 108, o: 98, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "FELPA NACIONAL", r: "2.3 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "260 G/M2", c: "50% POL 50% ALG" },
+  { t: "FELPA SPUN", r: "2.5 METROS", u: "KILO", a: "1.6", m: 113, y: 108, o: 98, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "FLANEL", r: "2.7 METROS", u: "KILO", a: "1.5", m: 130, y: 125, o: 115, g: "240 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "FLANEL (COLORES)", r: "2.7 METROS", u: "KILO", a: "1.5", m: 130, y: 125, o: 115, g: "240 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "FRENCH TERRY", r: "2.80 MTS.", u: "KILO", a: "1.6", m: 150, y: 145, o: 135, g: "240 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "FUSIONADA ATHLOS", r: "2.5 METROS", u: "KILO", a: "1.55", m: 150, y: 145, o: 135, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "FUSIONADA PIQUE VERA", r: "2.5 METROS", u: "KILO", a: "1.55", m: 150, y: 145, o: 135, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "FUSIONADA TORNEO", r: "2.5 METROS", u: "KILO", a: "1.55", m: 150, y: 145, o: 135, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "FUSIONADAS MICRO PANAL", r: "2.5 METROS", u: "KILO", a: "1.55", m: 155, y: 150, o: 140, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "GABARDINA 100%", r: "METRO", u: "METRO", a: "1.6", m: 90, y: 85, o: 80, g: "N/A", c: "100% ALGODÃ“N" },
+  { t: "GABARDINA 70/30", r: "METRO", u: "METRO", a: "1.6", m: 80, y: 75, o: 70, g: "N/A", c: "65% ALG 35% POL" },
+  { t: "GABARDINA 80/20", r: "METRO", u: "METRO", a: "1.6", m: 75, y: 70, o: 60, g: "N/A", c: "80% ALG 20% POL" },
+  { t: "GABARDINA 90/10", r: "METRO", u: "METRO", a: "1.6", m: 60, y: 55, o: 50, g: "N/A", c: "90% POL 10% ELA" },
+  { t: "GOLF", r: "4.3 METROS", u: "KILO", a: "1.6", m: 130, y: 125, o: 120, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "GRAN BAY", r: "METRO", u: "METRO", a: "1.6", m: 45, y: 40, o: 35, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "GRANIZO", r: "4.3 METROS", u: "KILO", a: "1.6", m: 105, y: 100, o: 90, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "GRANIZO COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "HILO KINGTEX 5000 M", r: "0.05 GROSOR", u: "PIEZA", a: "NA", m: 40, y: 38, o: 38, g: "200 G", c: "N/A" },
+  { t: "HIROSHIMA", r: "2.5 METROS", u: "KILO", a: "1.8", m: 145, y: 140, o: 130, g: "245 G/M2", c: "80% POL 20% ELA" },
+  { t: "HOPPER", r: "4.2 METROS", u: "KILO", a: "1.6", m: 155, y: 150, o: 140, g: "145 G/M2", c: "95% POL 5% ELA" },
+  { t: "HOROUS (WAFFLE)", r: "4.65 METROS", u: "KILO", a: "1.6", m: 130, y: 125, o: 115, g: "145 G/M2", c: "100% POLIESTER" },
+  { t: "HOUSTON", r: "4.6 METROS", u: "KILO", a: "1.6", m: 155, y: 150, o: 140, g: "135 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "INTER 70", r: "4.3 METROS", u: "KILO", a: "1.6", m: 140, y: 135, o: 125, g: "145 G/M2", c: "95% POL 5% ELA" },
+  { t: "INTER 70 COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 150, y: 145, o: 135, g: "145 G/M2", c: "95% POL 5% ELA" },
+  { t: "INTERLOCK", r: "2.2 METROS", u: "KILO", a: ".90 MT.", m: 155, y: 150, o: 140, g: "240 G/M2", c: "50% POL 50% ALG" },
+  { t: "JARETA 200 M LARGO", r: "0.5 GROSOR", u: "PIEZA", a: "NA", m: 135, y: 135, o: 135, g: "N/A", c: "N/A" },
+  { t: "JUMANJI", r: "4.4 METROS", u: "KILO", a: "1.6", m: 145, y: 140, o: 130, g: "140 G/M2", c: "80% POL 20% ELA" },
+  { t: "JURLY 100 MT X ROLLO", r: "METRO", u: "METRO", a: "1.5", m: 35, y: 30, o: 25, g: "135 G/M2", c: "95% POL 5% ELA" },
+  { t: "JURLY (COLORES) 100 MT X ROLLO", r: "METRO", u: "METRO", a: "1.5", m: 40, y: 35, o: 30, g: "135 G/M2", c: "95% POL 5% ELA" },
+  { t: "KYOTO", r: "4 METROS", u: "KILO", a: "1.6", m: 145, y: 140, o: 130, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "LICRA JAPONESA", r: "4 METROS", u: "KILO", a: "1.8", m: 140, y: 135, o: 125, g: "290 G/M2", c: "80% POL 20% ELA" },
+  { t: "LICRA LULU", r: "2.25 METROS", u: "KILO", a: "1.63", m: 140, y: 135, o: 125, g: "290 G/M2", c: "84% POL 16% ELA" },
+  { t: "LICRA METALICA", r: "METRO", u: "METRO", a: "1.5", m: 50, y: 45, o: 40, g: "N/A", c: "70% POL 30% ELA" },
+  { t: "LICRA PLAYERA", r: "4.7 METROS", u: "KILO", a: "1.6", m: 130, y: 125, o: 115, g: "265 G/M2", c: "80% POL 20% ELA" },
+  { t: "LICRA PLAYERA COLORES", r: "4.7 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "265 G/M2", c: "80% POL 20% ELA" },
+  { t: "LICRA POLIESTER B/N/ROJO", r: "2.6 METROS", u: "KILO", a: "1.55", m: 145, y: 140, o: 130, g: "265 G/M2", c: "80% POL 20% ELA" },
+  { t: "LICRA POLIESTER COLORES", r: "2.6 METROS", u: "KILO", a: "1.55", m: 145, y: 140, o: 130, g: "265 G/M2", c: "80% POL 20% ELA" },
+  { t: "LIVERPOOL", r: "4.3 METROS", u: "KILO", a: "1.6", m: 130, y: 125, o: 115, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MACUCO (rinde 3.8 mt por 1 kilo)", r: "METRO", u: "METRO", a: "1.6", m: 45, y: 40, o: 30, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "MADELINO", r: "4.2 METROS", u: "KILO", a: "1.6", m: 155, y: 150, o: 140, g: "145 G/M2", c: "95% POL 5% ELA" },
+  { t: "MAR", r: "4.3 METROS", u: "KILO", a: "1.6", m: 140, y: 135, o: 125, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MEMORY", r: "METRO", u: "METRO", a: "1.5", m: 30, y: 25, o: 21, g: "108 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MERCURY", r: "3 METROS", u: "KILO", a: "1.6", m: 160, y: 155, o: 145, g: "160 G/M2", c: "80% POL 20% ELA" },
+  { t: "MICRO ESTRELLA", r: "4.3 METROS", u: "KILO", a: "1.6", m: 150, y: 145, o: 135, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MICRO ESTRELLA COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 155, y: 150, o: 140, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MICRO JUMANJI", r: "5.4 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "145 G/M2", c: "90% POL 10% ELA" },
+  { t: "MICRO PANAL", r: "4.3 METROS", u: "KILO", a: "1.6", m: 110, y: 105, o: 95, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MICRO PANAL COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 120, y: 115, o: 105, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MICRO PANAL NEON", r: "4.3 METROS", u: "KILO", a: "1.6", m: 125, y: 120, o: 110, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MICRO PIQUE", r: "4.3 METROS", u: "KILO", a: "1.6", m: 100, y: 95, o: 85, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MICRO PIQUE COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 115, y: 110, o: 100, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MICRO PIQUE FUSIONADA COLORES", r: "2.5 METROS", u: "KILO", a: "155", m: 160, y: 155, o: 145, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MICRO PIQUE NEON", r: "4.3 METROS", u: "KILO", a: "1.6", m: 120, y: 115, o: 105, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MICROFIBRA", r: "METRO", u: "METRO", a: "1.5", m: 35, y: 30, o: 21, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "MICROFIBRA FUSIONADA", r: "METRO", u: "METRO", a: "1.5", m: 70, y: 65, o: 55, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "MICROPIQUE DIAMANTE", r: "4.3 METROS", u: "KILO", a: "1.6", m: 140, y: 135, o: 125, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MICROPIQUE FUSIONADA", r: "2.5 METROS", u: "KILO", a: "1.55", m: 130, y: 125, o: 115, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MICROTRIX", r: "3.6 METROS", u: "KILO", a: "1.65", m: 155, y: 150, o: 140, g: "140 G/M2", c: "80% POL 20% ELA" },
+  { t: "MICROTRIX COLORES", r: "3.6 METROS", u: "KILO", a: "1.6", m: 160, y: 155, o: 145, g: "140 G/M2", c: "80% POL 20% ELA" },
+  { t: "MIKY", r: "4.3 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MIKY COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 150, y: 145, o: 135, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "MILENIO CALADO (5.8 MT)", r: "METRO", u: "METRO", a: "1.6", m: 31, y: 26, o: 21, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "MILENIO CALADO COLORES", r: "METRO", u: "METRO", a: "1.6", m: 35, y: 30, o: 25, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "MONACO", r: "3.7 METROS", u: "KILO", a: "1.6", m: 140, y: 135, o: 125, g: "150 G/M2", c: "90% POL 10% ELA" },
+  { t: "MOSCU", r: "4.3 METROS", u: "KILO", a: "1.78", m: 140, y: 135, o: 125, g: "140 G/M2", c: "80% POL 20% ELA" },
+  { t: "NAGASAKY", r: "3.7 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "150 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "OKLAHOMA", r: "4.3 METROS", u: "KILO", a: "1.6", m: 130, y: 125, o: 115, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "OKLAHOMA COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 140, y: 135, o: 125, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "PALMITA 10 MM 100 METROS", r: "PIEZA", u: "PIEZA", a: "NA", m: 107, y: 107, o: 107, g: "N/A", c: "N/A" },
+  { t: "PALMITA 12 MM 100 METROS", r: "PIEZA", u: "PIEZA", a: "NA", m: 110, y: 110, o: 110, g: "N/A", c: "N/A" },
+  { t: "PALMITA 19 MM 100 METROS", r: "PIEZA", u: "PIEZA", a: "NA", m: 142, y: 142, o: 142, g: "N/A", c: "N/A" },
+  { t: "PALMITA 25 MM 100 METROS", r: "PIEZA", u: "PIEZA", a: "NA", m: 170, y: 170, o: 170, g: "N/A", c: "N/A" },
+  { t: "PANAL NITRO", r: "4.2 METROS", u: "KILO", a: "1.6", m: 185, y: 180, o: 170, g: "145 G/M2", c: "95% POL 5% ELA" },
+  { t: "PANAL PLUS (HEXA-DRY)", r: "3.7 METROS", u: "KILO", a: "1.6", m: 145, y: 140, o: 130, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "PELLON ADHERIBLE 100 METROS", r: "METRO", u: "METRO", a: "1.5", m: 16, y: 14, o: 12, g: "N/A", c: "PELLON" },
+  { t: "PHOENIX", r: "4.1 METROS", u: "KILO", a: "1.6", m: 165, y: 160, o: 150, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "PIQUE 50/50 BLANCO", r: "2.2 METROS", u: "KILO", a: ".90 MT.", m: 170, y: 165, o: 155, g: "220 G/M2", c: "50% POL 50% ALG" },
+  { t: "PIQUE 50/50 COLORES", r: "2.2 METROS", u: "KILO", a: ".90 MT.", m: 175, y: 170, o: 160, g: "220 G/M2", c: "50% POL 50% ALG" },
+  { t: "PIQUE LACOST", r: "4.3 METROS", u: "KILO", a: "1.6", m: 140, y: 135, o: 125, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "PIQUE POLIÃ‰STER", r: "3 METROS", u: "KILO", a: ".90 MT.", m: 145, y: 140, o: 130, g: "180 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "PIQUE SPORT (NUEVO)", r: "2.5 METROS", u: "KILO", a: "1.6", m: 140, y: 135, o: 125, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "PIQUE VERA", r: "4.3 METROS", u: "KILO", a: "1.6", m: 110, y: 105, o: 95, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "PIQUE VERA COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 120, y: 115, o: 105, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "PIQUE VERA NEON", r: "4.3 METROS", u: "KILO", a: "1.6", m: 125, y: 120, o: 110, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "PIXEL", r: "4.2 METROS", u: "KILO", a: "1.6", m: 145, y: 140, o: 130, g: "145 G/M2", c: "100% POLIESTER" },
+  { t: "POLAR", r: "2.5 METROS", u: "KILO", a: "1.6", m: 120, y: 115, o: 105, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "POLAR (COLORES)", r: "2.5 METROS", u: "KILO", a: "1.6", m: 125, y: 120, o: 110, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "POLAR CUADRO", r: "2.5 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "PREMIER", r: "3 METROS", u: "KILO", a: "1.6", m: 115, y: 110, o: 100, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "PREMIER COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "PUNTO DE ROMA", r: "1.6 METROS", u: "KILO", a: ".90 MT.", m: 250, y: 245, o: 240, g: "350 G/M2", c: "100% ACRILÃN" },
+  { t: "RAZO SATIN", r: "METRO", u: "METRO", a: "1.5", m: 30, y: 25, o: 20, g: "N/A", c: "N/A" },
+  { t: "RIN SPORT (NUEVO)", r: "2.5 METROS", u: "KILO", a: "1.6", m: 130, y: 125, o: 115, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "ROMPEVIENTOS", r: "METRO", u: "METRO", a: "1.5", m: 29, y: 27, o: 25, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "SALUDABLE", r: "2.3 METROS", u: "KILO", a: "1.75", m: 140, y: 135, o: 125, g: "265 G/M2", c: "92% POL 8% ELAS" },
+  { t: "SALUDABLE CAMUFLAJE NEGRO", r: "2.3 METROS", u: "KILO", a: "1.75", m: 135, y: 130, o: 120, g: "265 G/M2", c: "92% POL 8% ELAS" },
+  { t: "SALUDABLE OLIMPIA/POLILASER", r: "2.3 METROS", u: "KILO", a: "1.7", m: 140, y: 135, o: 125, g: "265 G/M2", c: "92% POL 8% ELAS" },
+  { t: "SATURNO", r: "4.2 METROS", u: "KILO", a: "1.6", m: 155, y: 150, o: 140, g: "145 G/M2", c: "92% POL 8% ELAS" },
+  { t: "SOCCER", r: "4 METROS", u: "KILO", a: "1.6", m: 125, y: 120, o: 110, g: "160 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "SPORTOK (En existencia de plomo)", r: "2.5 METROS", u: "KILO", a: "1.6", m: 80, y: 75, o: 65, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "SPORTOK (OTROS)", r: "2.5 METROS", u: "KILO", a: "1.6", m: 85, y: 80, o: 70, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "SPORTOK NEONES", r: "2.5 METROS", u: "KILO", a: "1.6", m: 95, y: 90, o: 80, g: "250 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "SUPERTRIX", r: "4.3 METROS", u: "KILO", a: "1.6", m: 175, y: 170, o: 160, g: "140 G/M2", c: "80% POL 20% ELA" },
+  { t: "SUPERTRIX COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 180, y: 175, o: 165, g: "140 G/M2", c: "80% POL 20% ELA" },
+  { t: "TACTO PRINCESA", r: "1.8 METROS", u: "KILO", a: "1.5", m: 125, y: 120, o: 110, g: "N/A", c: "85% POL 15% ELA" },
+  { t: "TAFETA (B,N,R,R,M)", r: "METRO", u: "METRO", a: "1.5", m: 14, y: 12, o: 7, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "TAFETAN", r: "METRO", u: "METRO", a: "1.5", m: 36, y: 31, o: 21, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "TIMBERLAND M", r: "METRO", u: "METRO", a: "1.5", m: 60, y: 55, o: 45, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "TITANIUM", r: "4.3 METROS", u: "KILO", a: "1.6", m: 135, y: 130, o: 120, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "TOALLIN (2.65 M X KILO)", r: "METRO", u: "METRO", a: "1.6", m: 65, y: 60, o: 55, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "TORNEO", r: "4.3 METROS", u: "KILO", a: "1.6", m: 110, y: 105, o: 95, g: "150 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "TORNEO COLORES", r: "4.3 METROS", u: "KILO", a: "1.6", m: 120, y: 115, o: 105, g: "150 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "TRICOT", r: "METRO", u: "METRO", a: "3.4", m: 30, y: 28, o: 25, g: "145 G/M2", c: "100% POLIÃ‰STER" },
+  { t: "UNIVERSITY M", r: "METRO", u: "METRO", a: "1.5", m: 25, y: 25, o: 25, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "VELURT", r: "METRO", u: "METRO", a: "1.6", m: 70, y: 65, o: 60, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "VERA SPORT", r: "4.3 METROS", u: "KILO", a: "1.6", m: 150, y: 145, o: 135, g: "145 G/M2", c: "95% POL 5% ELA" },
+  { t: "VINIPIEL", r: "METRO", u: "METRO", a: "1.5", m: 75, y: 70, o: 68, g: "N/A", c: "100% POLIÃ‰STER" },
+  { t: "ZARGA MT", r: "METRO", u: "METRO", a: "1.6", m: 85, y: 80, o: 70, g: "N/A", c: "100% POLIÃ‰STER" }
+];
 
 async function main() {
   console.log('Forjando llaves maestras...');
-
   const admins = [
     { email: 'jackrizk@coyotetextil.com', name: 'Jack Rizk', pass: 'JackCoyote2026!' },
     { email: 'stephanyrizk@coyotetextil.com', name: 'Stephany Rizk', pass: 'StephanyCoyote2026!' }
   ];
-
   for (const admin of admins) {
     const hashedPassword = await bcrypt.hash(admin.pass, 10);
     await prisma.employee.upsert({
@@ -260,13 +205,11 @@ async function main() {
       create: { email: admin.email, name: admin.name, password: hashedPassword, role: 'ADMIN', isActive: true },
     });
   }
-
   const vendedoras = [
     { email: 'valeria@coyotetextil.com', name: 'Valeria', pass: 'ValeriaVentas01' },
     { email: 'paula@coyotetextil.com', name: 'Paula', pass: 'PaulaVentas02' },
     { email: 'katia@coyotetextil.com', name: 'Katia', pass: 'KatiaVentas03' }
   ];
-
   for (const vendedora of vendedoras) {
     const hashedPassword = await bcrypt.hash(vendedora.pass, 10);
     await prisma.employee.upsert({
@@ -276,40 +219,51 @@ async function main() {
     });
   }
 
-  console.log('Cargando catálogo de productos Coyote en Prisma...');
-  const lines = rawCatalog.trim().split('\n');
+  console.log('Cargando catÃ¡logo exacto y manual de productos Coyote...');
   let count = 0;
-
-  for (const line of lines) {
-    if (!line.trim() || line.includes('Lista de Precios')) continue;
-    const p = parseLine(line);
-    if (p) {
-      await prisma.product.upsert({
-        where: { sku: p.sku },
-        update: {
-          title: p.title,
-          unit: p.unit,
-          rendimiento: p.rendimiento,
-          ancho: p.ancho,
-          priceMenudeo: p.priceMenudeo,
-          priceMayoreo: p.priceMayoreo,
-          gramaje: p.gramaje,
-          composicion: p.composicion,
-          description: p.description,
-          category: p.category,
-          isActive: p.isActive
-        },
-        create: p,
-      });
-      count++;
-    }
+  for (const p of catalog) {
+    const sku = 'COY-' + p.t.replace(/[^A-Z0-9]/gi, '').toUpperCase().substring(0, 10).padStart(4, '0');
+    await prisma.product.upsert({
+      where: { sku },
+      update: {
+        title: p.t,
+        unit: p.u as any,
+        rendimiento: p.r,
+        ancho: p.a,
+        priceMenudeo: p.m,
+        priceMayoreo: p.y,
+        priceRollo: p.o,
+        gramaje: p.g,
+        composicion: p.c,
+        description: `Rinde: ${p.r} | Ancho: ${p.a} | Gramaje: ${p.g} | ComposiciÃ³n: ${p.c}`,
+        category: 'GENERAL',
+        isActive: true
+      },
+      create: {
+        sku,
+        title: p.t,
+        unit: p.u as any,
+        rendimiento: p.r,
+        ancho: p.a,
+        priceMenudeo: p.m,
+        priceMayoreo: p.y,
+        priceRollo: p.o,
+        gramaje: p.g,
+        composicion: p.c,
+        description: `Rinde: ${p.r} | Ancho: ${p.a} | Gramaje: ${p.g} | ComposiciÃ³n: ${p.c}`,
+        category: 'GENERAL',
+        isActive: true,
+        hasRollo: true
+      },
+    });
+    count++;
   }
-  console.log(`${count} productos cargados exitosamente.`);
+  console.log(`${count} productos cargados con precisiÃ³n absoluta.`);
 }
 
 main()
   .then(async () => {
-    console.log("Semilla ejecutada con éxito. La Jauría está en Supabase.");
+    console.log("Semilla ejecutada con Ã©xito. La JaurÃ­a estÃ¡ en Supabase.");
     await prisma.$disconnect();
   })
   .catch(async (e) => {

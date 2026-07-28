@@ -126,7 +126,7 @@ model Product {
   composicion         String?
   gramaje             String?
   ancho               String?
-  rendimiento         Float?
+  rendimiento         String?
   priceMenudeo        Float
   priceMayoreo        Float
   priceRollo          Float?
