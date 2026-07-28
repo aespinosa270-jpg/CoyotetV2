@@ -304,12 +304,12 @@ function Vender({ productos, setProductos, ubicacion, setUbicacion, setHistorial
             const t = tinte(productos.indexOf(p));
             const disp = stockEn(p) - consumoDe(p);
             const sinRegistro = disp <= 0;
-            const bajo = !agotado && disp <= p.minimo;
+            const bajo = !sinRegistro && disp <= p.minimo;
             const enCarro = consumoDe(p);
             return (
               <div key={p.id} className="prod" style={{ "--bg": sinRegistro ? "#DADADA" : t.bg, "--ink": sinRegistro ? "#888" : t.ink, "--soft": t.soft }}>
                 <div className="prod-name">{p.nombre}</div>
-                {agotado
+                {sinRegistro
                   ? <div className="prod-stock prod-out">Sin registro · puedes vender</div>
                   : bajo
                     ? <div className="prod-stock prod-low">¡Quedan {disp} {p.unidad}!</div>
