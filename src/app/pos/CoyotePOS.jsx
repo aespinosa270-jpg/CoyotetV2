@@ -111,7 +111,7 @@ export default function CoyotePOS({ initialProducts }) {
 
   // Ya en el navegador: cargamos lo guardado en localStorage
   useEffect(() => {
-    if (initialProducts) DB.save("productos", initialProducts); setProductos(DB.load("productos", initialProducts || SEED_PROD));
+    if (initialProducts && !DB.load("productos", null)) { DB.save("productos", initialProducts); setProductos(initialProducts); } else { setProductos(DB.load("productos", initialProducts || SEED_PROD)); }
     setHistorial(DB.load("historial", SEED_MOVS));
     setTickets(DB.load("tickets", []));
     setUbicacion(DB.load("ubicacion", "guatemala"));
